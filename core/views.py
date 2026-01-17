@@ -106,3 +106,89 @@ def student_me(request: HttpRequest):
             },
         }
     )
+from django.db.models import Prefetch
+from .models import Session, SessionTask, StudentSession, StudentTaskProgress
+
+
+def _require_student(request: HttpRequest):
+    student_id = request.session.get("student_id")
+    if not student_id:
+        return None
+    return student_id
+
+
+def student_active_session(request: HttpRequest):
+    """
+    GET /api/student/active-session
+    """
+    student_id = _require_student(request)
+    if not student_id:
+        return JsonResponse({"ok": False, "error": "not authenticated"}, status=401)
+
+    class_id = request.session.get("student_class_id")
+    if not class_id:
+        return JsonResponse({"ok": False, "error": "invalid session"}, status=401)
+
+    # Ищем активную running-сессию для класса
+    now = timezone.now()
+    session = (
+        Session.objects.filter(
+            status=Session.Status.RUNNING,
+            allowed_classes__id=class_id,
+        )
+        .distinct()
+        .order_by("-starts_at", "-created_at")
+        .first()
+    )
+
+    if not session or not session.is_active_now():
+        return JsonResponse(
+            {"ok": True, "active": False, "message": "Текущая сессия неактивна"},
+            status=200
+        )
+
+    # Создаем/получаем StudentSession
+    ss, created = StudentSession.objects.get_or_create(
+        student_id=student_id,
+        session=session,
+        defaults={"started_at": now, "last_seen_at": now},
+    )
+    if not created:
+        ss.last_seen_at = now
+        ss.save(update_fields=["last_seen_at"])
+
+    # Берём задачи сессии
+    tasks = list(
+        SessionTask.objects.filter(session=session).order_by("position").values(
+            "id", "position", "title"
+        )
+    )
+
+    # Берём прогресс по задачам (если прогресса нет — создадим на следующем шаге, когда откроют задачу)
+    progress_qs = StudentTaskProgress.objects.filter(student_session=ss).values(
+        "task_id", "status", "attempts_total", "attempts_failed"
+    )
+    progress_map = {p["task_id"]: p for p in progress_qs}
+
+    tasks_out = []
+    for t in tasks:
+        p = progress_map.get(t["id"])
+        tasks_out.append({
+            "id": t["id"],
+            "position": t["position"],
+            "title": t["title"],
+            "progress": p or {"status": "not_started", "attempts_total": 0, "attempts_failed": 0},
+        })
+
+    return JsonResponse({
+        "ok": True,
+        "active": True,
+        "session": {
+            "id": session.id,
+            "title": session.title,
+            "description": session.description,
+            "starts_at": session.starts_at.isoformat() if session.starts_at else None,
+            "ends_at": session.ends_at.isoformat() if session.ends_at else None,
+        },
+        "tasks": tasks_out
+    })

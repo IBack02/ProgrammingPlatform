@@ -7,7 +7,9 @@ from .models import (
     Submission,
     ActivityEvent, ActivityAggregate,
 )
-
+from django.contrib import admin
+from .models import ClassGroup, Student
+from .forms import StudentAdminForm
 
 @admin.register(ClassGroup)
 class ClassGroupAdmin(admin.ModelAdmin):
@@ -17,13 +19,14 @@ class ClassGroupAdmin(admin.ModelAdmin):
 
 @admin.register(Student)
 class StudentAdmin(admin.ModelAdmin):
+    form = StudentAdminForm
     list_display = ("full_name", "class_group", "is_active", "created_at")
     list_filter = ("class_group", "is_active")
     search_fields = ("full_name",)
-
-    # Удобно, чтобы вводить PIN при создании/редактировании вручную:
     readonly_fields = ("created_at",)
 
+    # pin_hash не показываем, чтобы не путать
+    exclude = ("pin_hash",)
     def save_model(self, request, obj, form, change):
         """
         Если ты хочешь вводить pin_hash как обычный PIN в админке,
