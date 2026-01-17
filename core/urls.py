@@ -9,3 +9,4 @@ urlpatterns = [
     path("api/student/task/<int:task_id>", views.student_task_detail),
     path("api/student/task/<int:task_id>/submit", views.student_submit),
 ]
+

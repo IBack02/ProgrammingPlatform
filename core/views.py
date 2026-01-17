@@ -398,3 +398,4 @@ def student_submit(request: HttpRequest, task_id: int):
             "hint2_available": bool(progress.hint2_unlocked_at),
         }
     })
+
