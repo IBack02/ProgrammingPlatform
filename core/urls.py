@@ -8,5 +8,9 @@ urlpatterns = [
     path("api/student/active-session", views.student_active_session),
     path("api/student/task/<int:task_id>", views.student_task_detail),
     path("api/student/task/<int:task_id>/submit", views.student_submit),
+    path("student/login/", views.student_login_page),
+    path("student/", views.student_portal_page),
+    path("student/logout/", views.student_logout_page),
+
 ]
 

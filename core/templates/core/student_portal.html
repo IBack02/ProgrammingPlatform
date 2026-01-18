@@ -1,0 +1,288 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Student Portal</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin:0; background:#f6f7fb; }
+    .layout { display:flex; height:100vh; }
+    .sidebar { width: 280px; background:#fff; border-right:1px solid #e5e7eb; padding: 16px; box-sizing:border-box; overflow:auto; }
+    .content { flex:1; padding: 18px; overflow:auto; }
+    .top { display:flex; justify-content:space-between; align-items:center; margin-bottom: 12px; }
+    .title { font-size:18px; font-weight:700; }
+    .small { color:#555; font-size:12px; }
+    .taskbtn { width:100%; text-align:left; padding:10px; border:1px solid #e5e7eb; border-radius:10px; background:#fff; margin-bottom:8px; cursor:pointer; }
+    .taskbtn.active { border-color:#0ea5e9; box-shadow: 0 0 0 2px rgba(14,165,233,.15); }
+    .badge { float:right; font-size:11px; padding:2px 6px; border-radius:999px; background:#eef2ff; }
+    .card { background:#fff; border:1px solid #e5e7eb; border-radius:12px; padding: 14px; margin-bottom: 12px; }
+    pre { background:#0b1020; color:#d1d5db; padding: 10px; border-radius:10px; overflow:auto; }
+    textarea { width:100%; height:240px; border:1px solid #cbd5e1; border-radius:12px; padding: 12px; font-family: Consolas, monospace; font-size: 13px; box-sizing:border-box; }
+    button.primary { background:#0ea5e9; color:#fff; border:0; padding:10px 14px; border-radius:10px; cursor:pointer; }
+    button.ghost { background:#fff; color:#111827; border:1px solid #e5e7eb; padding:10px 14px; border-radius:10px; cursor:pointer; }
+    .row { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+    .msg { padding: 10px; border-radius: 10px; background:#fff7ed; border:1px solid #fed7aa; }
+    .hintbox { padding: 10px; border-radius: 10px; background:#ecfeff; border:1px solid #a5f3fc; }
+    .muted { color:#6b7280; }
+    .danger { color:#b91c1c; }
+    .ok { color:#166534; }
+    a { color:#0ea5e9; text-decoration:none; }
+  </style>
+</head>
+<body>
+<div class="layout">
+  <div class="sidebar">
+    <div class="top">
+      <div>
+        <div class="title" id="studentName">Student</div>
+        <div class="small" id="studentClass"></div>
+      </div>
+      <form method="post" action="/student/logout/">
+        {% csrf_token %}
+        <button class="ghost" type="submit">Выйти</button>
+      </form>
+    </div>
+
+    <div class="card">
+      <div class="title" id="sessionTitle">Сессия</div>
+      <div class="small" id="sessionTime"></div>
+      <div class="small muted" id="sessionDesc"></div>
+    </div>
+
+    <div id="taskList"></div>
+
+    <div class="card">
+      <div class="row">
+        <div class="small">Подсказка:</div>
+        <div class="small" id="hintState">недоступно</div>
+      </div>
+      <div class="small muted">Откроется после 5/8 неудачных попыток.</div>
+    </div>
+  </div>
+
+  <div class="content">
+    <div id="statusBox" class="msg" style="display:none;"></div>
+
+    <div class="card" id="taskCard" style="display:none;">
+      <div class="title" id="taskTitle"></div>
+      <div class="small muted" id="taskMeta"></div>
+      <hr style="border:none;border-top:1px solid #e5e7eb;margin:12px 0;">
+      <div id="taskStatement"></div>
+      <div style="margin-top:10px;"></div>
+      <div class="small"><b>Constraints:</b></div>
+      <div class="small" id="taskConstraints"></div>
+
+      <div style="margin-top:12px;"></div>
+      <div class="small"><b>Примеры тестов:</b></div>
+      <div id="visibleTests"></div>
+    </div>
+
+    <div class="card" id="editorCard" style="display:none;">
+      <div class="row" style="justify-content:space-between;">
+        <div>
+          <div class="title">Код (Python)</div>
+          <div class="small muted">Пока проверка — заглушка, но запросы/счётчики работают.</div>
+        </div>
+        <button class="primary" id="submitBtn">Submit</button>
+      </div>
+
+      <div style="margin-top:10px;"></div>
+      <textarea id="codeArea">print("Hello")</textarea>
+
+      <div style="margin-top:12px;"></div>
+      <div class="card" id="resultCard" style="display:none;">
+        <div class="row">
+          <div><b>Verdict:</b> <span id="verdict"></span></div>
+          <div class="muted" id="attemptsInfo"></div>
+        </div>
+        <div id="stderrBox" class="danger" style="margin-top:10px;white-space:pre-wrap;"></div>
+        <div id="stdoutBox" class="ok" style="margin-top:10px;white-space:pre-wrap;"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  let currentTaskId = null;
+
+  function qs(id){ return document.getElementById(id); }
+
+  function showStatus(text){
+    const el = qs("statusBox");
+    el.style.display = "block";
+    el.textContent = text;
+  }
+  function hideStatus(){
+    qs("statusBox").style.display = "none";
+  }
+
+  function setHintState(p){
+    const state = qs("hintState");
+    if (p.hint2_available) state.textContent = "доступна подсказка 2 уровня";
+    else if (p.hint1_available) state.textContent = "доступна подсказка 1 уровня";
+    else state.textContent = "недоступно";
+  }
+
+  async function apiGet(url){
+    const r = await fetch(url, { credentials: "include" });
+    return { status: r.status, data: await r.json() };
+  }
+  async function apiPost(url, body){
+    const r = await fetch(url, {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body)
+    });
+    return { status: r.status, data: await r.json() };
+  }
+
+  function renderTasks(tasks){
+    const list = qs("taskList");
+    list.innerHTML = "";
+
+    if (!tasks || tasks.length === 0){
+      list.innerHTML = '<div class="card"><div class="small muted">В этой сессии пока нет задач.</div></div>';
+      return;
+    }
+
+    tasks.forEach(t => {
+      const btn = document.createElement("button");
+      btn.className = "taskbtn";
+      btn.dataset.id = t.id;
+
+      const st = t.progress?.status || "not_started";
+      const badge = document.createElement("span");
+      badge.className = "badge";
+      badge.textContent = st;
+
+      btn.textContent = `${t.position}. ${t.title}`;
+      btn.appendChild(badge);
+
+      btn.onclick = () => openTask(t.id, btn);
+      list.appendChild(btn);
+    });
+  }
+
+  async function openTask(taskId, btn){
+    currentTaskId = taskId;
+    document.querySelectorAll(".taskbtn").forEach(b => b.classList.remove("active"));
+    if (btn) btn.classList.add("active");
+
+    hideStatus();
+
+    const res = await apiGet(`/api/student/task/${taskId}`);
+    if (!res.data.ok){
+      showStatus(res.data.error || "Ошибка загрузки задачи");
+      return;
+    }
+
+    if (res.data.locked){
+      showStatus(res.data.message || "Задача недоступна");
+      qs("taskCard").style.display = "none";
+      qs("editorCard").style.display = "none";
+      return;
+    }
+
+    qs("taskCard").style.display = "block";
+    qs("editorCard").style.display = "block";
+
+    qs("taskTitle").textContent = res.data.task.title;
+    qs("taskMeta").textContent = `Task #${res.data.task.position} (id=${res.data.task.id})`;
+    qs("taskStatement").textContent = res.data.task.statement;
+    qs("taskConstraints").textContent = res.data.task.constraints || "—";
+
+    setHintState(res.data.progress);
+
+    const vt = qs("visibleTests");
+    vt.innerHTML = "";
+    (res.data.visible_testcases || []).forEach(tc => {
+      const wrap = document.createElement("div");
+      wrap.className = "card";
+      wrap.innerHTML = `
+        <div class="small"><b>Test ${tc.ordinal}</b></div>
+        <div class="small muted">Input:</div>
+        <pre>${escapeHtml(tc.stdin)}</pre>
+        <div class="small muted">Output:</div>
+        <pre>${escapeHtml(tc.expected_stdout)}</pre>
+      `;
+      vt.appendChild(wrap);
+    });
+  }
+
+  function escapeHtml(s){
+    return (s || "")
+      .replaceAll("&","&amp;")
+      .replaceAll("<","&lt;")
+      .replaceAll(">","&gt;");
+  }
+
+  async function submit(){
+    if (!currentTaskId){
+      showStatus("Выберите задачу слева.");
+      return;
+    }
+
+    const code = qs("codeArea").value || "";
+    const res = await apiPost(`/api/student/task/${currentTaskId}/submit`, { code });
+
+    if (!res.data.ok){
+      showStatus(res.data.error || "Submit error");
+      return;
+    }
+
+    const sub = res.data.submission;
+    const p = res.data.progress;
+
+    qs("resultCard").style.display = "block";
+    qs("verdict").textContent = sub.verdict;
+    qs("attemptsInfo").textContent = `attempts: ${p.attempts_total}, failed: ${p.attempts_failed}`;
+
+    qs("stderrBox").textContent = sub.stderr || "";
+    qs("stdoutBox").textContent = sub.stdout || "";
+
+    setHintState(p);
+  }
+
+  async function init(){
+    // показываем student info из /api/auth/student-me
+    const me = await apiGet("/api/auth/student-me");
+    if (me.status === 401){
+      window.location.href = "/student/login/";
+      return;
+    }
+    qs("studentName").textContent = me.data.student.full_name;
+    qs("studentClass").textContent = "Class: " + me.data.student.class.name;
+
+    // активная сессия
+    const res = await apiGet("/api/student/active-session");
+    if (!res.data.ok){
+      showStatus(res.data.error || "Ошибка загрузки сессии");
+      return;
+    }
+    if (!res.data.active){
+      showStatus(res.data.message || "Сессия неактивна");
+      qs("sessionTitle").textContent = "Сессия неактивна";
+      qs("taskList").innerHTML = "";
+      return;
+    }
+
+    qs("sessionTitle").textContent = res.data.session.title;
+    qs("sessionDesc").textContent = res.data.session.description || "";
+    qs("sessionTime").textContent = `start: ${res.data.session.starts_at || "—"} | end: ${res.data.session.ends_at || "—"}`;
+
+    renderTasks(res.data.tasks);
+
+    // авто-открываем первую задачу
+    if (res.data.tasks && res.data.tasks.length > 0){
+      const first = res.data.tasks[0];
+      const firstBtn = document.querySelector(`.taskbtn[data-id="${first.id}"]`);
+      openTask(first.id, firstBtn);
+    }
+  }
+
+  qs("submitBtn").addEventListener("click", submit);
+  init();
+</script>
+</body>
+</html>

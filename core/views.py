@@ -399,3 +399,47 @@ def student_submit(request: HttpRequest, task_id: int):
         }
     })
 
+from django.shortcuts import render, redirect
+from django.views.decorators.http import require_http_methods, require_POST
+
+# HTML-страница логина ученика
+@require_http_methods(["GET", "POST"])
+def student_login_page(request: HttpRequest):
+    if request.method == "GET":
+        return render(request, "core/student_login.html")
+
+    # POST из формы
+    full_name = (request.POST.get("full_name") or "").strip()
+    pin = (request.POST.get("pin") or "").strip()
+
+    # используем ту же логику, что и API (простая)
+    if not full_name or not pin or not pin.isdigit() or len(pin) != 6:
+        return render(request, "core/student_login.html", {"error": "Введите имя и PIN (6 цифр)."})
+
+    student = (
+        Student.objects.select_related("class_group")
+        .filter(full_name__iexact=full_name, is_active=True)
+        .first()
+    )
+    if not student or not student.check_pin(pin):
+        return render(request, "core/student_login.html", {"error": "Неверное имя или PIN."})
+
+    request.session["student_id"] = student.id
+    request.session["student_name"] = student.full_name
+    request.session["student_class_id"] = student.class_group_id
+    request.session["student_logged_in_at"] = timezone.now().isoformat()
+
+    return redirect("/student/")
+
+
+# HTML-страница портала ученика
+def student_portal_page(request: HttpRequest):
+    if not request.session.get("student_id"):
+        return redirect("/student/login/")
+    return render(request, "core/student_portal.html")
+
+
+@require_POST
+def student_logout_page(request: HttpRequest):
+    request.session.flush()
+    return redirect("/student/login/")
