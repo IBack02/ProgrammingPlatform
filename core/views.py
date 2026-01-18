@@ -7,7 +7,8 @@ from django.shortcuts import get_object_or_404, render, redirect
 from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_GET, require_POST, require_http_methods
-
+from django.views.decorators.http import require_GET
+from .ai_assist import build_prompt_snapshot, call_openai_hint, sanitize_no_code
 from .judge0_client import create_batch_submissions, wait_batch
 from .models import (
     Student,
@@ -17,6 +18,7 @@ from .models import (
     StudentSession,
     StudentTaskProgress,
     Submission,
+    AiAssistMessage
 )
 PIN_RE = re.compile(r"^\d{6}$")
 
@@ -602,3 +604,134 @@ def student_portal_page(request: HttpRequest):
 def student_logout_page(request: HttpRequest):
     request.session.flush()
     return redirect("/student/login/")
+
+def student_hint_level(request: HttpRequest, task_id: int, level: int):
+    student_id, class_id = _get_student_from_session(request)
+    if not student_id:
+        return JsonResponse({"ok": False, "error": "not authenticated"}, status=401)
+
+    if level not in (1, 2):
+        return JsonResponse({"ok": False, "error": "invalid level"}, status=400)
+
+    session = _get_active_session_for_class(class_id)
+    if not session:
+        return JsonResponse({"ok": True, "active": False, "message": "Текущая сессия неактивна"}, status=200)
+
+    task = get_object_or_404(SessionTask, id=task_id, session=session)
+
+    now = timezone.now()
+    ss, _ = StudentSession.objects.get_or_create(
+        student_id=student_id,
+        session=session,
+        defaults={"started_at": now, "last_seen_at": now},
+    )
+    StudentSession.objects.filter(id=ss.id).update(last_seen_at=now)
+
+    progress, _ = StudentTaskProgress.objects.get_or_create(
+        student_session=ss,
+        task=task,
+        defaults={"status": StudentTaskProgress.Status.IN_PROGRESS, "opened_at": now},
+    )
+
+    # 1) Проверяем, что подсказка разрешена по порогам
+    if level == 1 and progress.attempts_failed < 5:
+        return JsonResponse({"ok": False, "error": "hint1 not available yet"}, status=403)
+    if level == 2 and progress.attempts_failed < 8:
+        return JsonResponse({"ok": False, "error": "hint2 not available yet"}, status=403)
+
+    # 2) Если уже есть кэш в progress — отдаём его
+    if level == 1 and progress.hint1_text:
+        return JsonResponse({"ok": True, "level": 1, "text": progress.hint1_text})
+    if level == 2 and progress.hint2_text:
+        return JsonResponse({"ok": True, "level": 2, "text": progress.hint2_text})
+
+    # 3) Если уже есть запись AiAssistMessage OK — используем её
+    cached = (AiAssistMessage.objects
+              .filter(progress=progress, level=level, status=AiAssistMessage.Status.OK)
+              .order_by("-created_at")
+              .first())
+    if cached and cached.response_text:
+        if level == 1:
+            progress.hint1_text = cached.response_text
+            progress.save(update_fields=["hint1_text"])
+        else:
+            progress.hint2_text = cached.response_text
+            progress.save(update_fields=["hint2_text"])
+        return JsonResponse({"ok": True, "level": level, "text": cached.response_text})
+
+    # 4) Собираем контекст
+    visible_tests = list(
+        TaskTestCase.objects.filter(task=task, is_visible=True)
+        .order_by("ordinal")
+        .values("stdin", "expected_stdout")
+    )
+    last_sub = (Submission.objects
+                .filter(progress=progress)
+                .order_by("-attempt_no")
+                .first())
+    last_subs = list(Submission.objects.filter(progress=progress).order_by("attempt_no")[:50])
+
+    prompt_snapshot = build_prompt_snapshot(
+        level=level,
+        statement=task.statement,
+        constraints=task.constraints,
+        visible_tests=visible_tests,
+        last_submission=last_sub,
+        last_submissions=last_subs,
+    )
+
+    # 5) Создаём запись (на случай падения API — чтобы лог был)
+    msg = AiAssistMessage.objects.create(
+        progress=progress,
+        level=level,
+        prompt_snapshot=prompt_snapshot,
+        status=AiAssistMessage.Status.ERROR,
+        error_message="pending",
+    )
+
+    # 6) Вызываем OpenAI
+    try:
+        out = call_openai_hint(level, prompt_snapshot)
+        data = out["data"]
+
+        # Превращаем structured JSON в текст для ученика
+        if level == 1:
+            bullets = data.get("bullets", [])
+            checks = data.get("what_to_check", [])
+            text = "Причины ошибок:\n- " + "\n- ".join(bullets)
+            if checks:
+                text += "\n\nЧто проверить:\n- " + "\n- ".join(checks)
+        else:
+            approach = data.get("approach", [])
+            mistakes = data.get("common_mistakes", [])
+            text = "Путь решения:\n- " + "\n- ".join(approach)
+            if mistakes:
+                text += "\n\nЧастые ошибки:\n- " + "\n- ".join(mistakes)
+
+        # Жёсткий фильтр: убираем код, если вдруг проскочил
+        text = sanitize_no_code(text)
+
+        # сохраняем
+        msg.response_text = text
+        msg.model = out.get("model", "")
+        msg.tokens_in = out.get("tokens_in")
+        msg.tokens_out = out.get("tokens_out")
+        msg.status = AiAssistMessage.Status.OK
+        msg.error_message = ""
+        msg.save(update_fields=["response_text", "model", "tokens_in", "tokens_out", "status", "error_message"])
+
+
+        if level == 1:
+            progress.hint1_text = text
+            progress.save(update_fields=["hint1_text"])
+        else:
+            progress.hint2_text = text
+            progress.save(update_fields=["hint2_text"])
+
+        return JsonResponse({"ok": True, "level": level, "text": text})
+
+    except Exception as e:
+        msg.status = AiAssistMessage.Status.ERROR
+        msg.error_message = f"{type(e).__name__}: {e}"
+        msg.save(update_fields=["status", "error_message"])
+        return JsonResponse({"ok": False, "error": "AI assistant temporarily unavailable"}, status=502)

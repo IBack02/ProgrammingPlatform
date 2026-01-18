@@ -20,6 +20,7 @@
     textarea { width:100%; height:240px; border:1px solid #cbd5e1; border-radius:12px; padding: 12px; font-family: Consolas, monospace; font-size: 13px; box-sizing:border-box; }
     button.primary { background:#0ea5e9; color:#fff; border:0; padding:10px 14px; border-radius:10px; cursor:pointer; }
     button.ghost { background:#fff; color:#111827; border:1px solid #e5e7eb; padding:10px 14px; border-radius:10px; cursor:pointer; }
+    button.primary:disabled, button.ghost:disabled { opacity: 0.6; cursor:not-allowed; }
     .row { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
     .msg { padding: 10px; border-radius: 10px; background:#fff7ed; border:1px solid #fed7aa; }
     .hintbox { padding: 10px; border-radius: 10px; background:#ecfeff; border:1px solid #a5f3fc; }
@@ -63,6 +64,18 @@
   <div class="content">
     <div id="statusBox" class="msg" style="display:none;"></div>
 
+    <!-- Hint block -->
+    <div class="card hintbox" id="hintCard" style="display:none;">
+      <div class="row" style="justify-content:space-between;">
+        <div>
+          <div class="title">Подсказка от помощника</div>
+          <div class="small muted" id="hintMeta">Подсказка недоступна</div>
+        </div>
+        <button class="primary" id="hintBtn" disabled>Открыть подсказку</button>
+      </div>
+      <div style="margin-top:10px; white-space:pre-wrap;" id="hintText"></div>
+    </div>
+
     <div class="card" id="taskCard" style="display:none;">
       <div class="title" id="taskTitle"></div>
       <div class="small muted" id="taskMeta"></div>
@@ -81,7 +94,7 @@
       <div class="row" style="justify-content:space-between;">
         <div>
           <div class="title">Код (Python)</div>
-          <div class="small muted">Пока проверка — заглушка, но запросы/счётчики работают.</div>
+          <div class="small muted">Проверка выполняется через Judge0. Ограничение: 15 сек между сабмитами.</div>
         </div>
         <button class="primary" id="submitBtn">Submit</button>
       </div>
@@ -105,6 +118,15 @@
 <script>
   let currentTaskId = null;
 
+  // {taskId: sha256(code)} for last successful submit
+  let lastSubmittedHashByTask = {};
+  // {taskId: sha256(code)} current known hash
+  let lastKnownHashByTask = {};
+  // cooldown end timestamp
+  let submitCooldownUntil = 0;
+  // last progress object from backend for current task
+  let lastProgress = null;
+
   function qs(id){ return document.getElementById(id); }
 
   function showStatus(text){
@@ -116,11 +138,102 @@
     qs("statusBox").style.display = "none";
   }
 
+  async function sha256Hex(text) {
+    const enc = new TextEncoder().encode(text);
+    const hashBuf = await crypto.subtle.digest("SHA-256", enc);
+    const hashArr = Array.from(new Uint8Array(hashBuf));
+    return hashArr.map(b => b.toString(16).padStart(2, "0")).join("");
+  }
+
+  function setSubmitButtonState(enabled, label){
+    const btn = qs("submitBtn");
+    btn.disabled = !enabled;
+    btn.textContent = label || "Submit";
+    btn.style.opacity = enabled ? "1" : "0.6";
+    btn.style.cursor = enabled ? "pointer" : "not-allowed";
+  }
+
+  function setHintButtonState(enabled, metaText){
+    const btn = qs("hintBtn");
+    btn.disabled = !enabled;
+    btn.style.opacity = enabled ? "1" : "0.6";
+    btn.style.cursor = enabled ? "pointer" : "not-allowed";
+    qs("hintMeta").textContent = metaText || (enabled ? "Подсказка доступна" : "Подсказка недоступна");
+  }
+
+  function showHintCard(){
+    qs("hintCard").style.display = "block";
+  }
+  function clearHint(){
+    qs("hintText").textContent = "";
+  }
+
+  function getCooldownSecondsLeft(){
+    const now = Date.now();
+    if (now >= submitCooldownUntil) return 0;
+    return Math.ceil((submitCooldownUntil - now) / 1000);
+  }
+
+  function tickCooldown(){
+    const left = getCooldownSecondsLeft();
+    if (left > 0){
+      setSubmitButtonState(false, `Submit (${left}s)`);
+      setTimeout(tickCooldown, 250);
+    } else {
+      updateSubmitAvailability();
+    }
+  }
+
+  async function updateSubmitAvailability(){
+    if (!currentTaskId) return;
+
+    const left = getCooldownSecondsLeft();
+    if (left > 0){
+      setSubmitButtonState(false, `Submit (${left}s)`);
+      return;
+    }
+
+    const code = qs("codeArea").value || "";
+    const h = await sha256Hex(code);
+    lastKnownHashByTask[currentTaskId] = h;
+
+    const lastSub = lastSubmittedHashByTask[currentTaskId];
+    const changed = !lastSub || lastSub !== h;
+
+    if (!changed){
+      setSubmitButtonState(false, "Submit (no changes)");
+    } else {
+      setSubmitButtonState(true, "Submit");
+    }
+  }
+
+  function updateHintAvailability(){
+    showHintCard();
+    clearHint();
+
+    if (!lastProgress){
+      setHintButtonState(false, "Подсказка недоступна");
+      return;
+    }
+
+    if (lastProgress.hint2_available){
+      setHintButtonState(true, "Доступна подсказка 2 уровня");
+    } else if (lastProgress.hint1_available){
+      setHintButtonState(true, "Доступна подсказка 1 уровня");
+    } else {
+      setHintButtonState(false, "Откроется после 5/8 неудачных попыток");
+    }
+  }
+
   function setHintState(p){
+    lastProgress = p || null;
+
     const state = qs("hintState");
-    if (p.hint2_available) state.textContent = "доступна подсказка 2 уровня";
-    else if (p.hint1_available) state.textContent = "доступна подсказка 1 уровня";
+    if (p && p.hint2_available) state.textContent = "доступна подсказка 2 уровня";
+    else if (p && p.hint1_available) state.textContent = "доступна подсказка 1 уровня";
     else state.textContent = "недоступно";
+
+    updateHintAvailability();
   }
 
   async function apiGet(url){
@@ -208,6 +321,9 @@
       `;
       vt.appendChild(wrap);
     });
+
+    updateHintAvailability();
+    updateSubmitAvailability();
   }
 
   function escapeHtml(s){
@@ -217,19 +333,79 @@
       .replaceAll(">","&gt;");
   }
 
+  async function loadHint(){
+    if (!currentTaskId){
+      showStatus("Сначала выберите задачу.");
+      return;
+    }
+    if (!lastProgress){
+      showStatus("Нет данных по прогрессу.");
+      return;
+    }
+
+    const level = lastProgress.hint2_available ? 2 : (lastProgress.hint1_available ? 1 : 0);
+    if (!level){
+      showStatus("Подсказка пока недоступна.");
+      return;
+    }
+
+    setHintButtonState(false, "Загрузка подсказки...");
+    clearHint();
+    showHintCard();
+
+    const res = await apiGet(`/api/student/task/${currentTaskId}/hint/${level}`);
+    if (!res.data.ok){
+      showStatus(res.data.error || "Ошибка получения подсказки");
+      updateHintAvailability();
+      return;
+    }
+
+    qs("hintText").textContent = res.data.text || "(пусто)";
+    updateHintAvailability();
+  }
+
   async function submit(){
     if (!currentTaskId){
       showStatus("Выберите задачу слева.");
       return;
     }
 
+    hideStatus();
+
     const code = qs("codeArea").value || "";
+
+    // запрет сабмита без изменений (дублируем логику бэкенда)
+    const h = await sha256Hex(code);
+    const lastSub = lastSubmittedHashByTask[currentTaskId];
+    if (lastSub && lastSub === h){
+      showStatus("Код не изменился с прошлого сабмита.");
+      updateSubmitAvailability();
+      return;
+    }
+
+    // cooldown check
+    const left = getCooldownSecondsLeft();
+    if (left > 0){
+      showStatus(`Подожди ${left}s перед следующим сабмитом.`);
+      return;
+    }
+
+    setSubmitButtonState(false, "Submitting...");
+
     const res = await apiPost(`/api/student/task/${currentTaskId}/submit`, { code });
 
     if (!res.data.ok){
       showStatus(res.data.error || "Submit error");
+      updateSubmitAvailability();
       return;
     }
+
+    // запоминаем хэш последнего сабмита
+    lastSubmittedHashByTask[currentTaskId] = h;
+
+    // запускаем 15s cooldown на фронте
+    submitCooldownUntil = Date.now() + 15000;
+    tickCooldown();
 
     const sub = res.data.submission;
     const p = res.data.progress;
@@ -242,9 +418,13 @@
     qs("stdoutBox").textContent = sub.stdout || "";
 
     setHintState(p);
+    updateSubmitAvailability();
   }
 
   async function init(){
+    showHintCard();
+    updateHintAvailability();
+
     // показываем student info из /api/auth/student-me
     const me = await apiGet("/api/auth/student-me");
     if (me.status === 401){
@@ -279,9 +459,17 @@
       const firstBtn = document.querySelector(`.taskbtn[data-id="${first.id}"]`);
       openTask(first.id, firstBtn);
     }
+
+    updateSubmitAvailability();
   }
 
   qs("submitBtn").addEventListener("click", submit);
+  qs("hintBtn").addEventListener("click", loadHint);
+
+  qs("codeArea").addEventListener("input", () => {
+    updateSubmitAvailability();
+  });
+
   init();
 </script>
 </body>

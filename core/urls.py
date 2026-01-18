@@ -11,6 +11,8 @@ urlpatterns = [
     path("student/login/", views.student_login_page),
     path("student/", views.student_portal_page),
     path("student/logout/", views.student_logout_page),
+    path("api/student/task/<int:task_id>/hint/<int:level>", views.student_hint_level),
+
 
 ]
 

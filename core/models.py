@@ -333,3 +333,38 @@ class ActivityAggregate(models.Model):
 
     def __str__(self):
         return f"Aggregate for progress {self.progress_id}"
+
+# core/models.py
+from django.db import models
+
+class AiAssistMessage(models.Model):
+    class Status(models.TextChoices):
+        OK = "ok", "OK"
+        ERROR = "error", "Error"
+
+    progress = models.ForeignKey(
+        "StudentTaskProgress",
+        on_delete=models.CASCADE,
+        related_name="ai_messages",
+        db_index=True,
+    )
+
+    level = models.PositiveSmallIntegerField()  # 1 или 2
+
+    prompt_snapshot = models.TextField()
+    response_text = models.TextField(blank=True)
+
+    model = models.CharField(max_length=64, blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    tokens_in = models.PositiveIntegerField(null=True, blank=True)
+    tokens_out = models.PositiveIntegerField(null=True, blank=True)
+
+    status = models.CharField(max_length=16, choices=Status.choices, default=Status.OK)
+    error_message = models.TextField(blank=True, default="")
+
+    class Meta:
+        indexes = [models.Index(fields=["progress", "level", "created_at"])]
+
+    def __str__(self):
+        return f"AiAssistMessage(progress={self.progress_id}, level={self.level}, status={self.status})"
