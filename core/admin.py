@@ -5,9 +5,8 @@ from .models import (
     SessionTask, TaskTestCase,
     StudentSession, StudentTaskProgress,
     Submission,
-    ActivityEvent, ActivityAggregate,
+    ActivityEvent, ActivityAggregate,AiAssistMessage,
 )
-from django.contrib import admin
 from .models import ClassGroup, Student
 from .forms import StudentAdminForm
 
@@ -39,7 +38,12 @@ class SessionClassInline(admin.TabularInline):
     model = SessionClass
     extra = 1
 
-
+@admin.register(AiAssistMessage)
+class AiAssistMessageAdmin(admin.ModelAdmin):
+    list_display = ("id", "progress", "level", "status", "model", "created_at")
+    list_filter = ("level", "status", "model", "created_at")
+    search_fields = ("progress__student_session__student__full_name", "error_message")
+    readonly_fields = ("created_at",)
 @admin.register(Session)
 class SessionAdmin(admin.ModelAdmin):
     list_display = ("title", "status", "starts_at", "ends_at", "created_at")
