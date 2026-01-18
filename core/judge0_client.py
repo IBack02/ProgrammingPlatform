@@ -81,29 +81,53 @@ def create_batch_submissions(code: str, testcases: List[Dict[str, str]]) -> List
 
 def get_batch_results(tokens: List[str]) -> List[Judge0Item]:
     """
-    GET /submissions/batch?tokens=... :contentReference[oaicite:4]{index=4}
+    GET /submissions/batch?tokens=... :contentReference[oaicite:1]{index=1}
+    Judge0 возвращает объект: {"submissions":[...]}
     """
     tok = ",".join(tokens)
-    fields = "token,stdout,stderr,compile_output,message,status"
+
+    # Оптимизация: берем status_id вместо status (меньше данных)
+    fields = "token,stdout,stderr,compile_output,message,status_id"
     url = f"{_base_url()}/submissions/batch?base64_encoded=true&tokens={tok}&fields={fields}"
 
     r = requests.get(url, headers=_headers(), timeout=25)
     r.raise_for_status()
     data = r.json()
 
+    # ВАЖНО: response может быть dict с ключом "submissions"
+    rows = data.get("submissions") if isinstance(data, dict) else data
+    if not isinstance(rows, list):
+        raise RuntimeError(f"Unexpected Judge0 batch response: {data}")
+
     items: List[Judge0Item] = []
-    for row in data:
-        status = row.get("status") or {}
+    for row in rows:
+        if not isinstance(row, dict):
+            # на всякий случай
+            items.append(Judge0Item(
+                token="",
+                status_id=0,
+                status_desc="Invalid response row",
+                stdout="",
+                stderr="",
+                compile_output="",
+                message=str(row),
+            ))
+            continue
+
+        status_id = int(row.get("status_id") or 0)
+
         items.append(Judge0Item(
-            token=row.get("token", ""),
-            status_id=int(status.get("id", 0) or 0),
-            status_desc=str(status.get("description", "") or ""),
+            token=row.get("token", "") or "",
+            status_id=status_id,
+            status_desc="",  # мы не запрашиваем description ради экономии
             stdout=_b64decode(row.get("stdout")),
             stderr=_b64decode(row.get("stderr")),
             compile_output=_b64decode(row.get("compile_output")),
             message=_b64decode(row.get("message")),
         ))
+
     return items
+
 
 
 def wait_batch(tokens: List[str], timeout_sec: int = 25, poll_interval: float = 0.8) -> List[Judge0Item]:
