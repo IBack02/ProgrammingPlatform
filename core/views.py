@@ -1,13 +1,23 @@
+import hashlib
 import json
 import re
+
 from django.http import JsonResponse, HttpRequest
-from django.views.decorators.http import require_POST
-from django.views.decorators.csrf import csrf_exempt
+from django.shortcuts import get_object_or_404, render, redirect
 from django.utils import timezone
+from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.http import require_GET, require_POST, require_http_methods
 
-from .models import Student
-
-
+from .judge0_client import create_batch_submissions, wait_batch
+from .models import (
+    Student,
+    Session,
+    SessionTask,
+    TaskTestCase,
+    StudentSession,
+    StudentTaskProgress,
+    Submission,
+)
 PIN_RE = re.compile(r"^\d{6}$")
 
 
@@ -106,8 +116,7 @@ def student_me(request: HttpRequest):
             },
         }
     )
-from django.db.models import Prefetch
-from .models import Session, SessionTask, StudentSession, StudentTaskProgress
+
 
 
 def _require_student(request: HttpRequest):
@@ -194,12 +203,7 @@ def student_active_session(request: HttpRequest):
     })
 
 
-from django.shortcuts import get_object_or_404
-from django.views.decorators.http import require_GET
-from .models import (
-    Session, SessionTask, TaskTestCase,
-    StudentSession, StudentTaskProgress, Submission
-)
+
 
 
 def _get_student_from_session(request: HttpRequest):
@@ -300,32 +304,43 @@ def student_task_detail(request: HttpRequest, task_id: int):
     })
 
 
-@csrf_exempt  # пока MVP; позже уберём и сделаем CSRF нормально
+
+
+@csrf_exempt  # на MVP; позже можно убрать и настроить CSRF нормально
 @require_POST
 def student_submit(request: HttpRequest, task_id: int):
     """
     POST /api/student/task/<task_id>/submit
     body: {"code": "..."}
-    Пока делаем заглушку проверки:
-      - сохраняем submission с verdict="wrong_answer"
-    Дальше подключим judge (Judge0) и будем реально гонять тесты.
+    Реальная проверка через Judge0 (RapidAPI) батчем:
+      - 1 POST /submissions/batch
+      - несколько GET /submissions/batch (poll)
+    Оптимизации:
+      - cooldown 15 секунд между сабмитами
+      - запрет сабмита, если код не изменился с прошлого сабмита
     """
+
+    # 0) auth
     student_id, class_id = _get_student_from_session(request)
     if not student_id:
         return JsonResponse({"ok": False, "error": "not authenticated"}, status=401)
 
+    # 1) active session check
     session = _get_active_session_for_class(class_id)
     if not session:
         return JsonResponse({"ok": True, "active": False, "message": "Текущая сессия неактивна"}, status=200)
 
     task = get_object_or_404(SessionTask, id=task_id, session=session)
 
+    # 2) input
     data = _json_body(request)
     code = (data.get("code") or "").rstrip()
     if not code:
         return JsonResponse({"ok": False, "error": "code is required"}, status=400)
 
     now = timezone.now()
+
+    # 3) StudentSession
     ss, _ = StudentSession.objects.get_or_create(
         student_id=student_id,
         session=session,
@@ -333,6 +348,7 @@ def student_submit(request: HttpRequest, task_id: int):
     )
     StudentSession.objects.filter(id=ss.id).update(last_seen_at=now)
 
+    # 4) Progress
     progress, _ = StudentTaskProgress.objects.get_or_create(
         student_session=ss,
         task=task,
@@ -343,38 +359,181 @@ def student_submit(request: HttpRequest, task_id: int):
     if progress.status == StudentTaskProgress.Status.SOLVED and progress.locked_after_solve:
         return JsonResponse({"ok": True, "locked": True, "message": "Задача уже решена"}, status=200)
 
-    # увеличиваем счётчики попыток
+    # 5) Anti-spam: cooldown 15 sec
+    # Требует поля progress.last_submit_at (DateTimeField null=True blank=True)
+    if getattr(progress, "last_submit_at", None):
+        delta = (now - progress.last_submit_at).total_seconds()
+        if delta < 15:
+            return JsonResponse(
+                {"ok": False, "error": f"Too frequent submits. Wait {int(15 - delta)}s"},
+                status=429
+            )
+
+    # 6) Anti-spam: no code change
+    # Требует поля progress.last_code_hash (CharField max_length=64 default="")
+    code_hash = hashlib.sha256(code.encode("utf-8")).hexdigest()
+    if getattr(progress, "last_code_hash", "") and progress.last_code_hash == code_hash:
+        return JsonResponse(
+            {"ok": False, "error": "No changes in code since last submit"},
+            status=400
+        )
+
+    # 7) Increase attempt counters
     progress.attempts_total += 1
     attempt_no = progress.attempts_total
 
-    # ====== MVP заглушка (пока без judge) ======
-    verdict = Submission.Verdict.WRONG_ANSWER
-    stdout = ""
-    stderr = ""
-    passed_tests = 0
-    total_tests = TaskTestCase.objects.filter(task=task).count()
+    # 8) Load testcases
+    testcases = list(
+        TaskTestCase.objects.filter(task=task).order_by("ordinal")
+        .values("ordinal", "stdin", "expected_stdout")
+    )
+    if not testcases:
+        return JsonResponse({"ok": False, "error": "No testcases configured for this task"}, status=500)
 
-    if verdict != Submission.Verdict.ACCEPTED:
+    # 9) Judge0 batch run
+    try:
+        tokens = create_batch_submissions(code, testcases)
+        results = wait_batch(tokens, timeout_sec=30, poll_interval=0.9)
+    except Exception as e:
+        # не считаем попытку "проваленной" из-за внешнего сервиса, но сохраняем сабмишн как runtime_error
+        verdict = Submission.Verdict.RUNTIME_ERROR
+        stdout_last = ""
+        stderr_last = f"Judge0 error: {type(e).__name__}: {e}"
+        passed_tests = 0
+        total_tests = len(testcases)
+
+        # обновим антиспам-метки, чтобы ученик не мог спамить сразу
+        if hasattr(progress, "last_submit_at"):
+            progress.last_submit_at = now
+        if hasattr(progress, "last_code_hash"):
+            progress.last_code_hash = code_hash
+
         progress.attempts_failed += 1
 
-    # Открываем подсказки по порогам 5/8 (без текста, просто “доступно”)
-    if progress.attempts_failed == 5 and not progress.hint1_unlocked_at:
-        progress.hint1_unlocked_at = now
-    if progress.attempts_failed == 8 and not progress.hint2_unlocked_at:
-        progress.hint2_unlocked_at = now
+        if progress.attempts_failed == 5 and not progress.hint1_unlocked_at:
+            progress.hint1_unlocked_at = now
+        if progress.attempts_failed == 8 and not progress.hint2_unlocked_at:
+            progress.hint2_unlocked_at = now
 
-    progress.save(update_fields=[
-        "attempts_total", "attempts_failed",
-        "hint1_unlocked_at", "hint2_unlocked_at",
-    ])
+        update_fields = ["attempts_total", "attempts_failed", "hint1_unlocked_at", "hint2_unlocked_at"]
+        if hasattr(progress, "last_submit_at"):
+            update_fields.append("last_submit_at")
+        if hasattr(progress, "last_code_hash"):
+            update_fields.append("last_code_hash")
 
+        progress.save(update_fields=update_fields)
+
+        sub = Submission.objects.create(
+            progress=progress,
+            attempt_no=attempt_no,
+            code=code,
+            verdict=verdict,
+            stdout=stdout_last,
+            stderr=stderr_last,
+            passed_tests=passed_tests,
+            total_tests=total_tests,
+        )
+
+        return JsonResponse({
+            "ok": True,
+            "submission": {
+                "id": sub.id,
+                "attempt_no": sub.attempt_no,
+                "verdict": sub.verdict,
+                "stdout": sub.stdout,
+                "stderr": sub.stderr,
+                "passed_tests": sub.passed_tests,
+                "total_tests": sub.total_tests,
+            },
+            "progress": {
+                "status": progress.status,
+                "attempts_total": progress.attempts_total,
+                "attempts_failed": progress.attempts_failed,
+                "hint1_available": bool(progress.hint1_unlocked_at),
+                "hint2_available": bool(progress.hint2_unlocked_at),
+            }
+        })
+
+    # 10) Interpret results
+    # Judge0: 3 Accepted, 4 Wrong Answer, 5 TLE, 6 CE, 7+ RE
+    passed = 0
+    stdout_last = ""
+    stderr_last = ""
+    verdict = Submission.Verdict.WRONG_ANSWER
+
+    for r in results:
+        stdout_last = r.stdout
+        stderr_last = r.stderr or r.compile_output or r.message
+
+        if r.status_id == 3:
+            passed += 1
+            continue
+        if r.status_id == 4:
+            verdict = Submission.Verdict.WRONG_ANSWER
+            break
+        if r.status_id == 5:
+            verdict = Submission.Verdict.TIME_LIMIT
+            break
+        if r.status_id == 6:
+            verdict = Submission.Verdict.COMPILATION_ERROR
+            break
+        if r.status_id >= 7:
+            verdict = Submission.Verdict.RUNTIME_ERROR
+            break
+
+        verdict = Submission.Verdict.RUNTIME_ERROR
+        break
+
+    if passed == len(results):
+        verdict = Submission.Verdict.ACCEPTED
+
+    total_tests = len(results)
+    passed_tests = passed
+
+    # 11) update progress anti-spam markers
+    if hasattr(progress, "last_submit_at"):
+        progress.last_submit_at = now
+    if hasattr(progress, "last_code_hash"):
+        progress.last_code_hash = code_hash
+
+    # 12) update progress verdict logic
+    if verdict == Submission.Verdict.ACCEPTED:
+        progress.status = StudentTaskProgress.Status.SOLVED
+        progress.solved_at = now
+        progress.locked_after_solve = True
+    else:
+        progress.attempts_failed += 1
+
+        # unlock hints at 5/8 failed attempts
+        if progress.attempts_failed == 5 and not progress.hint1_unlocked_at:
+            progress.hint1_unlocked_at = now
+        if progress.attempts_failed == 8 and not progress.hint2_unlocked_at:
+            progress.hint2_unlocked_at = now
+
+    update_fields = [
+        "attempts_total",
+        "attempts_failed",
+        "status",
+        "solved_at",
+        "locked_after_solve",
+        "hint1_unlocked_at",
+        "hint2_unlocked_at",
+    ]
+    if hasattr(progress, "last_submit_at"):
+        update_fields.append("last_submit_at")
+    if hasattr(progress, "last_code_hash"):
+        update_fields.append("last_code_hash")
+
+    progress.save(update_fields=update_fields)
+
+    # 13) store submission
     sub = Submission.objects.create(
         progress=progress,
         attempt_no=attempt_no,
         code=code,
         verdict=verdict,
-        stdout=stdout,
-        stderr=stderr,
+        stdout=stdout_last,
+        stderr=stderr_last,
         passed_tests=passed_tests,
         total_tests=total_tests,
     )
@@ -399,8 +558,8 @@ def student_submit(request: HttpRequest, task_id: int):
         }
     })
 
-from django.shortcuts import render, redirect
-from django.views.decorators.http import require_http_methods, require_POST
+
+
 
 # HTML-страница логина ученика
 @require_http_methods(["GET", "POST"])

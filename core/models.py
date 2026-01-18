@@ -1,7 +1,7 @@
 from django.db import models
 from django.utils import timezone
 from django.contrib.auth.hashers import make_password, check_password
-
+from django.db import models
 
 class ClassGroup(models.Model):
     name = models.CharField(max_length=32, unique=True)  # например "7A"
@@ -165,7 +165,8 @@ class StudentSession(models.Model):
     started_at = models.DateTimeField(null=True, blank=True)
     finished_at = models.DateTimeField(null=True, blank=True)
     finish_reason = models.CharField(max_length=16, choices=FinishReason.choices, null=True, blank=True)
-
+    last_submit_at = models.DateTimeField(null=True, blank=True)
+    last_code_hash = models.CharField(max_length=64, blank=True, default="")
     last_seen_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
@@ -203,6 +204,8 @@ class StudentTaskProgress(models.Model):
     hint2_unlocked_at = models.DateTimeField(null=True, blank=True)
     hint1_text = models.TextField(blank=True)
     hint2_text = models.TextField(blank=True)
+    last_submit_at = models.DateTimeField(null=True, blank=True)
+    last_code_hash = models.CharField(max_length=64, blank=True, default="")
 
     locked_after_solve = models.BooleanField(default=True)
 
@@ -237,18 +240,18 @@ class StudentTaskProgress(models.Model):
 class Submission(models.Model):
     class Verdict(models.TextChoices):
         ACCEPTED = "accepted", "Accepted"
-        WRONG_ANSWER = "wrong_answer", "Wrong answer"
-        RUNTIME_ERROR = "runtime_error", "Runtime error"
-        COMPILE_ERROR = "compile_error", "Compile error"
+        WRONG_ANSWER = "wrong_answer", "Wrong Answer"
+        TIME_LIMIT = "time_limit", "Time Limit Exceeded"
+        COMPILATION_ERROR = "compilation_error", "Compilation Error"
+        RUNTIME_ERROR = "runtime_error", "Runtime Error"
 
-    progress = models.ForeignKey(StudentTaskProgress, on_delete=models.CASCADE, related_name="submissions")
+    progress = models.ForeignKey("StudentTaskProgress", on_delete=models.CASCADE, related_name="submissions")
 
     attempt_no = models.PositiveIntegerField()
     code = models.TextField()
-
     submitted_at = models.DateTimeField(auto_now_add=True)
 
-    verdict = models.CharField(max_length=16, choices=Verdict.choices)
+    verdict = models.CharField(max_length=32, choices=Verdict.choices)
 
     stdout = models.TextField(blank=True)
     stderr = models.TextField(blank=True)
@@ -256,7 +259,12 @@ class Submission(models.Model):
     passed_tests = models.PositiveIntegerField(default=0)
     total_tests = models.PositiveIntegerField(default=0)
 
-    external_run_id = models.CharField(max_length=120, blank=True)  # если будешь хранить id со сторонней платформы
+    external_run_id = models.CharField(max_length=120, blank=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["progress", "attempt_no"], name="uniq_attempt_no_per_progress")
+        ]
 
     class Meta:
         verbose_name = "Submission"
