@@ -93,28 +93,23 @@ class HintTextLevel2(BaseModel):
 
 
 def call_openai_hint(level: int, prompt_snapshot: str) -> dict:
-    """
-    Вызов OpenAI Responses API через responses.parse (structured output).
-    Возвращаем: {"data": {"text": "...", "no_code_confirmed": True}, ...}
-    """
-    client = OpenAI()
+    api_key = os.getenv("OPENAI_API_KEY", "").strip()
+    if not api_key:
+        raise RuntimeError("OPENAI_API_KEY is not set in environment variables")
+
+    client = OpenAI(api_key=api_key)
 
     if level == 1:
         system_rules = (
             "You are a programming teacher speaking to a student in a natural, conversational tone.\n"
-            "Your job: explain WHY the student's solution fails (errors or wrong logic), without solving the task.\n"
+            "Explain WHY the student's code fails (errors or wrong logic) without solving the task.\n"
             "Rules:\n"
-            "- Write a coherent teacher-like explanation as full sentences (no bullet lists, no numbered sections).\n"
-            "- You MAY point to a specific line or a part of a line where the mistake is likely located, "
-            "e.g. 'Around line 15 your condition is wrong...' or 'In the loop condition you...'.\n"
-            "- Explain the reason clearly: what exactly breaks and why (type conversion, input format, loop condition, edge cases).\n"
-            "- DO NOT provide code, pseudocode, or step-by-step full solution.\n"
-            "- DO NOT show corrected code fragments.\n"
-            "- If the code seems correct, say it and suggest what to verify (format, trailing spaces, reading input).\n"
-            "Output must match schema: {text: string, no_code_confirmed: boolean}.\n"
-            "Set no_code_confirmed=true only if you did not output any code-like content."
+            "- Write full sentences (no bullet lists, no numbered sections).\n"
+            "- You MAY reference a specific line or part of a line where the mistake likely is.\n"
+            "- Explain the reason clearly.\n"
+            "- DO NOT provide code/pseudocode/near-code.\n"
+            "Output schema: {text: string, no_code_confirmed: boolean}."
         )
-
         resp = client.responses.parse(
             model="gpt-4o-mini",
             input=[
@@ -125,27 +120,18 @@ def call_openai_hint(level: int, prompt_snapshot: str) -> dict:
             max_output_tokens=380,
         )
         parsed = resp.output_parsed
-
-        data = {
-            "text": (parsed.text or "").strip(),
-            "no_code_confirmed": bool(parsed.no_code_confirmed),
-        }
+        data = {"text": (parsed.text or "").strip(), "no_code_confirmed": bool(parsed.no_code_confirmed)}
 
     else:
         system_rules = (
             "You are a programming teacher speaking to a student in a natural, conversational tone.\n"
-            "Your job: give a TEXT-ONLY solution path (guidance), not the final solution.\n"
+            "Give a TEXT-ONLY solution path (guidance), not final solution.\n"
             "Rules:\n"
-            "- Write a coherent explanation as full sentences (no bullet lists, no numbered sections).\n"
-            "- You MAY mention very short method/command names that are relevant, e.g. 'use split', 'use sort', "
-            "'use a set', 'use a dictionary', 'use two pointers', 'use binary search' — but DO NOT write code or pseudocode.\n"
-            "- Keep it as guidance: what to do conceptually and what to watch out for, without giving a ready-made algorithm.\n"
-            "- DO NOT provide code, pseudocode, or near-code.\n"
-            "- DO NOT provide exact final formulas if that fully solves it; explain the approach instead.\n"
-            "Output must match schema: {text: string, no_code_confirmed: boolean}.\n"
-            "Set no_code_confirmed=true only if you did not output any code-like content."
+            "- Full sentences (no bullet lists, no numbered sections).\n"
+            "- You MAY mention very short method/command names (split, sort, set, dict...), but NO code.\n"
+            "- DO NOT provide code/pseudocode/near-code.\n"
+            "Output schema: {text: string, no_code_confirmed: boolean}."
         )
-
         resp = client.responses.parse(
             model="gpt-4o-mini",
             input=[
@@ -156,12 +142,10 @@ def call_openai_hint(level: int, prompt_snapshot: str) -> dict:
             max_output_tokens=420,
         )
         parsed = resp.output_parsed
+        data = {"text": (parsed.text or "").strip(), "no_code_confirmed": bool(parsed.no_code_confirmed)}
 
-        data = {
-            "text": (parsed.text or "").strip(),
-            "no_code_confirmed": bool(parsed.no_code_confirmed),
-        }
-        usage = getattr(resp, "usage", None)
-        tokens_in = getattr(usage, "input_tokens", None) if usage else None
-        tokens_out = getattr(usage, "output_tokens", None) if usage else None
-        return {"data": data, "tokens_in": tokens_in, "tokens_out": tokens_out, "model": "gpt-4o-mini"}
+    usage = getattr(resp, "usage", None)
+    tokens_in = getattr(usage, "input_tokens", None) if usage else None
+    tokens_out = getattr(usage, "output_tokens", None) if usage else None
+
+    return {"data": data, "tokens_in": tokens_in, "tokens_out": tokens_out, "model": "gpt-4o-mini"}
