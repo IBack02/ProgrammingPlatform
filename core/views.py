@@ -695,11 +695,23 @@ def student_hint_level(request: HttpRequest, task_id: int, level: int):
     # 6) Call OpenAI (new schema: data = {"text": "...", "no_code_confirmed": bool})
     try:
         out = call_openai_hint(level, prompt_snapshot)
-        data = out.get("data") or {}
+
+        # ---- IMPORTANT GUARDS ----
+        if out is None:
+            raise RuntimeError("call_openai_hint returned None (no response)")
+
+        if not isinstance(out, dict):
+            raise RuntimeError(f"call_openai_hint returned {type(out).__name__}, expected dict")
+
+        data = out.get("data")
+        if data is None:
+            raise RuntimeError("OpenAI response missing 'data' field")
+        if not isinstance(data, dict):
+            raise RuntimeError(f"OpenAI 'data' is {type(data).__name__}, expected dict")
 
         text = (data.get("text") or "").strip()
         if not text:
-            raise ValueError("Empty AI response text")
+            raise RuntimeError("Empty AI response text")
 
         # hard safety filter
         text = sanitize_no_code(text)
