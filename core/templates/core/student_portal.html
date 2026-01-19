@@ -1,130 +1,312 @@
 <!doctype html>
-<html lang="ru">
+<html lang="en">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Student Portal</title>
   <style>
-    body { font-family: Arial, sans-serif; margin:0; background:#f6f7fb; }
-    .layout { display:flex; height:100vh; }
-    .sidebar { width: 280px; background:#fff; border-right:1px solid #e5e7eb; padding: 16px; box-sizing:border-box; overflow:auto; }
-    .content { flex:1; padding: 18px; overflow:auto; }
-    .top { display:flex; justify-content:space-between; align-items:center; margin-bottom: 12px; }
+    :root{
+      --bg:#f6f7fb;
+      --card:#fff;
+      --border:#e5e7eb;
+      --muted:#6b7280;
+      --primary:#0ea5e9;
+      --danger:#b91c1c;
+      --ok:#166534;
+      --hintbg:#ffffff;
+      --hintborder:#d1d5db;
+      --hintglow: rgba(14,165,233,.55);
+      --shadow: 0 10px 20px rgba(17,24,39,.06);
+    }
+
+    body { font-family: Arial, sans-serif; margin:0; background:var(--bg); }
+    .layout { display:flex; height:100vh; overflow:hidden; }
+
+    /* Resizable sidebar */
+    .sidebarWrap{ display:flex; height:100%; }
+    .sidebar { width: 300px; min-width: 240px; max-width: 520px; background:var(--card); border-right:1px solid var(--border); padding: 16px; box-sizing:border-box; overflow:auto; }
+    .resizer { width: 8px; cursor: col-resize; background: transparent; position:relative; }
+    .resizer:after{
+      content:"";
+      position:absolute; inset:0;
+      background: linear-gradient(to right, transparent, rgba(17,24,39,.08), transparent);
+      opacity:.55;
+    }
+
+    .content { flex:1; padding: 18px; overflow:auto; min-width: 360px; }
+
+    .top { display:flex; justify-content:space-between; align-items:center; margin-bottom: 12px; gap:10px; }
     .title { font-size:18px; font-weight:700; }
     .small { color:#555; font-size:12px; }
-    .taskbtn { width:100%; text-align:left; padding:10px; border:1px solid #e5e7eb; border-radius:10px; background:#fff; margin-bottom:8px; cursor:pointer; }
-    .taskbtn.active { border-color:#0ea5e9; box-shadow: 0 0 0 2px rgba(14,165,233,.15); }
+    .muted { color:var(--muted); }
+    .danger { color:var(--danger); }
+    .ok { color:var(--ok); }
+
+    .taskbtn { width:100%; text-align:left; padding:10px; border:1px solid var(--border); border-radius:10px; background:var(--card); margin-bottom:8px; cursor:pointer; }
+    .taskbtn.active { border-color:var(--primary); box-shadow: 0 0 0 2px rgba(14,165,233,.15); }
     .badge { float:right; font-size:11px; padding:2px 6px; border-radius:999px; background:#eef2ff; }
-    .card { background:#fff; border:1px solid #e5e7eb; border-radius:12px; padding: 14px; margin-bottom: 12px; }
-    pre { background:#0b1020; color:#d1d5db; padding: 10px; border-radius:10px; overflow:auto; }
-    textarea { width:100%; height:240px; border:1px solid #cbd5e1; border-radius:12px; padding: 12px; font-family: Consolas, monospace; font-size: 13px; box-sizing:border-box; }
-    button.primary { background:#0ea5e9; color:#fff; border:0; padding:10px 14px; border-radius:10px; cursor:pointer; }
-    button.ghost { background:#fff; color:#111827; border:1px solid #e5e7eb; padding:10px 14px; border-radius:10px; cursor:pointer; }
+
+    .card { background:var(--card); border:1px solid var(--border); border-radius:12px; padding: 14px; margin-bottom: 12px; box-shadow: var(--shadow); }
+    pre { background:#0b1020; color:#d1d5db; padding: 10px; border-radius:10px; overflow:auto; margin:8px 0 0 0; }
+
+    textarea {
+      width:100%; height:240px;
+      border:1px solid #cbd5e1; border-radius:12px;
+      padding: 12px; font-family: Consolas, monospace; font-size: 13px;
+      box-sizing:border-box; resize: vertical;
+    }
+
+    button.primary { background:var(--primary); color:#fff; border:0; padding:10px 14px; border-radius:10px; cursor:pointer; }
+    button.ghost { background:#fff; color:#111827; border:1px solid var(--border); padding:10px 14px; border-radius:10px; cursor:pointer; }
     button.primary:disabled, button.ghost:disabled { opacity: 0.6; cursor:not-allowed; }
+
     .row { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
-    .msg { padding: 10px; border-radius: 10px; background:#fff7ed; border:1px solid #fed7aa; }
-    .hintbox { padding: 10px; border-radius: 10px; background:#ecfeff; border:1px solid #a5f3fc; }
-    .muted { color:#6b7280; }
-    .danger { color:#b91c1c; }
-    .ok { color:#166534; }
-    a { color:#0ea5e9; text-decoration:none; }
+    .msg { padding: 10px; border-radius: 10px; background:#fff7ed; border:1px solid #fed7aa; box-shadow: var(--shadow); }
+
+    /* Hint cards (left, flip) */
+    .hintPanelTitle{ font-weight:700; margin: 8px 0 10px; }
+    .hintGrid{ display:flex; flex-direction:column; gap:10px; }
+
+    .flipCard {
+      position: relative;
+      border-radius: 14px;
+      border: 2px solid var(--hintborder);
+      background: var(--hintbg);
+      padding: 12px;
+      cursor: pointer;
+      user-select: none;
+      transition: box-shadow .18s ease, border-color .18s ease, transform .18s ease;
+      box-shadow: var(--shadow);
+    }
+    .flipCard.disabled{
+      opacity: .75;
+      cursor: not-allowed;
+    }
+    .flipCard.available{
+      border-color: rgba(14,165,233,.55);
+      box-shadow: 0 0 0 3px rgba(14,165,233,.12), 0 0 20px var(--hintglow);
+    }
+    .flipCardHeader{
+      display:flex; justify-content:space-between; align-items:center; gap:8px;
+    }
+    .flipCardTitle{ font-weight:700; }
+    .pill{
+      font-size:11px; padding:2px 8px; border-radius:999px;
+      border:1px solid var(--border);
+      color:#111827; background:#f9fafb;
+    }
+    .pill.blue{ border-color: rgba(14,165,233,.45); background: rgba(14,165,233,.08); color:#0b4b66; }
+    .pill.gray{ color:var(--muted); }
+
+    .flipBody{
+      margin-top:10px;
+      white-space:pre-wrap;
+      overflow-wrap:anywhere;
+      max-height: 420px;
+      overflow:auto;
+    }
+    .flipBack{
+      display:none;
+      margin-top:10px;
+      white-space:pre-wrap;
+      overflow-wrap:anywhere;
+    }
+
+    .flipCard.flipped .flipBody{ display:none; }
+    .flipCard.flipped .flipBack{ display:block; }
+
+    /* flip animation */
+    .flipCard.animating{
+      animation: flipAnim .45s ease;
+    }
+    @keyframes flipAnim{
+      0% { transform: rotateY(0deg); }
+      49% { transform: rotateY(90deg); }
+      50% { transform: rotateY(90deg); }
+      100% { transform: rotateY(0deg); }
+    }
+
+    /* Submit button at bottom of editor card */
+    .editorFooter{
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:10px;
+      margin-top:10px;
+    }
+
+    /* right side split (task vs editor) horizontal resizer */
+    .contentSplit{
+      display:flex;
+      gap:0;
+      align-items:stretch;
+      height: calc(100vh - 36px);
+      min-height: 520px;
+    }
+    .leftPane{
+      width: 52%;
+      min-width: 320px;
+      max-width: 75%;
+      padding-right: 10px;
+      box-sizing: border-box;
+      overflow:auto;
+    }
+    .splitResizer{
+      width: 8px;
+      cursor: col-resize;
+      background: transparent;
+      position: relative;
+      flex: 0 0 auto;
+    }
+    .splitResizer:after{
+      content:"";
+      position:absolute; inset:0;
+      background: linear-gradient(to right, transparent, rgba(17,24,39,.08), transparent);
+      opacity:.55;
+    }
+    .rightPane{
+      flex: 1;
+      min-width: 320px;
+      padding-left: 10px;
+      box-sizing: border-box;
+      overflow:auto;
+    }
+
+    a { color:var(--primary); text-decoration:none; }
+    hr { border:none; border-top:1px solid var(--border); margin:12px 0; }
+
+    /* small helper text */
+    .tiny { font-size:11px; color:var(--muted); }
   </style>
 </head>
 <body>
 <div class="layout">
-  <div class="sidebar">
-    <div class="top">
-      <div>
-        <div class="title" id="studentName">Student</div>
-        <div class="small" id="studentClass"></div>
+
+  <!-- Resizable sidebar -->
+  <div class="sidebarWrap">
+    <div class="sidebar" id="sidebar">
+      <div class="top">
+        <div>
+          <div class="title" id="studentName">Student</div>
+          <div class="small" id="studentClass"></div>
+        </div>
+        <form method="post" action="/student/logout/">
+          {% csrf_token %}
+          <button class="ghost" type="submit">Logout</button>
+        </form>
       </div>
-      <form method="post" action="/student/logout/">
-        {% csrf_token %}
-        <button class="ghost" type="submit">Выйти</button>
-      </form>
-    </div>
 
-    <div class="card">
-      <div class="title" id="sessionTitle">Сессия</div>
-      <div class="small" id="sessionTime"></div>
-      <div class="small muted" id="sessionDesc"></div>
-    </div>
-
-    <div id="taskList"></div>
-
-    <div class="card">
-      <div class="row">
-        <div class="small">Подсказка:</div>
-        <div class="small" id="hintState">недоступно</div>
+      <div class="card">
+        <div class="title" id="sessionTitle">Session</div>
+        <div class="small" id="sessionTime"></div>
+        <div class="small muted" id="sessionDesc"></div>
       </div>
-      <div class="small muted">Откроется после 5/8 неудачных попыток.</div>
+
+      <div id="taskList"></div>
+
+      <!-- Hints panel (left, under tasks) -->
+      <div class="card">
+        <div class="hintPanelTitle">Hints</div>
+        <div class="tiny">Hints unlock after 5/8 failed attempts. Tap a card to reveal/hide.</div>
+
+        <div class="hintGrid" style="margin-top:10px;">
+          <div class="flipCard disabled" id="hintCard1" data-level="1">
+            <div class="flipCardHeader">
+              <div class="flipCardTitle">Hint Level 1</div>
+              <div class="pill gray" id="hintPill1">locked</div>
+            </div>
+            <div class="flipBody muted" id="hintFront1">Hint is locked. It will unlock after 5 failed attempts.</div>
+            <div class="flipBack" id="hintBack1"></div>
+          </div>
+
+          <div class="flipCard disabled" id="hintCard2" data-level="2">
+            <div class="flipCardHeader">
+              <div class="flipCardTitle">Hint Level 2</div>
+              <div class="pill gray" id="hintPill2">locked</div>
+            </div>
+            <div class="flipBody muted" id="hintFront2">Hint is locked. It will unlock after 8 failed attempts.</div>
+            <div class="flipBack" id="hintBack2"></div>
+          </div>
+        </div>
+      </div>
+
     </div>
+    <div class="resizer" id="sidebarResizer" title="Drag to resize"></div>
   </div>
 
   <div class="content">
     <div id="statusBox" class="msg" style="display:none;"></div>
 
-    <!-- Hint block -->
-    <div class="card hintbox" id="hintCard" style="display:none;">
-      <div class="row" style="justify-content:space-between;">
-        <div>
-          <div class="title">Подсказка от помощника</div>
-          <div class="small muted" id="hintMeta">Подсказка недоступна</div>
+    <div class="contentSplit">
+      <!-- Task pane -->
+      <div class="leftPane" id="taskPane">
+        <div class="card" id="taskCard" style="display:none;">
+          <div class="title" id="taskTitle"></div>
+          <div class="small muted" id="taskMeta"></div>
+          <hr>
+          <div id="taskStatement"></div>
+
+          <div style="margin-top:10px;"></div>
+          <div class="small"><b>Constraints:</b></div>
+          <div class="small" id="taskConstraints"></div>
+
+          <div style="margin-top:12px;"></div>
+          <div class="small"><b>Sample tests:</b></div>
+          <div id="visibleTests"></div>
         </div>
-        <button class="primary" id="hintBtn" disabled>Открыть подсказку</button>
-      </div>
-      <div style="margin-top:10px; white-space:pre-wrap;" id="hintText"></div>
-    </div>
-
-    <div class="card" id="taskCard" style="display:none;">
-      <div class="title" id="taskTitle"></div>
-      <div class="small muted" id="taskMeta"></div>
-      <hr style="border:none;border-top:1px solid #e5e7eb;margin:12px 0;">
-      <div id="taskStatement"></div>
-      <div style="margin-top:10px;"></div>
-      <div class="small"><b>Constraints:</b></div>
-      <div class="small" id="taskConstraints"></div>
-
-      <div style="margin-top:12px;"></div>
-      <div class="small"><b>Примеры тестов:</b></div>
-      <div id="visibleTests"></div>
-    </div>
-
-    <div class="card" id="editorCard" style="display:none;">
-      <div class="row" style="justify-content:space-between;">
-        <div>
-          <div class="title">Код (Python)</div>
-          <div class="small muted">Проверка выполняется через Judge0. Ограничение: 15 сек между сабмитами.</div>
-        </div>
-        <button class="primary" id="submitBtn">Submit</button>
       </div>
 
-      <div style="margin-top:10px;"></div>
-      <textarea id="codeArea">print("Hello")</textarea>
+      <div class="splitResizer" id="contentResizer" title="Drag to resize"></div>
 
-      <div style="margin-top:12px;"></div>
-      <div class="card" id="resultCard" style="display:none;">
-        <div class="row">
-          <div><b>Verdict:</b> <span id="verdict"></span></div>
-          <div class="muted" id="attemptsInfo"></div>
+      <!-- Editor pane -->
+      <div class="rightPane" id="editorPane">
+        <div class="card" id="editorCard" style="display:none;">
+          <div class="row" style="justify-content:space-between;">
+            <div>
+              <div class="title">Code (Python)</div>
+              <div class="small muted">Evaluation via Judge0. Limit: 15 seconds between submissions. Submissions are blocked if code is unchanged.</div>
+            </div>
+          </div>
+
+          <div style="margin-top:10px;"></div>
+          <textarea id="codeArea" spellcheck="false">print("Hello")</textarea>
+
+          <!-- Submit moved down -->
+          <div class="editorFooter">
+            <div class="tiny" id="submitState">Ready</div>
+            <button class="primary" id="submitBtn">Submit</button>
+          </div>
+
+          <div style="margin-top:12px;"></div>
+          <div class="card" id="resultCard" style="display:none;">
+            <div class="row">
+              <div><b>Verdict:</b> <span id="verdict"></span></div>
+              <div class="muted" id="attemptsInfo"></div>
+            </div>
+            <div id="stderrBox" class="danger" style="margin-top:10px;white-space:pre-wrap;"></div>
+            <div id="stdoutBox" class="ok" style="margin-top:10px;white-space:pre-wrap;"></div>
+          </div>
         </div>
-        <div id="stderrBox" class="danger" style="margin-top:10px;white-space:pre-wrap;"></div>
-        <div id="stdoutBox" class="ok" style="margin-top:10px;white-space:pre-wrap;"></div>
       </div>
     </div>
+
   </div>
 </div>
 
 <script>
   let currentTaskId = null;
 
-  // {taskId: sha256(code)} for last successful submit
-  let lastSubmittedHashByTask = {};
-  // {taskId: sha256(code)} current known hash
-  let lastKnownHashByTask = {};
-  // cooldown end timestamp
-  let submitCooldownUntil = 0;
-  // last progress object from backend for current task
+  // per-task local code cache
+  const CODE_CACHE_PREFIX = "pp_code_task_";
+
+  // Submit anti-spam
+  let lastSubmittedHashByTask = {};   // {taskId: sha256(code)} for last successful submit
+  let submitCooldownUntil = 0;        // timestamp ms for submit
+
+  // Hint anti-spam (independent per level)
+  let hintCooldownUntil = {1:0, 2:0}; // timestamps ms
+
+  // progress from backend for current task
   let lastProgress = null;
 
   function qs(id){ return document.getElementById(id); }
@@ -145,97 +327,6 @@
     return hashArr.map(b => b.toString(16).padStart(2, "0")).join("");
   }
 
-  function setSubmitButtonState(enabled, label){
-    const btn = qs("submitBtn");
-    btn.disabled = !enabled;
-    btn.textContent = label || "Submit";
-    btn.style.opacity = enabled ? "1" : "0.6";
-    btn.style.cursor = enabled ? "pointer" : "not-allowed";
-  }
-
-  function setHintButtonState(enabled, metaText){
-    const btn = qs("hintBtn");
-    btn.disabled = !enabled;
-    btn.style.opacity = enabled ? "1" : "0.6";
-    btn.style.cursor = enabled ? "pointer" : "not-allowed";
-    qs("hintMeta").textContent = metaText || (enabled ? "Подсказка доступна" : "Подсказка недоступна");
-  }
-
-  function showHintCard(){
-    qs("hintCard").style.display = "block";
-  }
-  function clearHint(){
-    qs("hintText").textContent = "";
-  }
-
-  function getCooldownSecondsLeft(){
-    const now = Date.now();
-    if (now >= submitCooldownUntil) return 0;
-    return Math.ceil((submitCooldownUntil - now) / 1000);
-  }
-
-  function tickCooldown(){
-    const left = getCooldownSecondsLeft();
-    if (left > 0){
-      setSubmitButtonState(false, `Submit (${left}s)`);
-      setTimeout(tickCooldown, 250);
-    } else {
-      updateSubmitAvailability();
-    }
-  }
-
-  async function updateSubmitAvailability(){
-    if (!currentTaskId) return;
-
-    const left = getCooldownSecondsLeft();
-    if (left > 0){
-      setSubmitButtonState(false, `Submit (${left}s)`);
-      return;
-    }
-
-    const code = qs("codeArea").value || "";
-    const h = await sha256Hex(code);
-    lastKnownHashByTask[currentTaskId] = h;
-
-    const lastSub = lastSubmittedHashByTask[currentTaskId];
-    const changed = !lastSub || lastSub !== h;
-
-    if (!changed){
-      setSubmitButtonState(false, "Submit (no changes)");
-    } else {
-      setSubmitButtonState(true, "Submit");
-    }
-  }
-
-  function updateHintAvailability(){
-    showHintCard();
-    clearHint();
-
-    if (!lastProgress){
-      setHintButtonState(false, "Подсказка недоступна");
-      return;
-    }
-
-    if (lastProgress.hint2_available){
-      setHintButtonState(true, "Доступна подсказка 2 уровня");
-    } else if (lastProgress.hint1_available){
-      setHintButtonState(true, "Доступна подсказка 1 уровня");
-    } else {
-      setHintButtonState(false, "Откроется после 5/8 неудачных попыток");
-    }
-  }
-
-  function setHintState(p){
-    lastProgress = p || null;
-
-    const state = qs("hintState");
-    if (p && p.hint2_available) state.textContent = "доступна подсказка 2 уровня";
-    else if (p && p.hint1_available) state.textContent = "доступна подсказка 1 уровня";
-    else state.textContent = "недоступно";
-
-    updateHintAvailability();
-  }
-
   async function apiGet(url){
     const r = await fetch(url, { credentials: "include" });
     return { status: r.status, data: await r.json() };
@@ -250,12 +341,267 @@
     return { status: r.status, data: await r.json() };
   }
 
+  function escapeHtml(s){
+    return (s || "")
+      .replaceAll("&","&amp;")
+      .replaceAll("<","&lt;")
+      .replaceAll(">","&gt;");
+  }
+
+  // ---------- Resizers (sidebar + content split) ----------
+  function makeResizer(resizerEl, leftEl, opts){
+    let dragging = false;
+
+    const min = opts.min ?? 240;
+    const max = opts.max ?? 600;
+
+    resizerEl.addEventListener("mousedown", (e) => {
+      dragging = true;
+      document.body.style.userSelect = "none";
+      e.preventDefault();
+    });
+
+    window.addEventListener("mousemove", (e) => {
+      if (!dragging) return;
+      const x = e.clientX;
+      const parentRect = leftEl.parentElement.getBoundingClientRect();
+      let w = x - parentRect.left;
+      w = Math.max(min, Math.min(max, w));
+      leftEl.style.width = w + "px";
+    });
+
+    window.addEventListener("mouseup", () => {
+      if (!dragging) return;
+      dragging = false;
+      document.body.style.userSelect = "";
+    });
+  }
+
+  function makeContentSplitResizer(resizerEl, leftPane, rightPane){
+    let dragging = false;
+
+    resizerEl.addEventListener("mousedown", (e) => {
+      dragging = true;
+      document.body.style.userSelect = "none";
+      e.preventDefault();
+    });
+
+    window.addEventListener("mousemove", (e) => {
+      if (!dragging) return;
+
+      const container = resizerEl.parentElement; // .contentSplit
+      const rect = container.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+
+      // keep some minimums
+      const minLeft = 320;
+      const minRight = 320;
+
+      const maxLeft = rect.width - minRight - resizerEl.offsetWidth;
+
+      let newLeft = Math.max(minLeft, Math.min(maxLeft, x));
+      leftPane.style.width = newLeft + "px";
+      // rightPane is flex:1, so it fills the rest
+    });
+
+    window.addEventListener("mouseup", () => {
+      if (!dragging) return;
+      dragging = false;
+      document.body.style.userSelect = "";
+    });
+  }
+
+  // ---------- Code cache per task ----------
+  function loadCachedCode(taskId){
+    try{
+      const v = localStorage.getItem(CODE_CACHE_PREFIX + taskId);
+      return v ?? "";
+    }catch(e){
+      return "";
+    }
+  }
+  function saveCachedCode(taskId, code){
+    try{
+      localStorage.setItem(CODE_CACHE_PREFIX + taskId, code);
+    }catch(e){}
+  }
+
+  // ---------- Submit cooldown + change check ----------
+  function getSubmitCooldownLeft(){
+    const now = Date.now();
+    if (now >= submitCooldownUntil) return 0;
+    return Math.ceil((submitCooldownUntil - now) / 1000);
+  }
+
+  function setSubmitButtonState(enabled, label){
+    const btn = qs("submitBtn");
+    btn.disabled = !enabled;
+    btn.textContent = label || "Submit";
+  }
+
+  async function updateSubmitAvailability(){
+    if (!currentTaskId) return;
+
+    const left = getSubmitCooldownLeft();
+    if (left > 0){
+      setSubmitButtonState(false, `Submit (${left}s)`);
+      qs("submitState").textContent = `Cooldown: ${left}s`;
+      return;
+    }
+
+    const code = qs("codeArea").value || "";
+    const h = await sha256Hex(code);
+    const lastSub = lastSubmittedHashByTask[currentTaskId];
+    const changed = !lastSub || lastSub !== h;
+
+    if (!changed){
+      setSubmitButtonState(false, "Submit (no changes)");
+      qs("submitState").textContent = "Blocked: code unchanged";
+    } else {
+      setSubmitButtonState(true, "Submit");
+      qs("submitState").textContent = "Ready";
+    }
+  }
+
+  function tickSubmitCooldown(){
+    const left = getSubmitCooldownLeft();
+    if (left > 0){
+      setSubmitButtonState(false, `Submit (${left}s)`);
+      qs("submitState").textContent = `Cooldown: ${left}s`;
+      setTimeout(tickSubmitCooldown, 250);
+    } else {
+      updateSubmitAvailability();
+    }
+  }
+
+  // ---------- Hints (two cards, flip, 15s cooldown per card) ----------
+  function hintUnlocked(level){
+    if (!lastProgress) return false;
+    if (level === 1) return !!lastProgress.hint1_available;
+    if (level === 2) return !!lastProgress.hint2_available;
+    return false;
+  }
+
+  function getHintCooldownLeft(level){
+    const now = Date.now();
+    const until = hintCooldownUntil[level] || 0;
+    if (now >= until) return 0;
+    return Math.ceil((until - now) / 1000);
+  }
+
+  function setHintCardState(level){
+    const card = qs(level === 1 ? "hintCard1" : "hintCard2");
+    const pill = qs(level === 1 ? "hintPill1" : "hintPill2");
+
+    const unlocked = hintUnlocked(level);
+
+    card.classList.remove("available");
+    card.classList.add("disabled");
+    pill.className = "pill gray";
+    pill.textContent = "locked";
+
+    if (unlocked){
+      card.classList.add("available");
+      card.classList.remove("disabled");
+      pill.className = "pill blue";
+      const left = getHintCooldownLeft(level);
+      pill.textContent = left > 0 ? `cooldown ${left}s` : "available";
+    }
+  }
+
+  function updateHintsUI(){
+    setHintCardState(1);
+    setHintCardState(2);
+  }
+
+  function flipCard(card){
+    card.classList.add("animating");
+    setTimeout(() => {
+      card.classList.toggle("flipped");
+      card.classList.remove("animating");
+    }, 230);
+  }
+
+  function setHintText(level, text){
+    const back = qs(level === 1 ? "hintBack1" : "hintBack2");
+    back.textContent = text || "";
+  }
+
+  async function fetchHint(level){
+    if (!currentTaskId) return;
+
+    if (!hintUnlocked(level)){
+      showStatus(level === 1 ? "Hint level 1 is locked." : "Hint level 2 is locked.");
+      return;
+    }
+
+    const left = getHintCooldownLeft(level);
+    if (left > 0){
+      showStatus(`Please wait ${left}s before requesting this hint again.`);
+      return;
+    }
+
+    // request
+    const res = await apiGet(`/api/student/task/${currentTaskId}/hint/${level}`);
+    if (!res.data.ok){
+      showStatus(res.data.error || "Hint request failed");
+      return;
+    }
+
+    // success: set cooldown for this hint card (15s)
+    hintCooldownUntil[level] = Date.now() + 15000;
+
+    // display
+    setHintText(level, res.data.text || "(empty)");
+
+    // Update pill to show cooldown
+    updateHintsUI();
+    tickHintCooldown(level);
+  }
+
+  function tickHintCooldown(level){
+    const left = getHintCooldownLeft(level);
+    if (left > 0){
+      const pill = qs(level === 1 ? "hintPill1" : "hintPill2");
+      pill.textContent = `cooldown ${left}s`;
+      setTimeout(() => tickHintCooldown(level), 250);
+    } else {
+      updateHintsUI();
+    }
+  }
+
+  function onHintCardClick(level){
+    const card = qs(level === 1 ? "hintCard1" : "hintCard2");
+
+    if (!hintUnlocked(level)){
+      return;
+    }
+
+    // If flipped (showing hint), just flip back
+    if (card.classList.contains("flipped")){
+      flipCard(card);
+      return;
+    }
+
+    // Not flipped: if we already have text cached in the card, allow flip without new request
+    const back = qs(level === 1 ? "hintBack1" : "hintBack2");
+    const hasText = (back.textContent || "").trim().length > 0;
+
+    // If no text yet OR user wants refreshed hint -> we fetch when opening
+    // but we still respect cooldown
+    fetchHint(level).then(() => {
+      // flip open to show after fetching (even if already had text)
+      flipCard(card);
+    });
+  }
+
+  // ---------- Tasks ----------
   function renderTasks(tasks){
     const list = qs("taskList");
     list.innerHTML = "";
 
     if (!tasks || tasks.length === 0){
-      list.innerHTML = '<div class="card"><div class="small muted">В этой сессии пока нет задач.</div></div>';
+      list.innerHTML = '<div class="card"><div class="small muted">No tasks in this session.</div></div>';
       return;
     }
 
@@ -278,7 +624,13 @@
   }
 
   async function openTask(taskId, btn){
+    // Save current code before switching
+    if (currentTaskId){
+      saveCachedCode(currentTaskId, qs("codeArea").value || "");
+    }
+
     currentTaskId = taskId;
+
     document.querySelectorAll(".taskbtn").forEach(b => b.classList.remove("active"));
     if (btn) btn.classList.add("active");
 
@@ -286,12 +638,12 @@
 
     const res = await apiGet(`/api/student/task/${taskId}`);
     if (!res.data.ok){
-      showStatus(res.data.error || "Ошибка загрузки задачи");
+      showStatus(res.data.error || "Failed to load task");
       return;
     }
 
     if (res.data.locked){
-      showStatus(res.data.message || "Задача недоступна");
+      showStatus(res.data.message || "Task is locked");
       qs("taskCard").style.display = "none";
       qs("editorCard").style.display = "none";
       return;
@@ -305,8 +657,10 @@
     qs("taskStatement").textContent = res.data.task.statement;
     qs("taskConstraints").textContent = res.data.task.constraints || "—";
 
-    setHintState(res.data.progress);
+    lastProgress = res.data.progress || null;
+    updateHintsUI();
 
+    // visible tests
     const vt = qs("visibleTests");
     vt.innerHTML = "";
     (res.data.visible_testcases || []).forEach(tc => {
@@ -322,51 +676,28 @@
       vt.appendChild(wrap);
     });
 
-    updateHintAvailability();
+    // Load cached code for this task (or fallback)
+    const cached = loadCachedCode(taskId);
+    if (cached){
+      qs("codeArea").value = cached;
+    } else {
+      qs("codeArea").value = 'print("Hello")';
+    }
+
+    // reset hint display state per task (keep previous text? you can clear if you want)
+    // Here: we clear hint backs when switching tasks, so hints are per-task visible.
+    qs("hintBack1").textContent = "";
+    qs("hintBack2").textContent = "";
+    qs("hintCard1").classList.remove("flipped");
+    qs("hintCard2").classList.remove("flipped");
+
     updateSubmitAvailability();
   }
 
-  function escapeHtml(s){
-    return (s || "")
-      .replaceAll("&","&amp;")
-      .replaceAll("<","&lt;")
-      .replaceAll(">","&gt;");
-  }
-
-  async function loadHint(){
-    if (!currentTaskId){
-      showStatus("Сначала выберите задачу.");
-      return;
-    }
-    if (!lastProgress){
-      showStatus("Нет данных по прогрессу.");
-      return;
-    }
-
-    const level = lastProgress.hint2_available ? 2 : (lastProgress.hint1_available ? 1 : 0);
-    if (!level){
-      showStatus("Подсказка пока недоступна.");
-      return;
-    }
-
-    setHintButtonState(false, "Загрузка подсказки...");
-    clearHint();
-    showHintCard();
-
-    const res = await apiGet(`/api/student/task/${currentTaskId}/hint/${level}`);
-    if (!res.data.ok){
-      showStatus(res.data.error || "Ошибка получения подсказки");
-      updateHintAvailability();
-      return;
-    }
-
-    qs("hintText").textContent = res.data.text || "(пусто)";
-    updateHintAvailability();
-  }
-
+  // ---------- Submit ----------
   async function submit(){
     if (!currentTaskId){
-      showStatus("Выберите задачу слева.");
+      showStatus("Select a task on the left.");
       return;
     }
 
@@ -374,38 +705,42 @@
 
     const code = qs("codeArea").value || "";
 
-    // запрет сабмита без изменений (дублируем логику бэкенда)
+    // prevent submit if unchanged
     const h = await sha256Hex(code);
     const lastSub = lastSubmittedHashByTask[currentTaskId];
     if (lastSub && lastSub === h){
-      showStatus("Код не изменился с прошлого сабмита.");
+      showStatus("Your code is unchanged since the last submission.");
       updateSubmitAvailability();
       return;
     }
 
     // cooldown check
-    const left = getCooldownSecondsLeft();
+    const left = getSubmitCooldownLeft();
     if (left > 0){
-      showStatus(`Подожди ${left}s перед следующим сабмитом.`);
+      showStatus(`Please wait ${left}s before submitting again.`);
       return;
     }
 
     setSubmitButtonState(false, "Submitting...");
+    qs("submitState").textContent = "Submitting...";
 
     const res = await apiPost(`/api/student/task/${currentTaskId}/submit`, { code });
 
     if (!res.data.ok){
-      showStatus(res.data.error || "Submit error");
+      showStatus(res.data.error || "Submit failed");
       updateSubmitAvailability();
       return;
     }
 
-    // запоминаем хэш последнего сабмита
+    // Save code cache after successful submit
+    saveCachedCode(currentTaskId, code);
+
+    // remember last submitted hash
     lastSubmittedHashByTask[currentTaskId] = h;
 
-    // запускаем 15s cooldown на фронте
+    // start submit cooldown 15s
     submitCooldownUntil = Date.now() + 15000;
-    tickCooldown();
+    tickSubmitCooldown();
 
     const sub = res.data.submission;
     const p = res.data.progress;
@@ -417,15 +752,20 @@
     qs("stderrBox").textContent = sub.stderr || "";
     qs("stdoutBox").textContent = sub.stdout || "";
 
-    setHintState(p);
+    // update progress + hints availability
+    lastProgress = p || null;
+    updateHintsUI();
+
     updateSubmitAvailability();
   }
 
+  // ---------- Init ----------
   async function init(){
-    showHintCard();
-    updateHintAvailability();
+    // Setup resizers
+    makeResizer(qs("sidebarResizer"), qs("sidebar"), {min:240, max:520});
+    makeContentSplitResizer(qs("contentResizer"), qs("taskPane"), qs("editorPane"));
 
-    // показываем student info из /api/auth/student-me
+    // student info
     const me = await apiGet("/api/auth/student-me");
     if (me.status === 401){
       window.location.href = "/student/login/";
@@ -434,15 +774,15 @@
     qs("studentName").textContent = me.data.student.full_name;
     qs("studentClass").textContent = "Class: " + me.data.student.class.name;
 
-    // активная сессия
+    // active session
     const res = await apiGet("/api/student/active-session");
     if (!res.data.ok){
-      showStatus(res.data.error || "Ошибка загрузки сессии");
+      showStatus(res.data.error || "Failed to load session");
       return;
     }
     if (!res.data.active){
-      showStatus(res.data.message || "Сессия неактивна");
-      qs("sessionTitle").textContent = "Сессия неактивна";
+      showStatus(res.data.message || "No active session");
+      qs("sessionTitle").textContent = "No active session";
       qs("taskList").innerHTML = "";
       return;
     }
@@ -453,22 +793,29 @@
 
     renderTasks(res.data.tasks);
 
-    // авто-открываем первую задачу
+    // auto-open first task
     if (res.data.tasks && res.data.tasks.length > 0){
       const first = res.data.tasks[0];
       const firstBtn = document.querySelector(`.taskbtn[data-id="${first.id}"]`);
       openTask(first.id, firstBtn);
     }
 
+    // events
+    qs("submitBtn").addEventListener("click", submit);
+    qs("codeArea").addEventListener("input", () => {
+      if (!currentTaskId) return;
+      // save code to cache while typing
+      saveCachedCode(currentTaskId, qs("codeArea").value || "");
+      updateSubmitAvailability();
+    });
+
+    // hint cards click to fetch + flip
+    qs("hintCard1").addEventListener("click", () => onHintCardClick(1));
+    qs("hintCard2").addEventListener("click", () => onHintCardClick(2));
+
+    updateHintsUI();
     updateSubmitAvailability();
   }
-
-  qs("submitBtn").addEventListener("click", submit);
-  qs("hintBtn").addEventListener("click", loadHint);
-
-  qs("codeArea").addEventListener("input", () => {
-    updateSubmitAvailability();
-  });
 
   init();
 </script>

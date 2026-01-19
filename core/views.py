@@ -615,7 +615,10 @@ def student_hint_level(request: HttpRequest, task_id: int, level: int):
 
     session = _get_active_session_for_class(class_id)
     if not session:
-        return JsonResponse({"ok": True, "active": False, "message": "Текущая сессия неактивна"}, status=200)
+        return JsonResponse(
+            {"ok": True, "active": False, "message": "Current session is inactive"},
+            status=200
+        )
 
     task = get_object_or_404(SessionTask, id=task_id, session=session)
 
@@ -633,19 +636,19 @@ def student_hint_level(request: HttpRequest, task_id: int, level: int):
         defaults={"status": StudentTaskProgress.Status.IN_PROGRESS, "opened_at": now},
     )
 
-    # 1) Проверяем, что подсказка разрешена по порогам
+    # 1) Check thresholds
     if level == 1 and progress.attempts_failed < 5:
-        return JsonResponse({"ok": False, "error": "hint1 not available yet"}, status=403)
+        return JsonResponse({"ok": False, "error": "hint level 1 not available yet"}, status=403)
     if level == 2 and progress.attempts_failed < 8:
-        return JsonResponse({"ok": False, "error": "hint2 not available yet"}, status=403)
+        return JsonResponse({"ok": False, "error": "hint level 2 not available yet"}, status=403)
 
-    # 2) Если уже есть кэш в progress — отдаём его
+    # 2) Cache in progress
     if level == 1 and progress.hint1_text:
         return JsonResponse({"ok": True, "level": 1, "text": progress.hint1_text})
     if level == 2 and progress.hint2_text:
         return JsonResponse({"ok": True, "level": 2, "text": progress.hint2_text})
 
-    # 3) Если уже есть запись AiAssistMessage OK — используем её
+    # 3) Cache in AiAssistMessage
     cached = (AiAssistMessage.objects
               .filter(progress=progress, level=level, status=AiAssistMessage.Status.OK)
               .order_by("-created_at")
@@ -659,7 +662,7 @@ def student_hint_level(request: HttpRequest, task_id: int, level: int):
             progress.save(update_fields=["hint2_text"])
         return JsonResponse({"ok": True, "level": level, "text": cached.response_text})
 
-    # 4) Собираем контекст
+    # 4) Build context
     visible_tests = list(
         TaskTestCase.objects.filter(task=task, is_visible=True)
         .order_by("ordinal")
@@ -680,7 +683,7 @@ def student_hint_level(request: HttpRequest, task_id: int, level: int):
         last_submissions=last_subs,
     )
 
-    # 5) Создаём запись (на случай падения API — чтобы лог был)
+    # 5) Create log row first
     msg = AiAssistMessage.objects.create(
         progress=progress,
         level=level,
@@ -689,29 +692,19 @@ def student_hint_level(request: HttpRequest, task_id: int, level: int):
         error_message="pending",
     )
 
-    # 6) Вызываем OpenAI
+    # 6) Call OpenAI (new schema: data = {"text": "...", "no_code_confirmed": bool})
     try:
         out = call_openai_hint(level, prompt_snapshot)
-        data = out["data"]
+        data = out.get("data") or {}
 
-        # Превращаем structured JSON в текст для ученика
-        if level == 1:
-            bullets = data.get("bullets", [])
-            checks = data.get("what_to_check", [])
-            text = "Причины ошибок:\n- " + "\n- ".join(bullets)
-            if checks:
-                text += "\n\nЧто проверить:\n- " + "\n- ".join(checks)
-        else:
-            approach = data.get("approach", [])
-            mistakes = data.get("common_mistakes", [])
-            text = "Путь решения:\n- " + "\n- ".join(approach)
-            if mistakes:
-                text += "\n\nЧастые ошибки:\n- " + "\n- ".join(mistakes)
+        text = (data.get("text") or "").strip()
+        if not text:
+            raise ValueError("Empty AI response text")
 
-        # Жёсткий фильтр: убираем код, если вдруг проскочил
+        # hard safety filter
         text = sanitize_no_code(text)
 
-        # сохраняем
+        # save ai message
         msg.response_text = text
         msg.model = out.get("model", "")
         msg.tokens_in = out.get("tokens_in")
@@ -720,7 +713,7 @@ def student_hint_level(request: HttpRequest, task_id: int, level: int):
         msg.error_message = ""
         msg.save(update_fields=["response_text", "model", "tokens_in", "tokens_out", "status", "error_message"])
 
-
+        # cache in progress
         if level == 1:
             progress.hint1_text = text
             progress.save(update_fields=["hint1_text"])

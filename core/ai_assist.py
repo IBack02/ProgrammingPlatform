@@ -82,37 +82,37 @@ def build_prompt_snapshot(
 
 
 # --- Structured outputs models (Pydantic) ---
-class HintLevel1(BaseModel):
-    bullets: TList[str]
-    what_to_check: TList[str]
+class HintTextLevel1(BaseModel):
+    text: str
     no_code_confirmed: bool
 
 
-class HintLevel2(BaseModel):
-    approach: TList[str]
-    common_mistakes: TList[str]
+class HintTextLevel2(BaseModel):
+    text: str
     no_code_confirmed: bool
 
 
-def call_openai_hint(level: int, prompt_snapshot: str) -> Dict[str, Any]:
+def call_openai_hint(level: int, prompt_snapshot: str) -> dict:
     """
-    Вариант A: используем responses.parse + Pydantic.
-    Это автоматически формирует правильный text.format и избавляет от ошибок вида:
-    "Missing required parameter: text.format.name".
+    Вызов OpenAI Responses API через responses.parse (structured output).
+    Возвращаем: {"data": {"text": "...", "no_code_confirmed": True}, ...}
     """
     client = OpenAI()
 
     if level == 1:
         system_rules = (
-            "You are a strict programming tutor.\n"
-            "Task: diagnose why the student's code fails.\n"
+            "You are a programming teacher speaking to a student in a natural, conversational tone.\n"
+            "Your job: explain WHY the student's solution fails (errors or wrong logic), without solving the task.\n"
             "Rules:\n"
-            "- DO NOT provide any code, pseudocode, or step-by-step full solution.\n"
-            "- Only explain the reasons of errors and what part of logic is wrong.\n"
-            "- Use short bullet points.\n"
-            "- If possible, refer to line/section of the student's code.\n"
-            "- If the student code is correct, say so.\n"
-            "Output MUST follow the given JSON schema."
+            "- Write a coherent teacher-like explanation as full sentences (no bullet lists, no numbered sections).\n"
+            "- You MAY point to a specific line or a part of a line where the mistake is likely located, "
+            "e.g. 'Around line 15 your condition is wrong...' or 'In the loop condition you...'.\n"
+            "- Explain the reason clearly: what exactly breaks and why (type conversion, input format, loop condition, edge cases).\n"
+            "- DO NOT provide code, pseudocode, or step-by-step full solution.\n"
+            "- DO NOT show corrected code fragments.\n"
+            "- If the code seems correct, say it and suggest what to verify (format, trailing spaces, reading input).\n"
+            "Output must match schema: {text: string, no_code_confirmed: boolean}.\n"
+            "Set no_code_confirmed=true only if you did not output any code-like content."
         )
 
         resp = client.responses.parse(
@@ -121,27 +121,29 @@ def call_openai_hint(level: int, prompt_snapshot: str) -> Dict[str, Any]:
                 {"role": "system", "content": system_rules},
                 {"role": "user", "content": prompt_snapshot},
             ],
-            text_format=HintLevel1,
-            max_output_tokens=450,
+            text_format=HintTextLevel1,
+            max_output_tokens=380,
         )
-
-        parsed = resp.output_parsed  # HintLevel1 instance
+        parsed = resp.output_parsed
 
         data = {
-            "bullets": parsed.bullets,
-            "what_to_check": parsed.what_to_check,
-            "no_code_confirmed": parsed.no_code_confirmed,
+            "text": (parsed.text or "").strip(),
+            "no_code_confirmed": bool(parsed.no_code_confirmed),
         }
 
     else:
         system_rules = (
-            "You are a strict programming tutor.\n"
-            "Task: provide a textual solution path.\n"
+            "You are a programming teacher speaking to a student in a natural, conversational tone.\n"
+            "Your job: give a TEXT-ONLY solution path (guidance), not the final solution.\n"
             "Rules:\n"
+            "- Write a coherent explanation as full sentences (no bullet lists, no numbered sections).\n"
+            "- You MAY mention very short method/command names that are relevant, e.g. 'use split', 'use sort', "
+            "'use a set', 'use a dictionary', 'use two pointers', 'use binary search' — but DO NOT write code or pseudocode.\n"
+            "- Keep it as guidance: what to do conceptually and what to watch out for, without giving a ready-made algorithm.\n"
             "- DO NOT provide code, pseudocode, or near-code.\n"
-            "- Explain the approach in plain language only.\n"
-            "- Provide guidance, not a full ready-made algorithm.\n"
-            "Output MUST follow the given JSON schema."
+            "- DO NOT provide exact final formulas if that fully solves it; explain the approach instead.\n"
+            "Output must match schema: {text: string, no_code_confirmed: boolean}.\n"
+            "Set no_code_confirmed=true only if you did not output any code-like content."
         )
 
         resp = client.responses.parse(
@@ -150,25 +152,16 @@ def call_openai_hint(level: int, prompt_snapshot: str) -> Dict[str, Any]:
                 {"role": "system", "content": system_rules},
                 {"role": "user", "content": prompt_snapshot},
             ],
-            text_format=HintLevel2,
-            max_output_tokens=450,
+            text_format=HintTextLevel2,
+            max_output_tokens=420,
         )
-
-        parsed = resp.output_parsed  # HintLevel2 instance
+        parsed = resp.output_parsed
 
         data = {
-            "approach": parsed.approach,
-            "common_mistakes": parsed.common_mistakes,
-            "no_code_confirmed": parsed.no_code_confirmed,
+            "text": (parsed.text or "").strip(),
+            "no_code_confirmed": bool(parsed.no_code_confirmed),
         }
-
-    usage = getattr(resp, "usage", None)
-    tokens_in = getattr(usage, "input_tokens", None) if usage else None
-    tokens_out = getattr(usage, "output_tokens", None) if usage else None
-
-    return {
-        "data": data,
-        "tokens_in": tokens_in,
-        "tokens_out": tokens_out,
-        "model": "gpt-4o-mini",
-    }
+        usage = getattr(resp, "usage", None)
+        tokens_in = getattr(usage, "input_tokens", None) if usage else None
+        tokens_out = getattr(usage, "output_tokens", None) if usage else None
+        return {"data": data, "tokens_in": tokens_in, "tokens_out": tokens_out, "model": "gpt-4o-mini"}
