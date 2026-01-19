@@ -1,5 +1,6 @@
 import re
 from typing import Dict, Any, List, Optional
+import os
 
 from openai import OpenAI
 from pydantic import BaseModel
