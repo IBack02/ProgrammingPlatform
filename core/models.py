@@ -312,10 +312,6 @@ class ActivityEvent(models.Model):
 
 
 class ActivityAggregate(models.Model):
-    """
-    Быстрые метрики по задаче для мониторинга.
-    Можно обновлять сразу при приходе событий, или периодически воркером.
-    """
     progress = models.OneToOneField(StudentTaskProgress, on_delete=models.CASCADE, related_name="activity_agg")
 
     total_copies = models.PositiveIntegerField(default=0)
@@ -325,15 +321,11 @@ class ActivityAggregate(models.Model):
 
     active_time_seconds = models.PositiveIntegerField(default=0)
 
+    # NEW: hint requests counters
+    hint1_requests = models.PositiveIntegerField(default=0)
+    hint2_requests = models.PositiveIntegerField(default=0)
+
     updated_at = models.DateTimeField(auto_now=True)
-
-    class Meta:
-        verbose_name = "Activity aggregate"
-        verbose_name_plural = "Activity aggregates"
-
-    def __str__(self):
-        return f"Aggregate for progress {self.progress_id}"
-
 # core/models.py
 from django.db import models
 

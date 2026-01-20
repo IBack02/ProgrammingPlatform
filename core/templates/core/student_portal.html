@@ -1,9 +1,12 @@
+{% load static %}
+
 <!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Student Portal</title>
+    <script src="{% static 'core/student_activity.js' %}"></script>
   <style>
     :root{
       --bg:#f6f7fb;
@@ -690,6 +693,9 @@
     qs("hintBack2").textContent = "";
     qs("hintCard1").classList.remove("flipped");
     qs("hintCard2").classList.remove("flipped");
+    if (window.StudentActivityTracker) {
+  window.StudentActivityTracker.setContext({ taskId: taskId });
+}
 
     updateSubmitAvailability();
   }

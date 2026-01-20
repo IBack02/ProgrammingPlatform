@@ -1,12 +1,12 @@
 import hashlib
 import json
 import re
-
+from django.db.models import F
 from django.http import JsonResponse, HttpRequest
 from django.shortcuts import get_object_or_404, render, redirect
 from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
-from django.views.decorators.http import require_GET, require_POST, require_http_methods
+from django.views.decorators.http import require_POST, require_http_methods
 from django.views.decorators.http import require_GET
 from .ai_assist import build_prompt_snapshot, call_openai_hint, sanitize_no_code
 from .judge0_client import create_batch_submissions, wait_batch
@@ -18,7 +18,8 @@ from .models import (
     StudentSession,
     StudentTaskProgress,
     Submission,
-    AiAssistMessage
+    AiAssistMessage,
+    ActivityAggregate
 )
 PIN_RE = re.compile(r"^\d{6}$")
 
@@ -604,6 +605,21 @@ def student_portal_page(request: HttpRequest):
 def student_logout_page(request: HttpRequest):
     request.session.flush()
     return redirect("/student/login/")
+def _inc_hint_counter(progress: StudentTaskProgress, level: int) -> None:
+    """
+    Учитываем обращения к подсказкам на стороне сервера (нельзя накрутить фронтом).
+    Инкрементим всегда, когда реально отдаём подсказку пользователю
+    (из progress cache / AiAssistMessage cache / новая генерация).
+    """
+    ActivityAggregate.objects.get_or_create(progress=progress)
+    if level == 1:
+        ActivityAggregate.objects.filter(progress=progress).update(
+            hint1_requests=F("hint1_requests") + 1
+        )
+    else:
+        ActivityAggregate.objects.filter(progress=progress).update(
+            hint2_requests=F("hint2_requests") + 1
+        )
 
 def student_hint_level(request: HttpRequest, task_id: int, level: int):
     student_id, class_id = _get_student_from_session(request)
@@ -636,23 +652,28 @@ def student_hint_level(request: HttpRequest, task_id: int, level: int):
         defaults={"status": StudentTaskProgress.Status.IN_PROGRESS, "opened_at": now},
     )
 
-    # 1) Check thresholds
+    # 1) thresholds
     if level == 1 and progress.attempts_failed < 5:
         return JsonResponse({"ok": False, "error": "hint level 1 not available yet"}, status=403)
     if level == 2 and progress.attempts_failed < 8:
         return JsonResponse({"ok": False, "error": "hint level 2 not available yet"}, status=403)
 
-    # 2) Cache in progress
+    # 2) progress cache -> COUNT + return
     if level == 1 and progress.hint1_text:
+        _inc_hint_counter(progress, 1)
         return JsonResponse({"ok": True, "level": 1, "text": progress.hint1_text})
+
     if level == 2 and progress.hint2_text:
+        _inc_hint_counter(progress, 2)
         return JsonResponse({"ok": True, "level": 2, "text": progress.hint2_text})
 
-    # 3) Cache in AiAssistMessage
-    cached = (AiAssistMessage.objects
-              .filter(progress=progress, level=level, status=AiAssistMessage.Status.OK)
-              .order_by("-created_at")
-              .first())
+    # 3) AiAssistMessage cache -> COUNT + return
+    cached = (
+        AiAssistMessage.objects
+        .filter(progress=progress, level=level, status=AiAssistMessage.Status.OK)
+        .order_by("-created_at")
+        .first()
+    )
     if cached and cached.response_text:
         if level == 1:
             progress.hint1_text = cached.response_text
@@ -660,19 +681,25 @@ def student_hint_level(request: HttpRequest, task_id: int, level: int):
         else:
             progress.hint2_text = cached.response_text
             progress.save(update_fields=["hint2_text"])
+
+        _inc_hint_counter(progress, level)
         return JsonResponse({"ok": True, "level": level, "text": cached.response_text})
 
-    # 4) Build context
+    # 4) build context
     visible_tests = list(
         TaskTestCase.objects.filter(task=task, is_visible=True)
         .order_by("ordinal")
         .values("stdin", "expected_stdout")
     )
-    last_sub = (Submission.objects
-                .filter(progress=progress)
-                .order_by("-attempt_no")
-                .first())
-    last_subs = list(Submission.objects.filter(progress=progress).order_by("attempt_no")[:50])
+    last_sub = (
+        Submission.objects
+        .filter(progress=progress)
+        .order_by("-attempt_no")
+        .first()
+    )
+    last_subs = list(
+        Submission.objects.filter(progress=progress).order_by("attempt_no")[:50]
+    )
 
     prompt_snapshot = build_prompt_snapshot(
         level=level,
@@ -683,7 +710,7 @@ def student_hint_level(request: HttpRequest, task_id: int, level: int):
         last_submissions=last_subs,
     )
 
-    # 5) Create log row first
+    # 5) create log row
     msg = AiAssistMessage.objects.create(
         progress=progress,
         level=level,
@@ -692,31 +719,22 @@ def student_hint_level(request: HttpRequest, task_id: int, level: int):
         error_message="pending",
     )
 
-    # 6) Call OpenAI (new schema: data = {"text": "...", "no_code_confirmed": bool})
+    # 6) call OpenAI (new schema: {"data":{"text":...}})
     try:
         out = call_openai_hint(level, prompt_snapshot)
-
-        # ---- IMPORTANT GUARDS ----
-        if out is None:
-            raise RuntimeError("call_openai_hint returned None (no response)")
-
-        if not isinstance(out, dict):
-            raise RuntimeError(f"call_openai_hint returned {type(out).__name__}, expected dict")
+        if out is None or not isinstance(out, dict):
+            raise RuntimeError("call_openai_hint returned invalid response")
 
         data = out.get("data")
-        if data is None:
-            raise RuntimeError("OpenAI response missing 'data' field")
-        if not isinstance(data, dict):
-            raise RuntimeError(f"OpenAI 'data' is {type(data).__name__}, expected dict")
+        if data is None or not isinstance(data, dict):
+            raise RuntimeError("OpenAI response missing 'data'")
 
         text = (data.get("text") or "").strip()
         if not text:
             raise RuntimeError("Empty AI response text")
 
-        # hard safety filter
         text = sanitize_no_code(text)
 
-        # save ai message
         msg.response_text = text
         msg.model = out.get("model", "")
         msg.tokens_in = out.get("tokens_in")
@@ -725,13 +743,15 @@ def student_hint_level(request: HttpRequest, task_id: int, level: int):
         msg.error_message = ""
         msg.save(update_fields=["response_text", "model", "tokens_in", "tokens_out", "status", "error_message"])
 
-        # cache in progress
         if level == 1:
             progress.hint1_text = text
             progress.save(update_fields=["hint1_text"])
         else:
             progress.hint2_text = text
             progress.save(update_fields=["hint2_text"])
+
+        # COUNT hint request when we actually return it
+        _inc_hint_counter(progress, level)
 
         return JsonResponse({"ok": True, "level": level, "text": text})
 
