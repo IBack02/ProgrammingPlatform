@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Student Profile</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <style>
+    body { font-family: Arial, sans-serif; margin:0; background:#f6f7fb; }
+    .wrap { max-width: 1100px; margin: 18px auto; padding: 0 14px; }
+    .card { background:#fff; border:1px solid #e5e7eb; border-radius:14px; padding: 14px; box-shadow: 0 10px 20px rgba(17,24,39,.06); }
+    .row { display:flex; gap:14px; align-items:center; flex-wrap:wrap; }
+    .title { font-size:20px; font-weight:900; }
+    .small { font-size:12px; color:#6b7280; }
+    .btn { display:inline-block; padding:8px 10px; border-radius:10px; border:1px solid #e5e7eb; background:#fff; text-decoration:none; color:#111827; }
+    .avatar {
+      width:64px; height:64px; border-radius:18px;
+      background:#eef2ff; display:flex; align-items:center; justify-content:center;
+      font-weight:900; font-size:22px; color:#111827;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="row" style="justify-content:space-between; margin-bottom:12px;">
+      <a class="btn" href="/admin-stats/">← Back to Analytics</a>
+      <a class="btn" href="/admin/">Admin</a>
+    </div>
+
+    <div class="card" style="margin-bottom:12px;">
+      <div class="row">
+        <div class="avatar">👤</div>
+        <div>
+          <div class="title">{{ student.full_name }}</div>
+          <div class="small">Class: {{ student.class_group.name }}</div>
+          <div class="small">
+            PIN: <b>******</b> (stored as hash; cannot be shown)
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div style="font-weight:900;">Success rate by session</div>
+      <div class="small">Y axis: accepted / total submissions (in %). If a session has 0 submissions, rate is 0%.</div>
+      <div style="margin-top:12px;">
+        <canvas id="rateChart" height="120"></canvas>
+      </div>
+    </div>
+  </div>
+
+<script>
+  const data = {{ chart_json|safe }};
+  const ctx = document.getElementById("rateChart");
+
+  new Chart(ctx, {
+    type: "line",
+    data: {
+      labels: data.labels,
+      datasets: [{
+        label: "Success rate (%)",
+        data: data.rates,
+        tension: 0.25,
+        borderWidth: 2,
+        pointRadius: 4,
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: { position: "top" },
+        tooltip: {
+          callbacks: {
+            afterBody: (items) => {
+              const i = items[0].dataIndex;
+              return `Accepted: ${data.accepts[i]} / Total: ${data.totals[i]}`;
+            }
+          }
+        }
+      },
+      scales: {
+        y: { beginAtZero: true, max: 100 }
+      }
+    }
+  });
+</script>
+</body>
+</html>

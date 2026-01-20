@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Admin Analytics</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <style>
+    body { font-family: Arial, sans-serif; margin:0; background:#f6f7fb; }
+    .wrap { max-width: 1200px; margin: 18px auto; padding: 0 14px; }
+    .topbar { display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom: 14px; flex-wrap:wrap; }
+    .title { font-size:20px; font-weight:800; }
+    .card { background:#fff; border:1px solid #e5e7eb; border-radius:14px; padding: 14px; box-shadow: 0 10px 20px rgba(17,24,39,.06); }
+    .row { display:flex; gap:12px; flex-wrap:wrap; align-items:center; }
+    .small { font-size:12px; color:#6b7280; }
+    .btn { display:inline-block; padding:8px 10px; border-radius:10px; border:1px solid #e5e7eb; background:#fff; text-decoration:none; color:#111827; }
+    .grid { display:grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap:12px; }
+    @media (max-width: 980px){ .grid{ grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+    @media (max-width: 640px){ .grid{ grid-template-columns: 1fr; } }
+    .studentCard { cursor:pointer; transition: transform .12s ease, box-shadow .12s ease; }
+    .studentCard:hover { transform: translateY(-2px); box-shadow: 0 14px 28px rgba(17,24,39,.08); }
+    .studentName { font-weight:800; }
+    .pill { font-size:11px; padding:2px 8px; border-radius:999px; border:1px solid #e5e7eb; color:#111827; background:#f9fafb; }
+    .bars { margin-top:10px; display:flex; flex-direction:column; gap:8px; }
+    .barRow { display:flex; gap:8px; align-items:center; }
+    .barLabel { width:110px; font-size:12px; color:#6b7280; }
+    .barTrack { flex:1; height:10px; background:#eef2ff; border-radius:999px; overflow:hidden; }
+    .barFill { height:100%; width:0%; background:#0ea5e9; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="topbar">
+      <div>
+        <div class="title">Admin Analytics</div>
+        <div class="small">Charts are filtered by class (optional). Click a student to open the profile.</div>
+      </div>
+      <div class="row">
+        <a class="btn" href="/admin/">Back to Admin</a>
+      </div>
+    </div>
+
+    <div class="card" style="margin-bottom:12px;">
+      <form method="get" class="row">
+        <div class="row">
+          <div class="small"><b>Class filter:</b></div>
+          <select name="class_id" style="padding:8px;border-radius:10px;border:1px solid #e5e7eb;">
+            <option value="">All classes</option>
+            {% for c in classes %}
+              <option value="{{ c.id }}" {% if selected_class_id == c.id %}selected{% endif %}>{{ c.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <label class="row" style="gap:6px;">
+          <input type="checkbox" name="show_success" value="1" {% if show_success %}checked{% endif %}/>
+          <span class="small">Show accepted submissions</span>
+        </label>
+
+        <label class="row" style="gap:6px;">
+          <input type="checkbox" name="show_hints" value="1" {% if show_hints %}checked{% endif %}/>
+          <span class="small">Show assistant requests</span>
+        </label>
+
+        <button class="btn" type="submit">Apply</button>
+      </form>
+    </div>
+
+    <div class="card" style="margin-bottom:12px;">
+      <div class="row" style="justify-content:space-between;">
+        <div>
+          <div style="font-weight:800;">Submissions by Session</div>
+          <div class="small" id="scaleNote"></div>
+        </div>
+      </div>
+      <div style="margin-top:12px;">
+        <canvas id="sessionChart" height="110"></canvas>
+      </div>
+    </div>
+
+    <div class="card">
+      <div style="font-weight:800; margin-bottom:10px;">Students (avg per session)</div>
+      <div class="grid" id="studentsGrid">
+        {% for s in student_cards %}
+          <div class="card studentCard" data-student-id="{{ s.id }}">
+            <div class="row" style="justify-content:space-between;">
+              <div>
+                <div class="studentName">{{ s.name }}</div>
+                <div class="small">{{ s.class_name }} • sessions: {{ s.sessions_count }}</div>
+              </div>
+              <span class="pill">Open</span>
+            </div>
+
+            <div class="bars">
+              <div class="barRow">
+                <div class="barLabel">Avg attempts</div>
+                <div class="barTrack"><div class="barFill" data-val="{{ s.avg_total }}"></div></div>
+                <div class="small">{{ s.avg_total }}</div>
+              </div>
+              <div class="barRow">
+                <div class="barLabel">Avg accepted</div>
+                <div class="barTrack"><div class="barFill" data-val="{{ s.avg_accepted }}"></div></div>
+                <div class="small">{{ s.avg_accepted }}</div>
+              </div>
+              <div class="barRow">
+                <div class="barLabel">Avg AI requests</div>
+                <div class="barTrack"><div class="barFill" data-val="{{ s.avg_hints }}"></div></div>
+                <div class="small">{{ s.avg_hints }}</div>
+              </div>
+            </div>
+
+          </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
+<script>
+  const chartData = {{ session_chart_json|safe }};
+  const showSuccess = {{ show_success|yesno:"true,false" }};
+  const showHints = {{ show_hints|yesno:"true,false" }};
+
+  // scale note
+  const scaleNote = document.getElementById("scaleNote");
+  if (chartData.scale_factor && chartData.scale_factor !== 1){
+    scaleNote.textContent = `Note: total submissions are displayed in x${chartData.scale_factor} units to keep the chart readable.`;
+  } else {
+    scaleNote.textContent = "";
+  }
+
+  const datasets = [
+    {
+      label: chartData.scale_factor && chartData.scale_factor !== 1
+        ? `Total submissions (÷${chartData.scale_factor})`
+        : "Total submissions",
+      data: chartData.datasets.totals,
+      borderWidth: 1,
+    }
+  ];
+
+  if (showSuccess){
+    datasets.push({
+      label: "Accepted submissions",
+      data: chartData.datasets.accepted,
+      borderWidth: 1,
+    });
+  }
+  if (showHints){
+    datasets.push({
+      label: "Assistant requests",
+      data: chartData.datasets.hints,
+      borderWidth: 1,
+    });
+  }
+
+  const ctx = document.getElementById("sessionChart");
+  new Chart(ctx, {
+    type: "bar",
+    data: { labels: chartData.labels, datasets },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: { position: "top" },
+        tooltip: { mode: "index", intersect: false }
+      },
+      scales: {
+        x: { stacked: false, ticks: { maxRotation: 0, autoSkip: true } },
+        y: { beginAtZero: true }
+      }
+    }
+  });
+
+  // Student mini-bars scale: make them look nice
+  const fills = Array.from(document.querySelectorAll(".barFill"));
+  const vals = fills.map(f => parseFloat(f.dataset.val || "0")).filter(v => !isNaN(v));
+  const maxVal = Math.max(...vals, 1);
+  fills.forEach(f => {
+    const v = parseFloat(f.dataset.val || "0");
+    const pct = Math.max(0, Math.min(100, (v / maxVal) * 100));
+    f.style.width = pct + "%";
+  });
+
+  // Click student card -> profile
+  document.querySelectorAll(".studentCard").forEach(card => {
+    card.addEventListener("click", () => {
+      const id = card.dataset.studentId;
+      window.location.href = `/admin-stats/student/${id}/`;
+    });
+  });
+</script>
+</body>
+</html>
