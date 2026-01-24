@@ -17,3 +17,4 @@ urlpatterns = [
     path("admin-stats/", views.admin_stats_dashboard, name="admin_stats_dashboard"),
     path("admin-stats/student/<int:student_id>/", views.admin_student_profile, name="admin_student_profile"),
 ]
+
