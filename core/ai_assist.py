@@ -4,12 +4,12 @@ import os
 
 from openai import OpenAI
 from pydantic import BaseModel
-from typing import List as TList  # avoid shadowing above
+from typing import List as TList
 
 from .models import Submission
 
 
-# --- Anti-code sanitization (final safety net) ---
+
 CODE_BLOCK_RE = re.compile(r"```.*?```", re.DOTALL)
 PY_LINE_RE = re.compile(
     r"^\s*(def |class |for |while |if |elif |else:|print\(|import |from )",
@@ -40,9 +40,7 @@ def build_prompt_snapshot(
     last_submission: Optional[Submission],
     last_submissions: List[Submission],
 ) -> str:
-    """
-    Собираем “снимок контекста” (задача + тесты + ошибки + 2–3 последние попытки)
-    """
+
     parts: List[str] = []
     parts.append(f"LEVEL={level}")
     parts.append("TASK_STATEMENT:\n" + (statement or ""))
@@ -82,7 +80,7 @@ def build_prompt_snapshot(
     return "\n\n".join(parts)
 
 
-# --- Structured outputs models (Pydantic) ---
+
 class HintTextLevel1(BaseModel):
     text: str
     no_code_confirmed: bool

@@ -4,7 +4,7 @@ from django.contrib.auth.hashers import make_password, check_password
 from django.db import models
 
 class ClassGroup(models.Model):
-    name = models.CharField(max_length=32, unique=True)  # например "7A"
+    name = models.CharField(max_length=32, unique=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -19,7 +19,7 @@ class ClassGroup(models.Model):
 class Student(models.Model):
     full_name = models.CharField(max_length=120)
     class_group = models.ForeignKey(ClassGroup, on_delete=models.PROTECT, related_name="students")
-    pin_hash = models.CharField(max_length=256)  # хэш 6-значного кода
+    pin_hash = models.CharField(max_length=256)
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -37,7 +37,7 @@ class Student(models.Model):
         return f"{self.full_name} ({self.class_group})"
 
     def set_pin(self, pin: str) -> None:
-        # pin ожидаем строкой из 6 цифр; валидацию лучше делать в формах/serializer'ах
+
         self.pin_hash = make_password(pin)
 
     def check_pin(self, pin: str) -> bool:
@@ -55,11 +55,11 @@ class Session(models.Model):
 
     status = models.CharField(max_length=16, choices=Status.choices, default=Status.DRAFT)
 
-    # по ТЗ: по времени Астаны — в settings TIME_ZONE = Asia/Almaty.
+
     starts_at = models.DateTimeField(null=True, blank=True)
     ends_at = models.DateTimeField(null=True, blank=True)
 
-    # Какие классы имеют доступ
+
     allowed_classes = models.ManyToManyField(ClassGroup, through="SessionClass", related_name="sessions")
 
     created_at = models.DateTimeField(auto_now_add=True)
@@ -77,7 +77,6 @@ class Session(models.Model):
         return f"{self.title} [{self.status}]"
 
     def is_active_now(self) -> bool:
-        """Активна ли сессия по времени и статусу."""
         if self.status != self.Status.RUNNING:
             return False
         now = timezone.now()
@@ -105,10 +104,10 @@ class SessionClass(models.Model):
 
 class SessionTask(models.Model):
     session = models.ForeignKey(Session, on_delete=models.CASCADE, related_name="tasks")
-    position = models.PositiveIntegerField()  # порядок в меню слева
+    position = models.PositiveIntegerField()
 
     title = models.CharField(max_length=200)
-    statement = models.TextField()            # описание задачи
+    statement = models.TextField()
     constraints = models.TextField(blank=True)
 
     created_at = models.DateTimeField(auto_now_add=True)
@@ -134,7 +133,7 @@ class TaskTestCase(models.Model):
 
     stdin = models.TextField()
     expected_stdout = models.TextField()
-    is_visible = models.BooleanField(default=False)  # показывать ученику (1-2 примера)
+    is_visible = models.BooleanField(default=False)
 
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -233,7 +232,6 @@ class StudentTaskProgress(models.Model):
         self.status = self.Status.SOLVED
         self.solved_at = timezone.now()
         if self.locked_after_solve:
-            # “недоступна для просмотра” — можно в API/логике скрывать statement
             pass
 
 
@@ -296,7 +294,7 @@ class ActivityEvent(models.Model):
     progress = models.ForeignKey(StudentTaskProgress, on_delete=models.CASCADE, related_name="activity_events")
     occurred_at = models.DateTimeField(auto_now_add=True)
     event_type = models.CharField(max_length=32, choices=Type.choices)
-    payload = models.JSONField(default=dict, blank=True)  # длина вставки, имя вкладки и т.п.
+    payload = models.JSONField(default=dict, blank=True)  # длина вставки, имя вкладки и тd
 
     class Meta:
         verbose_name = "Activity event"
@@ -321,12 +319,12 @@ class ActivityAggregate(models.Model):
 
     active_time_seconds = models.PositiveIntegerField(default=0)
 
-    # NEW: hint requests counters
+
     hint1_requests = models.PositiveIntegerField(default=0)
     hint2_requests = models.PositiveIntegerField(default=0)
 
     updated_at = models.DateTimeField(auto_now=True)
-# core/models.py
+
 from django.db import models
 
 class AiAssistMessage(models.Model):
@@ -360,3 +358,27 @@ class AiAssistMessage(models.Model):
 
     def __str__(self):
         return f"AiAssistMessage(progress={self.progress_id}, level={self.level}, status={self.status})"
+class TaskCodeFragment(models.Model):
+    class Position(models.TextChoices):
+        TOP = "top", "Top (prepend)"
+        BOTTOM = "bottom", "Bottom (append)"
+
+    task = models.ForeignKey(SessionTask, on_delete=models.CASCADE, related_name="code_fragments")
+
+    position = models.CharField(max_length=10, choices=Position.choices)
+    title = models.CharField(max_length=120, blank=True, default="")
+    code = models.TextField()
+
+    is_active = models.BooleanField(default=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Task code fragment"
+        verbose_name_plural = "Task code fragments"
+        indexes = [
+            models.Index(fields=["task", "position", "is_active"]),
+        ]
+
+    def __str__(self):
+        return f"{self.task_id} [{self.position}] {self.title or 'fragment'}"

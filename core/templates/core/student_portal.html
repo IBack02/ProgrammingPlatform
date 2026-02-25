@@ -272,8 +272,15 @@
           </div>
 
           <div style="margin-top:10px;"></div>
+            <div class="card" id="topFragmentCard" style="display:none;">
+  <div class="small muted"><b>Read-only starter code (cannot be changed):</b></div>
+  <pre id="topFragment"></pre>
+</div>
           <textarea id="codeArea" spellcheck="false">print("Hello")</textarea>
-
+<div class="card" id="bottomFragmentCard" style="display:none;">
+  <div class="small muted"><b>Read-only ending code (cannot be changed):</b></div>
+  <pre id="bottomFragment"></pre>
+</div>
           <!-- Submit moved down -->
           <div class="editorFooter">
             <div class="tiny" id="submitState">Ready</div>
@@ -626,80 +633,103 @@
     });
   }
 
-  async function openTask(taskId, btn){
-    // Save current code before switching
-    if (currentTaskId){
-      saveCachedCode(currentTaskId, qs("codeArea").value || "");
-    }
-
-    currentTaskId = taskId;
-
-    document.querySelectorAll(".taskbtn").forEach(b => b.classList.remove("active"));
-    if (btn) btn.classList.add("active");
-
-    hideStatus();
-
-    const res = await apiGet(`/api/student/task/${taskId}`);
-    if (!res.data.ok){
-      showStatus(res.data.error || "Failed to load task");
-      return;
-    }
-
-    if (res.data.locked){
-      showStatus(res.data.message || "Task is locked");
-      qs("taskCard").style.display = "none";
-      qs("editorCard").style.display = "none";
-      return;
-    }
-
-    qs("taskCard").style.display = "block";
-    qs("editorCard").style.display = "block";
-
-    qs("taskTitle").textContent = res.data.task.title;
-    qs("taskMeta").textContent = `Task #${res.data.task.position} (id=${res.data.task.id})`;
-    qs("taskStatement").textContent = res.data.task.statement;
-    qs("taskConstraints").textContent = res.data.task.constraints || "—";
-
-    lastProgress = res.data.progress || null;
-    updateHintsUI();
-
-    // visible tests
-    const vt = qs("visibleTests");
-    vt.innerHTML = "";
-    (res.data.visible_testcases || []).forEach(tc => {
-      const wrap = document.createElement("div");
-      wrap.className = "card";
-      wrap.innerHTML = `
-        <div class="small"><b>Test ${tc.ordinal}</b></div>
-        <div class="small muted">Input:</div>
-        <pre>${escapeHtml(tc.stdin)}</pre>
-        <div class="small muted">Output:</div>
-        <pre>${escapeHtml(tc.expected_stdout)}</pre>
-      `;
-      vt.appendChild(wrap);
-    });
-
-    // Load cached code for this task (or fallback)
-    const cached = loadCachedCode(taskId);
-    if (cached){
-      qs("codeArea").value = cached;
-    } else {
-      qs("codeArea").value = 'print("Hello")';
-    }
-
-    // reset hint display state per task (keep previous text? you can clear if you want)
-    // Here: we clear hint backs when switching tasks, so hints are per-task visible.
-    qs("hintBack1").textContent = "";
-    qs("hintBack2").textContent = "";
-    qs("hintCard1").classList.remove("flipped");
-    qs("hintCard2").classList.remove("flipped");
-    if (window.StudentActivityTracker) {
-  window.StudentActivityTracker.setContext({ taskId: taskId });
-}
-
-    updateSubmitAvailability();
+async function openTask(taskId, btn){
+  // Save current code before switching
+  if (currentTaskId){
+    saveCachedCode(currentTaskId, qs("codeArea").value || "");
   }
 
+  currentTaskId = taskId;
+
+  document.querySelectorAll(".taskbtn").forEach(b => b.classList.remove("active"));
+  if (btn) btn.classList.add("active");
+
+  hideStatus();
+
+  const res = await apiGet(`/api/student/task/${taskId}`);
+  if (!res.data.ok){
+    showStatus(res.data.error || "Failed to load task");
+    return;
+  }
+
+  if (res.data.locked){
+    showStatus(res.data.message || "Task is locked");
+    qs("taskCard").style.display = "none";
+    qs("editorCard").style.display = "none";
+    return;
+  }
+
+  qs("taskCard").style.display = "block";
+  qs("editorCard").style.display = "block";
+
+  qs("taskTitle").textContent = res.data.task.title;
+  qs("taskMeta").textContent = `Task #${res.data.task.position} (id=${res.data.task.id})`;
+  qs("taskStatement").textContent = res.data.task.statement;
+  qs("taskConstraints").textContent = res.data.task.constraints || "—";
+
+  // progress/hints
+  lastProgress = res.data.progress || null;
+  updateHintsUI();
+
+  // visible tests
+  const vt = qs("visibleTests");
+  vt.innerHTML = "";
+  (res.data.visible_testcases || []).forEach(tc => {
+    const wrap = document.createElement("div");
+    wrap.className = "card";
+    wrap.innerHTML = `
+      <div class="small"><b>Test ${tc.ordinal}</b></div>
+      <div class="small muted">Input:</div>
+      <pre>${escapeHtml(tc.stdin)}</pre>
+      <div class="small muted">Output:</div>
+      <pre>${escapeHtml(tc.expected_stdout)}</pre>
+    `;
+    vt.appendChild(wrap);
+  });
+
+  // NEW: read-only code fragments (top/bottom)
+  const top = res.data.code_fragments?.top || "";
+  const bottom = res.data.code_fragments?.bottom || "";
+
+  if (qs("topFragmentCard") && qs("topFragment")){
+    if (top.trim()){
+      qs("topFragmentCard").style.display = "block";
+      qs("topFragment").textContent = top;
+    } else {
+      qs("topFragmentCard").style.display = "none";
+      qs("topFragment").textContent = "";
+    }
+  }
+
+  if (qs("bottomFragmentCard") && qs("bottomFragment")){
+    if (bottom.trim()){
+      qs("bottomFragmentCard").style.display = "block";
+      qs("bottomFragment").textContent = bottom;
+    } else {
+      qs("bottomFragmentCard").style.display = "none";
+      qs("bottomFragment").textContent = "";
+    }
+  }
+
+  // Load cached code for this task (or fallback)
+  const cached = loadCachedCode(taskId);
+  if (cached){
+    qs("codeArea").value = cached;
+  } else {
+    qs("codeArea").value = 'print("Hello")';
+  }
+
+  // Reset hint display state per task
+  qs("hintBack1").textContent = "";
+  qs("hintBack2").textContent = "";
+  qs("hintCard1").classList.remove("flipped");
+  qs("hintCard2").classList.remove("flipped");
+
+  // Activity tracker context
+  window.StudentActivityTracker?.setContext({ taskId: taskId });
+
+  updateSubmitAvailability();
+}
   // ---------- Submit ----------
   async function submit(){
     if (!currentTaskId){

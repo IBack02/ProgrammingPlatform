@@ -1,14 +1,22 @@
 from django.contrib import admin
-from .models import (
-    ClassGroup, Student,
-    Session, SessionClass,
-    SessionTask, TaskTestCase,
-    StudentSession, StudentTaskProgress,
-    Submission,
-    ActivityEvent, ActivityAggregate,AiAssistMessage,
-)
-from .models import ClassGroup, Student
+
 from .forms import StudentAdminForm
+from .models import (
+    ClassGroup,
+    Student,
+    Session,
+    SessionClass,
+    SessionTask,
+    TaskTestCase,
+    StudentSession,
+    StudentTaskProgress,
+    Submission,
+    ActivityEvent,
+    ActivityAggregate,
+    AiAssistMessage,
+    TaskCodeFragment,  # NEW
+)
+
 
 @admin.register(ClassGroup)
 class ClassGroupAdmin(admin.ModelAdmin):
@@ -23,14 +31,9 @@ class StudentAdmin(admin.ModelAdmin):
     list_filter = ("class_group", "is_active")
     search_fields = ("full_name",)
     readonly_fields = ("created_at",)
-
-    # pin_hash не показываем, чтобы не путать
     exclude = ("pin_hash",)
+
     def save_model(self, request, obj, form, change):
-        """
-        Если ты хочешь вводить pin_hash как обычный PIN в админке,
-        лучше сделать отдельную форму. Сейчас оставляем как есть (через код/API).
-        """
         super().save_model(request, obj, form, change)
 
 
@@ -38,12 +41,7 @@ class SessionClassInline(admin.TabularInline):
     model = SessionClass
     extra = 1
 
-@admin.register(AiAssistMessage)
-class AiAssistMessageAdmin(admin.ModelAdmin):
-    list_display = ("id", "progress", "level", "status", "model", "created_at")
-    list_filter = ("level", "status", "model", "created_at")
-    search_fields = ("progress__student_session__student__full_name", "error_message")
-    readonly_fields = ("created_at",)
+
 @admin.register(Session)
 class SessionAdmin(admin.ModelAdmin):
     list_display = ("title", "status", "starts_at", "ends_at", "created_at")
@@ -63,6 +61,22 @@ class SessionTaskAdmin(admin.ModelAdmin):
     list_filter = ("session",)
     search_fields = ("title",)
     inlines = (TaskTestCaseInline,)
+
+
+@admin.register(TaskCodeFragment)
+class TaskCodeFragmentAdmin(admin.ModelAdmin):
+    list_display = ("task", "position", "title", "is_active", "created_at")
+    list_filter = ("position", "is_active", "task__session")
+    search_fields = ("task__title", "title", "code")
+    readonly_fields = ("created_at",)
+
+
+@admin.register(AiAssistMessage)
+class AiAssistMessageAdmin(admin.ModelAdmin):
+    list_display = ("id", "progress", "level", "status", "model", "created_at")
+    list_filter = ("level", "status", "model", "created_at")
+    search_fields = ("progress__student_session__student__full_name", "error_message")
+    readonly_fields = ("created_at",)
 
 
 @admin.register(StudentSession)
@@ -97,5 +111,15 @@ class ActivityEventAdmin(admin.ModelAdmin):
 
 @admin.register(ActivityAggregate)
 class ActivityAggregateAdmin(admin.ModelAdmin):
-    list_display = ("progress", "total_copies", "total_pastes", "tab_switches", "focus_lost_count", "active_time_seconds", "updated_at")
+    list_display = (
+        "progress",
+        "total_copies",
+        "total_pastes",
+        "tab_switches",
+        "focus_lost_count",
+        "active_time_seconds",
+        "hint1_requests",
+        "hint2_requests",
+        "updated_at",
+    )
     readonly_fields = ("updated_at",)
