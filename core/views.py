@@ -358,7 +358,7 @@ def student_submit(request: HttpRequest, task_id: int):
     # cooldown 15 sec
     if getattr(progress, "last_submit_at", None):
         delta = (now - progress.last_submit_at).total_seconds()
-        if delta < 15:
+        if delta < 10:
             return JsonResponse({"ok": False, "error": f"Too frequent submits. Wait {int(15 - delta)}s"}, status=429)
 
     # unchanged code check based on USER code (not including fragments)
@@ -478,9 +478,9 @@ def student_submit(request: HttpRequest, task_id: int):
         progress.locked_after_solve = True
     else:
         progress.attempts_failed += 1
-        if progress.attempts_failed == 5 and not progress.hint1_unlocked_at:
+        if progress.attempts_failed == 2 and not progress.hint1_unlocked_at:
             progress.hint1_unlocked_at = now
-        if progress.attempts_failed == 8 and not progress.hint2_unlocked_at:
+        if progress.attempts_failed == 3 and not progress.hint2_unlocked_at:
             progress.hint2_unlocked_at = now
 
     progress.save(update_fields=[
