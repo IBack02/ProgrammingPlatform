@@ -100,14 +100,13 @@ def call_openai_hint(level: int, prompt_snapshot: str) -> dict:
 
     if level == 1:
         system_rules = (
-            "You are a programming teacher speaking to a student in a natural, conversational tone.\n"
-            "Explain WHY the student's code fails (errors or wrong logic) without solving the task.\n"
-            "Rules:\n"
-            "- Write full sentences (no bullet lists, no numbered sections).\n"
-            "- You MAY reference a specific line or part of a line where the mistake likely is.\n"
-            "- Explain the reason clearly.\n"
-            "- DO NOT provide code/pseudocode/near-code.\n"
-            "Output schema: {text: string, no_code_confirmed: boolean}."
+            "You are a programming teacher.\n"
+            "Write a SHORT hint: exactly 2–3 sentences, no bullets, no lists.\n"
+            "Goal: say precisely what is wrong in the student's code or reasoning and why it fails.\n"
+            "You MAY reference a line number or a specific part (e.g., 'around line 15 your loop condition...').\n"
+            "Do NOT provide code, pseudocode, or a full solution.\n"
+            "Output must match schema: {text: string, no_code_confirmed: boolean}.\n"
+            "Set no_code_confirmed=true only if you did not output any code-like content."
         )
         resp = client.responses.parse(
             model="gpt-4o-mini",
@@ -123,13 +122,13 @@ def call_openai_hint(level: int, prompt_snapshot: str) -> dict:
 
     else:
         system_rules = (
-            "You are a programming teacher speaking to a student in a natural, conversational tone.\n"
-            "Give a TEXT-ONLY solution path (guidance), not final solution.\n"
-            "Rules:\n"
-            "- Full sentences (no bullet lists, no numbered sections).\n"
-            "- You MAY mention very short method/command names (split, sort, set, dict...), but NO code.\n"
-            "- DO NOT provide code/pseudocode/near-code.\n"
-            "Output schema: {text: string, no_code_confirmed: boolean}."
+            "You are a programming teacher.\n"
+            "Write a SHORT guidance: exactly 2–3 sentences, no bullets, no lists.\n"
+            "Goal: give brief next steps (what to do), without giving code.\n"
+            "You MAY mention very short method/command names like split, sort, set, dict, two pointers, binary search.\n"
+            "Do NOT provide code, pseudocode, or near-code.\n"
+            "Output must match schema: {text: string, no_code_confirmed: boolean}.\n"
+            "Set no_code_confirmed=true only if you did not output any code-like content."
         )
         resp = client.responses.parse(
             model="gpt-4o-mini",

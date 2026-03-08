@@ -394,9 +394,9 @@ def student_submit(request: HttpRequest, task_id: int):
         progress.last_code_hash = code_hash
         progress.attempts_failed += 1
 
-        if progress.attempts_failed == 5 and not progress.hint1_unlocked_at:
+        if progress.attempts_failed == 2 and not progress.hint1_unlocked_at:
             progress.hint1_unlocked_at = now
-        if progress.attempts_failed == 8 and not progress.hint2_unlocked_at:
+        if progress.attempts_failed == 3 and not progress.hint2_unlocked_at:
             progress.hint2_unlocked_at = now
 
         progress.save(update_fields=[
@@ -608,9 +608,9 @@ def student_hint_level(request: HttpRequest, task_id: int, level: int):
         defaults={"status": StudentTaskProgress.Status.IN_PROGRESS, "opened_at": now},
     )
 
-    if level == 1 and progress.attempts_failed < 5:
+    if level == 1 and progress.attempts_failed < 2:
         return JsonResponse({"ok": False, "error": "hint level 1 not available yet"}, status=403)
-    if level == 2 and progress.attempts_failed < 8:
+    if level == 2 and progress.attempts_failed < 3:
         return JsonResponse({"ok": False, "error": "hint level 2 not available yet"}, status=403)
 
     if level == 1 and progress.hint1_text:
