@@ -26,7 +26,8 @@ SECRET_KEY = os.environ.get("SECRET_KEY", "dev-secret-key")
 # In production (Render) set DEBUG=False in environment variables.
 DEBUG = os.environ.get("DEBUG", "False").lower() == "true"
 
-ALLOWED_HOSTS = ["localhost", "127.0.0.1", ".onrender.com"]
+#ALLOWED_HOSTS = ["localhost", "127.0.0.1", ".onrender.com"]
+ALLOWED_HOSTS = ["*"]
 
 
 # Application definition

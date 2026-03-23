@@ -994,3 +994,8 @@ def teacher_students_page(request):
 @teacher_required
 def teacher_tasks_page(request):
     return render(request, "core/teacher/tasks.html", {"active": "tasks"})
+
+from django.http import HttpResponse
+
+def healthz(request):
+    return HttpResponse("ok", content_type="text/plain")
