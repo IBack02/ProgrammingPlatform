@@ -999,3 +999,58 @@ from django.http import HttpResponse
 
 def healthz(request):
     return HttpResponse("ok", content_type="text/plain")
+def _require_teacher_api(request: HttpRequest):
+    teacher_id = request.session.get("teacher_id")
+    if not teacher_id:
+        return None
+    return teacher_id
+@require_http_methods(["GET", "POST"])
+def teacher_classes_api(request: HttpRequest):
+    """
+    GET  /api/teacher/classes
+    POST /api/teacher/classes  body: {name}
+    """
+    if not _require_teacher_api(request):
+        return JsonResponse({"ok": False, "error": "not authenticated"}, status=401)
+
+    if request.method == "GET":
+        items = list(ClassGroup.objects.all().order_by("name").values("id", "name"))
+        return JsonResponse({"ok": True, "classes": items})
+
+    data = _json_body(request)
+    name = (data.get("name") or "").strip()
+    if not name:
+        return JsonResponse({"ok": False, "error": "name is required"}, status=400)
+
+    obj = ClassGroup.objects.create(name=name)
+    return JsonResponse({"ok": True, "class": {"id": obj.id, "name": obj.name}})
+
+
+@require_http_methods(["PATCH", "DELETE"])
+def teacher_class_detail_api(request: HttpRequest, class_id: int):
+    """
+    PATCH  /api/teacher/classes/<id>  body: {name}
+    DELETE /api/teacher/classes/<id>
+    """
+    if not _require_teacher_api(request):
+        return JsonResponse({"ok": False, "error": "not authenticated"}, status=401)
+
+    obj = get_object_or_404(ClassGroup, id=class_id)
+
+    if request.method == "PATCH":
+        data = _json_body(request)
+        name = (data.get("name") or "").strip()
+        if not name:
+            return JsonResponse({"ok": False, "error": "name is required"}, status=400)
+        obj.name = name
+        obj.save(update_fields=["name"])
+        return JsonResponse({"ok": True, "class": {"id": obj.id, "name": obj.name}})
+
+    # DELETE
+    # если есть ученики в классе — лучше запретить
+    has_students = Student.objects.filter(class_group=obj).exists()
+    if has_students:
+        return JsonResponse({"ok": False, "error": "cannot delete: class has students"}, status=409)
+
+    obj.delete()
+    return JsonResponse({"ok": True})

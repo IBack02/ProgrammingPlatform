@@ -1,11 +1,115 @@
 {% extends "core/teacher/_base.html" %}
 {% block title %}Manage Classes{% endblock %}
-{% block subtitle %}Create and edit class groups (next stage: CRUD).{% endblock %}
+{% block subtitle %}Create, rename, and remove classes.{% endblock %}
+
 {% block content %}
-  {% with active="classes" %}
-  {% endwith %}
-  <div class="card">
-    <div style="font-weight:900;">Classes</div>
-    <div class="muted">Next stage: create/edit/delete classes.</div>
+<div class="card" style="margin-bottom:12px;">
+  <div style="font-weight:900;margin-bottom:8px;">Create new class</div>
+  <div style="display:flex;gap:10px;flex-wrap:wrap;">
+    <input id="newClassName" placeholder="e.g. 11A" style="padding:10px;border:1px solid #e5e7eb;border-radius:10px;min-width:240px;"/>
+    <button class="btn" id="createBtn" type="button">Create</button>
   </div>
+  <div class="muted" id="msg" style="margin-top:8px;"></div>
+</div>
+
+<div class="card">
+  <div style="font-weight:900;margin-bottom:8px;">All classes</div>
+  <div id="list"></div>
+</div>
+
+<script>
+  async function api(url, method="GET", body=null){
+    const opts = { method, credentials:"include", headers:{} };
+    if (body){
+      opts.headers["Content-Type"] = "application/json";
+      opts.body = JSON.stringify(body);
+    }
+    const r = await fetch(url, opts);
+    const data = await r.json();
+    return {status:r.status, data};
+  }
+
+  function setMsg(text){
+    document.getElementById("msg").textContent = text || "";
+  }
+
+  function renderList(items){
+    const root = document.getElementById("list");
+    root.innerHTML = "";
+    if (!items.length){
+      root.innerHTML = '<div class="muted">No classes yet.</div>';
+      return;
+    }
+
+    items.forEach(c => {
+      const row = document.createElement("div");
+      row.style.display = "flex";
+      row.style.gap = "10px";
+      row.style.alignItems = "center";
+      row.style.margin = "8px 0";
+
+      row.innerHTML = `
+        <input data-id="${c.id}" value="${c.name}"
+               style="padding:10px;border:1px solid #e5e7eb;border-radius:10px;min-width:240px;"/>
+        <button class="btn" data-save="${c.id}" type="button">Save</button>
+        <button class="btn" data-del="${c.id}" type="button" style="border-color:#fca5a5;">Delete</button>
+        <span class="muted">id=${c.id}</span>
+      `;
+      root.appendChild(row);
+    });
+
+    root.querySelectorAll("button[data-save]").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        const id = btn.getAttribute("data-save");
+        const inp = root.querySelector(`input[data-id="${id}"]`);
+        const name = (inp.value || "").trim();
+        const res = await api(`/api/teacher/classes/${id}`, "PATCH", {name});
+        if (!res.data.ok){
+          setMsg(res.data.error || "Save failed");
+          return;
+        }
+        setMsg("Saved.");
+      });
+    });
+
+    root.querySelectorAll("button[data-del]").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        const id = btn.getAttribute("data-del");
+        if (!confirm("Delete this class?")) return;
+        const res = await api(`/api/teacher/classes/${id}`, "DELETE");
+        if (!res.data.ok){
+          setMsg(res.data.error || "Delete failed");
+          return;
+        }
+        setMsg("Deleted.");
+        await load();
+      });
+    });
+  }
+
+  async function load(){
+    setMsg("");
+    const res = await api("/api/teacher/classes");
+    if (!res.data.ok){
+      setMsg(res.data.error || "Failed to load classes");
+      return;
+    }
+    renderList(res.data.classes || []);
+  }
+
+  document.getElementById("createBtn").addEventListener("click", async () => {
+    const name = (document.getElementById("newClassName").value || "").trim();
+    if (!name){ setMsg("Enter class name."); return; }
+    const res = await api("/api/teacher/classes", "POST", {name});
+    if (!res.data.ok){
+      setMsg(res.data.error || "Create failed");
+      return;
+    }
+    document.getElementById("newClassName").value = "";
+    setMsg("Created.");
+    await load();
+  });
+
+  load();
+</script>
 {% endblock %}

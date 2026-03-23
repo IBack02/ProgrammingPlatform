@@ -32,5 +32,7 @@ urlpatterns = [
     path("teacher/tasks/", views.teacher_tasks_page),
     path("teacher/analytics/", RedirectView.as_view(url="/admin-stats/", permanent=False)),
     path("healthz/", views.healthz),
+    path("api/teacher/classes", views.teacher_classes_api),
+    path("api/teacher/classes/<int:class_id>", views.teacher_class_detail_api),
 ]
 
