@@ -1,5 +1,6 @@
 from django.urls import path
 from . import views
+from django.views.generic import RedirectView
 
 urlpatterns = [
     path("api/auth/student-login", views.student_login),
@@ -29,6 +30,6 @@ urlpatterns = [
     path("teacher/classes/", views.teacher_classes_page),
     path("teacher/students/", views.teacher_students_page),
     path("teacher/tasks/", views.teacher_tasks_page),
-    path("teacher/analytics/", views.teacher_analytics_page),
+    path("teacher/analytics/", RedirectView.as_view(url="/admin-stats/", permanent=False)),
 ]
 
