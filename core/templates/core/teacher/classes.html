@@ -1,0 +1,11 @@
+{% extends "core/teacher/_base.html" %}
+{% block title %}Manage Classes{% endblock %}
+{% block subtitle %}Create and edit class groups (next stage: CRUD).{% endblock %}
+{% block content %}
+  {% with active="classes" %}
+  {% endwith %}
+  <div class="card">
+    <div style="font-weight:900;">Classes</div>
+    <div class="muted">Next stage: create/edit/delete classes.</div>
+  </div>
+{% endblock %}

@@ -1,0 +1,11 @@
+{% extends "core/teacher/_base.html" %}
+{% block title %}Manage Sessions{% endblock %}
+{% block subtitle %}Create and edit sessions (next stage: CRUD).{% endblock %}
+{% block content %}
+  {% with active="sessions" %}
+  {% endwith %}
+  <div class="card">
+    <div style="font-weight:900;">Sessions</div>
+    <div class="muted">Next stage: list, create, edit, assign classes, schedule.</div>
+  </div>
+{% endblock %}

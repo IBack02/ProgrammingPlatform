@@ -1,0 +1,19 @@
+{% extends "core/teacher/_base.html" %}
+{% block title %}Teacher Dashboard{% endblock %}
+{% block subtitle %}Choose what you want to manage.{% endblock %}
+{% block content %}
+  <div class="card">
+    <div style="font-weight:900;margin-bottom:8px;">Quick actions</div>
+    <div class="muted" style="margin-bottom:12px;">
+      In the next stage we will add create/edit forms and lists on each page.
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;">
+      <a class="btn" href="/teacher/sessions/">📅 Sessions</a>
+      <a class="btn" href="/teacher/classes/">🏷️ Classes</a>
+      <a class="btn" href="/teacher/students/">👥 Students</a>
+      <a class="btn" href="/teacher/tasks/">🧩 Tasks</a>
+      <a class="btn" href="/teacher/analytics/">📊 Analytics</a>
+      <a class="btn" href="/admin/">⚙️ Django Admin (temporary)</a>
+    </div>
+  </div>
+{% endblock %}

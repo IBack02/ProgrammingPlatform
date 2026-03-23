@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>{% block title %}Teacher Portal{% endblock %}</title>
+  <style>
+    body{font-family:Arial,sans-serif;background:#f6f7fb;margin:0}
+    .wrap{max-width:1200px;margin:18px auto;padding:0 14px}
+    .topbar{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+    .title{font-size:20px;font-weight:900}
+    .card{background:#fff;border:1px solid #e5e7eb;border-radius:14px;padding:14px;box-shadow:0 10px 20px rgba(17,24,39,.06)}
+    .nav{display:flex;gap:8px;flex-wrap:wrap}
+    .btn{display:inline-block;padding:8px 10px;border-radius:10px;border:1px solid #e5e7eb;background:#fff;text-decoration:none;color:#111827}
+    .btn.active{border-color:#0ea5e9; box-shadow:0 0 0 2px rgba(14,165,233,.15)}
+    .muted{color:#6b7280;font-size:12px}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="topbar">
+      <div>
+        <div class="title">Teacher Portal</div>
+        <div class="muted">{% block subtitle %}{% endblock %}</div>
+      </div>
+      <div class="nav">
+        <a class="btn {% if active == 'dashboard' %}active{% endif %}" href="/teacher/">Dashboard</a>
+        <a class="btn {% if active == 'sessions' %}active{% endif %}" href="/teacher/sessions/">Sessions</a>
+        <a class="btn {% if active == 'classes' %}active{% endif %}" href="/teacher/classes/">Classes</a>
+        <a class="btn {% if active == 'students' %}active{% endif %}" href="/teacher/students/">Students</a>
+        <a class="btn {% if active == 'tasks' %}active{% endif %}" href="/teacher/tasks/">Tasks</a>
+        <a class="btn" href="/teacher/analytics/">Analytics</a>
+      </div>
+    </div>
+
+    {% block content %}{% endblock %}
+  </div>
+</body>
+</html>

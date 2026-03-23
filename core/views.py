@@ -964,3 +964,33 @@ def teacher_dashboard_page(request: HttpRequest):
     if not request.session.get("teacher_id"):
         return redirect("/teacher/login/")
     return render(request, "core/teacher_dashboard.html")
+
+from functools import wraps
+from django.shortcuts import redirect
+
+def teacher_required(view_func):
+    @wraps(view_func)
+    def _wrapped(request, *args, **kwargs):
+        if not request.session.get("teacher_id"):
+            return redirect("/teacher/login/")
+        return view_func(request, *args, **kwargs)
+    return _wrapped
+@teacher_required
+def teacher_dashboard_page(request):
+    return render(request, "core/teacher/dashboard.html", {"active": "dashboard"})
+
+@teacher_required
+def teacher_sessions_page(request):
+    return render(request, "core/teacher/sessions.html", {"active": "sessions"})
+
+@teacher_required
+def teacher_classes_page(request):
+    return render(request, "core/teacher/classes.html", {"active": "classes"})
+
+@teacher_required
+def teacher_students_page(request):
+    return render(request, "core/teacher/students.html", {"active": "students"})
+
+@teacher_required
+def teacher_tasks_page(request):
+    return render(request, "core/teacher/tasks.html", {"active": "tasks"})

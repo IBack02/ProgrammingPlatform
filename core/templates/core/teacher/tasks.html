@@ -1,0 +1,11 @@
+{% extends "core/teacher/_base.html" %}
+{% block title %}Manage Tasks{% endblock %}
+{% block subtitle %}Create and edit tasks, testcases, code fragments (next stage: CRUD).{% endblock %}
+{% block content %}
+  {% with active="tasks" %}
+  {% endwith %}
+  <div class="card">
+    <div style="font-weight:900;">Tasks</div>
+    <div class="muted">Next stage: manage tasks inside sessions + testcases + code fragments.</div>
+  </div>
+{% endblock %}

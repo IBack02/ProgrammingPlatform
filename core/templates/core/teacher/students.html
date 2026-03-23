@@ -1,0 +1,11 @@
+{% extends "core/teacher/_base.html" %}
+{% block title %}Manage Students{% endblock %}
+{% block subtitle %}Create and edit students (next stage: CRUD).{% endblock %}
+{% block content %}
+  {% with active="students" %}
+  {% endwith %}
+  <div class="card">
+    <div style="font-weight:900;">Students</div>
+    <div class="muted">Next stage: list by class, create, reset PIN, deactivate.</div>
+  </div>
+{% endblock %}
