@@ -1050,3 +1050,109 @@ def teacher_class_detail_api(request: HttpRequest, class_id: int):
 
     obj.delete()
     return JsonResponse({"ok": True})
+
+# core/views.py
+from django.views.decorators.http import require_http_methods
+from django.views.decorators.csrf import csrf_exempt
+
+@csrf_exempt
+@require_http_methods(["GET", "POST"])
+def teacher_students_api(request: HttpRequest):
+    if not request.session.get("teacher_id"):
+        return JsonResponse({"ok": False, "error": "not authenticated"}, status=401)
+
+    if request.method == "GET":
+        class_id = request.GET.get("class_id") or ""
+        qs = Student.objects.select_related("class_group").order_by("class_group__name", "full_name")
+        if class_id.isdigit():
+            qs = qs.filter(class_group_id=int(class_id))
+        items = list(qs.values(
+            "id", "full_name", "class_group_id", "class_group__name", "is_active", "created_at"
+        ))
+        # нормализуем имя поля класса
+        out = []
+        for s in items:
+            out.append({
+                "id": s["id"],
+                "full_name": s["full_name"],
+                "class": {"id": s["class_group_id"], "name": s["class_group__name"]},
+                "is_active": s["is_active"],
+                "created_at": s["created_at"].isoformat() if s["created_at"] else None,
+            })
+        return JsonResponse({"ok": True, "students": out})
+
+    # POST create
+    data = _json_body(request)
+    full_name = (data.get("full_name") or "").strip()
+    pin = str(data.get("pin") or "").strip()
+    class_id = data.get("class_id")
+
+    if not full_name:
+        return JsonResponse({"ok": False, "error": "full_name is required"}, status=400)
+    if not (pin.isdigit() and len(pin) == 6):
+        return JsonResponse({"ok": False, "error": "pin must be 6 digits"}, status=400)
+    if not (isinstance(class_id, int) or (isinstance(class_id, str) and class_id.isdigit())):
+        return JsonResponse({"ok": False, "error": "class_id is required"}, status=400)
+
+    class_id = int(class_id)
+    cg = get_object_or_404(ClassGroup, id=class_id)
+
+    if Student.objects.filter(full_name__iexact=full_name).exists():
+        return JsonResponse({"ok": False, "error": "student with this name already exists"}, status=409)
+
+    st = Student(full_name=full_name, class_group=cg, is_active=True)
+    st.set_pin(pin)
+    st.save()
+
+    return JsonResponse({"ok": True, "student": {"id": st.id}})
+
+
+@csrf_exempt
+@require_http_methods(["PATCH"])
+def teacher_student_detail_api(request: HttpRequest, student_id: int):
+    if not request.session.get("teacher_id"):
+        return JsonResponse({"ok": False, "error": "not authenticated"}, status=401)
+
+    st = get_object_or_404(Student, id=student_id)
+
+    data = _json_body(request)
+    # allow changing class_id, is_active, full_name
+    if "full_name" in data:
+        name = (data.get("full_name") or "").strip()
+        if not name:
+            return JsonResponse({"ok": False, "error": "full_name cannot be empty"}, status=400)
+        # уникальность (у тебя имена уникальны)
+        if Student.objects.exclude(id=st.id).filter(full_name__iexact=name).exists():
+            return JsonResponse({"ok": False, "error": "student with this name already exists"}, status=409)
+        st.full_name = name
+
+    if "class_id" in data:
+        cid = data.get("class_id")
+        if not (isinstance(cid, int) or (isinstance(cid, str) and str(cid).isdigit())):
+            return JsonResponse({"ok": False, "error": "invalid class_id"}, status=400)
+        cg = get_object_or_404(ClassGroup, id=int(cid))
+        st.class_group = cg
+
+    if "is_active" in data:
+        st.is_active = bool(data.get("is_active"))
+
+    st.save()
+    return JsonResponse({"ok": True})
+
+
+@csrf_exempt
+@require_POST
+def teacher_student_reset_pin_api(request: HttpRequest, student_id: int):
+    if not request.session.get("teacher_id"):
+        return JsonResponse({"ok": False, "error": "not authenticated"}, status=401)
+
+    st = get_object_or_404(Student, id=student_id)
+
+    data = _json_body(request)
+    pin = str(data.get("pin") or "").strip()
+    if not (pin.isdigit() and len(pin) == 6):
+        return JsonResponse({"ok": False, "error": "pin must be 6 digits"}, status=400)
+
+    st.set_pin(pin)
+    st.save(update_fields=["pin_hash"])
+    return JsonResponse({"ok": True})

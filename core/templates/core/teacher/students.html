@@ -1,11 +1,177 @@
 {% extends "core/teacher/_base.html" %}
 {% block title %}Manage Students{% endblock %}
-{% block subtitle %}Create and edit students (next stage: CRUD).{% endblock %}
+{% block subtitle %}Create, edit, move between classes, reset PIN.{% endblock %}
+
 {% block content %}
-  {% with active="students" %}
-  {% endwith %}
-  <div class="card">
-    <div style="font-weight:900;">Students</div>
-    <div class="muted">Next stage: list by class, create, reset PIN, deactivate.</div>
+<div class="card" style="margin-bottom:12px;">
+  <div style="font-weight:900;margin-bottom:8px;">Filter</div>
+  <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+    <select id="classSelect" style="padding:10px;border:1px solid #e5e7eb;border-radius:10px;min-width:240px;"></select>
+    <button class="btn" id="reloadBtn" type="button">Reload</button>
+    <div class="muted" id="msg"></div>
   </div>
+</div>
+
+<div class="card" style="margin-bottom:12px;">
+  <div style="font-weight:900;margin-bottom:8px;">Create student</div>
+  <div style="display:flex; gap:10px; flex-wrap:wrap;">
+    <input id="newName" placeholder="Full name (unique)" style="padding:10px;border:1px solid #e5e7eb;border-radius:10px;min-width:240px;"/>
+    <input id="newPin" placeholder="PIN (6 digits)" inputmode="numeric" style="padding:10px;border:1px solid #e5e7eb;border-radius:10px;min-width:180px;"/>
+    <button class="btn" id="createBtn" type="button">Create</button>
+  </div>
+</div>
+
+<div class="card">
+  <div style="font-weight:900;margin-bottom:8px;">Students</div>
+  <div id="list"></div>
+</div>
+
+<script>
+  async function api(url, method="GET", body=null){
+    const opts = { method, credentials:"include", headers:{} };
+    if (body){
+      opts.headers["Content-Type"] = "application/json";
+      opts.body = JSON.stringify(body);
+    }
+    const r = await fetch(url, opts);
+    const ct = r.headers.get("content-type") || "";
+    if (!ct.includes("application/json")){
+      const text = await r.text();
+      return { status:r.status, data:{ok:false, error:`Non-JSON (${r.status}): ${text.slice(0,120)}`} };
+    }
+    return { status:r.status, data: await r.json() };
+  }
+
+  function setMsg(t){ document.getElementById("msg").textContent = t || ""; }
+
+  async function loadClasses(){
+    const res = await api("/api/teacher/classes/");
+    if (!res.data.ok){ setMsg(res.data.error || "Failed to load classes"); return []; }
+    const classes = res.data.classes || [];
+    const sel = document.getElementById("classSelect");
+    sel.innerHTML = "";
+    sel.insertAdjacentHTML("beforeend", `<option value="">All classes</option>`);
+    classes.forEach(c => sel.insertAdjacentHTML("beforeend", `<option value="${c.id}">${c.name}</option>`));
+    return classes;
+  }
+
+  function renderStudents(students, classes){
+    const root = document.getElementById("list");
+    root.innerHTML = "";
+    if (!students.length){
+      root.innerHTML = '<div class="muted">No students.</div>';
+      return;
+    }
+
+    const classOptions = (classes || []).map(c => `<option value="${c.id}">${c.name}</option>`).join("");
+
+    students.forEach(s => {
+      const row = document.createElement("div");
+      row.style.display = "grid";
+      row.style.gridTemplateColumns = "2fr 1fr 1fr 1fr";
+      row.style.gap = "10px";
+      row.style.alignItems = "center";
+      row.style.margin = "10px 0";
+      row.style.padding = "10px";
+      row.style.border = "1px solid #e5e7eb";
+      row.style.borderRadius = "12px";
+
+      row.innerHTML = `
+        <div>
+          <input data-name="${s.id}" value="${s.full_name}"
+                 style="padding:10px;border:1px solid #e5e7eb;border-radius:10px;width:100%;box-sizing:border-box;"/>
+          <div class="muted" style="margin-top:4px;">id=${s.id}</div>
+        </div>
+
+        <div>
+          <select data-class="${s.id}" style="padding:10px;border:1px solid #e5e7eb;border-radius:10px;width:100%;">
+            ${classOptions}
+          </select>
+          <div class="muted" style="margin-top:4px;">current: ${s.class.name}</div>
+        </div>
+
+        <div>
+          <label class="muted" style="display:flex;gap:8px;align-items:center;">
+            <input type="checkbox" data-active="${s.id}" ${s.is_active ? "checked" : ""}/>
+            Active
+          </label>
+          <button class="btn" data-reset="${s.id}" type="button" style="margin-top:8px;">Reset PIN</button>
+        </div>
+
+        <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;">
+          <button class="btn" data-save="${s.id}" type="button">Save</button>
+        </div>
+      `;
+
+      root.appendChild(row);
+
+      // set current class selection
+      const sel = row.querySelector(`select[data-class="${s.id}"]`);
+      sel.value = s.class.id;
+    });
+
+    // wire handlers
+    root.querySelectorAll("button[data-save]").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        const id = btn.getAttribute("data-save");
+        const name = (root.querySelector(`input[data-name="${id}"]`).value || "").trim();
+        const classId = root.querySelector(`select[data-class="${id}"]`).value;
+        const active = root.querySelector(`input[data-active="${id}"]`).checked;
+
+        const res = await api(`/api/teacher/students/${id}/`, "PATCH", {
+          full_name: name, class_id: parseInt(classId), is_active: active
+        });
+        if (!res.data.ok){ setMsg(res.data.error || "Save failed"); return; }
+        setMsg("Saved.");
+        await load(); // refresh
+      });
+    });
+
+    root.querySelectorAll("button[data-reset]").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        const id = btn.getAttribute("data-reset");
+        const pin = prompt("Enter new 6-digit PIN:");
+        if (!pin) return;
+        const res = await api(`/api/teacher/students/${id}/reset-pin/`, "POST", { pin });
+        if (!res.data.ok){ setMsg(res.data.error || "Reset failed"); return; }
+        setMsg("PIN updated.");
+      });
+    });
+  }
+
+  async function load(){
+    setMsg("");
+    const classes = await loadClasses();
+    const classId = document.getElementById("classSelect").value;
+    const url = classId ? `/api/teacher/students/?class_id=${classId}` : "/api/teacher/students/";
+    const res = await api(url);
+    if (!res.data.ok){ setMsg(res.data.error || "Failed to load students"); return; }
+    renderStudents(res.data.students || [], classes);
+  }
+
+  document.getElementById("reloadBtn").addEventListener("click", load);
+
+  document.getElementById("createBtn").addEventListener("click", async () => {
+    const full_name = (document.getElementById("newName").value || "").trim();
+    const pin = (document.getElementById("newPin").value || "").trim();
+    const classId = document.getElementById("classSelect").value;
+
+    if (!full_name){ setMsg("Enter student name."); return; }
+    if (!(pin.length === 6 && /^\d+$/.test(pin))){ setMsg("PIN must be 6 digits."); return; }
+    if (!classId){ setMsg("Select a class first (or pick one from dropdown)."); return; }
+
+    const res = await api("/api/teacher/students/", "POST", {
+      full_name, pin, class_id: parseInt(classId)
+    });
+    if (!res.data.ok){ setMsg(res.data.error || "Create failed"); return; }
+
+    document.getElementById("newName").value = "";
+    document.getElementById("newPin").value = "";
+    setMsg("Created.");
+    await load();
+  });
+
+  // init
+  load().catch(e => setMsg("Init error: " + e));
+</script>
 {% endblock %}

@@ -34,5 +34,8 @@ urlpatterns = [
     path("healthz/", views.healthz),
     path("api/teacher/classes/", views.teacher_classes_api),
     path("api/teacher/classes/<int:class_id>/", views.teacher_class_detail_api),
+    path("api/teacher/students/", views.teacher_students_api),
+    path("api/teacher/students/<int:student_id>/", views.teacher_student_detail_api),
+    path("api/teacher/students/<int:student_id>/reset-pin/", views.teacher_student_reset_pin_api),
 ]
 
