@@ -123,3 +123,14 @@ class ActivityAggregateAdmin(admin.ModelAdmin):
         "updated_at",
     )
     readonly_fields = ("updated_at",)
+from .models import Teacher
+from .forms import TeacherAdminForm
+
+@admin.register(Teacher)
+class TeacherAdmin(admin.ModelAdmin):
+    form = TeacherAdminForm
+    list_display = ("full_name", "is_active", "created_at")
+    list_filter = ("is_active",)
+    search_fields = ("full_name",)
+    readonly_fields = ("created_at",)
+    exclude = ("pin_hash",)

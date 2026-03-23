@@ -405,3 +405,26 @@ class TaskCodeFragment(models.Model):
             return check_password(raw_pin, self.pin_hash)
     def __str__(self):
         return f"{self.task_id} [{self.position}] {self.title or 'fragment'}"
+
+
+
+
+class Teacher(models.Model):
+    full_name = models.CharField(max_length=120, unique=True)
+    pin_hash = models.CharField(max_length=128)
+    is_active = models.BooleanField(default=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Teacher"
+        verbose_name_plural = "Teachers"
+
+    def __str__(self):
+        return self.full_name
+
+    def set_pin(self, raw_pin: str):
+        self.pin_hash = make_password(raw_pin)
+
+    def check_pin(self, raw_pin: str) -> bool:
+        return check_password(raw_pin, self.pin_hash)

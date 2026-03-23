@@ -31,3 +31,22 @@ class StudentAdminForm(forms.ModelForm):
         if commit:
             obj.save()
         return obj
+# core/forms.py
+from django import forms
+from .models import Teacher
+
+class TeacherAdminForm(forms.ModelForm):
+    pin = forms.CharField(max_length=6, required=False, help_text="Set/Reset teacher PIN (6 digits)")
+
+    class Meta:
+        model = Teacher
+        fields = ("full_name", "is_active", "pin")
+
+    def save(self, commit=True):
+        obj: Teacher = super().save(commit=False)
+        raw_pin = (self.cleaned_data.get("pin") or "").strip()
+        if raw_pin:
+            obj.set_pin(raw_pin)
+        if commit:
+            obj.save()
+        return obj

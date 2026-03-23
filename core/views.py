@@ -868,3 +868,99 @@ def admin_student_profile(request: HttpRequest, student_id: int) -> HttpResponse
         "student": student,
         "chart_json": json.dumps(chart, ensure_ascii=False),
     })
+
+import re
+from django.views.decorators.http import require_POST, require_GET
+from django.views.decorators.csrf import csrf_exempt
+from django.http import JsonResponse, HttpRequest
+from django.utils import timezone
+
+from .models import Teacher
+
+TEACHER_PIN_RE = re.compile(r"^\d{6}$")
+
+@csrf_exempt
+@require_POST
+def teacher_login(request: HttpRequest):
+    """
+    POST /api/auth/teacher-login
+    body: {"full_name":"...", "pin":"123456"}
+    """
+    data = _json_body(request)
+    full_name = (data.get("full_name") or "").strip()
+    pin = str(data.get("pin") or "").strip()
+
+    if not full_name or not pin:
+        return JsonResponse({"ok": False, "error": "full_name and pin are required"}, status=400)
+    if not TEACHER_PIN_RE.match(pin):
+        return JsonResponse({"ok": False, "error": "pin must be 6 digits"}, status=400)
+
+    teacher = Teacher.objects.filter(full_name__iexact=full_name, is_active=True).first()
+    if not teacher:
+        return JsonResponse({"ok": False, "error": "teacher not found"}, status=404)
+
+    if not teacher.check_pin(pin):
+        return JsonResponse({"ok": False, "error": "invalid credentials"}, status=401)
+
+    request.session["teacher_id"] = teacher.id
+    request.session["teacher_name"] = teacher.full_name
+    request.session["teacher_logged_in_at"] = timezone.now().isoformat()
+
+    return JsonResponse({"ok": True, "teacher": {"id": teacher.id, "full_name": teacher.full_name}})
+
+@csrf_exempt
+@require_POST
+def teacher_logout(request: HttpRequest):
+    """
+    POST /api/auth/teacher-logout
+    """
+    # очищаем только teacher-ключи, не трогая student (на всякий случай)
+    for k in ["teacher_id", "teacher_name", "teacher_logged_in_at"]:
+        request.session.pop(k, None)
+    return JsonResponse({"ok": True})
+
+@require_GET
+def teacher_me(request: HttpRequest):
+    """
+    GET /api/auth/teacher-me
+    """
+    teacher_id = request.session.get("teacher_id")
+    if not teacher_id:
+        return JsonResponse({"ok": False, "error": "not authenticated"}, status=401)
+
+    teacher = Teacher.objects.filter(id=teacher_id, is_active=True).first()
+    if not teacher:
+        for k in ["teacher_id", "teacher_name", "teacher_logged_in_at"]:
+            request.session.pop(k, None)
+        return JsonResponse({"ok": False, "error": "not authenticated"}, status=401)
+
+    return JsonResponse({"ok": True, "teacher": {"id": teacher.id, "full_name": teacher.full_name}})
+
+from django.shortcuts import render, redirect
+from django.views.decorators.http import require_http_methods
+
+@require_http_methods(["GET", "POST"])
+def teacher_login_page(request: HttpRequest):
+    if request.method == "GET":
+        return render(request, "core/teacher_login.html")
+
+    full_name = (request.POST.get("full_name") or "").strip()
+    pin = (request.POST.get("pin") or "").strip()
+
+    if not full_name or not pin or not pin.isdigit() or len(pin) != 6:
+        return render(request, "core/teacher_login.html", {"error": "Enter name and PIN (6 digits)."})
+
+    teacher = Teacher.objects.filter(full_name__iexact=full_name, is_active=True).first()
+    if not teacher or not teacher.check_pin(pin):
+        return render(request, "core/teacher_login.html", {"error": "Invalid name or PIN."})
+
+    request.session["teacher_id"] = teacher.id
+    request.session["teacher_name"] = teacher.full_name
+    request.session["teacher_logged_in_at"] = timezone.now().isoformat()
+
+    return redirect("/teacher/")
+
+def teacher_dashboard_page(request: HttpRequest):
+    if not request.session.get("teacher_id"):
+        return redirect("/teacher/login/")
+    return render(request, "core/teacher_dashboard.html")

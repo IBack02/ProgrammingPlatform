@@ -16,5 +16,13 @@ urlpatterns = [
     path("student/logout/", views.student_logout_page),
     path("admin-stats/", views.admin_stats_dashboard, name="admin_stats_dashboard"),
     path("admin-stats/student/<int:student_id>/", views.admin_student_profile, name="admin_student_profile"),
+# Teacher auth API
+    path("api/auth/teacher-login", views.teacher_login),
+    path("api/auth/teacher-logout", views.teacher_logout),
+    path("api/auth/teacher-me", views.teacher_me),
+
+# Teacher pages
+    path("teacher/login/", views.teacher_login_page),
+    path("teacher/", views.teacher_dashboard_page),
 ]
 
