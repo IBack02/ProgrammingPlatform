@@ -63,7 +63,7 @@
         const id = btn.getAttribute("data-save");
         const inp = root.querySelector(`input[data-id="${id}"]`);
         const name = (inp.value || "").trim();
-        const res = await api(`/api/teacher/classes/${id}`, "PATCH", {name});
+        const res = await api(`/api/teacher/classes/${id}/`, "PATCH", {name});
         if (!res.data.ok){
           setMsg(res.data.error || "Save failed");
           return;
@@ -76,7 +76,7 @@
       btn.addEventListener("click", async () => {
         const id = btn.getAttribute("data-del");
         if (!confirm("Delete this class?")) return;
-        const res = await api(`/api/teacher/classes/${id}`, "DELETE");
+        const res = await api(`/api/teacher/classes/${id}/`, "DELETE");
         if (!res.data.ok){
           setMsg(res.data.error || "Delete failed");
           return;
@@ -100,7 +100,7 @@
   document.getElementById("createBtn").addEventListener("click", async () => {
     const name = (document.getElementById("newClassName").value || "").trim();
     if (!name){ setMsg("Enter class name."); return; }
-    const res = await api("/api/teacher/classes", "POST", {name});
+    const res = await api("/api/teacher/classes/", "POST", {name});
     if (!res.data.ok){
       setMsg(res.data.error || "Create failed");
       return;

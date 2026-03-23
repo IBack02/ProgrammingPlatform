@@ -1004,13 +1004,14 @@ def _require_teacher_api(request: HttpRequest):
     if not teacher_id:
         return None
     return teacher_id
+
+from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.http import require_http_methods
+
+@csrf_exempt
 @require_http_methods(["GET", "POST"])
 def teacher_classes_api(request: HttpRequest):
-    """
-    GET  /api/teacher/classes
-    POST /api/teacher/classes  body: {name}
-    """
-    if not _require_teacher_api(request):
+    if not request.session.get("teacher_id"):
         return JsonResponse({"ok": False, "error": "not authenticated"}, status=401)
 
     if request.method == "GET":
@@ -1026,13 +1027,10 @@ def teacher_classes_api(request: HttpRequest):
     return JsonResponse({"ok": True, "class": {"id": obj.id, "name": obj.name}})
 
 
+@csrf_exempt
 @require_http_methods(["PATCH", "DELETE"])
 def teacher_class_detail_api(request: HttpRequest, class_id: int):
-    """
-    PATCH  /api/teacher/classes/<id>  body: {name}
-    DELETE /api/teacher/classes/<id>
-    """
-    if not _require_teacher_api(request):
+    if not request.session.get("teacher_id"):
         return JsonResponse({"ok": False, "error": "not authenticated"}, status=401)
 
     obj = get_object_or_404(ClassGroup, id=class_id)
@@ -1047,9 +1045,7 @@ def teacher_class_detail_api(request: HttpRequest, class_id: int):
         return JsonResponse({"ok": True, "class": {"id": obj.id, "name": obj.name}})
 
     # DELETE
-    # если есть ученики в классе — лучше запретить
-    has_students = Student.objects.filter(class_group=obj).exists()
-    if has_students:
+    if Student.objects.filter(class_group=obj).exists():
         return JsonResponse({"ok": False, "error": "cannot delete: class has students"}, status=409)
 
     obj.delete()
