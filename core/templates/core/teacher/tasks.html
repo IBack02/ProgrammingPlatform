@@ -1,75 +1,145 @@
 {% extends "core/teacher/_base.html" %}
-{% block title %}Manage Tasks{% endblock %}
-{% block subtitle %}Select a session, then manage tasks, testcases, and code fragments.{% endblock %}
+{% block title %}{{ T.manage_tasks }}{% endblock %}
+{% block subtitle %}{{ T.tasks_subtitle }}{% endblock %}
 
 {% block content %}
+<style>
+  .input-ui,.textarea-ui,.select-ui{
+    padding:10px;border:1px solid #e5e7eb;border-radius:10px;box-sizing:border-box;
+    transition:border-color .18s ease, box-shadow .18s ease, transform .08s ease, background .18s ease;
+    background:#fff;
+  }
+  .input-ui:focus,.textarea-ui:focus,.select-ui:focus{
+    outline:none;border-color:#0ea5e9;box-shadow:0 0 0 3px rgba(14,165,233,.12)
+  }
+  .btn{
+    transition:transform .08s ease, box-shadow .18s ease, background .18s ease, border-color .18s ease;
+    cursor:pointer;
+  }
+  .btn:hover{
+    transform:translateY(-1px);
+    box-shadow:0 8px 18px rgba(17,24,39,.08);
+    border-color:#cbd5e1;
+    background:#f8fafc;
+  }
+  .btn:active{transform:translateY(0) scale(.985)}
+  .btn[disabled]{opacity:.6;cursor:not-allowed;transform:none;box-shadow:none}
+
+  .message{
+    min-height:20px;padding:6px 8px;border-radius:8px;transition:all .2s ease;
+  }
+  .message.ok{background:#ecfdf5;color:#065f46}
+  .message.err{background:#fef2f2;color:#991b1b}
+  .message.info{background:#eff6ff;color:#1d4ed8}
+
+  .task-item{
+    width:100%;text-align:left;margin:6px 0;padding:12px 14px;border-radius:12px;
+    border:1px solid #e5e7eb;background:#fff;transition:all .18s ease;cursor:pointer;
+  }
+  .task-item:hover{
+    transform:translateY(-1px);border-color:#93c5fd;
+    box-shadow:0 10px 20px rgba(30,64,175,.08);background:#f8fbff;
+  }
+  .task-item.active{
+    border-color:#0ea5e9;background:#eff6ff;box-shadow:0 0 0 3px rgba(14,165,233,.12);
+  }
+  .task-item-title{font-weight:800}
+  .task-item-meta{font-size:12px;color:#6b7280;margin-top:4px}
+
+  .editor-panel{
+    opacity:0;transform:translateY(6px);
+    transition:opacity .2s ease, transform .2s ease;
+  }
+  .editor-panel.show{
+    opacity:1;transform:translateY(0);
+  }
+
+  .tab-btn.active{
+    border-color:#0ea5e9;
+    background:#eff6ff;
+    box-shadow:0 0 0 3px rgba(14,165,233,.10);
+  }
+
+  .panel-card{
+    border:1px solid #eef2f7;border-radius:12px;background:#fafafa;padding:12px;margin:10px 0;
+    transition:all .16s ease;
+  }
+  .panel-card:hover{
+    background:#fcfdff;border-color:#dbeafe;
+  }
+
+  .code-like{
+    font-family: var(--code-font, Consolas, "Courier New", monospace);
+  }
+</style>
+
 <div class="card" style="margin-bottom:12px;">
-  <div style="font-weight:900;margin-bottom:8px;">Session</div>
+  <div style="font-weight:900;margin-bottom:8px;">{{ T.session_label }}</div>
   <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
-    <select id="sessionSelect" style="padding:10px;border:1px solid #e5e7eb;border-radius:10px;min-width:260px;"></select>
-    <button class="btn" id="loadBtn" type="button">Load</button>
-    <div class="muted" id="msg"></div>
+    <select id="sessionSelect" class="select-ui" style="min-width:260px;"></select>
+    <button class="btn" id="loadBtn" type="button">{{ T.load }}</button>
+    <div id="msg" class="muted message"></div>
   </div>
 </div>
 
 <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
   <div class="card">
-    <div style="font-weight:900;margin-bottom:8px;">Tasks</div>
+    <div style="font-weight:900;margin-bottom:8px;">{{ T.tasks_list }}</div>
 
     <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px;">
-      <input id="newPos" type="number" value="1" style="padding:10px;border:1px solid #e5e7eb;border-radius:10px;width:90px;"/>
-      <input id="newTitle" placeholder="Task title"
-             style="padding:10px;border:1px solid #e5e7eb;border-radius:10px;flex:1;min-width:180px;"/>
-      <button class="btn" id="createTaskBtn" type="button">Create</button>
+      <input id="newPos" class="input-ui" type="number" value="1" style="width:90px;"/>
+      <input id="newTitle" class="input-ui" placeholder="{{ T.task_title_placeholder }}"
+             style="flex:1;min-width:180px;"/>
+      <button class="btn" id="createTaskBtn" type="button">{{ T.create_task }}</button>
     </div>
 
     <div id="taskList"></div>
   </div>
 
   <div class="card">
-    <div style="font-weight:900;margin-bottom:8px;">Editor</div>
-    <div class="muted" style="margin-bottom:10px;">Select a task on the left.</div>
+    <div style="font-weight:900;margin-bottom:8px;">{{ T.editor }}</div>
+    <div class="muted" style="margin-bottom:10px;">{{ T.select_task_left }}</div>
 
-    <div id="editor" style="display:none;">
+    <div id="editor" class="editor-panel" style="display:none;">
       <div style="display:flex;gap:10px;flex-wrap:wrap;">
-        <input id="pos" type="number" style="padding:10px;border:1px solid #e5e7eb;border-radius:10px;width:110px;"/>
-        <input id="title" style="padding:10px;border:1px solid #e5e7eb;border-radius:10px;flex:1;min-width:220px;"/>
+        <input id="pos" class="input-ui" type="number" style="width:110px;"/>
+        <input id="title" class="input-ui" placeholder="{{ T.task_title }}" style="flex:1;min-width:220px;"/>
       </div>
 
-      <div class="muted" style="margin:10px 0 6px;">Statement</div>
-      <textarea id="statement" style="width:100%;height:120px;padding:10px;border:1px solid #e5e7eb;border-radius:10px;box-sizing:border-box;"></textarea>
+      <div class="muted" style="margin:10px 0 6px;">{{ T.statement }}</div>
+      <textarea id="statement" class="textarea-ui" style="width:100%;height:120px;"></textarea>
 
-      <div class="muted" style="margin:10px 0 6px;">Constraints</div>
-      <textarea id="constraints" style="width:100%;height:80px;padding:10px;border:1px solid #e5e7eb;border-radius:10px;box-sizing:border-box;"></textarea>
+      <div class="muted" style="margin:10px 0 6px;">{{ T.constraints }}</div>
+      <textarea id="constraints" class="textarea-ui" style="width:100%;height:80px;"></textarea>
 
       <div style="margin-top:12px;display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;">
-        <button class="btn" id="saveTaskBtn" type="button">Save task</button>
-        <button class="btn" id="deleteTaskBtn" type="button" style="border-color:#fca5a5;">Delete task</button>
+        <button class="btn" id="saveTaskBtn" type="button">{{ T.save_task }}</button>
+        <button class="btn" id="deleteTaskBtn" type="button" style="border-color:#fca5a5;">{{ T.delete_task }}</button>
       </div>
 
       <hr style="border:none;border-top:1px solid #e5e7eb;margin:14px 0;">
 
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;">
-        <button class="btn" id="tabTests" type="button">Testcases</button>
-        <button class="btn" id="tabFrags" type="button">Code fragments</button>
+        <button class="btn tab-btn active" id="tabTests" type="button">{{ T.testcases }}</button>
+        <button class="btn tab-btn" id="tabFrags" type="button">{{ T.code_fragments }}</button>
       </div>
 
       <div id="testsPanel" style="display:block;">
-        <div style="font-weight:800;margin-bottom:8px;">Testcases</div>
+        <div style="font-weight:800;margin-bottom:8px;">{{ T.testcases_full }}</div>
 
         <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px;">
-          <input id="newOrd" type="number" value="1" style="padding:10px;border:1px solid #e5e7eb;border-radius:10px;width:90px;"/>
+          <input id="newOrd" class="input-ui" type="number" value="1" style="width:90px;"/>
           <label class="muted" style="display:flex;align-items:center;gap:8px;">
-            <input id="newVisible" type="checkbox" checked> Visible for students
+            <input id="newVisible" type="checkbox" checked> {{ T.visible_for_students }}
           </label>
-          <button class="btn" id="addTestBtn" type="button">Add test</button>
+          <button class="btn" id="addTestBtn" type="button">{{ T.add_test }}</button>
         </div>
 
-        <div class="muted" style="margin-bottom:6px;">Input (stdin)</div>
-        <textarea id="newIn" style="width:100%;height:70px;padding:10px;border:1px solid #e5e7eb;border-radius:10px;box-sizing:border-box;"></textarea>
+        <div class="muted" style="margin-bottom:6px;">{{ T.input_stdin }}</div>
+        <textarea id="newIn" class="textarea-ui code-like" style="width:100%;height:70px;"></textarea>
 
-        <div class="muted" style="margin:10px 0 6px;">Expected output</div>
-        <textarea id="newOut" style="width:100%;height:70px;padding:10px;border:1px solid #e5e7eb;border-radius:10px;box-sizing:border-box;"></textarea>
+        <div class="muted" style="margin:10px 0 6px;">{{ T.expected_output }}</div>
+        <textarea id="newOut" class="textarea-ui code-like" style="width:100%;height:70px;"></textarea>
 
         <div style="margin-top:12px;">
           <div id="testsList"></div>
@@ -77,23 +147,23 @@
       </div>
 
       <div id="fragsPanel" style="display:none;">
-        <div style="font-weight:800;margin-bottom:8px;">Code fragments (read-only for students)</div>
+        <div style="font-weight:800;margin-bottom:8px;">{{ T.code_fragments_full }}</div>
 
         <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px;align-items:center;">
-          <select id="fragPos" style="padding:10px;border:1px solid #e5e7eb;border-radius:10px;">
-            <option value="top">Top (prepend)</option>
-            <option value="bottom">Bottom (append)</option>
+          <select id="fragPos" class="select-ui">
+            <option value="top">{{ T.top_prepend }}</option>
+            <option value="bottom">{{ T.bottom_append }}</option>
           </select>
-          <input id="fragTitle" placeholder="Fragment title (optional)"
-                 style="padding:10px;border:1px solid #e5e7eb;border-radius:10px;flex:1;min-width:200px;">
+          <input id="fragTitle" class="input-ui" placeholder="{{ T.fragment_title_optional }}"
+                 style="flex:1;min-width:200px;">
           <label class="muted" style="display:flex;align-items:center;gap:8px;">
-            <input id="fragActive" type="checkbox" checked> Active
+            <input id="fragActive" type="checkbox" checked> {{ T.active }}
           </label>
-          <button class="btn" id="addFragBtn" type="button">Add fragment</button>
+          <button class="btn" id="addFragBtn" type="button">{{ T.add_fragment }}</button>
         </div>
 
-        <div class="muted" style="margin-bottom:6px;">Fragment code</div>
-        <textarea id="fragCode" style="width:100%;height:110px;padding:10px;border:1px solid #e5e7eb;border-radius:10px;box-sizing:border-box;font-family:Consolas,monospace;"></textarea>
+        <div class="muted" style="margin-bottom:6px;">{{ T.fragment_code }}</div>
+        <textarea id="fragCode" class="textarea-ui code-like" style="width:100%;height:110px;"></textarea>
 
         <div style="margin-top:12px;">
           <div id="fragsList"></div>
@@ -105,13 +175,64 @@
 </div>
 
 <script>
+  const UI = {
+    failedLoadSessions: "{{ T.failed_load_sessions|escapejs }}",
+    failedLoadTasks: "{{ T.failed_load_tasks|escapejs }}",
+    failedLoadTask: "{{ T.failed_load_task|escapejs }}",
+    selectSession: "{{ T.select_session|escapejs }}",
+    selectTask: "{{ T.select_task|escapejs }}",
+    enterTaskTitle: "{{ T.enter_task_title|escapejs }}",
+    taskCreated: "{{ T.task_created|escapejs }}",
+    taskSaved: "{{ T.task_saved|escapejs }}",
+    taskDeleted: "{{ T.task_deleted|escapejs }}",
+    createTaskFailed: "{{ T.create_task_failed|escapejs }}",
+    saveTaskFailed: "{{ T.save_task_failed|escapejs }}",
+    deleteTaskFailed: "{{ T.delete_task_failed|escapejs }}",
+    deleteTaskConfirm: "{{ T.delete_task_confirm|escapejs }}",
+    loading: "{{ T.loading|escapejs }}",
+    noTasksInSession: "{{ T.no_tasks_in_session|escapejs }}",
+    noTests: "{{ T.no_tests|escapejs }}",
+    failedLoadTests: "{{ T.failed_load_tests|escapejs }}",
+    addTestFailed: "{{ T.add_test_failed|escapejs }}",
+    saveTestFailed: "{{ T.save_test_failed|escapejs }}",
+    deleteTestFailed: "{{ T.delete_test_failed|escapejs }}",
+    testAdded: "{{ T.test_added|escapejs }}",
+    testSaved: "{{ T.test_saved|escapejs }}",
+    testDeleted: "{{ T.test_deleted|escapejs }}",
+    deleteTestConfirm: "{{ T.delete_test_confirm|escapejs }}",
+    fragmentCodeRequired: "{{ T.fragment_code_required|escapejs }}",
+    noFragments: "{{ T.no_fragments|escapejs }}",
+    failedLoadFragments: "{{ T.failed_load_fragments|escapejs }}",
+    addFragmentFailed: "{{ T.add_fragment_failed|escapejs }}",
+    saveFragmentFailed: "{{ T.save_fragment_failed|escapejs }}",
+    deleteFragmentFailed: "{{ T.delete_fragment_failed|escapejs }}",
+    fragmentAdded: "{{ T.fragment_added|escapejs }}",
+    fragmentSaved: "{{ T.fragment_saved|escapejs }}",
+    fragmentDeleted: "{{ T.fragment_deleted|escapejs }}",
+    deleteFragmentConfirm: "{{ T.delete_fragment_confirm|escapejs }}",
+    visible: "{{ T.visible|escapejs }}",
+    ordinal: "{{ T.ordinal|escapejs }}",
+    save: "{{ T.save|escapejs }}",
+    delete: "{{ T.delete|escapejs }}",
+    active: "{{ T.active|escapejs }}",
+    selected: "{{ T.selected|escapejs }}"
+  };
+
   let sessions = [];
   let tasks = [];
   let selectedSessionId = null;
   let selectedTaskId = null;
+  let busy = false;
+
+  function qs(id){ return document.getElementById(id); }
+
+  function setBusy(state){
+    busy = state;
+    document.querySelectorAll("button").forEach(btn => btn.disabled = state);
+  }
 
   async function api(url, method="GET", body=null){
-    const opts = { method, credentials:"include", headers:{} };
+    const opts = { method, credentials:"include", headers:{ "Accept": "application/json" } };
     if (body){
       opts.headers["Content-Type"] = "application/json";
       opts.body = JSON.stringify(body);
@@ -125,9 +246,20 @@
     return { status:r.status, data: await r.json() };
   }
 
-  function setMsg(t){ document.getElementById("msg").textContent = t || ""; }
+  function setMsg(text, type="info"){
+    const el = qs("msg");
+    el.textContent = text || "";
+    el.className = "muted message" + (text ? ` ${type}` : "");
+  }
 
-  function qs(id){ return document.getElementById(id); }
+  function escapeHtml(s){
+    return String(s || "")
+      .replaceAll("&","&amp;")
+      .replaceAll("<","&lt;")
+      .replaceAll(">","&gt;")
+      .replaceAll('"',"&quot;")
+      .replaceAll("'","&#039;");
+  }
 
   function getQueryParam(name){
     const u = new URL(window.location.href);
@@ -136,11 +268,21 @@
 
   async function loadSessions(){
     const res = await api("/api/teacher/sessions/");
-    if (!res.data.ok){ setMsg(res.data.error || "Failed to load sessions"); return; }
+    if (!res.data.ok){
+      setMsg(res.data.error || UI.failedLoadSessions, "err");
+      return;
+    }
+
     sessions = res.data.sessions || [];
     const sel = qs("sessionSelect");
     sel.innerHTML = "";
-    sessions.forEach(s => sel.insertAdjacentHTML("beforeend", `<option value="${s.id}">${s.title} (${s.status})</option>`));
+
+    sessions.forEach(s => {
+      sel.insertAdjacentHTML(
+        "beforeend",
+        `<option value="${s.id}">${escapeHtml(s.title)} (${escapeHtml(s.status)})</option>`
+      );
+    });
 
     const fromQuery = getQueryParam("session_id");
     if (fromQuery && sessions.some(x => String(x.id) === String(fromQuery))){
@@ -151,33 +293,46 @@
   async function loadTasks(){
     selectedTaskId = null;
     qs("editor").style.display = "none";
+    qs("editor").classList.remove("show");
     qs("taskList").innerHTML = "";
     qs("testsList").innerHTML = "";
     qs("fragsList").innerHTML = "";
 
     selectedSessionId = parseInt(qs("sessionSelect").value);
-    if (!selectedSessionId){ setMsg("Select session."); return; }
+    if (!selectedSessionId){
+      setMsg(UI.selectSession, "err");
+      return;
+    }
 
+    setMsg(UI.loading, "info");
     const res = await api(`/api/teacher/sessions/${selectedSessionId}/tasks/`);
-    if (!res.data.ok){ setMsg(res.data.error || "Failed to load tasks"); return; }
+    if (!res.data.ok){
+      setMsg(res.data.error || UI.failedLoadTasks, "err");
+      return;
+    }
+
     tasks = res.data.tasks || [];
     renderTaskList();
+    setMsg("");
   }
 
   function renderTaskList(){
     const root = qs("taskList");
     root.innerHTML = "";
+
     if (!tasks.length){
-      root.innerHTML = '<div class="muted">No tasks in this session.</div>';
+      root.innerHTML = `<div class="muted">${UI.noTasksInSession}</div>`;
       return;
     }
+
     tasks.forEach(t => {
       const btn = document.createElement("button");
-      btn.className = "btn";
-      btn.style.width = "100%";
-      btn.style.textAlign = "left";
-      btn.style.margin = "6px 0";
-      btn.textContent = `${t.position}. ${t.title}`;
+      btn.className = "task-item" + (selectedTaskId === t.id ? " active" : "");
+      btn.type = "button";
+      btn.innerHTML = `
+        <div class="task-item-title">${escapeHtml(t.position)}. ${escapeHtml(t.title)}</div>
+        <div class="task-item-meta">id=${t.id}${selectedTaskId === t.id ? ` • ${UI.selected}` : ""}</div>
+      `;
       btn.onclick = () => selectTask(t.id);
       root.appendChild(btn);
     });
@@ -185,99 +340,146 @@
 
   async function selectTask(taskId){
     selectedTaskId = taskId;
+    renderTaskList();
+
+    setMsg(UI.loading, "info");
     const res = await api(`/api/teacher/tasks/${taskId}/`);
-    if (!res.data.ok){ setMsg(res.data.error || "Failed to load task"); return; }
+    if (!res.data.ok){
+      setMsg(res.data.error || UI.failedLoadTask, "err");
+      return;
+    }
 
     const t = res.data.task;
     qs("editor").style.display = "block";
+    requestAnimationFrame(() => qs("editor").classList.add("show"));
+
     qs("pos").value = t.position;
     qs("title").value = t.title;
     qs("statement").value = t.statement || "";
     qs("constraints").value = t.constraints || "";
 
-    // load tests & fragments
     await loadTests();
     await loadFrags();
+    setMsg("");
   }
 
   async function createTask(){
-    if (!selectedSessionId){ setMsg("Select session."); return; }
+    if (!selectedSessionId){
+      setMsg(UI.selectSession, "err");
+      return;
+    }
+
     const position = parseInt(qs("newPos").value || "1");
     const title = (qs("newTitle").value || "").trim();
-    if (!title){ setMsg("Enter task title."); return; }
+    if (!title){
+      setMsg(UI.enterTaskTitle, "err");
+      return;
+    }
 
+    setBusy(true);
+    setMsg(UI.loading, "info");
     const res = await api(`/api/teacher/sessions/${selectedSessionId}/tasks/`, "POST", {
       position, title, statement:"", constraints:""
     });
-    if (!res.data.ok){ setMsg(res.data.error || "Create task failed"); return; }
+    setBusy(false);
+
+    if (!res.data.ok){
+      setMsg(res.data.error || UI.createTaskFailed, "err");
+      return;
+    }
+
     qs("newTitle").value = "";
-    setMsg("Task created.");
+    setMsg(UI.taskCreated, "ok");
     await loadTasks();
   }
 
   async function saveTask(){
-    if (!selectedTaskId){ setMsg("Select task."); return; }
+    if (!selectedTaskId){
+      setMsg(UI.selectTask, "err");
+      return;
+    }
+
     const payload = {
       position: parseInt(qs("pos").value || "1"),
       title: (qs("title").value || "").trim(),
       statement: qs("statement").value || "",
       constraints: qs("constraints").value || "",
     };
+
+    setBusy(true);
+    setMsg(UI.loading, "info");
     const res = await api(`/api/teacher/tasks/${selectedTaskId}/`, "PATCH", payload);
-    if (!res.data.ok){ setMsg(res.data.error || "Save task failed"); return; }
-    setMsg("Saved.");
+    setBusy(false);
+
+    if (!res.data.ok){
+      setMsg(res.data.error || UI.saveTaskFailed, "err");
+      return;
+    }
+
+    setMsg(UI.taskSaved, "ok");
     await loadTasks();
   }
 
   async function deleteTask(){
     if (!selectedTaskId) return;
-    if (!confirm("Delete this task and all its testcases/fragments?")) return;
+    if (!confirm(UI.deleteTaskConfirm)) return;
+
+    setBusy(true);
+    setMsg(UI.loading, "info");
     const res = await api(`/api/teacher/tasks/${selectedTaskId}/`, "DELETE");
-    if (!res.data.ok){ setMsg(res.data.error || "Delete failed"); return; }
-    setMsg("Deleted.");
+    setBusy(false);
+
+    if (!res.data.ok){
+      setMsg(res.data.error || UI.deleteTaskFailed, "err");
+      return;
+    }
+
+    setMsg(UI.taskDeleted, "ok");
     await loadTasks();
   }
 
-  // ---------------- Tests ----------------
   async function loadTests(){
-    qs("testsList").innerHTML = '<div class="muted">Loading...</div>';
+    qs("testsList").innerHTML = `<div class="muted">${UI.loading}</div>`;
     const res = await api(`/api/teacher/tasks/${selectedTaskId}/tests/`);
-    if (!res.data.ok){ qs("testsList").innerHTML = ""; setMsg(res.data.error || "Failed to load tests"); return; }
+    if (!res.data.ok){
+      qs("testsList").innerHTML = "";
+      setMsg(res.data.error || UI.failedLoadTests, "err");
+      return;
+    }
     renderTests(res.data.tests || []);
   }
 
   function renderTests(items){
     const root = qs("testsList");
     root.innerHTML = "";
+
     if (!items.length){
-      root.innerHTML = '<div class="muted">No tests.</div>';
+      root.innerHTML = `<div class="muted">${UI.noTests}</div>`;
       return;
     }
 
     items.forEach(tc => {
       const box = document.createElement("div");
-      box.className = "card";
-      box.style.margin = "10px 0";
+      box.className = "panel-card";
       box.innerHTML = `
         <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;justify-content:space-between;">
           <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
             <div class="muted">id=${tc.id}</div>
-            <div class="muted">ordinal</div>
-            <input data-ord="${tc.id}" type="number" value="${tc.ordinal}"
-                   style="padding:8px;border:1px solid #e5e7eb;border-radius:10px;width:90px;">
+            <div class="muted">${UI.ordinal}</div>
+            <input data-ord="${tc.id}" class="input-ui" type="number" value="${tc.ordinal}" style="width:90px;">
             <label class="muted" style="display:flex;gap:8px;align-items:center;">
-              <input data-vis="${tc.id}" type="checkbox" ${tc.is_visible ? "checked" : ""}> visible
+              <input data-vis="${tc.id}" type="checkbox" ${tc.is_visible ? "checked" : ""}> ${UI.visible}
             </label>
           </div>
           <div style="display:flex;gap:8px;flex-wrap:wrap;">
-            <button class="btn" data-save-test="${tc.id}" type="button">Save</button>
-            <button class="btn" data-del-test="${tc.id}" type="button" style="border-color:#fca5a5;">Delete</button>
+            <button class="btn" data-save-test="${tc.id}" type="button">${UI.save}</button>
+            <button class="btn" data-del-test="${tc.id}" type="button" style="border-color:#fca5a5;">${UI.delete}</button>
           </div>
         </div>
         <div class="muted" style="margin-top:8px;">stdin</div>
-        <textarea data-in="${tc.id}" style="width:100%;height:60px;padding:10px;border:1px solid #e5e7eb;border-radius:10px;box-sizing:border-box;">${tc.stdin || ""}</textarea>
+        <textarea data-in="${tc.id}" class="textarea-ui code-like" style="width:100%;height:60px;">${escapeHtml(tc.stdin || "")}</textarea>
         <div class="muted" style="margin-top:8px;">expected_stdout</div>
-        <textarea data-out="${tc.id}" style="width:100%;height:60px;padding:10px;border:1px solid #e5e7eb;border-radius:10px;box-sizing:border-box;">${tc.expected_stdout || ""}</textarea>
+        <textarea data-out="${tc.id}" class="textarea-ui code-like" style="width:100%;height:60px;">${escapeHtml(tc.expected_stdout || "")}</textarea>
       `;
       root.appendChild(box);
     });
@@ -289,9 +491,17 @@
         const is_visible = root.querySelector(`input[data-vis="${id}"]`).checked;
         const stdin = root.querySelector(`textarea[data-in="${id}"]`).value || "";
         const expected_stdout = root.querySelector(`textarea[data-out="${id}"]`).value || "";
+
+        setBusy(true);
+        setMsg(UI.loading, "info");
         const res = await api(`/api/teacher/tests/${id}/`, "PATCH", { ordinal, is_visible, stdin, expected_stdout });
-        if (!res.data.ok){ setMsg(res.data.error || "Save test failed"); return; }
-        setMsg("Test saved.");
+        setBusy(false);
+
+        if (!res.data.ok){
+          setMsg(res.data.error || UI.saveTestFailed, "err");
+          return;
+        }
+        setMsg(UI.testSaved, "ok");
         await loadTests();
       });
     });
@@ -299,10 +509,18 @@
     root.querySelectorAll("button[data-del-test]").forEach(btn => {
       btn.addEventListener("click", async () => {
         const id = btn.getAttribute("data-del-test");
-        if (!confirm("Delete this testcase?")) return;
+        if (!confirm(UI.deleteTestConfirm)) return;
+
+        setBusy(true);
+        setMsg(UI.loading, "info");
         const res = await api(`/api/teacher/tests/${id}/`, "DELETE");
-        if (!res.data.ok){ setMsg(res.data.error || "Delete test failed"); return; }
-        setMsg("Test deleted.");
+        setBusy(false);
+
+        if (!res.data.ok){
+          setMsg(res.data.error || UI.deleteTestFailed, "err");
+          return;
+        }
+        setMsg(UI.testDeleted, "ok");
         await loadTests();
       });
     });
@@ -313,55 +531,66 @@
     const is_visible = qs("newVisible").checked;
     const stdin = qs("newIn").value || "";
     const expected_stdout = qs("newOut").value || "";
+
+    setBusy(true);
+    setMsg(UI.loading, "info");
     const res = await api(`/api/teacher/tasks/${selectedTaskId}/tests/`, "POST", { ordinal, is_visible, stdin, expected_stdout });
-    if (!res.data.ok){ setMsg(res.data.error || "Add test failed"); return; }
+    setBusy(false);
+
+    if (!res.data.ok){
+      setMsg(res.data.error || UI.addTestFailed, "err");
+      return;
+    }
+
     qs("newIn").value = "";
     qs("newOut").value = "";
-    setMsg("Test added.");
+    setMsg(UI.testAdded, "ok");
     await loadTests();
   }
 
-  // ---------------- Fragments ----------------
   async function loadFrags(){
-    qs("fragsList").innerHTML = '<div class="muted">Loading...</div>';
+    qs("fragsList").innerHTML = `<div class="muted">${UI.loading}</div>`;
     const res = await api(`/api/teacher/tasks/${selectedTaskId}/fragments/`);
-    if (!res.data.ok){ qs("fragsList").innerHTML = ""; setMsg(res.data.error || "Failed to load fragments"); return; }
+    if (!res.data.ok){
+      qs("fragsList").innerHTML = "";
+      setMsg(res.data.error || UI.failedLoadFragments, "err");
+      return;
+    }
     renderFrags(res.data.fragments || []);
   }
 
   function renderFrags(items){
     const root = qs("fragsList");
     root.innerHTML = "";
+
     if (!items.length){
-      root.innerHTML = '<div class="muted">No fragments.</div>';
+      root.innerHTML = `<div class="muted">${UI.noFragments}</div>`;
       return;
     }
 
     items.forEach(f => {
       const box = document.createElement("div");
-      box.className = "card";
-      box.style.margin = "10px 0";
+      box.className = "panel-card";
       box.innerHTML = `
         <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;justify-content:space-between;">
           <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
             <div class="muted">id=${f.id}</div>
-            <select data-pos="${f.id}" style="padding:8px;border:1px solid #e5e7eb;border-radius:10px;">
-              <option value="top" ${f.position==="top"?"selected":""}>top</option>
-              <option value="bottom" ${f.position==="bottom"?"selected":""}>bottom</option>
+            <select data-pos="${f.id}" class="select-ui">
+              <option value="top" ${f.position==="top"?"selected":""}>{{ T.top_prepend|escapejs }}</option>
+              <option value="bottom" ${f.position==="bottom"?"selected":""}>{{ T.bottom_append|escapejs }}</option>
             </select>
-            <input data-title="${f.id}" value="${escapeHtml(f.title || "")}"
-                   style="padding:8px;border:1px solid #e5e7eb;border-radius:10px;min-width:220px;">
+            <input data-title="${f.id}" class="input-ui" value="${escapeHtml(f.title || "")}" style="min-width:220px;">
             <label class="muted" style="display:flex;gap:8px;align-items:center;">
-              <input data-active="${f.id}" type="checkbox" ${f.is_active ? "checked" : ""}> active
+              <input data-active="${f.id}" type="checkbox" ${f.is_active ? "checked" : ""}> ${UI.active}
             </label>
           </div>
           <div style="display:flex;gap:8px;flex-wrap:wrap;">
-            <button class="btn" data-save-frag="${f.id}" type="button">Save</button>
-            <button class="btn" data-del-frag="${f.id}" type="button" style="border-color:#fca5a5;">Delete</button>
+            <button class="btn" data-save-frag="${f.id}" type="button">${UI.save}</button>
+            <button class="btn" data-del-frag="${f.id}" type="button" style="border-color:#fca5a5;">${UI.delete}</button>
           </div>
         </div>
         <div class="muted" style="margin-top:8px;">code</div>
-        <textarea data-code="${f.id}" style="width:100%;height:100px;padding:10px;border:1px solid #e5e7eb;border-radius:10px;box-sizing:border-box;font-family:Consolas,monospace;">${escapeHtml(f.code || "")}</textarea>
+        <textarea data-code="${f.id}" class="textarea-ui code-like" style="width:100%;height:100px;">${escapeHtml(f.code || "")}</textarea>
       `;
       root.appendChild(box);
     });
@@ -373,9 +602,17 @@
         const title = root.querySelector(`input[data-title="${id}"]`).value || "";
         const is_active = root.querySelector(`input[data-active="${id}"]`).checked;
         const code = root.querySelector(`textarea[data-code="${id}"]`).value || "";
+
+        setBusy(true);
+        setMsg(UI.loading, "info");
         const res = await api(`/api/teacher/fragments/${id}/`, "PATCH", { position, title, is_active, code });
-        if (!res.data.ok){ setMsg(res.data.error || "Save fragment failed"); return; }
-        setMsg("Fragment saved.");
+        setBusy(false);
+
+        if (!res.data.ok){
+          setMsg(res.data.error || UI.saveFragmentFailed, "err");
+          return;
+        }
+        setMsg(UI.fragmentSaved, "ok");
         await loadFrags();
       });
     });
@@ -383,20 +620,21 @@
     root.querySelectorAll("button[data-del-frag]").forEach(btn => {
       btn.addEventListener("click", async () => {
         const id = btn.getAttribute("data-del-frag");
-        if (!confirm("Delete this fragment?")) return;
+        if (!confirm(UI.deleteFragmentConfirm)) return;
+
+        setBusy(true);
+        setMsg(UI.loading, "info");
         const res = await api(`/api/teacher/fragments/${id}/`, "DELETE");
-        if (!res.data.ok){ setMsg(res.data.error || "Delete fragment failed"); return; }
-        setMsg("Fragment deleted.");
+        setBusy(false);
+
+        if (!res.data.ok){
+          setMsg(res.data.error || UI.deleteFragmentFailed, "err");
+          return;
+        }
+        setMsg(UI.fragmentDeleted, "ok");
         await loadFrags();
       });
     });
-  }
-
-  function escapeHtml(s){
-    return (s || "")
-      .replaceAll("&","&amp;")
-      .replaceAll("<","&lt;")
-      .replaceAll(">","&gt;");
   }
 
   async function addFrag(){
@@ -404,23 +642,40 @@
     const title = (qs("fragTitle").value || "").trim();
     const is_active = qs("fragActive").checked;
     const code = qs("fragCode").value || "";
-    if (!code.trim()){ setMsg("Fragment code is required."); return; }
+
+    if (!code.trim()){
+      setMsg(UI.fragmentCodeRequired, "err");
+      return;
+    }
+
+    setBusy(true);
+    setMsg(UI.loading, "info");
     const res = await api(`/api/teacher/tasks/${selectedTaskId}/fragments/`, "POST", { position, title, is_active, code });
-    if (!res.data.ok){ setMsg(res.data.error || "Add fragment failed"); return; }
+    setBusy(false);
+
+    if (!res.data.ok){
+      setMsg(res.data.error || UI.addFragmentFailed, "err");
+      return;
+    }
+
     qs("fragTitle").value = "";
     qs("fragCode").value = "";
-    setMsg("Fragment added.");
+    setMsg(UI.fragmentAdded, "ok");
     await loadFrags();
   }
 
-  // Tabs
   function showTests(){
     qs("testsPanel").style.display = "block";
     qs("fragsPanel").style.display = "none";
+    qs("tabTests").classList.add("active");
+    qs("tabFrags").classList.remove("active");
   }
+
   function showFrags(){
     qs("testsPanel").style.display = "none";
     qs("fragsPanel").style.display = "block";
+    qs("tabFrags").classList.add("active");
+    qs("tabTests").classList.remove("active");
   }
 
   qs("tabTests").addEventListener("click", showTests);
@@ -430,17 +685,16 @@
   qs("createTaskBtn").addEventListener("click", createTask);
   qs("saveTaskBtn").addEventListener("click", saveTask);
   qs("deleteTaskBtn").addEventListener("click", deleteTask);
-
   qs("addTestBtn").addEventListener("click", addTest);
   qs("addFragBtn").addEventListener("click", addFrag);
 
-  // init
   (async function init(){
+    setMsg(UI.loading, "info");
     await loadSessions();
-    // если session уже выбран — подгрузи задачи
     if (qs("sessionSelect").value){
       await loadTasks();
     }
+    setMsg("");
   })();
 </script>
 {% endblock %}

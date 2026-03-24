@@ -1,6 +1,28 @@
 <!doctype html>
 <html lang="{{ ui_lang }}">
 <head>
+<style>
+  :root{
+    --ui-font-default: Arial, "Segoe UI", sans-serif;
+    --ui-font-kk: "Noto Sans", "Segoe UI", Arial, sans-serif;
+    --code-font: Consolas, "Courier New", monospace;
+  }
+
+  body{
+    font-family: {% if ui_lang == 'kk' %}var(--ui-font-kk){% else %}var(--ui-font-default){% endif %};
+    background:#f6f7fb;
+    margin:0;
+    text-rendering:optimizeLegibility;
+    -webkit-font-smoothing:antialiased;
+    -moz-osx-font-smoothing:grayscale;
+  }
+
+  textarea.code-like,
+  code,
+  pre{
+    font-family: var(--code-font);
+  }
+</style>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <title>{% block title %}{{ T.teacher_portal }}{% endblock %}</title>
@@ -19,7 +41,7 @@
     .lang-label{font-size:12px;color:#6b7280}
   </style>
 </head>
-<body>
+<body class="lang-{{ ui_lang }}">
   <div class="wrap">
     <div class="topbar">
       <div>
