@@ -1633,3 +1633,76 @@ def set_ui_language(request):
     response = redirect(next_url)
     response.set_cookie("ui_lang", lang, max_age=60 * 60 * 24 * 365, samesite="Lax")
     return response
+
+import json
+from django.http import JsonResponse
+from django.shortcuts import get_object_or_404
+from django.views.decorators.http import require_http_methods
+
+from .models import Teacher, ClassGroup, Student
+
+
+def _get_logged_in_teacher(request):
+    teacher_id = request.session.get("teacher_id")
+    if not teacher_id:
+        return None
+    return Teacher.objects.filter(id=teacher_id, is_active=True).first()
+
+
+def _parse_json_body(request):
+    try:
+        raw = request.body.decode("utf-8") if request.body else "{}"
+        return json.loads(raw or "{}")
+    except json.JSONDecodeError:
+        raise ValueError("Invalid JSON body")
+
+
+def _serialize_class_group(class_group):
+    students = list(
+        Student.objects.filter(class_group=class_group, is_active=True)
+        .order_by("full_name")
+        .values("id", "full_name")
+    )
+
+    return {
+        "id": class_group.id,
+        "name": class_group.name,
+        "student_count": len(students),
+        "students": students,
+    }
+
+
+@require_http_methods(["GET", "POST"])
+def teacher_classes_api(request):
+    teacher = _get_logged_in_teacher(request)
+    if not teacher:
+        return JsonResponse({"ok": False, "error": "Unauthorized"}, status=401)
+
+    if request.method == "GET":
+        classes = ClassGroup.objects.all().order_by("name")
+        return JsonResponse({
+            "ok": True,
+            "classes": [_serialize_class_group(c) for c in classes],
+        })
+
+    try:
+        data = _parse_json_body(request)
+        name = (data.get("name") or "").strip()
+
+        if not name:
+            return JsonResponse({"ok": False, "error": "Class name is required"}, status=400)
+
+        if ClassGroup.objects.filter(name=name).exists():
+            return JsonResponse({"ok": False, "error": "Class with this name already exists"}, status=400)
+
+        class_group = ClassGroup.objects.create(name=name)
+
+        return JsonResponse({
+            "ok": True,
+            "class": _serialize_class_group(class_group),
+        }, status=201)
+
+    except ValueError as e:
+        return JsonResponse({"ok": False, "error": str(e)}, status=400)
+    except Exception as e:
+        return JsonResponse({"ok": False, "error": f"Server error: {str(e)}"}, status=500)

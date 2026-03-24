@@ -1,30 +1,87 @@
 {% extends "core/teacher/_base.html" %}
-{% block title %}Manage Classes{% endblock %}
-{% block subtitle %}Create, rename, and remove classes.{% endblock %}
+{% block title %}{{ T.manage_classes }}{% endblock %}
+{% block subtitle %}{{ T.classes_subtitle }}{% endblock %}
 
 {% block content %}
 <div class="card" style="margin-bottom:12px;">
-  <div style="font-weight:900;margin-bottom:8px;">Create new class</div>
+  <div style="font-weight:900;margin-bottom:8px;">{{ T.create_new_class }}</div>
   <div style="display:flex;gap:10px;flex-wrap:wrap;">
-    <input id="newClassName" placeholder="e.g. 11A" style="padding:10px;border:1px solid #e5e7eb;border-radius:10px;min-width:240px;"/>
-    <button class="btn" id="createBtn" type="button">Create</button>
+    <input
+      id="newClassName"
+      placeholder="{{ T.class_name_placeholder }}"
+      style="padding:10px;border:1px solid #e5e7eb;border-radius:10px;min-width:240px;"
+    />
+    <button class="btn" id="createBtn" type="button">{{ T.create }}</button>
   </div>
   <div class="muted" id="msg" style="margin-top:8px;"></div>
 </div>
 
 <div class="card">
-  <div style="font-weight:900;margin-bottom:8px;">All classes</div>
+  <div style="font-weight:900;margin-bottom:8px;">{{ T.all_classes }}</div>
   <div id="list"></div>
 </div>
 
 <script>
+  const UI = {
+    noClassesYet: "{{ T.no_classes_yet|escapejs }}",
+    noStudentsInClass: "{{ T.no_students_in_class|escapejs }}",
+    enterClassName: "{{ T.enter_class_name|escapejs }}",
+    created: "{{ T.created|escapejs }}",
+    saved: "{{ T.saved|escapejs }}",
+    deleted: "{{ T.deleted|escapejs }}",
+    createFailed: "{{ T.create_failed|escapejs }}",
+    saveFailed: "{{ T.save_failed|escapejs }}",
+    deleteFailed: "{{ T.delete_failed|escapejs }}",
+    failedToLoadClasses: "{{ T.failed_to_load_classes|escapejs }}",
+    deleteClassConfirm: "{{ T.delete_class_confirm|escapejs }}",
+    save: "{{ T.save|escapejs }}",
+    delete: "{{ T.delete|escapejs }}",
+    view: "{{ T.view|escapejs }}",
+    hide: "{{ T.hide|escapejs }}",
+    studentsOfClass: "{{ T.students_of_class|escapejs }}",
+    studentsCount: "{{ T.students_count|escapejs }}",
+    idLabel: "{{ T.id_label|escapejs }}"
+  };
+
+  let expandedClassId = null;
+
+  function escapeHtml(text){
+    return String(text || "")
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;")
+      .replaceAll("'", "&#039;");
+  }
+
   async function api(url, method="GET", body=null){
-    const opts = { method, credentials:"include", headers:{} };
+    const opts = {
+      method,
+      credentials: "include",
+      headers: {
+        "Accept": "application/json"
+      }
+    };
+
     if (body){
       opts.headers["Content-Type"] = "application/json";
       opts.body = JSON.stringify(body);
     }
+
     const r = await fetch(url, opts);
+
+    const contentType = r.headers.get("content-type") || "";
+    if (!contentType.includes("application/json")){
+      const text = await r.text();
+      return {
+        status: r.status,
+        data: {
+          ok: false,
+          error: `Expected JSON, got ${r.status}. ${text.slice(0, 200)}`
+        }
+      };
+    }
+
     const data = await r.json();
     return {status:r.status, data};
   }
@@ -33,29 +90,73 @@
     document.getElementById("msg").textContent = text || "";
   }
 
+  function renderStudentBadges(students){
+    if (!students || !students.length){
+      return `<div class="muted">${escapeHtml(UI.noStudentsInClass)}</div>`;
+    }
+
+    return `
+      <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px;">
+        ${students.map(s => `
+          <div style="
+            display:inline-block;
+            padding:8px 12px;
+            border-radius:999px;
+            background:#eef6ff;
+            border:1px solid #bfdbfe;
+            color:#1e3a8a;
+            font-size:13px;
+            font-weight:700;
+          ">
+            ${escapeHtml(s.full_name)}
+          </div>
+        `).join("")}
+      </div>
+    `;
+  }
+
   function renderList(items){
     const root = document.getElementById("list");
     root.innerHTML = "";
+
     if (!items.length){
-      root.innerHTML = '<div class="muted">No classes yet.</div>';
+      root.innerHTML = `<div class="muted">${escapeHtml(UI.noClassesYet)}</div>`;
       return;
     }
 
     items.forEach(c => {
-      const row = document.createElement("div");
-      row.style.display = "flex";
-      row.style.gap = "10px";
-      row.style.alignItems = "center";
-      row.style.margin = "8px 0";
+      const wrapper = document.createElement("div");
+      wrapper.style.margin = "10px 0";
+      wrapper.style.padding = "10px";
+      wrapper.style.border = "1px solid #eef2f7";
+      wrapper.style.borderRadius = "12px";
+      wrapper.style.background = "#fafafa";
 
-      row.innerHTML = `
-        <input data-id="${c.id}" value="${c.name}"
-               style="padding:10px;border:1px solid #e5e7eb;border-radius:10px;min-width:240px;"/>
-        <button class="btn" data-save="${c.id}" type="button">Save</button>
-        <button class="btn" data-del="${c.id}" type="button" style="border-color:#fca5a5;">Delete</button>
-        <span class="muted">id=${c.id}</span>
+      const isExpanded = expandedClassId === c.id;
+
+      wrapper.innerHTML = `
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+          <input
+            data-id="${c.id}"
+            value="${escapeHtml(c.name)}"
+            style="padding:10px;border:1px solid #e5e7eb;border-radius:10px;min-width:240px;"
+          />
+
+          <button class="btn" data-save="${c.id}" type="button">${escapeHtml(UI.save)}</button>
+          <button class="btn" data-view="${c.id}" type="button">${isExpanded ? escapeHtml(UI.hide) : escapeHtml(UI.view)}</button>
+          <button class="btn" data-del="${c.id}" type="button" style="border-color:#fca5a5;">${escapeHtml(UI.delete)}</button>
+
+          <span class="muted">${escapeHtml(UI.idLabel)}=${c.id}</span>
+          <span class="muted">${escapeHtml(UI.studentsCount)}: ${c.student_count || 0}</span>
+        </div>
+
+        <div id="students-${c.id}" style="margin-top:12px; ${isExpanded ? '' : 'display:none;'}">
+          <div style="font-weight:800; margin-bottom:4px;">${escapeHtml(UI.studentsOfClass)}</div>
+          ${renderStudentBadges(c.students || [])}
+        </div>
       `;
-      root.appendChild(row);
+
+      root.appendChild(wrapper);
     });
 
     root.querySelectorAll("button[data-save]").forEach(btn => {
@@ -63,25 +164,42 @@
         const id = btn.getAttribute("data-save");
         const inp = root.querySelector(`input[data-id="${id}"]`);
         const name = (inp.value || "").trim();
+
         const res = await api(`/api/teacher/classes/${id}/`, "PATCH", {name});
         if (!res.data.ok){
-          setMsg(res.data.error || "Save failed");
+          setMsg(res.data.error || UI.saveFailed);
           return;
         }
-        setMsg("Saved.");
+
+        setMsg(UI.saved);
+        await load();
       });
     });
 
     root.querySelectorAll("button[data-del]").forEach(btn => {
       btn.addEventListener("click", async () => {
         const id = btn.getAttribute("data-del");
-        if (!confirm("Delete this class?")) return;
+        if (!confirm(UI.deleteClassConfirm)) return;
+
         const res = await api(`/api/teacher/classes/${id}/`, "DELETE");
         if (!res.data.ok){
-          setMsg(res.data.error || "Delete failed");
+          setMsg(res.data.error || UI.deleteFailed);
           return;
         }
-        setMsg("Deleted.");
+
+        if (expandedClassId === Number(id)) {
+          expandedClassId = null;
+        }
+
+        setMsg(UI.deleted);
+        await load();
+      });
+    });
+
+    root.querySelectorAll("button[data-view]").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        const id = Number(btn.getAttribute("data-view"));
+        expandedClassId = expandedClassId === id ? null : id;
         await load();
       });
     });
@@ -89,24 +207,31 @@
 
   async function load(){
     setMsg("");
-    const res = await api("/api/teacher/classes");
+
+    const res = await api("/api/teacher/classes/");
     if (!res.data.ok){
-      setMsg(res.data.error || "Failed to load classes");
+      setMsg(res.data.error || UI.failedToLoadClasses);
       return;
     }
+
     renderList(res.data.classes || []);
   }
 
   document.getElementById("createBtn").addEventListener("click", async () => {
     const name = (document.getElementById("newClassName").value || "").trim();
-    if (!name){ setMsg("Enter class name."); return; }
-    const res = await api("/api/teacher/classes/", "POST", {name});
-    if (!res.data.ok){
-      setMsg(res.data.error || "Create failed");
+    if (!name){
+      setMsg(UI.enterClassName);
       return;
     }
+
+    const res = await api("/api/teacher/classes/", "POST", {name});
+    if (!res.data.ok){
+      setMsg(res.data.error || UI.createFailed);
+      return;
+    }
+
     document.getElementById("newClassName").value = "";
-    setMsg("Created.");
+    setMsg(UI.created);
     await load();
   });
 

@@ -29,14 +29,15 @@
 
       <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
         <form method="post" action="/set-ui-language/" class="lang-form">
-          {% csrf_token %}
-          <input type="hidden" name="next" value="{{ request.get_full_path }}">
-          <label class="lang-label" for="lang-select">{{ T.interface_language }}</label>
-          <select id="lang-select" name="lang" class="lang-select" onchange="this.form.submit()">
-            <option value="ru" {% if ui_lang == 'ru' %}selected{% endif %}>{{ T.russian }}</option>
-            <option value="kk" {% if ui_lang == 'kk' %}selected{% endif %}>{{ T.kazakh }}</option>
-          </select>
-        </form>
+  {% csrf_token %}
+  <input type="hidden" name="next" value="{{ request.get_full_path }}">
+  <label class="lang-label" for="lang-select">{{ T.interface_language }}</label>
+  <select id="lang-select" name="lang" class="lang-select" onchange="this.form.submit()">
+    <option value="ru" {% if ui_lang == 'ru' %}selected{% endif %}>{{ T.russian }}</option>
+    <option value="kk" {% if ui_lang == 'kk' %}selected{% endif %}>{{ T.kazakh }}</option>
+    <option value="en" {% if ui_lang == 'en' %}selected{% endif %}>{{ T.english }}</option>
+  </select>
+</form>
 
         <div class="nav">
           <a class="btn {% if active == 'dashboard' %}active{% endif %}" href="/teacher/">{{ T.dashboard }}</a>
