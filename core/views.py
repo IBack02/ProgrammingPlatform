@@ -796,106 +796,9 @@ def _scale_totals_if_needed(values, other_max):
 
 
 @staff_member_required
+@staff_member_required
 def admin_stats_dashboard(request: HttpRequest) -> HttpResponse:
-    class_id = request.GET.get("class_id") or ""
-    show_success = request.GET.get("show_success") == "1"
-    show_hints = request.GET.get("show_hints") == "1"
-
-    classes = ClassGroup.objects.all().order_by("name")
-    students_qs = Student.objects.filter(is_active=True).select_related("class_group").order_by("class_group__name", "full_name")
-    if class_id.isdigit():
-        students_qs = students_qs.filter(class_group_id=int(class_id))
-
-    sub_qs = Submission.objects.select_related("progress__student_session__session", "progress__student_session__student")
-    if class_id.isdigit():
-        sub_qs = sub_qs.filter(progress__student_session__student__class_group_id=int(class_id))
-
-    per_session = (
-        sub_qs.values("progress__student_session__session_id", "progress__student_session__session__title")
-        .annotate(total_sub=Count("id"), accepted=Count("id", filter=Q(verdict=Submission.Verdict.ACCEPTED)))
-        .order_by("progress__student_session__session_id")
-    )
-
-    agg_qs = ActivityAggregate.objects.select_related(
-        "progress__student_session__session", "progress__student_session__student"
-    )
-    if class_id.isdigit():
-        agg_qs = agg_qs.filter(progress__student_session__student__class_group_id=int(class_id))
-
-    per_session_hints = (
-        agg_qs.values("progress__student_session__session_id")
-        .annotate(hint1_sum=Sum("hint1_requests"), hint2_sum=Sum("hint2_requests"))
-    )
-    hints_map = {
-        x["progress__student_session__session_id"]: (x.get("hint1_sum") or 0) + (x.get("hint2_sum") or 0)
-        for x in per_session_hints
-    }
-
-    labels, totals, accepted, hints = [], [], [], []
-    for row in per_session:
-        sid = row["progress__student_session__session_id"]
-        title = row["progress__student_session__session__title"] or f"Session {sid}"
-        labels.append(title)
-        totals.append(row["total_sub"] or 0)
-        accepted.append(row["accepted"] or 0)
-        hints.append(hints_map.get(sid, 0))
-
-    other_max = max(accepted + hints) if (accepted or hints) else 1
-    totals_scaled, scale_factor = _scale_totals_if_needed(totals, other_max)
-
-    session_chart = {
-        "labels": labels,
-        "datasets": {"totals": totals_scaled, "accepted": accepted, "hints": hints},
-        "scale_factor": scale_factor,
-    }
-
-    ss_qs = StudentSession.objects.select_related("student", "session")
-    if class_id.isdigit():
-        ss_qs = ss_qs.filter(student__class_group_id=int(class_id))
-
-    sessions_count_map = {x["student_id"]: x["c"] for x in ss_qs.values("student_id").annotate(c=Count("id"))}
-
-    sub_per_student = (
-        sub_qs.values("progress__student_session__student_id")
-        .annotate(total_sub=Count("id"), accepted=Count("id", filter=Q(verdict=Submission.Verdict.ACCEPTED)))
-    )
-    sub_map = {x["progress__student_session__student_id"]: (x["total_sub"] or 0, x["accepted"] or 0) for x in sub_per_student}
-
-    hints_per_student = (
-        agg_qs.values("progress__student_session__student_id")
-        .annotate(hint1_sum=Sum("hint1_requests"), hint2_sum=Sum("hint2_requests"))
-    )
-    hints_student_map = {
-        x["progress__student_session__student_id"]: (x.get("hint1_sum") or 0) + (x.get("hint2_sum") or 0)
-        for x in hints_per_student
-    }
-
-    student_cards = []
-    for st in students_qs:
-        sc = sessions_count_map.get(st.id, 0) or 0
-        total_s, acc_s = sub_map.get(st.id, (0, 0))
-        hint_s = hints_student_map.get(st.id, 0)
-        denom = sc if sc > 0 else 1
-        student_cards.append(
-            {
-                "id": st.id,
-                "name": st.full_name,
-                "class_name": st.class_group.name if st.class_group_id else "—",
-                "sessions_count": sc,
-                "avg_total": round(total_s / denom, 2),
-                "avg_accepted": round(acc_s / denom, 2),
-                "avg_hints": round(hint_s / denom, 2),
-            }
-        )
-
-    context = {
-        "classes": classes,
-        "selected_class_id": int(class_id) if class_id.isdigit() else None,
-        "show_success": show_success,
-        "show_hints": show_hints,
-        "session_chart_json": json.dumps(session_chart, ensure_ascii=False),
-        "student_cards": student_cards,
-    }
+    context = _build_dashboard_analytics_context(request)
     return render(request, "core/admin_stats_dashboard.html", context)
 
 
@@ -1012,7 +915,9 @@ def teacher_login_page(request: HttpRequest):
 
 @teacher_required
 def teacher_dashboard_page(request: HttpRequest):
-    return render(request, "core/teacher/dashboard.html", {"active": "dashboard"})
+    context = _build_dashboard_analytics_context(request)
+    context["active"] = "dashboard"
+    return render(request, "core/teacher/dashboard.html", context)
 
 
 @teacher_required
@@ -1587,3 +1492,116 @@ def set_ui_language(request):
     response = redirect(next_url)
     response.set_cookie("ui_lang", lang, max_age=60 * 60 * 24 * 365, samesite="Lax")
     return response
+
+def _build_dashboard_analytics_context(request: HttpRequest) -> dict:
+    class_id = request.GET.get("class_id") or ""
+    show_success = request.GET.get("show_success") == "1"
+    show_hints = request.GET.get("show_hints") == "1"
+
+    classes = ClassGroup.objects.all().order_by("name")
+    students_qs = Student.objects.filter(is_active=True).select_related("class_group").order_by("class_group__name", "full_name")
+    if class_id.isdigit():
+        students_qs = students_qs.filter(class_group_id=int(class_id))
+
+    sub_qs = Submission.objects.select_related("progress__student_session__session", "progress__student_session__student")
+    if class_id.isdigit():
+        sub_qs = sub_qs.filter(progress__student_session__student__class_group_id=int(class_id))
+
+    per_session = (
+        sub_qs.values("progress__student_session__session_id", "progress__student_session__session__title")
+        .annotate(
+            total_sub=Count("id"),
+            accepted=Count("id", filter=Q(verdict=Submission.Verdict.ACCEPTED)),
+        )
+        .order_by("progress__student_session__session_id")
+    )
+
+    agg_qs = ActivityAggregate.objects.select_related(
+        "progress__student_session__session",
+        "progress__student_session__student",
+    )
+    if class_id.isdigit():
+        agg_qs = agg_qs.filter(progress__student_session__student__class_group_id=int(class_id))
+
+    per_session_hints = (
+        agg_qs.values("progress__student_session__session_id")
+        .annotate(hint1_sum=Sum("hint1_requests"), hint2_sum=Sum("hint2_requests"))
+    )
+    hints_map = {
+        x["progress__student_session__session_id"]: (x.get("hint1_sum") or 0) + (x.get("hint2_sum") or 0)
+        for x in per_session_hints
+    }
+
+    labels, totals, accepted, hints = [], [], [], []
+    for row in per_session:
+        sid = row["progress__student_session__session_id"]
+        title = row["progress__student_session__session__title"] or f"Session {sid}"
+        labels.append(title)
+        totals.append(row["total_sub"] or 0)
+        accepted.append(row["accepted"] or 0)
+        hints.append(hints_map.get(sid, 0))
+
+    other_max = max(accepted + hints) if (accepted or hints) else 1
+    totals_scaled, scale_factor = _scale_totals_if_needed(totals, other_max)
+
+    session_chart = {
+        "labels": labels,
+        "datasets": {"totals": totals_scaled, "accepted": accepted, "hints": hints},
+        "scale_factor": scale_factor,
+    }
+
+    ss_qs = StudentSession.objects.select_related("student", "session")
+    if class_id.isdigit():
+        ss_qs = ss_qs.filter(student__class_group_id=int(class_id))
+
+    sessions_count_map = {
+        x["student_id"]: x["c"]
+        for x in ss_qs.values("student_id").annotate(c=Count("id"))
+    }
+
+    sub_per_student = (
+        sub_qs.values("progress__student_session__student_id")
+        .annotate(
+            total_sub=Count("id"),
+            accepted=Count("id", filter=Q(verdict=Submission.Verdict.ACCEPTED)),
+        )
+    )
+    sub_map = {
+        x["progress__student_session__student_id"]: (x["total_sub"] or 0, x["accepted"] or 0)
+        for x in sub_per_student
+    }
+
+    hints_per_student = (
+        agg_qs.values("progress__student_session__student_id")
+        .annotate(hint1_sum=Sum("hint1_requests"), hint2_sum=Sum("hint2_requests"))
+    )
+    hints_student_map = {
+        x["progress__student_session__student_id"]: (x.get("hint1_sum") or 0) + (x.get("hint2_sum") or 0)
+        for x in hints_per_student
+    }
+
+    student_cards = []
+    for st in students_qs:
+        sc = sessions_count_map.get(st.id, 0) or 0
+        total_s, acc_s = sub_map.get(st.id, (0, 0))
+        hint_s = hints_student_map.get(st.id, 0)
+        denom = sc if sc > 0 else 1
+
+        student_cards.append({
+            "id": st.id,
+            "name": st.full_name,
+            "class_name": st.class_group.name if st.class_group_id else "—",
+            "sessions_count": sc,
+            "avg_total": round(total_s / denom, 2),
+            "avg_accepted": round(acc_s / denom, 2),
+            "avg_hints": round(hint_s / denom, 2),
+        })
+
+    return {
+        "classes": classes,
+        "selected_class_id": int(class_id) if class_id.isdigit() else None,
+        "show_success": show_success,
+        "show_hints": show_hints,
+        "session_chart_json": json.dumps(session_chart, ensure_ascii=False),
+        "student_cards": student_cards,
+    }
