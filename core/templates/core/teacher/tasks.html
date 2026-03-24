@@ -1,11 +1,446 @@
 {% extends "core/teacher/_base.html" %}
 {% block title %}Manage Tasks{% endblock %}
-{% block subtitle %}Create and edit tasks, testcases, code fragments (next stage: CRUD).{% endblock %}
+{% block subtitle %}Select a session, then manage tasks, testcases, and code fragments.{% endblock %}
+
 {% block content %}
-  {% with active="tasks" %}
-  {% endwith %}
-  <div class="card">
-    <div style="font-weight:900;">Tasks</div>
-    <div class="muted">Next stage: manage tasks inside sessions + testcases + code fragments.</div>
+<div class="card" style="margin-bottom:12px;">
+  <div style="font-weight:900;margin-bottom:8px;">Session</div>
+  <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+    <select id="sessionSelect" style="padding:10px;border:1px solid #e5e7eb;border-radius:10px;min-width:260px;"></select>
+    <button class="btn" id="loadBtn" type="button">Load</button>
+    <div class="muted" id="msg"></div>
   </div>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+  <div class="card">
+    <div style="font-weight:900;margin-bottom:8px;">Tasks</div>
+
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px;">
+      <input id="newPos" type="number" value="1" style="padding:10px;border:1px solid #e5e7eb;border-radius:10px;width:90px;"/>
+      <input id="newTitle" placeholder="Task title"
+             style="padding:10px;border:1px solid #e5e7eb;border-radius:10px;flex:1;min-width:180px;"/>
+      <button class="btn" id="createTaskBtn" type="button">Create</button>
+    </div>
+
+    <div id="taskList"></div>
+  </div>
+
+  <div class="card">
+    <div style="font-weight:900;margin-bottom:8px;">Editor</div>
+    <div class="muted" style="margin-bottom:10px;">Select a task on the left.</div>
+
+    <div id="editor" style="display:none;">
+      <div style="display:flex;gap:10px;flex-wrap:wrap;">
+        <input id="pos" type="number" style="padding:10px;border:1px solid #e5e7eb;border-radius:10px;width:110px;"/>
+        <input id="title" style="padding:10px;border:1px solid #e5e7eb;border-radius:10px;flex:1;min-width:220px;"/>
+      </div>
+
+      <div class="muted" style="margin:10px 0 6px;">Statement</div>
+      <textarea id="statement" style="width:100%;height:120px;padding:10px;border:1px solid #e5e7eb;border-radius:10px;box-sizing:border-box;"></textarea>
+
+      <div class="muted" style="margin:10px 0 6px;">Constraints</div>
+      <textarea id="constraints" style="width:100%;height:80px;padding:10px;border:1px solid #e5e7eb;border-radius:10px;box-sizing:border-box;"></textarea>
+
+      <div style="margin-top:12px;display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;">
+        <button class="btn" id="saveTaskBtn" type="button">Save task</button>
+        <button class="btn" id="deleteTaskBtn" type="button" style="border-color:#fca5a5;">Delete task</button>
+      </div>
+
+      <hr style="border:none;border-top:1px solid #e5e7eb;margin:14px 0;">
+
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;">
+        <button class="btn" id="tabTests" type="button">Testcases</button>
+        <button class="btn" id="tabFrags" type="button">Code fragments</button>
+      </div>
+
+      <div id="testsPanel" style="display:block;">
+        <div style="font-weight:800;margin-bottom:8px;">Testcases</div>
+
+        <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px;">
+          <input id="newOrd" type="number" value="1" style="padding:10px;border:1px solid #e5e7eb;border-radius:10px;width:90px;"/>
+          <label class="muted" style="display:flex;align-items:center;gap:8px;">
+            <input id="newVisible" type="checkbox" checked> Visible for students
+          </label>
+          <button class="btn" id="addTestBtn" type="button">Add test</button>
+        </div>
+
+        <div class="muted" style="margin-bottom:6px;">Input (stdin)</div>
+        <textarea id="newIn" style="width:100%;height:70px;padding:10px;border:1px solid #e5e7eb;border-radius:10px;box-sizing:border-box;"></textarea>
+
+        <div class="muted" style="margin:10px 0 6px;">Expected output</div>
+        <textarea id="newOut" style="width:100%;height:70px;padding:10px;border:1px solid #e5e7eb;border-radius:10px;box-sizing:border-box;"></textarea>
+
+        <div style="margin-top:12px;">
+          <div id="testsList"></div>
+        </div>
+      </div>
+
+      <div id="fragsPanel" style="display:none;">
+        <div style="font-weight:800;margin-bottom:8px;">Code fragments (read-only for students)</div>
+
+        <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px;align-items:center;">
+          <select id="fragPos" style="padding:10px;border:1px solid #e5e7eb;border-radius:10px;">
+            <option value="top">Top (prepend)</option>
+            <option value="bottom">Bottom (append)</option>
+          </select>
+          <input id="fragTitle" placeholder="Fragment title (optional)"
+                 style="padding:10px;border:1px solid #e5e7eb;border-radius:10px;flex:1;min-width:200px;">
+          <label class="muted" style="display:flex;align-items:center;gap:8px;">
+            <input id="fragActive" type="checkbox" checked> Active
+          </label>
+          <button class="btn" id="addFragBtn" type="button">Add fragment</button>
+        </div>
+
+        <div class="muted" style="margin-bottom:6px;">Fragment code</div>
+        <textarea id="fragCode" style="width:100%;height:110px;padding:10px;border:1px solid #e5e7eb;border-radius:10px;box-sizing:border-box;font-family:Consolas,monospace;"></textarea>
+
+        <div style="margin-top:12px;">
+          <div id="fragsList"></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+  let sessions = [];
+  let tasks = [];
+  let selectedSessionId = null;
+  let selectedTaskId = null;
+
+  async function api(url, method="GET", body=null){
+    const opts = { method, credentials:"include", headers:{} };
+    if (body){
+      opts.headers["Content-Type"] = "application/json";
+      opts.body = JSON.stringify(body);
+    }
+    const r = await fetch(url, opts);
+    const ct = r.headers.get("content-type") || "";
+    if (!ct.includes("application/json")){
+      const text = await r.text();
+      return { status:r.status, data:{ok:false, error:`Non-JSON (${r.status}): ${text.slice(0,120)}`} };
+    }
+    return { status:r.status, data: await r.json() };
+  }
+
+  function setMsg(t){ document.getElementById("msg").textContent = t || ""; }
+
+  function qs(id){ return document.getElementById(id); }
+
+  function getQueryParam(name){
+    const u = new URL(window.location.href);
+    return u.searchParams.get(name);
+  }
+
+  async function loadSessions(){
+    const res = await api("/api/teacher/sessions/");
+    if (!res.data.ok){ setMsg(res.data.error || "Failed to load sessions"); return; }
+    sessions = res.data.sessions || [];
+    const sel = qs("sessionSelect");
+    sel.innerHTML = "";
+    sessions.forEach(s => sel.insertAdjacentHTML("beforeend", `<option value="${s.id}">${s.title} (${s.status})</option>`));
+
+    const fromQuery = getQueryParam("session_id");
+    if (fromQuery && sessions.some(x => String(x.id) === String(fromQuery))){
+      sel.value = fromQuery;
+    }
+  }
+
+  async function loadTasks(){
+    selectedTaskId = null;
+    qs("editor").style.display = "none";
+    qs("taskList").innerHTML = "";
+    qs("testsList").innerHTML = "";
+    qs("fragsList").innerHTML = "";
+
+    selectedSessionId = parseInt(qs("sessionSelect").value);
+    if (!selectedSessionId){ setMsg("Select session."); return; }
+
+    const res = await api(`/api/teacher/sessions/${selectedSessionId}/tasks/`);
+    if (!res.data.ok){ setMsg(res.data.error || "Failed to load tasks"); return; }
+    tasks = res.data.tasks || [];
+    renderTaskList();
+  }
+
+  function renderTaskList(){
+    const root = qs("taskList");
+    root.innerHTML = "";
+    if (!tasks.length){
+      root.innerHTML = '<div class="muted">No tasks in this session.</div>';
+      return;
+    }
+    tasks.forEach(t => {
+      const btn = document.createElement("button");
+      btn.className = "btn";
+      btn.style.width = "100%";
+      btn.style.textAlign = "left";
+      btn.style.margin = "6px 0";
+      btn.textContent = `${t.position}. ${t.title}`;
+      btn.onclick = () => selectTask(t.id);
+      root.appendChild(btn);
+    });
+  }
+
+  async function selectTask(taskId){
+    selectedTaskId = taskId;
+    const res = await api(`/api/teacher/tasks/${taskId}/`);
+    if (!res.data.ok){ setMsg(res.data.error || "Failed to load task"); return; }
+
+    const t = res.data.task;
+    qs("editor").style.display = "block";
+    qs("pos").value = t.position;
+    qs("title").value = t.title;
+    qs("statement").value = t.statement || "";
+    qs("constraints").value = t.constraints || "";
+
+    // load tests & fragments
+    await loadTests();
+    await loadFrags();
+  }
+
+  async function createTask(){
+    if (!selectedSessionId){ setMsg("Select session."); return; }
+    const position = parseInt(qs("newPos").value || "1");
+    const title = (qs("newTitle").value || "").trim();
+    if (!title){ setMsg("Enter task title."); return; }
+
+    const res = await api(`/api/teacher/sessions/${selectedSessionId}/tasks/`, "POST", {
+      position, title, statement:"", constraints:""
+    });
+    if (!res.data.ok){ setMsg(res.data.error || "Create task failed"); return; }
+    qs("newTitle").value = "";
+    setMsg("Task created.");
+    await loadTasks();
+  }
+
+  async function saveTask(){
+    if (!selectedTaskId){ setMsg("Select task."); return; }
+    const payload = {
+      position: parseInt(qs("pos").value || "1"),
+      title: (qs("title").value || "").trim(),
+      statement: qs("statement").value || "",
+      constraints: qs("constraints").value || "",
+    };
+    const res = await api(`/api/teacher/tasks/${selectedTaskId}/`, "PATCH", payload);
+    if (!res.data.ok){ setMsg(res.data.error || "Save task failed"); return; }
+    setMsg("Saved.");
+    await loadTasks();
+  }
+
+  async function deleteTask(){
+    if (!selectedTaskId) return;
+    if (!confirm("Delete this task and all its testcases/fragments?")) return;
+    const res = await api(`/api/teacher/tasks/${selectedTaskId}/`, "DELETE");
+    if (!res.data.ok){ setMsg(res.data.error || "Delete failed"); return; }
+    setMsg("Deleted.");
+    await loadTasks();
+  }
+
+  // ---------------- Tests ----------------
+  async function loadTests(){
+    qs("testsList").innerHTML = '<div class="muted">Loading...</div>';
+    const res = await api(`/api/teacher/tasks/${selectedTaskId}/tests/`);
+    if (!res.data.ok){ qs("testsList").innerHTML = ""; setMsg(res.data.error || "Failed to load tests"); return; }
+    renderTests(res.data.tests || []);
+  }
+
+  function renderTests(items){
+    const root = qs("testsList");
+    root.innerHTML = "";
+    if (!items.length){
+      root.innerHTML = '<div class="muted">No tests.</div>';
+      return;
+    }
+
+    items.forEach(tc => {
+      const box = document.createElement("div");
+      box.className = "card";
+      box.style.margin = "10px 0";
+      box.innerHTML = `
+        <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;justify-content:space-between;">
+          <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+            <div class="muted">id=${tc.id}</div>
+            <div class="muted">ordinal</div>
+            <input data-ord="${tc.id}" type="number" value="${tc.ordinal}"
+                   style="padding:8px;border:1px solid #e5e7eb;border-radius:10px;width:90px;">
+            <label class="muted" style="display:flex;gap:8px;align-items:center;">
+              <input data-vis="${tc.id}" type="checkbox" ${tc.is_visible ? "checked" : ""}> visible
+            </label>
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <button class="btn" data-save-test="${tc.id}" type="button">Save</button>
+            <button class="btn" data-del-test="${tc.id}" type="button" style="border-color:#fca5a5;">Delete</button>
+          </div>
+        </div>
+        <div class="muted" style="margin-top:8px;">stdin</div>
+        <textarea data-in="${tc.id}" style="width:100%;height:60px;padding:10px;border:1px solid #e5e7eb;border-radius:10px;box-sizing:border-box;">${tc.stdin || ""}</textarea>
+        <div class="muted" style="margin-top:8px;">expected_stdout</div>
+        <textarea data-out="${tc.id}" style="width:100%;height:60px;padding:10px;border:1px solid #e5e7eb;border-radius:10px;box-sizing:border-box;">${tc.expected_stdout || ""}</textarea>
+      `;
+      root.appendChild(box);
+    });
+
+    root.querySelectorAll("button[data-save-test]").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        const id = btn.getAttribute("data-save-test");
+        const ordinal = parseInt(root.querySelector(`input[data-ord="${id}"]`).value || "1");
+        const is_visible = root.querySelector(`input[data-vis="${id}"]`).checked;
+        const stdin = root.querySelector(`textarea[data-in="${id}"]`).value || "";
+        const expected_stdout = root.querySelector(`textarea[data-out="${id}"]`).value || "";
+        const res = await api(`/api/teacher/tests/${id}/`, "PATCH", { ordinal, is_visible, stdin, expected_stdout });
+        if (!res.data.ok){ setMsg(res.data.error || "Save test failed"); return; }
+        setMsg("Test saved.");
+        await loadTests();
+      });
+    });
+
+    root.querySelectorAll("button[data-del-test]").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        const id = btn.getAttribute("data-del-test");
+        if (!confirm("Delete this testcase?")) return;
+        const res = await api(`/api/teacher/tests/${id}/`, "DELETE");
+        if (!res.data.ok){ setMsg(res.data.error || "Delete test failed"); return; }
+        setMsg("Test deleted.");
+        await loadTests();
+      });
+    });
+  }
+
+  async function addTest(){
+    const ordinal = parseInt(qs("newOrd").value || "1");
+    const is_visible = qs("newVisible").checked;
+    const stdin = qs("newIn").value || "";
+    const expected_stdout = qs("newOut").value || "";
+    const res = await api(`/api/teacher/tasks/${selectedTaskId}/tests/`, "POST", { ordinal, is_visible, stdin, expected_stdout });
+    if (!res.data.ok){ setMsg(res.data.error || "Add test failed"); return; }
+    qs("newIn").value = "";
+    qs("newOut").value = "";
+    setMsg("Test added.");
+    await loadTests();
+  }
+
+  // ---------------- Fragments ----------------
+  async function loadFrags(){
+    qs("fragsList").innerHTML = '<div class="muted">Loading...</div>';
+    const res = await api(`/api/teacher/tasks/${selectedTaskId}/fragments/`);
+    if (!res.data.ok){ qs("fragsList").innerHTML = ""; setMsg(res.data.error || "Failed to load fragments"); return; }
+    renderFrags(res.data.fragments || []);
+  }
+
+  function renderFrags(items){
+    const root = qs("fragsList");
+    root.innerHTML = "";
+    if (!items.length){
+      root.innerHTML = '<div class="muted">No fragments.</div>';
+      return;
+    }
+
+    items.forEach(f => {
+      const box = document.createElement("div");
+      box.className = "card";
+      box.style.margin = "10px 0";
+      box.innerHTML = `
+        <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;justify-content:space-between;">
+          <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+            <div class="muted">id=${f.id}</div>
+            <select data-pos="${f.id}" style="padding:8px;border:1px solid #e5e7eb;border-radius:10px;">
+              <option value="top" ${f.position==="top"?"selected":""}>top</option>
+              <option value="bottom" ${f.position==="bottom"?"selected":""}>bottom</option>
+            </select>
+            <input data-title="${f.id}" value="${escapeHtml(f.title || "")}"
+                   style="padding:8px;border:1px solid #e5e7eb;border-radius:10px;min-width:220px;">
+            <label class="muted" style="display:flex;gap:8px;align-items:center;">
+              <input data-active="${f.id}" type="checkbox" ${f.is_active ? "checked" : ""}> active
+            </label>
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <button class="btn" data-save-frag="${f.id}" type="button">Save</button>
+            <button class="btn" data-del-frag="${f.id}" type="button" style="border-color:#fca5a5;">Delete</button>
+          </div>
+        </div>
+        <div class="muted" style="margin-top:8px;">code</div>
+        <textarea data-code="${f.id}" style="width:100%;height:100px;padding:10px;border:1px solid #e5e7eb;border-radius:10px;box-sizing:border-box;font-family:Consolas,monospace;">${escapeHtml(f.code || "")}</textarea>
+      `;
+      root.appendChild(box);
+    });
+
+    root.querySelectorAll("button[data-save-frag]").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        const id = btn.getAttribute("data-save-frag");
+        const position = root.querySelector(`select[data-pos="${id}"]`).value;
+        const title = root.querySelector(`input[data-title="${id}"]`).value || "";
+        const is_active = root.querySelector(`input[data-active="${id}"]`).checked;
+        const code = root.querySelector(`textarea[data-code="${id}"]`).value || "";
+        const res = await api(`/api/teacher/fragments/${id}/`, "PATCH", { position, title, is_active, code });
+        if (!res.data.ok){ setMsg(res.data.error || "Save fragment failed"); return; }
+        setMsg("Fragment saved.");
+        await loadFrags();
+      });
+    });
+
+    root.querySelectorAll("button[data-del-frag]").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        const id = btn.getAttribute("data-del-frag");
+        if (!confirm("Delete this fragment?")) return;
+        const res = await api(`/api/teacher/fragments/${id}/`, "DELETE");
+        if (!res.data.ok){ setMsg(res.data.error || "Delete fragment failed"); return; }
+        setMsg("Fragment deleted.");
+        await loadFrags();
+      });
+    });
+  }
+
+  function escapeHtml(s){
+    return (s || "")
+      .replaceAll("&","&amp;")
+      .replaceAll("<","&lt;")
+      .replaceAll(">","&gt;");
+  }
+
+  async function addFrag(){
+    const position = qs("fragPos").value;
+    const title = (qs("fragTitle").value || "").trim();
+    const is_active = qs("fragActive").checked;
+    const code = qs("fragCode").value || "";
+    if (!code.trim()){ setMsg("Fragment code is required."); return; }
+    const res = await api(`/api/teacher/tasks/${selectedTaskId}/fragments/`, "POST", { position, title, is_active, code });
+    if (!res.data.ok){ setMsg(res.data.error || "Add fragment failed"); return; }
+    qs("fragTitle").value = "";
+    qs("fragCode").value = "";
+    setMsg("Fragment added.");
+    await loadFrags();
+  }
+
+  // Tabs
+  function showTests(){
+    qs("testsPanel").style.display = "block";
+    qs("fragsPanel").style.display = "none";
+  }
+  function showFrags(){
+    qs("testsPanel").style.display = "none";
+    qs("fragsPanel").style.display = "block";
+  }
+
+  qs("tabTests").addEventListener("click", showTests);
+  qs("tabFrags").addEventListener("click", showFrags);
+
+  qs("loadBtn").addEventListener("click", loadTasks);
+  qs("createTaskBtn").addEventListener("click", createTask);
+  qs("saveTaskBtn").addEventListener("click", saveTask);
+  qs("deleteTaskBtn").addEventListener("click", deleteTask);
+
+  qs("addTestBtn").addEventListener("click", addTest);
+  qs("addFragBtn").addEventListener("click", addFrag);
+
+  // init
+  (async function init(){
+    await loadSessions();
+    // если session уже выбран — подгрузи задачи
+    if (qs("sessionSelect").value){
+      await loadTasks();
+    }
+  })();
+</script>
 {% endblock %}

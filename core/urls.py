@@ -40,5 +40,18 @@ path("api/teacher/sessions/<int:session_id>/assign-classes/", views.teacher_sess
     path("api/teacher/students/", views.teacher_students_api),
     path("api/teacher/students/<int:student_id>/", views.teacher_student_detail_api),
     path("api/teacher/students/<int:student_id>/reset-pin/", views.teacher_student_reset_pin_api),
+# Tasks (per session)
+path("api/teacher/sessions/<int:session_id>/tasks/", views.teacher_session_tasks_api),
+
+# Task detail
+path("api/teacher/tasks/<int:task_id>/", views.teacher_task_detail_api),
+
+# Testcases
+path("api/teacher/tasks/<int:task_id>/tests/", views.teacher_task_tests_api),
+path("api/teacher/tests/<int:test_id>/", views.teacher_test_detail_api),
+
+# Code fragments
+path("api/teacher/tasks/<int:task_id>/fragments/", views.teacher_task_fragments_api),
+path("api/teacher/fragments/<int:frag_id>/", views.teacher_fragment_detail_api),
 ]
 

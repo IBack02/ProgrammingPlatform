@@ -1326,3 +1326,289 @@ def teacher_session_assign_classes_api(request: HttpRequest, session_id: int):
     SessionClass.objects.bulk_create([SessionClass(session=s, class_group_id=cid) for cid in to_add])
 
     return JsonResponse({"ok": True, "assigned": len(existing_ids)})
+
+from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.http import require_http_methods
+
+# убедись, что импортированы модели:
+# Session, SessionTask, TaskTestCase, TaskCodeFragment
+
+def _require_teacher_api(request: HttpRequest):
+    return request.session.get("teacher_id") or None
+
+
+@csrf_exempt
+@require_http_methods(["GET", "POST"])
+def teacher_session_tasks_api(request: HttpRequest, session_id: int):
+    """
+    GET  /api/teacher/sessions/<session_id>/tasks/
+    POST /api/teacher/sessions/<session_id>/tasks/
+         body: {position, title, statement, constraints}
+    """
+    if not _require_teacher_api(request):
+        return JsonResponse({"ok": False, "error": "not authenticated"}, status=401)
+
+    session = get_object_or_404(Session, id=session_id)
+
+    if request.method == "GET":
+        tasks = list(
+            SessionTask.objects.filter(session=session)
+            .order_by("position", "id")
+            .values("id", "position", "title", "created_at")
+        )
+        out = []
+        for t in tasks:
+            out.append({
+                "id": t["id"],
+                "position": t["position"],
+                "title": t["title"],
+                "created_at": t["created_at"].isoformat() if t["created_at"] else None,
+            })
+        return JsonResponse({"ok": True, "tasks": out})
+
+    # POST create
+    data = _json_body(request)
+    title = (data.get("title") or "").strip()
+    if not title:
+        return JsonResponse({"ok": False, "error": "title is required"}, status=400)
+
+    try:
+        position = int(data.get("position") or 1)
+    except Exception:
+        position = 1
+
+    task = SessionTask.objects.create(
+        session=session,
+        position=position,
+        title=title,
+        statement=(data.get("statement") or ""),
+        constraints=(data.get("constraints") or ""),
+    )
+    return JsonResponse({"ok": True, "task": {"id": task.id}})
+
+
+@csrf_exempt
+@require_http_methods(["GET", "PATCH", "DELETE"])
+def teacher_task_detail_api(request: HttpRequest, task_id: int):
+    """
+    GET    /api/teacher/tasks/<task_id>/
+    PATCH  /api/teacher/tasks/<task_id>/ body: {position?, title?, statement?, constraints?}
+    DELETE /api/teacher/tasks/<task_id>/
+    """
+    if not _require_teacher_api(request):
+        return JsonResponse({"ok": False, "error": "not authenticated"}, status=401)
+
+    task = get_object_or_404(SessionTask.objects.select_related("session"), id=task_id)
+
+    if request.method == "GET":
+        return JsonResponse({
+            "ok": True,
+            "task": {
+                "id": task.id,
+                "session_id": task.session_id,
+                "position": task.position,
+                "title": task.title,
+                "statement": task.statement,
+                "constraints": task.constraints,
+            }
+        })
+
+    if request.method == "DELETE":
+        task.delete()
+        return JsonResponse({"ok": True})
+
+    # PATCH
+    data = _json_body(request)
+
+    if "position" in data:
+        try:
+            task.position = int(data.get("position"))
+        except Exception:
+            return JsonResponse({"ok": False, "error": "position must be int"}, status=400)
+
+    if "title" in data:
+        title = (data.get("title") or "").strip()
+        if not title:
+            return JsonResponse({"ok": False, "error": "title cannot be empty"}, status=400)
+        task.title = title
+
+    if "statement" in data:
+        task.statement = data.get("statement") or ""
+
+    if "constraints" in data:
+        task.constraints = data.get("constraints") or ""
+
+    task.save()
+    return JsonResponse({"ok": True})
+
+
+# ------------------------
+# TESTCASES
+# ------------------------
+
+@csrf_exempt
+@require_http_methods(["GET", "POST"])
+def teacher_task_tests_api(request: HttpRequest, task_id: int):
+    """
+    GET  /api/teacher/tasks/<task_id>/tests/
+    POST /api/teacher/tasks/<task_id>/tests/
+         body: {ordinal, stdin, expected_stdout, is_visible}
+    """
+    if not _require_teacher_api(request):
+        return JsonResponse({"ok": False, "error": "not authenticated"}, status=401)
+
+    task = get_object_or_404(SessionTask, id=task_id)
+
+    if request.method == "GET":
+        tests = list(
+            TaskTestCase.objects.filter(task=task)
+            .order_by("ordinal", "id")
+            .values("id", "ordinal", "stdin", "expected_stdout", "is_visible")
+        )
+        return JsonResponse({"ok": True, "tests": tests})
+
+    data = _json_body(request)
+    try:
+        ordinal = int(data.get("ordinal") or 1)
+    except Exception:
+        ordinal = 1
+
+    tc = TaskTestCase.objects.create(
+        task=task,
+        ordinal=ordinal,
+        stdin=(data.get("stdin") or ""),
+        expected_stdout=(data.get("expected_stdout") or ""),
+        is_visible=bool(data.get("is_visible", True)),
+    )
+    return JsonResponse({"ok": True, "test": {"id": tc.id}})
+
+
+@csrf_exempt
+@require_http_methods(["PATCH", "DELETE"])
+def teacher_test_detail_api(request: HttpRequest, test_id: int):
+    """
+    PATCH  /api/teacher/tests/<test_id>/ body: {ordinal?, stdin?, expected_stdout?, is_visible?}
+    DELETE /api/teacher/tests/<test_id>/
+    """
+    if not _require_teacher_api(request):
+        return JsonResponse({"ok": False, "error": "not authenticated"}, status=401)
+
+    tc = get_object_or_404(TaskTestCase, id=test_id)
+
+    if request.method == "DELETE":
+        tc.delete()
+        return JsonResponse({"ok": True})
+
+    data = _json_body(request)
+
+    if "ordinal" in data:
+        try:
+            tc.ordinal = int(data.get("ordinal"))
+        except Exception:
+            return JsonResponse({"ok": False, "error": "ordinal must be int"}, status=400)
+
+    if "stdin" in data:
+        tc.stdin = data.get("stdin") or ""
+
+    if "expected_stdout" in data:
+        tc.expected_stdout = data.get("expected_stdout") or ""
+
+    if "is_visible" in data:
+        tc.is_visible = bool(data.get("is_visible"))
+
+    tc.save()
+    return JsonResponse({"ok": True})
+
+
+# ------------------------
+# CODE FRAGMENTS (top/bottom)
+# ------------------------
+
+@csrf_exempt
+@require_http_methods(["GET", "POST"])
+def teacher_task_fragments_api(request: HttpRequest, task_id: int):
+    """
+    GET  /api/teacher/tasks/<task_id>/fragments/
+    POST /api/teacher/tasks/<task_id>/fragments/
+         body: {position: "top"|"bottom", title?, code, is_active}
+    """
+    if not _require_teacher_api(request):
+        return JsonResponse({"ok": False, "error": "not authenticated"}, status=401)
+
+    task = get_object_or_404(SessionTask, id=task_id)
+
+    if request.method == "GET":
+        frags = list(
+            TaskCodeFragment.objects.filter(task=task)
+            .order_by("position", "id")
+            .values("id", "position", "title", "code", "is_active", "created_at")
+        )
+        out = []
+        for f in frags:
+            out.append({
+                "id": f["id"],
+                "position": f["position"],
+                "title": f["title"] or "",
+                "code": f["code"] or "",
+                "is_active": f["is_active"],
+                "created_at": f["created_at"].isoformat() if f["created_at"] else None,
+            })
+        return JsonResponse({"ok": True, "fragments": out})
+
+    data = _json_body(request)
+    pos = (data.get("position") or "").strip()
+    if pos not in ("top", "bottom"):
+        return JsonResponse({"ok": False, "error": "position must be 'top' or 'bottom'"}, status=400)
+
+    code = (data.get("code") or "")
+    if not code.strip():
+        return JsonResponse({"ok": False, "error": "code is required"}, status=400)
+
+    frag = TaskCodeFragment.objects.create(
+        task=task,
+        position=pos,
+        title=(data.get("title") or ""),
+        code=code,
+        is_active=bool(data.get("is_active", True)),
+    )
+    return JsonResponse({"ok": True, "fragment": {"id": frag.id}})
+
+
+@csrf_exempt
+@require_http_methods(["PATCH", "DELETE"])
+def teacher_fragment_detail_api(request: HttpRequest, frag_id: int):
+    """
+    PATCH  /api/teacher/fragments/<frag_id>/ body: {position?, title?, code?, is_active?}
+    DELETE /api/teacher/fragments/<frag_id>/
+    """
+    if not _require_teacher_api(request):
+        return JsonResponse({"ok": False, "error": "not authenticated"}, status=401)
+
+    frag = get_object_or_404(TaskCodeFragment, id=frag_id)
+
+    if request.method == "DELETE":
+        frag.delete()
+        return JsonResponse({"ok": True})
+
+    data = _json_body(request)
+
+    if "position" in data:
+        pos = (data.get("position") or "").strip()
+        if pos not in ("top", "bottom"):
+            return JsonResponse({"ok": False, "error": "position must be 'top' or 'bottom'"}, status=400)
+        frag.position = pos
+
+    if "title" in data:
+        frag.title = data.get("title") or ""
+
+    if "code" in data:
+        c = data.get("code") or ""
+        if not c.strip():
+            return JsonResponse({"ok": False, "error": "code cannot be empty"}, status=400)
+        frag.code = c
+
+    if "is_active" in data:
+        frag.is_active = bool(data.get("is_active"))
+
+    frag.save()
+    return JsonResponse({"ok": True})
