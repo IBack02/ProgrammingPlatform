@@ -2,14 +2,7 @@ import hashlib
 import json
 import re
 from collections import defaultdict
-from datetime import datetime
 
-from django.db import transaction
-from django.http import JsonResponse
-from django.shortcuts import render, redirect, get_object_or_404
-from django.utils import timezone
-from django.utils.dateparse import parse_datetime
-from django.views.decorators.http import require_http_methods
 from django.contrib.admin.views.decorators import staff_member_required
 from django.db.models import F, Count, Sum, Q
 from django.http import JsonResponse, HttpRequest, HttpResponse
@@ -31,7 +24,7 @@ from .models import (
     AiAssistMessage,
     ActivityAggregate,
     ClassGroup,
-    TaskCodeFragment,   # <-- NEW
+    TaskCodeFragment, SessionClass,  # <-- NEW
 )
 
 PIN_RE = re.compile(r"^\d{6}$")
@@ -1163,235 +1156,173 @@ def teacher_student_reset_pin_api(request: HttpRequest, student_id: int):
     st.set_pin(pin)
     st.save(update_fields=["pin_hash"])
     return JsonResponse({"ok": True})
-def _get_logged_in_teacher(request):
-    teacher_id = request.session.get("teacher_id")
-    if not teacher_id:
+
+from django.utils.dateparse import parse_datetime
+from django.views.decorators.http import require_http_methods
+from django.views.decorators.csrf import csrf_exempt
+from django.utils import timezone as dj_tz
+
+# убедись что импортированы модели:
+# Session, SessionClass, ClassGroup
+
+def _require_teacher_api(request: HttpRequest):
+    return request.session.get("teacher_id") or None
+
+
+def _parse_dt_or_none(value: str):
+    """
+    Принимаем ISO строки:
+    - "2026-03-23T12:00"
+    - "2026-03-23T12:00:00"
+    - "2026-03-23T12:00:00+05:00"
+    Возвращаем aware datetime (в текущем TZ), либо None.
+    """
+    s = (value or "").strip()
+    if not s:
         return None
-    return Teacher.objects.filter(id=teacher_id, is_active=True).first()
 
-
-def _parse_json_body(request):
-    try:
-        raw = request.body.decode("utf-8") if request.body else "{}"
-        return json.loads(raw or "{}")
-    except json.JSONDecodeError:
-        raise ValueError("Invalid JSON body")
-
-
-def _parse_optional_datetime(value, field_name):
-    if value in (None, ""):
-        return None
-
-    dt = parse_datetime(value)
+    dt = parse_datetime(s)
     if dt is None:
-        try:
-            dt = datetime.fromisoformat(value)
-        except Exception:
-            raise ValueError(f"Invalid datetime format for '{field_name}'")
+        # иногда datetime-local приходит без секунд, parse_datetime обычно ок,
+        # но если вдруг нет — можно попробовать руками (не будем усложнять)
+        return None
 
-    if timezone.is_naive(dt):
-        dt = timezone.make_aware(dt, timezone.get_current_timezone())
-
+    if dj_tz.is_naive(dt):
+        dt = dj_tz.make_aware(dt, dj_tz.get_current_timezone())
     return dt
 
 
-def _extract_class_group_ids(data):
-    raw_ids = data.get("class_group_ids", [])
-    if raw_ids in (None, ""):
-        return []
-
-    if not isinstance(raw_ids, list):
-        raise ValueError("class_group_ids must be a list")
-
-    try:
-        return [int(x) for x in raw_ids]
-    except (TypeError, ValueError):
-        raise ValueError("class_group_ids must contain integers")
-
-
-def _serialize_session(session):
-    session_classes = Session.objects.filter(session=session).select_related("class_group")
-
-    return {
-        "id": session.id,
-        "title": session.title,
-        "description": session.description or "",
-        "status": session.status,
-        "starts_at": session.starts_at.isoformat() if session.starts_at else None,
-        "ends_at": session.ends_at.isoformat() if session.ends_at else None,
-        "created_at": session.created_at.isoformat() if session.created_at else None,
-        "class_group_ids": [sc.class_group_id for sc in session_classes],
-        "class_groups": [
-            {
-                "id": sc.class_group.id,
-                "name": sc.class_group.name,
-            }
-            for sc in session_classes
-        ],
-        "tasks_count": SessionTask.objects.filter(session=session).count(),
-        "student_sessions_count": StudentSession.objects.filter(session=session).count(),
-        "is_active_now": session.is_active_now(),
-    }
-@require_http_methods(["GET"])
-def teacher_sessions_page(request):
-    teacher = _get_logged_in_teacher(request)
-    if not teacher:
-        return redirect("/teacher/login/")
-    return render(request, "core/teacher/sessions.html", {})
+@csrf_exempt
 @require_http_methods(["GET", "POST"])
-def teacher_sessions_api(request):
-    teacher = _get_logged_in_teacher(request)
-    if not teacher:
-        return JsonResponse({"error": "Unauthorized"}, status=401)
+def teacher_sessions_api(request: HttpRequest):
+    """
+    GET  /api/teacher/sessions/
+    POST /api/teacher/sessions/ body: {title, description?, starts_at?, ends_at?, status?}
+    """
+    if not _require_teacher_api(request):
+        return JsonResponse({"ok": False, "error": "not authenticated"}, status=401)
 
     if request.method == "GET":
-        sessions = Session.objects.all().order_by("-created_at")
-        available_classes = list(
-            ClassGroup.objects.order_by("name").values("id", "name")
-        )
-
-        return JsonResponse({
-            "sessions": [_serialize_session(s) for s in sessions],
-            "available_classes": available_classes,
-        })
-
-    # POST
-    try:
-        data = _parse_json_body(request)
-
-        title = (data.get("title") or "").strip()
-        description = (data.get("description") or "").strip()
-        status = (data.get("status") or "draft").strip()
-        starts_at = _parse_optional_datetime(data.get("starts_at"), "starts_at")
-        ends_at = _parse_optional_datetime(data.get("ends_at"), "ends_at")
-        class_group_ids = _extract_class_group_ids(data)
-
-        if not title:
-            return JsonResponse({"error": "Title is required"}, status=400)
-
-        if status not in {"draft", "running", "stopped"}:
-            return JsonResponse({"error": "Invalid status"}, status=400)
-
-        if starts_at and ends_at and starts_at > ends_at:
-            return JsonResponse({"error": "starts_at must be earlier than ends_at"}, status=400)
-
-        existing_classes = list(ClassGroup.objects.filter(id__in=class_group_ids))
-        existing_class_ids = {c.id for c in existing_classes}
-        missing_ids = [cid for cid in class_group_ids if cid not in existing_class_ids]
-        if missing_ids:
-            return JsonResponse(
-                {"error": f"Some classes do not exist: {missing_ids}"},
-                status=400
-            )
-
-        with transaction.atomic():
-            session = Session.objects.create(
-                title=title,
-                description=description,
-                status=status,
-                starts_at=starts_at,
-                ends_at=ends_at,
-            )
-
-            Session.objects.bulk_create(
-                [
-                    Session(session=session, class_group_id=class_id)
-                    for class_id in class_group_ids
-                ]
-            )
-
-        return JsonResponse({
-            "ok": True,
-            "session": _serialize_session(session),
-        }, status=201)
-
-    except ValueError as e:
-        return JsonResponse({"error": str(e)}, status=400)
-    except Exception as e:
-        return JsonResponse({"error": f"Server error: {str(e)}"}, status=500)
-
-
-@require_http_methods(["PATCH", "DELETE"])
-def teacher_session_detail_api(request, session_id):
-    teacher = _get_logged_in_teacher(request)
-    if not teacher:
-        return JsonResponse({"error": "Unauthorized"}, status=401)
-
-    session = get_object_or_404(Session, id=session_id)
-
-    if request.method == "PATCH":
-        try:
-            data = _parse_json_body(request)
-
-            if "title" in data:
-                title = (data.get("title") or "").strip()
-                if not title:
-                    return JsonResponse({"error": "Title cannot be empty"}, status=400)
-                session.title = title
-
-            if "description" in data:
-                session.description = (data.get("description") or "").strip()
-
-            if "status" in data:
-                status = (data.get("status") or "").strip()
-                if status not in {"draft", "running", "stopped"}:
-                    return JsonResponse({"error": "Invalid status"}, status=400)
-                session.status = status
-
-            if "starts_at" in data:
-                session.starts_at = _parse_optional_datetime(data.get("starts_at"), "starts_at")
-
-            if "ends_at" in data:
-                session.ends_at = _parse_optional_datetime(data.get("ends_at"), "ends_at")
-
-            if session.starts_at and session.ends_at and session.starts_at > session.ends_at:
-                return JsonResponse({"error": "starts_at must be earlier than ends_at"}, status=400)
-
-            with transaction.atomic():
-                session.save()
-
-                if "class_group_ids" in data:
-                    class_group_ids = _extract_class_group_ids(data)
-
-                    existing_classes = list(ClassGroup.objects.filter(id__in=class_group_ids))
-                    existing_class_ids = {c.id for c in existing_classes}
-                    missing_ids = [cid for cid in class_group_ids if cid not in existing_class_ids]
-                    if missing_ids:
-                        return JsonResponse(
-                            {"error": f"Some classes do not exist: {missing_ids}"},
-                            status=400
-                        )
-
-                    Session.objects.filter(session=session).delete()
-                    Session.objects.bulk_create(
-                        [
-                            Session(session=session, class_group_id=class_id)
-                            for class_id in class_group_ids
-                        ]
-                    )
-
-            return JsonResponse({
-                "ok": True,
-                "session": _serialize_session(session),
+        qs = Session.objects.all().order_by("-created_at")
+        out = []
+        for s in qs:
+            out.append({
+                "id": s.id,
+                "title": s.title,
+                "description": s.description or "",
+                "status": s.status,
+                "starts_at": s.starts_at.isoformat() if s.starts_at else None,
+                "ends_at": s.ends_at.isoformat() if s.ends_at else None,
+                "created_at": s.created_at.isoformat() if getattr(s, "created_at", None) else None,
             })
+        return JsonResponse({"ok": True, "sessions": out})
 
-        except ValueError as e:
-            return JsonResponse({"error": str(e)}, status=400)
-        except Exception as e:
-            return JsonResponse({"error": f"Server error: {str(e)}"}, status=500)
+    data = _json_body(request)
+    title = (data.get("title") or "").strip()
+    if not title:
+        return JsonResponse({"ok": False, "error": "title is required"}, status=400)
 
-    # DELETE
-    try:
-        has_tasks = SessionTask.objects.filter(session=session).exists()
-        has_student_sessions = StudentSession.objects.filter(session=session).exists()
+    status = (data.get("status") or Session.Status.DRAFT).strip()
+    starts_at = _parse_dt_or_none(data.get("starts_at") or "")
+    ends_at = _parse_dt_or_none(data.get("ends_at") or "")
+    description = data.get("description") or ""
 
-        if has_tasks or has_student_sessions:
-            return JsonResponse({
-                "error": "Cannot delete a session that already has tasks or student activity. Stop/archive it instead."
-            }, status=400)
+    s = Session.objects.create(
+        title=title,
+        description=description,
+        status=status,
+        starts_at=starts_at,
+        ends_at=ends_at,
+    )
+    return JsonResponse({"ok": True, "session": {"id": s.id}})
 
-        session.delete()
-        return JsonResponse({"ok": True})
 
-    except Exception as e:
-        return JsonResponse({"error": f"Server error: {str(e)}"}, status=500)
+@csrf_exempt
+@require_http_methods(["PATCH"])
+def teacher_session_detail_api(request: HttpRequest, session_id: int):
+    """
+    PATCH /api/teacher/sessions/<id>/ body: any of {title, description, starts_at, ends_at, status}
+    """
+    if not _require_teacher_api(request):
+        return JsonResponse({"ok": False, "error": "not authenticated"}, status=401)
+
+    s = get_object_or_404(Session, id=session_id)
+    data = _json_body(request)
+
+    if "title" in data:
+        title = (data.get("title") or "").strip()
+        if not title:
+            return JsonResponse({"ok": False, "error": "title cannot be empty"}, status=400)
+        s.title = title
+
+    if "description" in data:
+        s.description = data.get("description") or ""
+
+    if "starts_at" in data:
+        v = data.get("starts_at")
+        s.starts_at = _parse_dt_or_none(v) if v else None
+
+    if "ends_at" in data:
+        v = data.get("ends_at")
+        s.ends_at = _parse_dt_or_none(v) if v else None
+
+    if "status" in data:
+        st = (data.get("status") or "").strip()
+        if st:
+            s.status = st
+
+    # простая валидация времени
+    if s.starts_at and s.ends_at and s.ends_at <= s.starts_at:
+        return JsonResponse({"ok": False, "error": "ends_at must be after starts_at"}, status=400)
+
+    s.save()
+    return JsonResponse({"ok": True})
+
+
+@require_http_methods(["GET"])
+def teacher_session_classes_api(request: HttpRequest, session_id: int):
+    """
+    GET /api/teacher/sessions/<id>/classes/ -> {class_ids:[...]}
+    """
+    if not _require_teacher_api(request):
+        return JsonResponse({"ok": False, "error": "not authenticated"}, status=401)
+
+    s = get_object_or_404(Session, id=session_id)
+    ids = list(SessionClass.objects.filter(session=s).values_list("class_group_id", flat=True))
+    return JsonResponse({"ok": True, "class_ids": ids})
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def teacher_session_assign_classes_api(request: HttpRequest, session_id: int):
+    """
+    POST /api/teacher/sessions/<id>/assign-classes/ body: {class_ids:[1,2,3]}
+    """
+    if not _require_teacher_api(request):
+        return JsonResponse({"ok": False, "error": "not authenticated"}, status=401)
+
+    s = get_object_or_404(Session, id=session_id)
+    data = _json_body(request)
+    class_ids = data.get("class_ids")
+
+    if not isinstance(class_ids, list):
+        return JsonResponse({"ok": False, "error": "class_ids must be list"}, status=400)
+
+    # нормализуем
+    norm_ids = []
+    for x in class_ids:
+        if str(x).isdigit():
+            norm_ids.append(int(x))
+
+    # оставляем только реально существующие классы
+    existing_ids = set(ClassGroup.objects.filter(id__in=norm_ids).values_list("id", flat=True))
+
+    # удалить лишние
+    SessionClass.objects.filter(session=s).exclude(class_group_id__in=existing_ids).delete()
+
+    # добавить недостающие
+    already = set(SessionClass.objects.filter(session=s).values_list("class_group_id", flat=True))
+    to_add = [cid for cid in existing_ids if cid not in already]
+    SessionClass.objects.bulk_create([SessionClass(session=s, class_group_id=cid) for cid in to_add])
+
+    return JsonResponse({"ok": True, "assigned": len(existing_ids)})

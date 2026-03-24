@@ -21,7 +21,10 @@ urlpatterns = [
     path("api/auth/teacher-login", views.teacher_login),
     path("api/auth/teacher-logout", views.teacher_logout),
     path("api/auth/teacher-me", views.teacher_me),
-
+path("api/teacher/sessions/", views.teacher_sessions_api),
+path("api/teacher/sessions/<int:session_id>/", views.teacher_session_detail_api),
+path("api/teacher/sessions/<int:session_id>/classes/", views.teacher_session_classes_api),
+path("api/teacher/sessions/<int:session_id>/assign-classes/", views.teacher_session_assign_classes_api),
 # Teacher pages
     path("teacher/login/", views.teacher_login_page),
     path("teacher/", views.teacher_dashboard_page),

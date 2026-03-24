@@ -1,304 +1,249 @@
 {% extends "core/teacher/_base.html" %}
+{% block title %}Manage Sessions{% endblock %}
+{% block subtitle %}Create sessions, schedule, assign classes, start/stop.{% endblock %}
 
-{% block title %}Sessions{% endblock %}
-
-{% block teacher_content %}
-<div class="page-header">
-  <h1>Sessions</h1>
-  <p>Create, edit and assign classes to sessions.</p>
+{% block content %}
+<div class="card" style="margin-bottom:12px;">
+  <div style="font-weight:900;margin-bottom:8px;">Create session</div>
+  <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
+    <input id="newTitle" placeholder="Session title"
+           style="padding:10px;border:1px solid #e5e7eb;border-radius:10px;min-width:240px;"/>
+    <button class="btn" id="createBtn" type="button">Create</button>
+    <div class="muted" id="msg"></div>
+  </div>
 </div>
 
-<div style="display:grid; grid-template-columns: 380px 1fr; gap:24px; align-items:start;">
-  <section style="border:1px solid #ddd; border-radius:12px; padding:16px;">
-    <h2 id="form-title">Create session</h2>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+  <div class="card">
+    <div style="font-weight:900;margin-bottom:8px;">Sessions</div>
+    <div id="sessionList"></div>
+  </div>
 
-    <form id="session-form">
-      <input type="hidden" id="session-id" />
+  <div class="card">
+    <div style="font-weight:900;margin-bottom:8px;">Editor</div>
+    <div class="muted" style="margin-bottom:10px;">Select a session on the left.</div>
 
-      <div style="margin-bottom:12px;">
-        <label for="title"><strong>Title</strong></label><br>
-        <input id="title" type="text" style="width:100%;" required>
+    <div id="editor" style="display:none;">
+      <div class="muted" style="margin-bottom:6px;">Title</div>
+      <input id="title"
+             style="padding:10px;border:1px solid #e5e7eb;border-radius:10px;width:100%;box-sizing:border-box;"/>
+
+      <div class="muted" style="margin:10px 0 6px;">Description</div>
+      <textarea id="desc"
+                style="width:100%;height:90px;padding:10px;border:1px solid #e5e7eb;border-radius:10px;box-sizing:border-box;"></textarea>
+
+      <div style="margin-top:10px;display:flex;gap:10px;flex-wrap:wrap;">
+        <div style="flex:1;min-width:220px;">
+          <div class="muted">Starts at (local time)</div>
+          <input id="startsAt" type="datetime-local"
+                 style="padding:10px;border:1px solid #e5e7eb;border-radius:10px;width:100%;box-sizing:border-box;"/>
+        </div>
+        <div style="flex:1;min-width:220px;">
+          <div class="muted">Ends at (local time)</div>
+          <input id="endsAt" type="datetime-local"
+                 style="padding:10px;border:1px solid #e5e7eb;border-radius:10px;width:100%;box-sizing:border-box;"/>
+        </div>
       </div>
 
-      <div style="margin-bottom:12px;">
-        <label for="description"><strong>Description</strong></label><br>
-        <textarea id="description" rows="4" style="width:100%;"></textarea>
-      </div>
-
-      <div style="margin-bottom:12px;">
-        <label for="status"><strong>Status</strong></label><br>
-        <select id="status" style="width:100%;">
+      <div style="margin-top:10px;">
+        <div class="muted">Status</div>
+        <select id="status" style="padding:10px;border:1px solid #e5e7eb;border-radius:10px;">
           <option value="draft">draft</option>
           <option value="running">running</option>
           <option value="stopped">stopped</option>
         </select>
+
+        <button class="btn" id="startBtn" type="button" style="margin-left:10px;">Start</button>
+        <button class="btn" id="stopBtn" type="button" style="margin-left:6px;border-color:#fca5a5;">Stop</button>
       </div>
 
-      <div style="margin-bottom:12px;">
-        <label for="starts_at"><strong>Starts at</strong></label><br>
-        <input id="starts_at" type="datetime-local" style="width:100%;">
+      <div style="margin-top:12px;">
+        <div style="font-weight:800;margin-bottom:6px;">Allowed classes</div>
+        <div id="classesBox" class="muted">Loading...</div>
       </div>
 
-      <div style="margin-bottom:12px;">
-        <label for="ends_at"><strong>Ends at</strong></label><br>
-        <input id="ends_at" type="datetime-local" style="width:100%;">
+      <div style="margin-top:12px;display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end;">
+        <button class="btn" id="saveBtn" type="button">Save session</button>
+        <button class="btn" id="saveClassesBtn" type="button">Save classes</button>
+        <a class="btn" id="tasksLink" href="#" style="text-decoration:none;">Open tasks</a>
       </div>
-
-      <div style="margin-bottom:16px;">
-        <strong>Assign classes</strong>
-        <div id="class-checkboxes" style="margin-top:8px; display:grid; gap:8px;"></div>
-      </div>
-
-      <div style="display:flex; gap:8px; flex-wrap:wrap;">
-        <button type="submit" id="save-btn">Save</button>
-        <button type="button" id="reset-btn">Reset</button>
-      </div>
-    </form>
-
-    <div id="form-message" style="margin-top:12px;"></div>
-  </section>
-
-  <section style="border:1px solid #ddd; border-radius:12px; padding:16px;">
-    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
-      <h2 style="margin:0;">All sessions</h2>
-      <button type="button" id="reload-btn">Reload</button>
     </div>
-
-    <div id="sessions-list"></div>
-  </section>
+  </div>
 </div>
 
 <script>
-  const sessionsApiUrl = "/api/teacher/sessions/";
-  let availableClasses = [];
+  let selectedId = null;
+  let allClasses = [];
   let sessionsCache = [];
 
-  function getCookie(name) {
-    const value = `; ${document.cookie}`;
-    const parts = value.split(`; ${name}=`);
-    if (parts.length === 2) return parts.pop().split(";").shift();
-    return "";
-  }
-
-  function toDatetimeLocalValue(isoString) {
-    if (!isoString) return "";
-    const d = new Date(isoString);
-    const pad = n => String(n).padStart(2, "0");
-    const yyyy = d.getFullYear();
-    const mm = pad(d.getMonth() + 1);
-    const dd = pad(d.getDate());
-    const hh = pad(d.getHours());
-    const mi = pad(d.getMinutes());
-    return `${yyyy}-${mm}-${dd}T${hh}:${mi}`;
-  }
-
-  function escapeHtml(text) {
-    return (text || "")
-      .replaceAll("&", "&amp;")
-      .replaceAll("<", "&lt;")
-      .replaceAll(">", "&gt;")
-      .replaceAll('"', "&quot;")
-      .replaceAll("'", "&#039;");
-  }
-
-  async function parseJsonResponse(response) {
-    const contentType = response.headers.get("content-type") || "";
-    if (!contentType.includes("application/json")) {
-      const text = await response.text();
-      throw new Error(`Expected JSON, got ${response.status}. First 200 chars: ${text.slice(0, 200)}`);
+  async function api(url, method="GET", body=null){
+    const opts = { method, credentials:"include", headers:{} };
+    if (body){
+      opts.headers["Content-Type"] = "application/json";
+      opts.body = JSON.stringify(body);
     }
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      throw new Error(data.error || `HTTP ${response.status}`);
+    const r = await fetch(url, opts);
+    const ct = r.headers.get("content-type") || "";
+    if (!ct.includes("application/json")){
+      const text = await r.text();
+      return { status:r.status, data:{ok:false, error:`Non-JSON (${r.status}): ${text.slice(0,120)}`} };
     }
-
-    return data;
+    return { status:r.status, data: await r.json() };
   }
 
-  function renderClassCheckboxes(selectedIds = []) {
-    const wrap = document.getElementById("class-checkboxes");
+  function setMsg(t){ document.getElementById("msg").textContent = t || ""; }
 
-    if (!availableClasses.length) {
-      wrap.innerHTML = "<em>No classes found.</em>";
+  function isoToLocalInput(iso){
+    if (!iso) return "";
+    // iso может быть с TZ; покажем в локальном input как YYYY-MM-DDTHH:MM
+    try{
+      const d = new Date(iso);
+      const pad = n => String(n).padStart(2,"0");
+      const yyyy = d.getFullYear();
+      const mm = pad(d.getMonth()+1);
+      const dd = pad(d.getDate());
+      const hh = pad(d.getHours());
+      const mi = pad(d.getMinutes());
+      return `${yyyy}-${mm}-${dd}T${hh}:${mi}`;
+    } catch(e){
+      return "";
+    }
+  }
+
+  function localInputToIso(value){
+    // value формата "YYYY-MM-DDTHH:MM" (локальное)
+    // отправим как есть — сервер сделает aware в текущем TZ
+    return value ? value : null;
+  }
+
+  async function loadClasses(){
+    const res = await api("/api/teacher/classes/");
+    if (!res.data.ok){ setMsg(res.data.error || "Failed to load classes"); return; }
+    allClasses = res.data.classes || [];
+  }
+
+  async function loadSessions(){
+    const res = await api("/api/teacher/sessions/");
+    if (!res.data.ok){ setMsg(res.data.error || "Failed to load sessions"); return; }
+    sessionsCache = res.data.sessions || [];
+    renderSessionList(sessionsCache);
+  }
+
+  function renderSessionList(items){
+    const root = document.getElementById("sessionList");
+    root.innerHTML = "";
+    if (!items.length){
+      root.innerHTML = '<div class="muted">No sessions.</div>';
       return;
     }
-
-    wrap.innerHTML = availableClasses.map(cls => {
-      const checked = selectedIds.includes(cls.id) ? "checked" : "";
-      return `
-        <label style="display:flex; gap:8px; align-items:center;">
-          <input type="checkbox" class="class-checkbox" value="${cls.id}" ${checked}>
-          <span>${escapeHtml(cls.name)}</span>
-        </label>
-      `;
-    }).join("");
-  }
-
-  function getSelectedClassIds() {
-    return [...document.querySelectorAll(".class-checkbox:checked")]
-      .map(el => Number(el.value));
-  }
-
-  function resetForm() {
-    document.getElementById("form-title").textContent = "Create session";
-    document.getElementById("session-id").value = "";
-    document.getElementById("title").value = "";
-    document.getElementById("description").value = "";
-    document.getElementById("status").value = "draft";
-    document.getElementById("starts_at").value = "";
-    document.getElementById("ends_at").value = "";
-    document.getElementById("form-message").textContent = "";
-    renderClassCheckboxes([]);
-  }
-
-  function fillForm(session) {
-    document.getElementById("form-title").textContent = `Edit session #${session.id}`;
-    document.getElementById("session-id").value = session.id;
-    document.getElementById("title").value = session.title || "";
-    document.getElementById("description").value = session.description || "";
-    document.getElementById("status").value = session.status || "draft";
-    document.getElementById("starts_at").value = toDatetimeLocalValue(session.starts_at);
-    document.getElementById("ends_at").value = toDatetimeLocalValue(session.ends_at);
-    document.getElementById("form-message").textContent = "";
-    renderClassCheckboxes(session.class_group_ids || []);
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  }
-
-  function renderSessions() {
-    const list = document.getElementById("sessions-list");
-
-    if (!sessionsCache.length) {
-      list.innerHTML = "<p><em>No sessions yet.</em></p>";
-      return;
-    }
-
-    list.innerHTML = sessionsCache.map(session => {
-      const classesText = (session.class_groups || []).length
-        ? session.class_groups.map(c => escapeHtml(c.name)).join(", ")
-        : "<em>Not assigned</em>";
-
-      return `
-        <div style="border:1px solid #ddd; border-radius:10px; padding:14px; margin-bottom:12px;">
-          <div style="display:flex; justify-content:space-between; gap:12px; align-items:start;">
-            <div>
-              <h3 style="margin:0 0 6px 0;">${escapeHtml(session.title)}</h3>
-              <div><strong>Status:</strong> ${escapeHtml(session.status)}</div>
-              <div><strong>Starts:</strong> ${session.starts_at ? escapeHtml(session.starts_at) : "-"}</div>
-              <div><strong>Ends:</strong> ${session.ends_at ? escapeHtml(session.ends_at) : "-"}</div>
-              <div><strong>Classes:</strong> ${classesText}</div>
-              <div><strong>Tasks:</strong> ${session.tasks_count}</div>
-              <div><strong>Student sessions:</strong> ${session.student_sessions_count}</div>
-              <div><strong>Active now:</strong> ${session.is_active_now ? "Yes" : "No"}</div>
-              ${session.description ? `<p style="margin-top:8px;">${escapeHtml(session.description)}</p>` : ""}
-            </div>
-
-            <div style="display:flex; flex-direction:column; gap:8px;">
-              <button type="button" onclick="editSession(${session.id})">Edit</button>
-              <button type="button" onclick="deleteSession(${session.id})">Delete</button>
-            </div>
-          </div>
-        </div>
-      `;
-    }).join("");
-  }
-
-  async function loadSessions() {
-    const response = await fetch(sessionsApiUrl, {
-      method: "GET",
-      headers: {
-        "Accept": "application/json"
-      }
+    items.forEach(s => {
+      const btn = document.createElement("button");
+      btn.className = "btn";
+      btn.style.width = "100%";
+      btn.style.textAlign = "left";
+      btn.style.margin = "6px 0";
+      btn.textContent = `${s.title} (${s.status})`;
+      btn.onclick = () => selectSession(s.id);
+      root.appendChild(btn);
     });
-
-    const data = await parseJsonResponse(response);
-    availableClasses = data.available_classes || [];
-    sessionsCache = data.sessions || [];
-    renderClassCheckboxes([]);
-    renderSessions();
   }
 
-  async function saveSession(event) {
-    event.preventDefault();
-
-    const sessionId = document.getElementById("session-id").value.trim();
-    const messageEl = document.getElementById("form-message");
-
-    const payload = {
-      title: document.getElementById("title").value.trim(),
-      description: document.getElementById("description").value.trim(),
-      status: document.getElementById("status").value,
-      starts_at: document.getElementById("starts_at").value || null,
-      ends_at: document.getElementById("ends_at").value || null,
-      class_group_ids: getSelectedClassIds(),
-    };
-
-    const isEdit = Boolean(sessionId);
-    const url = isEdit ? `/api/teacher/sessions/${sessionId}/` : sessionsApiUrl;
-    const method = isEdit ? "PATCH" : "POST";
-
-    try {
-      messageEl.textContent = "Saving...";
-
-      const response = await fetch(url, {
-        method,
-        headers: {
-          "Content-Type": "application/json",
-          "Accept": "application/json",
-          "X-CSRFToken": getCookie("csrftoken"),
-        },
-        body: JSON.stringify(payload),
-      });
-
-      const data = await parseJsonResponse(response);
-      messageEl.textContent = isEdit ? "Session updated." : "Session created.";
-
-      resetForm();
-      await loadSessions();
-
-    } catch (err) {
-      messageEl.textContent = err.message;
+  function renderClassesCheckboxes(selectedIds){
+    const box = document.getElementById("classesBox");
+    box.innerHTML = "";
+    if (!allClasses.length){
+      box.textContent = "No classes.";
+      return;
     }
+    const set = new Set(selectedIds || []);
+    allClasses.forEach(c => {
+      const id = "c_" + c.id;
+      const wrap = document.createElement("div");
+      wrap.style.display = "flex";
+      wrap.style.alignItems = "center";
+      wrap.style.gap = "8px";
+      wrap.style.margin = "4px 0";
+      wrap.innerHTML = `<input type="checkbox" id="${id}" ${set.has(c.id) ? "checked" : ""}/> <label for="${id}">${c.name}</label>`;
+      box.appendChild(wrap);
+    });
   }
 
-  async function deleteSession(sessionId) {
-    const ok = confirm("Delete this session?");
-    if (!ok) return;
+  async function selectSession(id){
+    selectedId = id;
+    const s = sessionsCache.find(x => x.id === id);
+    if (!s) return;
 
-    try {
-      const response = await fetch(`/api/teacher/sessions/${sessionId}/`, {
-        method: "DELETE",
-        headers: {
-          "Accept": "application/json",
-          "X-CSRFToken": getCookie("csrftoken"),
-        },
-      });
+    document.getElementById("editor").style.display = "block";
 
-      await parseJsonResponse(response);
-      await loadSessions();
+    document.getElementById("title").value = s.title || "";
+    document.getElementById("desc").value = s.description || "";
+    document.getElementById("startsAt").value = isoToLocalInput(s.starts_at);
+    document.getElementById("endsAt").value = isoToLocalInput(s.ends_at);
+    document.getElementById("status").value = s.status || "draft";
 
-    } catch (err) {
-      alert(err.message);
-    }
+    document.getElementById("tasksLink").href = `/teacher/tasks/?session_id=${selectedId}`;
+
+    const res = await api(`/api/teacher/sessions/${selectedId}/classes/`);
+    if (!res.data.ok){ setMsg(res.data.error || "Failed to load session classes"); return; }
+    renderClassesCheckboxes(res.data.class_ids || []);
   }
 
-  function editSession(sessionId) {
-    const session = sessionsCache.find(s => s.id === sessionId);
-    if (!session) return;
-    fillForm(session);
-  }
-
-  document.getElementById("session-form").addEventListener("submit", saveSession);
-  document.getElementById("reset-btn").addEventListener("click", resetForm);
-  document.getElementById("reload-btn").addEventListener("click", loadSessions);
-
-  loadSessions().catch(err => {
-    document.getElementById("sessions-list").innerHTML =
-      `<p style="color:red;">${escapeHtml(err.message)}</p>`;
+  document.getElementById("createBtn").addEventListener("click", async () => {
+    const title = (document.getElementById("newTitle").value || "").trim();
+    if (!title){ setMsg("Enter session title."); return; }
+    const res = await api("/api/teacher/sessions/", "POST", { title });
+    if (!res.data.ok){ setMsg(res.data.error || "Create failed"); return; }
+    document.getElementById("newTitle").value = "";
+    setMsg("Created.");
+    await loadSessions();
   });
 
-  window.editSession = editSession;
-  window.deleteSession = deleteSession;
+  document.getElementById("saveBtn").addEventListener("click", async () => {
+    if (!selectedId){ setMsg("Select a session."); return; }
+    const payload = {
+      title: (document.getElementById("title").value || "").trim(),
+      description: document.getElementById("desc").value || "",
+      starts_at: localInputToIso((document.getElementById("startsAt").value || "").trim()),
+      ends_at: localInputToIso((document.getElementById("endsAt").value || "").trim()),
+      status: document.getElementById("status").value
+    };
+    const res = await api(`/api/teacher/sessions/${selectedId}/`, "PATCH", payload);
+    if (!res.data.ok){ setMsg(res.data.error || "Save failed"); return; }
+    setMsg("Saved.");
+    await loadSessions();
+  });
+
+  document.getElementById("saveClassesBtn").addEventListener("click", async () => {
+    if (!selectedId){ setMsg("Select a session."); return; }
+    const ids = [];
+    allClasses.forEach(c => {
+      const cb = document.getElementById("c_" + c.id);
+      if (cb && cb.checked) ids.push(c.id);
+    });
+    const res = await api(`/api/teacher/sessions/${selectedId}/assign-classes/`, "POST", { class_ids: ids });
+    if (!res.data.ok){ setMsg(res.data.error || "Save classes failed"); return; }
+    setMsg("Classes assigned.");
+  });
+
+  document.getElementById("startBtn").addEventListener("click", async () => {
+    if (!selectedId){ setMsg("Select a session."); return; }
+    const res = await api(`/api/teacher/sessions/${selectedId}/`, "PATCH", { status: "running" });
+    if (!res.data.ok){ setMsg(res.data.error || "Failed to start"); return; }
+    setMsg("Session started (running).");
+    await loadSessions();
+  });
+
+  document.getElementById("stopBtn").addEventListener("click", async () => {
+    if (!selectedId){ setMsg("Select a session."); return; }
+    const res = await api(`/api/teacher/sessions/${selectedId}/`, "PATCH", { status: "stopped" });
+    if (!res.data.ok){ setMsg(res.data.error || "Failed to stop"); return; }
+    setMsg("Session stopped.");
+    await loadSessions();
+  });
+
+  (async function init(){
+    await loadClasses();
+    await loadSessions();
+  })();
 </script>
 {% endblock %}
