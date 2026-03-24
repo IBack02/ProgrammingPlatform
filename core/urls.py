@@ -53,5 +53,6 @@ path("api/teacher/tests/<int:test_id>/", views.teacher_test_detail_api),
 # Code fragments
 path("api/teacher/tasks/<int:task_id>/fragments/", views.teacher_task_fragments_api),
 path("api/teacher/fragments/<int:frag_id>/", views.teacher_fragment_detail_api),
+path("set-ui-language/", views.set_ui_language, name="set_ui_language"),
 ]
 

@@ -1612,3 +1612,24 @@ def teacher_fragment_detail_api(request: HttpRequest, frag_id: int):
 
     frag.save()
     return JsonResponse({"ok": True})
+
+from django.shortcuts import redirect
+from django.views.decorators.http import require_POST
+
+from .ui_translations import SUPPORTED_UI_LANGS
+
+
+@require_POST
+def set_ui_language(request):
+    lang = (request.POST.get("lang") or "").strip()
+    next_url = request.POST.get("next") or request.META.get("HTTP_REFERER") or "/teacher/"
+
+    if lang not in SUPPORTED_UI_LANGS:
+        lang = "ru"
+
+    request.session["ui_lang"] = lang
+    request.session.modified = True
+
+    response = redirect(next_url)
+    response.set_cookie("ui_lang", lang, max_age=60 * 60 * 24 * 365, samesite="Lax")
+    return response

@@ -1,9 +1,9 @@
 <!doctype html>
-<html lang="en">
+<html lang="{{ ui_lang }}">
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>{% block title %}Teacher Portal{% endblock %}</title>
+  <title>{% block title %}{{ T.teacher_portal }}{% endblock %}</title>
   <style>
     body{font-family:Arial,sans-serif;background:#f6f7fb;margin:0}
     .wrap{max-width:1200px;margin:18px auto;padding:0 14px}
@@ -14,22 +14,38 @@
     .btn{display:inline-block;padding:8px 10px;border-radius:10px;border:1px solid #e5e7eb;background:#fff;text-decoration:none;color:#111827}
     .btn.active{border-color:#0ea5e9; box-shadow:0 0 0 2px rgba(14,165,233,.15)}
     .muted{color:#6b7280;font-size:12px}
+    .lang-form{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+    .lang-select{padding:7px 10px;border-radius:10px;border:1px solid #e5e7eb;background:#fff}
+    .lang-label{font-size:12px;color:#6b7280}
   </style>
 </head>
 <body>
   <div class="wrap">
     <div class="topbar">
       <div>
-        <div class="title">Teacher Portal</div>
+        <div class="title">{{ T.teacher_portal }}</div>
         <div class="muted">{% block subtitle %}{% endblock %}</div>
       </div>
-      <div class="nav">
-        <a class="btn {% if active == 'dashboard' %}active{% endif %}" href="/teacher/">Dashboard</a>
-        <a class="btn {% if active == 'sessions' %}active{% endif %}" href="/teacher/sessions/">Sessions</a>
-        <a class="btn {% if active == 'classes' %}active{% endif %}" href="/teacher/classes/">Classes</a>
-        <a class="btn {% if active == 'students' %}active{% endif %}" href="/teacher/students/">Students</a>
-        <a class="btn {% if active == 'tasks' %}active{% endif %}" href="/teacher/tasks/">Tasks</a>
-        <a class="btn" href="/teacher/analytics/">Analytics</a>
+
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+        <form method="post" action="/set-ui-language/" class="lang-form">
+          {% csrf_token %}
+          <input type="hidden" name="next" value="{{ request.get_full_path }}">
+          <label class="lang-label" for="lang-select">{{ T.interface_language }}</label>
+          <select id="lang-select" name="lang" class="lang-select" onchange="this.form.submit()">
+            <option value="ru" {% if ui_lang == 'ru' %}selected{% endif %}>{{ T.russian }}</option>
+            <option value="kk" {% if ui_lang == 'kk' %}selected{% endif %}>{{ T.kazakh }}</option>
+          </select>
+        </form>
+
+        <div class="nav">
+          <a class="btn {% if active == 'dashboard' %}active{% endif %}" href="/teacher/">{{ T.dashboard }}</a>
+          <a class="btn {% if active == 'sessions' %}active{% endif %}" href="/teacher/sessions/">{{ T.sessions }}</a>
+          <a class="btn {% if active == 'classes' %}active{% endif %}" href="/teacher/classes/">{{ T.classes }}</a>
+          <a class="btn {% if active == 'students' %}active{% endif %}" href="/teacher/students/">{{ T.students }}</a>
+          <a class="btn {% if active == 'tasks' %}active{% endif %}" href="/teacher/tasks/">{{ T.tasks }}</a>
+          <a class="btn" href="/teacher/analytics/">{{ T.analytics }}</a>
+        </div>
       </div>
     </div>
 
