@@ -1,6 +1,6 @@
 {% extends "core/teacher/_base.html" %}
-{% block title %}Dashboard{% endblock %}
-{% block subtitle %}Analytics overview, filters, session chart, and student performance cards.{% endblock %}
+{% block title %}{{ T.dashboard_title }}{% endblock %}
+{% block subtitle %}{{ T.dashboard_subtitle }}{% endblock %}
 
 {% block content %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
@@ -154,33 +154,33 @@
 
 <div class="dash-grid" style="margin-bottom:12px;">
   <div class="stat-card">
-    <div class="stat-label">Students in view</div>
+    <div class="stat-label">{{ T.students_in_view }}</div>
     <div class="stat-value">{{ student_cards|length }}</div>
   </div>
 
   <div class="stat-card">
-    <div class="stat-label">Classes available</div>
+    <div class="stat-label">{{ T.classes_available }}</div>
     <div class="stat-value">{{ classes|length }}</div>
   </div>
 
   <div class="stat-card">
-    <div class="stat-label">Accepted series</div>
-    <div class="stat-value">{% if show_success %}On{% else %}Off{% endif %}</div>
+    <div class="stat-label">{{ T.accepted_series }}</div>
+    <div class="stat-value">{% if show_success %}{{ T.on }}{% else %}{{ T.off }}{% endif %}</div>
   </div>
 
   <div class="stat-card">
-    <div class="stat-label">Assistant requests series</div>
-    <div class="stat-value">{% if show_hints %}On{% else %}Off{% endif %}</div>
+    <div class="stat-label">{{ T.assistant_requests_series }}</div>
+    <div class="stat-value">{% if show_hints %}{{ T.on }}{% else %}{{ T.off }}{% endif %}</div>
   </div>
 </div>
 
 <div class="card" style="margin-bottom:12px;">
-  <div class="section-title">Filters</div>
+  <div class="section-title">{{ T.filters }}</div>
   <form method="get" class="filter-row">
     <div class="filter-row" style="gap:8px;">
-      <div class="small-muted"><b>Class filter:</b></div>
+      <div class="small-muted"><b>{{ T.class_filter }}:</b></div>
       <select name="class_id" class="control">
-        <option value="">All classes</option>
+        <option value="">{{ T.all_classes }}</option>
         {% for c in classes %}
           <option value="{{ c.id }}" {% if selected_class_id == c.id %}selected{% endif %}>{{ c.name }}</option>
         {% endfor %}
@@ -189,15 +189,15 @@
 
     <label class="filter-row" style="gap:6px;">
       <input type="checkbox" name="show_success" value="1" {% if show_success %}checked{% endif %}>
-      <span class="small-muted">Show accepted submissions</span>
+      <span class="small-muted">{{ T.show_accepted_submissions }}</span>
     </label>
 
     <label class="filter-row" style="gap:6px;">
       <input type="checkbox" name="show_hints" value="1" {% if show_hints %}checked{% endif %}>
-      <span class="small-muted">Show assistant requests</span>
+      <span class="small-muted">{{ T.show_ai_requests }}</span>
     </label>
 
-    <button class="btn" type="submit">Apply</button>
+    <button class="btn" type="submit">{{ T.apply }}</button>
   </form>
 </div>
 
@@ -205,7 +205,7 @@
   <div class="card">
     <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;">
       <div>
-        <div class="section-title">Submissions by Session</div>
+        <div class="section-title">{{ T.submissions_by_session }}</div>
         <div class="small-muted" id="scaleNote"></div>
       </div>
     </div>
@@ -215,37 +215,37 @@
   </div>
 
   <div class="card">
-    <div class="section-title">Quick Notes</div>
+    <div class="section-title">{{ T.quick_notes }}</div>
     <div class="small-muted" style="margin-bottom:10px;">
-      Use the filters to narrow the chart and cards by class.
+      {{ T.use_filters_note }}
     </div>
 
     <div class="bars">
       <div class="bar-row">
-        <div class="bar-label">Accepted series</div>
+        <div class="bar-label">{{ T.accepted_series_short }}</div>
         <div class="bar-track">
           <div class="bar-fill" id="acceptedToggleFill" data-val="{% if show_success %}1{% else %}0{% endif %}"></div>
         </div>
-        <div class="small-muted">{% if show_success %}On{% else %}Off{% endif %}</div>
+        <div class="small-muted">{% if show_success %}{{ T.on }}{% else %}{{ T.off }}{% endif %}</div>
       </div>
 
       <div class="bar-row">
-        <div class="bar-label">AI requests</div>
+        <div class="bar-label">{{ T.ai_requests_short }}</div>
         <div class="bar-track">
           <div class="bar-fill" id="hintsToggleFill" data-val="{% if show_hints %}1{% else %}0{% endif %}"></div>
         </div>
-        <div class="small-muted">{% if show_hints %}On{% else %}Off{% endif %}</div>
+        <div class="small-muted">{% if show_hints %}{{ T.on }}{% else %}{{ T.off }}{% endif %}</div>
       </div>
     </div>
 
     <div class="small-muted" style="margin-top:14px;">
-      Click a student card below to open the detailed profile page.
+      {{ T.click_student_card_note }}
     </div>
   </div>
 </div>
 
 <div class="card" style="margin-top:12px;">
-  <div class="section-title">Students (avg per session)</div>
+  <div class="section-title">{{ T.students_avg_per_session }}</div>
 
   {% if student_cards %}
     <div class="student-grid" id="studentsGrid">
@@ -254,24 +254,24 @@
           <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;">
             <div>
               <div class="student-name">{{ s.name }}</div>
-              <div class="small-muted">{{ s.class_name }} • sessions: {{ s.sessions_count }}</div>
+              <div class="small-muted">{{ s.class_name }} • {{ T.sessions_count_short }}: {{ s.sessions_count }}</div>
             </div>
-            <span class="pill">Open</span>
+            <span class="pill">{{ T.open }}</span>
           </div>
 
           <div class="bars">
             <div class="bar-row">
-              <div class="bar-label">Avg attempts</div>
+              <div class="bar-label">{{ T.avg_attempts }}</div>
               <div class="bar-track"><div class="bar-fill" data-val="{{ s.avg_total }}"></div></div>
               <div class="small-muted">{{ s.avg_total }}</div>
             </div>
             <div class="bar-row">
-              <div class="bar-label">Avg accepted</div>
+              <div class="bar-label">{{ T.avg_accepted }}</div>
               <div class="bar-track"><div class="bar-fill" data-val="{{ s.avg_accepted }}"></div></div>
               <div class="small-muted">{{ s.avg_accepted }}</div>
             </div>
             <div class="bar-row">
-              <div class="bar-label">Avg AI requests</div>
+              <div class="bar-label">{{ T.avg_ai_requests }}</div>
               <div class="bar-track"><div class="bar-fill" data-val="{{ s.avg_hints }}"></div></div>
               <div class="small-muted">{{ s.avg_hints }}</div>
             </div>
@@ -280,11 +280,18 @@
       {% endfor %}
     </div>
   {% else %}
-    <div class="empty-box">No student analytics available for the selected filters.</div>
+    <div class="empty-box">{{ T.no_student_analytics }}</div>
   {% endif %}
 </div>
 
 <script>
+  const UI = {
+    chartNoteScaled: "{{ T.chart_note_scaled|escapejs }}",
+    totalSubmissions: "{{ T.total_submissions|escapejs }}",
+    acceptedSubmissions: "{{ T.accepted_submissions|escapejs }}",
+    assistantRequests: "{{ T.assistant_requests|escapejs }}"
+  };
+
   {% if session_chart_json %}
     const chartData = {{ session_chart_json|safe }};
   {% else %}
@@ -300,7 +307,7 @@
 
   const scaleNote = document.getElementById("scaleNote");
   if (chartData.scale_factor && chartData.scale_factor !== 1) {
-    scaleNote.textContent = `Note: total submissions are displayed in x${chartData.scale_factor} units to keep the chart readable.`;
+    scaleNote.textContent = UI.chartNoteScaled.replace("{scale}", chartData.scale_factor);
   } else {
     scaleNote.textContent = "";
   }
@@ -308,8 +315,8 @@
   const datasets = [
     {
       label: chartData.scale_factor && chartData.scale_factor !== 1
-        ? `Total submissions (÷${chartData.scale_factor})`
-        : "Total submissions",
+        ? `${UI.totalSubmissions} (÷${chartData.scale_factor})`
+        : UI.totalSubmissions,
       data: chartData.datasets.totals || [],
       borderWidth: 1,
     }
@@ -317,7 +324,7 @@
 
   if (showSuccess) {
     datasets.push({
-      label: "Accepted submissions",
+      label: UI.acceptedSubmissions,
       data: chartData.datasets.accepted || [],
       borderWidth: 1,
     });
@@ -325,7 +332,7 @@
 
   if (showHints) {
     datasets.push({
-      label: "Assistant requests",
+      label: UI.assistantRequests,
       data: chartData.datasets.hints || [],
       borderWidth: 1,
     });
