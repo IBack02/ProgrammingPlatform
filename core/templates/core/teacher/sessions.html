@@ -1,83 +1,209 @@
 {% extends "core/teacher/_base.html" %}
-{% block title %}Manage Sessions{% endblock %}
-{% block subtitle %}Create sessions, schedule, assign classes, start/stop.{% endblock %}
+{% block title %}{{ T.manage_sessions }}{% endblock %}
+{% block subtitle %}{{ T.sessions_subtitle }}{% endblock %}
 
 {% block content %}
+<style>
+  .session-create-row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+  .input-ui,.textarea-ui,.select-ui{
+    padding:10px;border:1px solid #e5e7eb;border-radius:10px;box-sizing:border-box;
+    transition:border-color .18s ease, box-shadow .18s ease, transform .08s ease, background .18s ease;
+    background:#fff;
+  }
+  .input-ui:focus,.textarea-ui:focus,.select-ui:focus{
+    outline:none;border-color:#0ea5e9;box-shadow:0 0 0 3px rgba(14,165,233,.12)
+  }
+  .btn{
+    transition:transform .08s ease, box-shadow .18s ease, background .18s ease, border-color .18s ease;
+    cursor:pointer;
+  }
+  .btn:hover{
+    transform:translateY(-1px);
+    box-shadow:0 8px 18px rgba(17,24,39,.08);
+    border-color:#cbd5e1;
+    background:#f8fafc;
+  }
+  .btn:active{transform:translateY(0) scale(.985)}
+  .btn[disabled]{
+    opacity:.6;cursor:not-allowed;transform:none;box-shadow:none;
+  }
+
+  .message{
+    min-height:20px;
+    padding:6px 8px;
+    border-radius:8px;
+    transition:all .2s ease;
+  }
+  .message.ok{background:#ecfdf5;color:#065f46}
+  .message.err{background:#fef2f2;color:#991b1b}
+  .message.info{background:#eff6ff;color:#1d4ed8}
+
+  .session-item{
+    width:100%;
+    text-align:left;
+    margin:6px 0;
+    padding:12px 14px;
+    border-radius:12px;
+    border:1px solid #e5e7eb;
+    background:#fff;
+    transition:all .18s ease;
+    cursor:pointer;
+  }
+  .session-item:hover{
+    transform:translateY(-1px);
+    border-color:#93c5fd;
+    box-shadow:0 10px 20px rgba(30,64,175,.08);
+    background:#f8fbff;
+  }
+  .session-item.active{
+    border-color:#0ea5e9;
+    background:#eff6ff;
+    box-shadow:0 0 0 3px rgba(14,165,233,.12);
+  }
+  .session-item-title{font-weight:800}
+  .session-item-meta{font-size:12px;color:#6b7280;margin-top:4px}
+
+  .status-chip{
+    display:inline-block;
+    padding:4px 10px;
+    border-radius:999px;
+    font-size:12px;
+    font-weight:800;
+    margin-left:8px;
+    vertical-align:middle;
+  }
+  .status-draft{background:#f3f4f6;color:#374151}
+  .status-running{background:#dcfce7;color:#166534}
+  .status-stopped{background:#fee2e2;color:#991b1b}
+
+  .editor-panel{
+    opacity:0;
+    transform:translateY(6px);
+    transition:opacity .2s ease, transform .2s ease;
+  }
+  .editor-panel.show{
+    opacity:1;
+    transform:translateY(0);
+  }
+
+  .class-pill{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    margin:6px 0;
+    padding:8px 10px;
+    border:1px solid #e5e7eb;
+    border-radius:10px;
+    background:#fafafa;
+    transition:all .15s ease;
+  }
+  .class-pill:hover{
+    background:#f5faff;
+    border-color:#bfdbfe;
+  }
+</style>
+
 <div class="card" style="margin-bottom:12px;">
-  <div style="font-weight:900;margin-bottom:8px;">Create session</div>
-  <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
-    <input id="newTitle" placeholder="Session title"
-           style="padding:10px;border:1px solid #e5e7eb;border-radius:10px;min-width:240px;"/>
-    <button class="btn" id="createBtn" type="button">Create</button>
-    <div class="muted" id="msg"></div>
+  <div style="font-weight:900;margin-bottom:8px;">{{ T.create_session }}</div>
+  <div class="session-create-row">
+    <input id="newTitle" class="input-ui" placeholder="{{ T.session_title_placeholder }}"
+           style="min-width:240px;"/>
+    <button class="btn" id="createBtn" type="button">{{ T.create }}</button>
+    <div id="msg" class="muted message"></div>
   </div>
 </div>
 
 <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
   <div class="card">
-    <div style="font-weight:900;margin-bottom:8px;">Sessions</div>
+    <div style="font-weight:900;margin-bottom:8px;">{{ T.sessions_list }}</div>
     <div id="sessionList"></div>
   </div>
 
   <div class="card">
-    <div style="font-weight:900;margin-bottom:8px;">Editor</div>
-    <div class="muted" style="margin-bottom:10px;">Select a session on the left.</div>
+    <div style="font-weight:900;margin-bottom:8px;">{{ T.editor }}</div>
+    <div class="muted" style="margin-bottom:10px;">{{ T.select_session_left }}</div>
 
-    <div id="editor" style="display:none;">
-      <div class="muted" style="margin-bottom:6px;">Title</div>
-      <input id="title"
-             style="padding:10px;border:1px solid #e5e7eb;border-radius:10px;width:100%;box-sizing:border-box;"/>
+    <div id="editor" class="editor-panel" style="display:none;">
+      <div class="muted" style="margin-bottom:6px;">{{ T.title_label }}</div>
+      <input id="title" class="input-ui" style="width:100%;"/>
 
-      <div class="muted" style="margin:10px 0 6px;">Description</div>
-      <textarea id="desc"
-                style="width:100%;height:90px;padding:10px;border:1px solid #e5e7eb;border-radius:10px;box-sizing:border-box;"></textarea>
+      <div class="muted" style="margin:10px 0 6px;">{{ T.description_label }}</div>
+      <textarea id="desc" class="textarea-ui" style="width:100%;height:90px;"></textarea>
 
       <div style="margin-top:10px;display:flex;gap:10px;flex-wrap:wrap;">
         <div style="flex:1;min-width:220px;">
-          <div class="muted">Starts at (local time)</div>
-          <input id="startsAt" type="datetime-local"
-                 style="padding:10px;border:1px solid #e5e7eb;border-radius:10px;width:100%;box-sizing:border-box;"/>
+          <div class="muted">{{ T.starts_at_local }}</div>
+          <input id="startsAt" type="datetime-local" class="input-ui" style="width:100%;"/>
         </div>
         <div style="flex:1;min-width:220px;">
-          <div class="muted">Ends at (local time)</div>
-          <input id="endsAt" type="datetime-local"
-                 style="padding:10px;border:1px solid #e5e7eb;border-radius:10px;width:100%;box-sizing:border-box;"/>
+          <div class="muted">{{ T.ends_at_local }}</div>
+          <input id="endsAt" type="datetime-local" class="input-ui" style="width:100%;"/>
         </div>
       </div>
 
       <div style="margin-top:10px;">
-        <div class="muted">Status</div>
-        <select id="status" style="padding:10px;border:1px solid #e5e7eb;border-radius:10px;">
-          <option value="draft">draft</option>
-          <option value="running">running</option>
-          <option value="stopped">stopped</option>
+        <div class="muted">{{ T.status_label }}</div>
+        <select id="status" class="select-ui">
+          <option value="draft">{{ T.draft }}</option>
+          <option value="running">{{ T.running }}</option>
+          <option value="stopped">{{ T.stopped }}</option>
         </select>
 
-        <button class="btn" id="startBtn" type="button" style="margin-left:10px;">Start</button>
-        <button class="btn" id="stopBtn" type="button" style="margin-left:6px;border-color:#fca5a5;">Stop</button>
+        <button class="btn" id="startBtn" type="button" style="margin-left:10px;">{{ T.start }}</button>
+        <button class="btn" id="stopBtn" type="button" style="margin-left:6px;border-color:#fca5a5;">{{ T.stop }}</button>
       </div>
 
       <div style="margin-top:12px;">
-        <div style="font-weight:800;margin-bottom:6px;">Allowed classes</div>
-        <div id="classesBox" class="muted">Loading...</div>
+        <div style="font-weight:800;margin-bottom:6px;">{{ T.allowed_classes }}</div>
+        <div id="classesBox" class="muted">{{ T.loading }}</div>
       </div>
 
       <div style="margin-top:12px;display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end;">
-        <button class="btn" id="saveBtn" type="button">Save session</button>
-        <button class="btn" id="saveClassesBtn" type="button">Save classes</button>
-        <a class="btn" id="tasksLink" href="#" style="text-decoration:none;">Open tasks</a>
+        <button class="btn" id="saveBtn" type="button">{{ T.save_session }}</button>
+        <button class="btn" id="saveClassesBtn" type="button">{{ T.save_classes }}</button>
+        <a class="btn" id="tasksLink" href="#" style="text-decoration:none;">{{ T.open_tasks }}</a>
       </div>
     </div>
   </div>
 </div>
 
 <script>
+  const UI = {
+    failedLoadClasses: "{{ T.failed_load_classes|escapejs }}",
+    failedLoadSessions: "{{ T.failed_load_sessions|escapejs }}",
+    failedLoadSessionClasses: "{{ T.failed_load_session_classes|escapejs }}",
+    enterSessionTitle: "{{ T.enter_session_title|escapejs }}",
+    selectSession: "{{ T.select_session|escapejs }}",
+    sessionCreated: "{{ T.session_created|escapejs }}",
+    sessionSaved: "{{ T.session_saved|escapejs }}",
+    sessionStarted: "{{ T.session_started|escapejs }}",
+    sessionStopped: "{{ T.session_stopped|escapejs }}",
+    classesAssigned: "{{ T.classes_assigned|escapejs }}",
+    createFailed: "{{ T.se_create_failed|escapejs }}",
+    saveFailed: "{{ T.se_save_failed|escapejs }}",
+    saveClassesFailed: "{{ T.save_classes_failed|escapejs }}",
+    failedToStart: "{{ T.failed_to_start|escapejs }}",
+    failedToStop: "{{ T.failed_to_stop|escapejs }}",
+    noSessions: "{{ T.no_sessions|escapejs }}",
+    noClasses: "{{ T.no_classes|escapejs }}",
+    draft: "{{ T.draft|escapejs }}",
+    running: "{{ T.running|escapejs }}",
+    stopped: "{{ T.stopped|escapejs }}",
+    selected: "{{ T.selected|escapejs }}"
+  };
+
   let selectedId = null;
   let allClasses = [];
   let sessionsCache = [];
+  let busy = false;
+
+  function setBusy(state){
+    busy = state;
+    document.querySelectorAll("button").forEach(btn => btn.disabled = state);
+  }
 
   async function api(url, method="GET", body=null){
-    const opts = { method, credentials:"include", headers:{} };
+    const opts = { method, credentials:"include", headers:{ "Accept":"application/json" } };
     if (body){
       opts.headers["Content-Type"] = "application/json";
       opts.body = JSON.stringify(body);
@@ -91,58 +217,88 @@
     return { status:r.status, data: await r.json() };
   }
 
-  function setMsg(t){ document.getElementById("msg").textContent = t || ""; }
+  function setMsg(text, type="info"){
+    const el = document.getElementById("msg");
+    el.textContent = text || "";
+    el.className = "muted message" + (text ? ` ${type}` : "");
+  }
 
   function isoToLocalInput(iso){
     if (!iso) return "";
-    // iso может быть с TZ; покажем в локальном input как YYYY-MM-DDTHH:MM
     try{
       const d = new Date(iso);
       const pad = n => String(n).padStart(2,"0");
-      const yyyy = d.getFullYear();
-      const mm = pad(d.getMonth()+1);
-      const dd = pad(d.getDate());
-      const hh = pad(d.getHours());
-      const mi = pad(d.getMinutes());
-      return `${yyyy}-${mm}-${dd}T${hh}:${mi}`;
+      return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
     } catch(e){
       return "";
     }
   }
 
   function localInputToIso(value){
-    // value формата "YYYY-MM-DDTHH:MM" (локальное)
-    // отправим как есть — сервер сделает aware в текущем TZ
     return value ? value : null;
+  }
+
+  function statusClass(status){
+    if (status === "running") return "status-running";
+    if (status === "stopped") return "status-stopped";
+    return "status-draft";
+  }
+
+  function statusLabel(status){
+    if (status === "running") return UI.running;
+    if (status === "stopped") return UI.stopped;
+    return UI.draft;
   }
 
   async function loadClasses(){
     const res = await api("/api/teacher/classes/");
-    if (!res.data.ok){ setMsg(res.data.error || "Failed to load classes"); return; }
+    if (!res.data.ok){
+      setMsg(res.data.error || UI.failedLoadClasses, "err");
+      return;
+    }
     allClasses = res.data.classes || [];
   }
 
-  async function loadSessions(){
+  async function loadSessions(keepSelection=true){
+    const oldSelected = selectedId;
     const res = await api("/api/teacher/sessions/");
-    if (!res.data.ok){ setMsg(res.data.error || "Failed to load sessions"); return; }
+    if (!res.data.ok){
+      setMsg(res.data.error || UI.failedLoadSessions, "err");
+      return;
+    }
     sessionsCache = res.data.sessions || [];
     renderSessionList(sessionsCache);
+
+    if (keepSelection && oldSelected && sessionsCache.some(x => x.id === oldSelected)){
+      await selectSession(oldSelected, false);
+    } else if (!sessionsCache.length) {
+      selectedId = null;
+      document.getElementById("editor").style.display = "none";
+      document.getElementById("editor").classList.remove("show");
+    }
   }
 
   function renderSessionList(items){
     const root = document.getElementById("sessionList");
     root.innerHTML = "";
     if (!items.length){
-      root.innerHTML = '<div class="muted">No sessions.</div>';
+      root.innerHTML = `<div class="muted">${UI.noSessions}</div>`;
       return;
     }
+
     items.forEach(s => {
       const btn = document.createElement("button");
-      btn.className = "btn";
-      btn.style.width = "100%";
-      btn.style.textAlign = "left";
-      btn.style.margin = "6px 0";
-      btn.textContent = `${s.title} (${s.status})`;
+      btn.className = "session-item" + (selectedId === s.id ? " active" : "");
+      btn.type = "button";
+      btn.innerHTML = `
+        <div class="session-item-title">
+          ${s.title}
+          <span class="status-chip ${statusClass(s.status)}">${statusLabel(s.status)}</span>
+        </div>
+        <div class="session-item-meta">
+          id=${s.id}${selectedId === s.id ? ` • ${UI.selected}` : ""}
+        </div>
+      `;
       btn.onclick = () => selectSession(s.id);
       root.appendChild(btn);
     });
@@ -152,54 +308,80 @@
     const box = document.getElementById("classesBox");
     box.innerHTML = "";
     if (!allClasses.length){
-      box.textContent = "No classes.";
+      box.textContent = UI.noClasses;
       return;
     }
+
     const set = new Set(selectedIds || []);
     allClasses.forEach(c => {
       const id = "c_" + c.id;
-      const wrap = document.createElement("div");
-      wrap.style.display = "flex";
-      wrap.style.alignItems = "center";
-      wrap.style.gap = "8px";
-      wrap.style.margin = "4px 0";
-      wrap.innerHTML = `<input type="checkbox" id="${id}" ${set.has(c.id) ? "checked" : ""}/> <label for="${id}">${c.name}</label>`;
+      const wrap = document.createElement("label");
+      wrap.className = "class-pill";
+      wrap.setAttribute("for", id);
+      wrap.innerHTML = `
+        <input type="checkbox" id="${id}" ${set.has(c.id) ? "checked" : ""}/>
+        <span>${c.name}</span>
+      `;
       box.appendChild(wrap);
     });
   }
 
-  async function selectSession(id){
+  async function selectSession(id, showMessage=false){
     selectedId = id;
+    renderSessionList(sessionsCache);
+
     const s = sessionsCache.find(x => x.id === id);
     if (!s) return;
 
-    document.getElementById("editor").style.display = "block";
+    const editor = document.getElementById("editor");
+    editor.style.display = "block";
+    requestAnimationFrame(() => editor.classList.add("show"));
 
     document.getElementById("title").value = s.title || "";
     document.getElementById("desc").value = s.description || "";
     document.getElementById("startsAt").value = isoToLocalInput(s.starts_at);
     document.getElementById("endsAt").value = isoToLocalInput(s.ends_at);
     document.getElementById("status").value = s.status || "draft";
-
     document.getElementById("tasksLink").href = `/teacher/tasks/?session_id=${selectedId}`;
 
     const res = await api(`/api/teacher/sessions/${selectedId}/classes/`);
-    if (!res.data.ok){ setMsg(res.data.error || "Failed to load session classes"); return; }
+    if (!res.data.ok){
+      setMsg(res.data.error || UI.failedLoadSessionClasses, "err");
+      return;
+    }
     renderClassesCheckboxes(res.data.class_ids || []);
+
+    if (showMessage) setMsg(`${s.title}`, "info");
   }
 
   document.getElementById("createBtn").addEventListener("click", async () => {
     const title = (document.getElementById("newTitle").value || "").trim();
-    if (!title){ setMsg("Enter session title."); return; }
+    if (!title){
+      setMsg(UI.enterSessionTitle, "err");
+      return;
+    }
+
+    setBusy(true);
+    setMsg(UI.loading, "info");
     const res = await api("/api/teacher/sessions/", "POST", { title });
-    if (!res.data.ok){ setMsg(res.data.error || "Create failed"); return; }
+    setBusy(false);
+
+    if (!res.data.ok){
+      setMsg(res.data.error || UI.createFailed, "err");
+      return;
+    }
+
     document.getElementById("newTitle").value = "";
-    setMsg("Created.");
-    await loadSessions();
+    setMsg(UI.sessionCreated, "ok");
+    await loadSessions(false);
   });
 
   document.getElementById("saveBtn").addEventListener("click", async () => {
-    if (!selectedId){ setMsg("Select a session."); return; }
+    if (!selectedId){
+      setMsg(UI.selectSession, "err");
+      return;
+    }
+
     const payload = {
       title: (document.getElementById("title").value || "").trim(),
       description: document.getElementById("desc").value || "",
@@ -207,43 +389,91 @@
       ends_at: localInputToIso((document.getElementById("endsAt").value || "").trim()),
       status: document.getElementById("status").value
     };
+
+    setBusy(true);
+    setMsg(UI.loading, "info");
     const res = await api(`/api/teacher/sessions/${selectedId}/`, "PATCH", payload);
-    if (!res.data.ok){ setMsg(res.data.error || "Save failed"); return; }
-    setMsg("Saved.");
-    await loadSessions();
+    setBusy(false);
+
+    if (!res.data.ok){
+      setMsg(res.data.error || UI.saveFailed, "err");
+      return;
+    }
+
+    setMsg(UI.sessionSaved, "ok");
+    await loadSessions(true);
   });
 
   document.getElementById("saveClassesBtn").addEventListener("click", async () => {
-    if (!selectedId){ setMsg("Select a session."); return; }
+    if (!selectedId){
+      setMsg(UI.selectSession, "err");
+      return;
+    }
+
     const ids = [];
     allClasses.forEach(c => {
       const cb = document.getElementById("c_" + c.id);
       if (cb && cb.checked) ids.push(c.id);
     });
+
+    setBusy(true);
+    setMsg(UI.loading, "info");
     const res = await api(`/api/teacher/sessions/${selectedId}/assign-classes/`, "POST", { class_ids: ids });
-    if (!res.data.ok){ setMsg(res.data.error || "Save classes failed"); return; }
-    setMsg("Classes assigned.");
+    setBusy(false);
+
+    if (!res.data.ok){
+      setMsg(res.data.error || UI.saveClassesFailed, "err");
+      return;
+    }
+
+    setMsg(UI.classesAssigned, "ok");
   });
 
   document.getElementById("startBtn").addEventListener("click", async () => {
-    if (!selectedId){ setMsg("Select a session."); return; }
+    if (!selectedId){
+      setMsg(UI.selectSession, "err");
+      return;
+    }
+
+    setBusy(true);
+    setMsg(UI.loading, "info");
     const res = await api(`/api/teacher/sessions/${selectedId}/`, "PATCH", { status: "running" });
-    if (!res.data.ok){ setMsg(res.data.error || "Failed to start"); return; }
-    setMsg("Session started (running).");
-    await loadSessions();
+    setBusy(false);
+
+    if (!res.data.ok){
+      setMsg(res.data.error || UI.failedToStart, "err");
+      return;
+    }
+
+    setMsg(UI.sessionStarted, "ok");
+    await loadSessions(true);
   });
 
   document.getElementById("stopBtn").addEventListener("click", async () => {
-    if (!selectedId){ setMsg("Select a session."); return; }
+    if (!selectedId){
+      setMsg(UI.selectSession, "err");
+      return;
+    }
+
+    setBusy(true);
+    setMsg(UI.loading, "info");
     const res = await api(`/api/teacher/sessions/${selectedId}/`, "PATCH", { status: "stopped" });
-    if (!res.data.ok){ setMsg(res.data.error || "Failed to stop"); return; }
-    setMsg("Session stopped.");
-    await loadSessions();
+    setBusy(false);
+
+    if (!res.data.ok){
+      setMsg(res.data.error || UI.failedToStop, "err");
+      return;
+    }
+
+    setMsg(UI.sessionStopped, "ok");
+    await loadSessions(true);
   });
 
   (async function init(){
+    setMsg(UI.loading, "info");
     await loadClasses();
-    await loadSessions();
+    await loadSessions(false);
+    setMsg("");
   })();
 </script>
 {% endblock %}
