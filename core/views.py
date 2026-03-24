@@ -36,7 +36,14 @@ from .ui_translations import SUPPORTED_UI_LANGS
 PIN_RE = re.compile(r"^\d{6}$")
 TEACHER_PIN_RE = re.compile(r"^\d{6}$")
 SUBMIT_COOLDOWN_SECONDS = 15
-
+SESSION_STATUS_DRAFT = "draft"
+SESSION_STATUS_RUNNING = "running"
+SESSION_STATUS_STOPPED = "stopped"
+SESSION_STATUSES = {
+    SESSION_STATUS_DRAFT,
+    SESSION_STATUS_RUNNING,
+    SESSION_STATUS_STOPPED,
+}
 
 def _json_body(request: HttpRequest) -> dict:
     try:
@@ -99,7 +106,7 @@ def _parse_dt_or_none(value: str):
 
 def _get_active_session_for_class(class_id: int):
     session = (
-        Session.objects.filter(status=Session.Status.RUNNING, allowed_classes__id=class_id)
+        Session.objects.filter(status=SESSION_STATUS_RUNNING, allowed_classes__id=class_id)
         .distinct()
         .order_by("-starts_at", "-created_at")
         .first()
@@ -1179,6 +1186,8 @@ def teacher_student_reset_pin_api(request: HttpRequest, student_id: int):
 
 @csrf_exempt
 @require_http_methods(["GET", "POST"])
+@csrf_exempt
+@require_http_methods(["GET", "POST"])
 def teacher_sessions_api(request: HttpRequest):
     if not _get_logged_in_teacher(request):
         return _teacher_api_unauthorized()
@@ -1192,48 +1201,59 @@ def teacher_sessions_api(request: HttpRequest):
             "available_classes": available_classes,
         })
 
-    data = _json_body(request)
-    title = (data.get("title") or "").strip()
-    if not title:
-        return JsonResponse({"ok": False, "error": "title is required"}, status=400)
+    try:
+        data = _json_body(request)
+        title = (data.get("title") or "").strip()
+        if not title:
+            return JsonResponse({"ok": False, "error": "title is required"}, status=400)
 
-    status = (data.get("status") or Session.Status.DRAFT).strip()
-    if status not in {Session.Status.DRAFT, Session.Status.RUNNING, Session.Status.STOPPED}:
-        return JsonResponse({"ok": False, "error": "invalid status"}, status=400)
+        status = (data.get("status") or SESSION_STATUS_DRAFT).strip()
+        if status not in SESSION_STATUSES:
+            return JsonResponse({"ok": False, "error": "invalid status"}, status=400)
 
-    starts_at = _parse_dt_or_none(data.get("starts_at") or "")
-    ends_at = _parse_dt_or_none(data.get("ends_at") or "")
-    if starts_at and ends_at and ends_at <= starts_at:
-        return JsonResponse({"ok": False, "error": "ends_at must be after starts_at"}, status=400)
+        starts_at = _parse_dt_or_none(data.get("starts_at") or "")
+        ends_at = _parse_dt_or_none(data.get("ends_at") or "")
+        if starts_at and ends_at and ends_at <= starts_at:
+            return JsonResponse({"ok": False, "error": "ends_at must be after starts_at"}, status=400)
 
-    class_ids = data.get("class_group_ids") or []
-    if not isinstance(class_ids, list):
-        return JsonResponse({"ok": False, "error": "class_group_ids must be a list"}, status=400)
+        class_ids = data.get("class_group_ids") or []
+        if not isinstance(class_ids, list):
+            return JsonResponse({"ok": False, "error": "class_group_ids must be a list"}, status=400)
 
-    with transaction.atomic():
-        s = Session.objects.create(
-            title=title,
-            description=(data.get("description") or ""),
-            status=status,
-            starts_at=starts_at,
-            ends_at=ends_at,
-        )
-        clean_ids = []
-        for cid in class_ids:
-            try:
-                clean_ids.append(int(cid))
-            except (TypeError, ValueError):
-                return JsonResponse({"ok": False, "error": "class_group_ids must contain integers"}, status=400)
-        if clean_ids:
-            existing_ids = set(ClassGroup.objects.filter(id__in=clean_ids).values_list("id", flat=True))
-            missing = [cid for cid in clean_ids if cid not in existing_ids]
-            if missing:
-                return JsonResponse({"ok": False, "error": f"Some classes do not exist: {missing}"}, status=400)
-            SessionClass.objects.bulk_create([SessionClass(session=s, class_group_id=cid) for cid in clean_ids])
+        with transaction.atomic():
+            s = Session.objects.create(
+                title=title,
+                description=(data.get("description") or ""),
+                status=status,
+                starts_at=starts_at,
+                ends_at=ends_at,
+            )
 
-    return JsonResponse({"ok": True, "session": _serialize_session(s)}, status=201)
+            clean_ids = []
+            for cid in class_ids:
+                try:
+                    clean_ids.append(int(cid))
+                except (TypeError, ValueError):
+                    return JsonResponse({"ok": False, "error": "class_group_ids must contain integers"}, status=400)
+
+            if clean_ids:
+                existing_ids = set(ClassGroup.objects.filter(id__in=clean_ids).values_list("id", flat=True))
+                missing = [cid for cid in clean_ids if cid not in existing_ids]
+                if missing:
+                    return JsonResponse({"ok": False, "error": f"Some classes do not exist: {missing}"}, status=400)
+
+                SessionClass.objects.bulk_create(
+                    [SessionClass(session=s, class_group_id=cid) for cid in clean_ids]
+                )
+
+        return JsonResponse({"ok": True, "session": _serialize_session(s)}, status=201)
+
+    except Exception as e:
+        return JsonResponse({"ok": False, "error": f"{type(e).__name__}: {e}"}, status=500)
 
 
+@csrf_exempt
+@require_http_methods(["PATCH", "DELETE"])
 @csrf_exempt
 @require_http_methods(["PATCH", "DELETE"])
 def teacher_session_detail_api(request: HttpRequest, session_id: int):
@@ -1242,62 +1262,72 @@ def teacher_session_detail_api(request: HttpRequest, session_id: int):
 
     s = get_object_or_404(Session, id=session_id)
 
-    if request.method == "DELETE":
-        if SessionTask.objects.filter(session=s).exists():
-            return JsonResponse({"ok": False, "error": "cannot delete session with tasks"}, status=409)
-        if StudentSession.objects.filter(session=s).exists():
-            return JsonResponse({"ok": False, "error": "cannot delete session with student activity"}, status=409)
-        s.delete()
-        return JsonResponse({"ok": True})
+    try:
+        if request.method == "DELETE":
+            if SessionTask.objects.filter(session=s).exists():
+                return JsonResponse({"ok": False, "error": "cannot delete session with tasks"}, status=409)
+            if StudentSession.objects.filter(session=s).exists():
+                return JsonResponse({"ok": False, "error": "cannot delete session with student activity"}, status=409)
+            s.delete()
+            return JsonResponse({"ok": True})
 
-    data = _json_body(request)
+        data = _json_body(request)
 
-    if "title" in data:
-        title = (data.get("title") or "").strip()
-        if not title:
-            return JsonResponse({"ok": False, "error": "title cannot be empty"}, status=400)
-        s.title = title
+        if "title" in data:
+            title = (data.get("title") or "").strip()
+            if not title:
+                return JsonResponse({"ok": False, "error": "title cannot be empty"}, status=400)
+            s.title = title
 
-    if "description" in data:
-        s.description = data.get("description") or ""
+        if "description" in data:
+            s.description = data.get("description") or ""
 
-    if "starts_at" in data:
-        s.starts_at = _parse_dt_or_none(data.get("starts_at") or "")
+        if "starts_at" in data:
+            s.starts_at = _parse_dt_or_none(data.get("starts_at") or "")
 
-    if "ends_at" in data:
-        s.ends_at = _parse_dt_or_none(data.get("ends_at") or "")
+        if "ends_at" in data:
+            s.ends_at = _parse_dt_or_none(data.get("ends_at") or "")
 
-    if "status" in data:
-        status = (data.get("status") or "").strip()
-        if status not in {Session.Status.DRAFT, Session.Status.RUNNING, Session.Status.STOPPED}:
-            return JsonResponse({"ok": False, "error": "invalid status"}, status=400)
-        s.status = status
+        if "status" in data:
+            status = (data.get("status") or "").strip()
+            if status not in SESSION_STATUSES:
+                return JsonResponse({"ok": False, "error": "invalid status"}, status=400)
+            s.status = status
 
-    if s.starts_at and s.ends_at and s.ends_at <= s.starts_at:
-        return JsonResponse({"ok": False, "error": "ends_at must be after starts_at"}, status=400)
+        if s.starts_at and s.ends_at and s.ends_at <= s.starts_at:
+            return JsonResponse({"ok": False, "error": "ends_at must be after starts_at"}, status=400)
 
-    if "class_group_ids" in data:
-        class_ids = data.get("class_group_ids") or []
-        if not isinstance(class_ids, list):
-            return JsonResponse({"ok": False, "error": "class_group_ids must be a list"}, status=400)
-        clean_ids = []
-        for cid in class_ids:
-            try:
-                clean_ids.append(int(cid))
-            except (TypeError, ValueError):
-                return JsonResponse({"ok": False, "error": "class_group_ids must contain integers"}, status=400)
-        existing_ids = set(ClassGroup.objects.filter(id__in=clean_ids).values_list("id", flat=True))
-        missing = [cid for cid in clean_ids if cid not in existing_ids]
-        if missing:
-            return JsonResponse({"ok": False, "error": f"Some classes do not exist: {missing}"}, status=400)
-        with transaction.atomic():
-            s.save()
-            SessionClass.objects.filter(session=s).delete()
-            SessionClass.objects.bulk_create([SessionClass(session=s, class_group_id=cid) for cid in clean_ids])
+        if "class_group_ids" in data:
+            class_ids = data.get("class_group_ids") or []
+            if not isinstance(class_ids, list):
+                return JsonResponse({"ok": False, "error": "class_group_ids must be a list"}, status=400)
+
+            clean_ids = []
+            for cid in class_ids:
+                try:
+                    clean_ids.append(int(cid))
+                except (TypeError, ValueError):
+                    return JsonResponse({"ok": False, "error": "class_group_ids must contain integers"}, status=400)
+
+            existing_ids = set(ClassGroup.objects.filter(id__in=clean_ids).values_list("id", flat=True))
+            missing = [cid for cid in clean_ids if cid not in existing_ids]
+            if missing:
+                return JsonResponse({"ok": False, "error": f"Some classes do not exist: {missing}"}, status=400)
+
+            with transaction.atomic():
+                s.save()
+                SessionClass.objects.filter(session=s).delete()
+                SessionClass.objects.bulk_create(
+                    [SessionClass(session=s, class_group_id=cid) for cid in clean_ids]
+                )
+
+            return JsonResponse({"ok": True, "session": _serialize_session(s)})
+
+        s.save()
         return JsonResponse({"ok": True, "session": _serialize_session(s)})
 
-    s.save()
-    return JsonResponse({"ok": True, "session": _serialize_session(s)})
+    except Exception as e:
+        return JsonResponse({"ok": False, "error": f"{type(e).__name__}: {e}"}, status=500)
 
 
 @require_GET
@@ -1311,33 +1341,43 @@ def teacher_session_classes_api(request: HttpRequest, session_id: int):
 
 @csrf_exempt
 @require_POST
+@csrf_exempt
+@require_POST
 def teacher_session_assign_classes_api(request: HttpRequest, session_id: int):
     if not _get_logged_in_teacher(request):
         return _teacher_api_unauthorized()
 
     session = get_object_or_404(Session, id=session_id)
-    data = _json_body(request)
-    raw_ids = data.get("class_ids") or data.get("class_group_ids") or []
-    if not isinstance(raw_ids, list):
-        return JsonResponse({"ok": False, "error": "class_ids must be a list"}, status=400)
 
-    clean_ids = []
-    for cid in raw_ids:
-        try:
-            clean_ids.append(int(cid))
-        except (TypeError, ValueError):
-            return JsonResponse({"ok": False, "error": "class_ids must contain integers"}, status=400)
+    try:
+        data = _json_body(request)
+        raw_ids = data.get("class_ids") or data.get("class_group_ids") or []
 
-    existing_ids = set(ClassGroup.objects.filter(id__in=clean_ids).values_list("id", flat=True))
-    missing = [cid for cid in clean_ids if cid not in existing_ids]
-    if missing:
-        return JsonResponse({"ok": False, "error": f"Some classes do not exist: {missing}"}, status=400)
+        if not isinstance(raw_ids, list):
+            return JsonResponse({"ok": False, "error": "class_ids must be a list"}, status=400)
 
-    with transaction.atomic():
-        SessionClass.objects.filter(session=session).delete()
-        SessionClass.objects.bulk_create([SessionClass(session=session, class_group_id=cid) for cid in clean_ids])
+        clean_ids = []
+        for cid in raw_ids:
+            try:
+                clean_ids.append(int(cid))
+            except (TypeError, ValueError):
+                return JsonResponse({"ok": False, "error": "class_ids must contain integers"}, status=400)
 
-    return JsonResponse({"ok": True, "class_ids": clean_ids})
+        existing_ids = set(ClassGroup.objects.filter(id__in=clean_ids).values_list("id", flat=True))
+        missing = [cid for cid in clean_ids if cid not in existing_ids]
+        if missing:
+            return JsonResponse({"ok": False, "error": f"Some classes do not exist: {missing}"}, status=400)
+
+        with transaction.atomic():
+            SessionClass.objects.filter(session=session).delete()
+            SessionClass.objects.bulk_create(
+                [SessionClass(session=session, class_group_id=cid) for cid in clean_ids]
+            )
+
+        return JsonResponse({"ok": True, "class_ids": clean_ids})
+
+    except Exception as e:
+        return JsonResponse({"ok": False, "error": f"{type(e).__name__}: {e}"}, status=500)
 
 
 # -------------------------
