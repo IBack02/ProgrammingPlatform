@@ -1,38 +1,239 @@
 {% extends "core/teacher/_base.html" %}
-{% block title %}Manage Students{% endblock %}
-{% block subtitle %}Create, edit, move between classes, reset PIN.{% endblock %}
+{% block title %}{{ T.manage_students }}{% endblock %}
+{% block subtitle %}{{ T.students_subtitle }}{% endblock %}
 
 {% block content %}
+<style>
+  .input-ui,.select-ui{
+    padding:10px;border:1px solid #e5e7eb;border-radius:10px;box-sizing:border-box;
+    transition:border-color .18s ease, box-shadow .18s ease, transform .08s ease, background .18s ease;
+    background:#fff;
+  }
+  .input-ui:focus,.select-ui:focus{
+    outline:none;border-color:#0ea5e9;box-shadow:0 0 0 3px rgba(14,165,233,.12)
+  }
+  .btn{
+    transition:transform .08s ease, box-shadow .18s ease, background .18s ease, border-color .18s ease;
+    cursor:pointer;
+  }
+  .btn:hover{
+    transform:translateY(-1px);
+    box-shadow:0 8px 18px rgba(17,24,39,.08);
+    border-color:#cbd5e1;
+    background:#f8fafc;
+  }
+  .btn:active{transform:translateY(0) scale(.985)}
+  .btn[disabled]{opacity:.6;cursor:not-allowed;transform:none;box-shadow:none}
+
+  .message{
+    min-height:20px;padding:6px 8px;border-radius:8px;transition:all .2s ease;
+  }
+  .message.ok{background:#ecfdf5;color:#065f46}
+  .message.err{background:#fef2f2;color:#991b1b}
+  .message.info{background:#eff6ff;color:#1d4ed8}
+
+  .class-grid{
+    display:grid;
+    grid-template-columns:repeat(auto-fit, minmax(320px, 1fr));
+    gap:14px;
+  }
+
+  .class-card{
+    border:1px solid #dbe7f3;
+    border-radius:16px;
+    background:linear-gradient(180deg, #ffffff, #f9fbff);
+    box-shadow:0 10px 20px rgba(17,24,39,.06);
+    overflow:hidden;
+    transition:all .18s ease;
+  }
+  .class-card:hover{
+    transform:translateY(-2px);
+    box-shadow:0 14px 26px rgba(30,64,175,.08);
+    border-color:#bfdbfe;
+  }
+
+  .class-head{
+    padding:14px 16px;
+    border-bottom:1px solid #eef2f7;
+    background:#f7fbff;
+  }
+  .class-title{
+    font-size:18px;
+    font-weight:900;
+    color:#0f172a;
+  }
+  .class-meta{
+    margin-top:4px;
+    font-size:12px;
+    color:#64748b;
+  }
+
+  .students-wrap{
+    padding:14px;
+    display:flex;
+    flex-direction:column;
+    gap:10px;
+  }
+
+  .student-card{
+    border:1px solid #e5e7eb;
+    border-radius:14px;
+    background:#fff;
+    padding:12px;
+    transition:all .16s ease;
+    cursor:pointer;
+  }
+  .student-card:hover{
+    border-color:#93c5fd;
+    background:#f8fbff;
+    transform:translateY(-1px);
+  }
+  .student-card.active{
+    border-color:#0ea5e9;
+    background:#eff6ff;
+    box-shadow:0 0 0 3px rgba(14,165,233,.10);
+  }
+
+  .student-name{
+    font-weight:800;
+    color:#111827;
+  }
+  .student-meta{
+    margin-top:4px;
+    font-size:12px;
+    color:#6b7280;
+  }
+
+  .student-editor{
+    margin-top:12px;
+    padding-top:12px;
+    border-top:1px dashed #cbd5e1;
+    display:grid;
+    gap:10px;
+  }
+
+  .editor-row{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:10px;
+  }
+
+  .editor-actions{
+    display:flex;
+    gap:8px;
+    flex-wrap:wrap;
+    justify-content:flex-end;
+  }
+
+  .muted-box{
+    border:1px dashed #d1d5db;
+    border-radius:12px;
+    padding:14px;
+    color:#6b7280;
+    background:#fafafa;
+  }
+
+  @media (max-width: 700px){
+    .editor-row{
+      grid-template-columns:1fr;
+    }
+  }
+</style>
+
 <div class="card" style="margin-bottom:12px;">
-  <div style="font-weight:900;margin-bottom:8px;">Filter</div>
+  <div style="font-weight:900;margin-bottom:8px;">{{ T.filter }}</div>
   <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
-    <select id="classSelect" style="padding:10px;border:1px solid #e5e7eb;border-radius:10px;min-width:240px;"></select>
-    <button class="btn" id="reloadBtn" type="button">Reload</button>
-    <div class="muted" id="msg"></div>
+    <select id="classSelect" class="select-ui" style="min-width:240px;"></select>
+    <button class="btn" id="reloadBtn" type="button">{{ T.reload }}</button>
+    <div class="muted message" id="msg"></div>
   </div>
 </div>
 
 <div class="card" style="margin-bottom:12px;">
-  <div style="font-weight:900;margin-bottom:8px;">Create student</div>
+  <div style="font-weight:900;margin-bottom:8px;">{{ T.create_student }}</div>
   <div style="display:flex; gap:10px; flex-wrap:wrap;">
-    <input id="newName" placeholder="Full name (unique)" style="padding:10px;border:1px solid #e5e7eb;border-radius:10px;min-width:240px;"/>
-    <input id="newPin" placeholder="PIN (6 digits)" inputmode="numeric" style="padding:10px;border:1px solid #e5e7eb;border-radius:10px;min-width:180px;"/>
-    <button class="btn" id="createBtn" type="button">Create</button>
+    <input id="newName" class="input-ui" placeholder="{{ T.full_name_unique }}" style="min-width:240px;"/>
+    <input id="newPin" class="input-ui" placeholder="{{ T.pin_6_digits }}" inputmode="numeric" style="min-width:180px;"/>
+    <button class="btn" id="createBtn" type="button">{{ T.create }}</button>
   </div>
 </div>
 
 <div class="card">
-  <div style="font-weight:900;margin-bottom:8px;">Students</div>
+  <div style="font-weight:900;margin-bottom:8px;">{{ T.students }}</div>
+  <div class="muted" style="margin-bottom:10px;">{{ T.click_student_to_edit }}</div>
   <div id="list"></div>
 </div>
 
 <script>
+  const UI = {
+    allClasses: "{{ T.all_classes|escapejs }}",
+    noStudents: "{{ T.no_students|escapejs }}",
+    classHasNoStudents: "{{ T.class_has_no_students|escapejs }}",
+    studentsCount: "{{ T.students_count|escapejs }}",
+    active: "{{ T.active|escapejs }}",
+    save: "{{ T.save|escapejs }}",
+    delete: "{{ T.delete|escapejs }}",
+    cancel: "{{ T.cancel|escapejs }}",
+    editMode: "{{ T.edit_mode|escapejs }}",
+    pinOptionalChange: "{{ T.pin_optional_change|escapejs }}",
+    failedLoadClasses: "{{ T.failed_load_classes|escapejs }}",
+    failedLoadStudents: "{{ T.failed_load_students|escapejs }}",
+    enterStudentName: "{{ T.enter_student_name|escapejs }}",
+    pinMustBe6Digits: "{{ T.pin_must_be_6_digits|escapejs }}",
+    selectClassFirst: "{{ T.select_class_first|escapejs }}",
+    studentCreated: "{{ T.student_created|escapejs }}",
+    studentSaved: "{{ T.student_saved|escapejs }}",
+    studentDeleted: "{{ T.student_deleted|escapejs }}",
+    createFailed: "{{ T.create_failed|escapejs }}",
+    saveFailed: "{{ T.save_failed|escapejs }}",
+    deleteFailed: "{{ T.delete_failed|escapejs }}",
+    resetFailed: "{{ T.reset_failed|escapejs }}",
+    pinUpdated: "{{ T.pin_updated|escapejs }}",
+    deleteStudentConfirm: "{{ T.delete_student_confirm|escapejs }}",
+    idLabel: "{{ T.id_label|escapejs }}",
+    currentClass: "{{ T.current_class|escapejs }}",
+    changeClass: "{{ T.change_class|escapejs }}",
+    newPin: "{{ T.new_pin|escapejs }}",
+    selected: "{{ T.selected|escapejs }}"
+  };
+
+  let editingStudentId = null;
+  let classesCache = [];
+  let studentsCache = [];
+  let busy = false;
+
+  function escapeHtml(text){
+    return String(text || "")
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;")
+      .replaceAll("'", "&#039;");
+  }
+
+  function setBusy(state){
+    busy = state;
+    document.querySelectorAll("button").forEach(btn => btn.disabled = state);
+  }
+
+  function setMsg(text, type="info"){
+    const el = document.getElementById("msg");
+    el.textContent = text || "";
+    el.className = "muted message" + (text ? ` ${type}` : "");
+  }
+
   async function api(url, method="GET", body=null){
-    const opts = { method, credentials:"include", headers:{} };
+    const opts = {
+      method,
+      credentials:"include",
+      headers:{ "Accept":"application/json" }
+    };
+
     if (body){
       opts.headers["Content-Type"] = "application/json";
       opts.body = JSON.stringify(body);
     }
+
     const r = await fetch(url, opts);
     const ct = r.headers.get("content-type") || "";
     if (!ct.includes("application/json")){
@@ -42,136 +243,302 @@
     return { status:r.status, data: await r.json() };
   }
 
-  function setMsg(t){ document.getElementById("msg").textContent = t || ""; }
-
   async function loadClasses(){
     const res = await api("/api/teacher/classes/");
-    if (!res.data.ok){ setMsg(res.data.error || "Failed to load classes"); return []; }
+    if (!res.data.ok){
+      setMsg(res.data.error || UI.failedLoadClasses, "err");
+      return [];
+    }
+
     const classes = res.data.classes || [];
+    classesCache = classes;
+
     const sel = document.getElementById("classSelect");
+    const prev = sel.value;
     sel.innerHTML = "";
-    sel.insertAdjacentHTML("beforeend", `<option value="">All classes</option>`);
-    classes.forEach(c => sel.insertAdjacentHTML("beforeend", `<option value="${c.id}">${c.name}</option>`));
+    sel.insertAdjacentHTML("beforeend", `<option value="">${escapeHtml(UI.allClasses)}</option>`);
+    classes.forEach(c => {
+      sel.insertAdjacentHTML("beforeend", `<option value="${c.id}">${escapeHtml(c.name)}</option>`);
+    });
+
+    if (prev && classes.some(c => String(c.id) === String(prev))){
+      sel.value = prev;
+    }
+
     return classes;
   }
 
-  function renderStudents(students, classes){
+  function buildClassOptions(selectedId){
+    return classesCache.map(c => `
+      <option value="${c.id}" ${String(c.id) === String(selectedId) ? "selected" : ""}>
+        ${escapeHtml(c.name)}
+      </option>
+    `).join("");
+  }
+
+  function groupStudentsByClass(students, classes){
+    const map = new Map();
+
+    classes.forEach(c => {
+      map.set(c.id, {
+        id: c.id,
+        name: c.name,
+        students: []
+      });
+    });
+
+    students.forEach(s => {
+      const classId = s.class?.id;
+      if (!map.has(classId)){
+        map.set(classId, {
+          id: classId,
+          name: s.class?.name || "—",
+          students: []
+        });
+      }
+      map.get(classId).students.push(s);
+    });
+
+    return [...map.values()].filter(group => group.students.length > 0);
+  }
+
+  function renderStudents(students){
     const root = document.getElementById("list");
     root.innerHTML = "";
+
     if (!students.length){
-      root.innerHTML = '<div class="muted">No students.</div>';
+      root.innerHTML = `<div class="muted-box">${escapeHtml(UI.noStudents)}</div>`;
       return;
     }
 
-    const classOptions = (classes || []).map(c => `<option value="${c.id}">${c.name}</option>`).join("");
+    const grouped = groupStudentsByClass(students, classesCache);
+    const grid = document.createElement("div");
+    grid.className = "class-grid";
 
-    students.forEach(s => {
-      const row = document.createElement("div");
-      row.style.display = "grid";
-      row.style.gridTemplateColumns = "2fr 1fr 1fr 1fr";
-      row.style.gap = "10px";
-      row.style.alignItems = "center";
-      row.style.margin = "10px 0";
-      row.style.padding = "10px";
-      row.style.border = "1px solid #e5e7eb";
-      row.style.borderRadius = "12px";
+    grouped.forEach(group => {
+      const classCard = document.createElement("div");
+      classCard.className = "class-card";
 
-      row.innerHTML = `
-        <div>
-          <input data-name="${s.id}" value="${s.full_name}"
-                 style="padding:10px;border:1px solid #e5e7eb;border-radius:10px;width:100%;box-sizing:border-box;"/>
-          <div class="muted" style="margin-top:4px;">id=${s.id}</div>
+      classCard.innerHTML = `
+        <div class="class-head">
+          <div class="class-title">${escapeHtml(group.name)}</div>
+          <div class="class-meta">${escapeHtml(UI.studentsCount)}: ${group.students.length}</div>
         </div>
-
-        <div>
-          <select data-class="${s.id}" style="padding:10px;border:1px solid #e5e7eb;border-radius:10px;width:100%;">
-            ${classOptions}
-          </select>
-          <div class="muted" style="margin-top:4px;">current: ${s.class.name}</div>
-        </div>
-
-        <div>
-          <label class="muted" style="display:flex;gap:8px;align-items:center;">
-            <input type="checkbox" data-active="${s.id}" ${s.is_active ? "checked" : ""}/>
-            Active
-          </label>
-          <button class="btn" data-reset="${s.id}" type="button" style="margin-top:8px;">Reset PIN</button>
-        </div>
-
-        <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;">
-          <button class="btn" data-save="${s.id}" type="button">Save</button>
-        </div>
+        <div class="students-wrap" id="class-students-${group.id}"></div>
       `;
 
-      root.appendChild(row);
+      const studentsWrap = classCard.querySelector(`#class-students-${group.id}`);
 
-      // set current class selection
-      const sel = row.querySelector(`select[data-class="${s.id}"]`);
-      sel.value = s.class.id;
+      if (!group.students.length){
+        studentsWrap.innerHTML = `<div class="muted-box">${escapeHtml(UI.classHasNoStudents)}</div>`;
+      } else {
+        group.students.forEach(s => {
+          const activeClass = editingStudentId === s.id ? " active" : "";
+          const isEditing = editingStudentId === s.id;
+
+          const studentCard = document.createElement("div");
+          studentCard.className = "student-card" + activeClass;
+
+          if (!isEditing){
+            studentCard.innerHTML = `
+              <div class="student-name">${escapeHtml(s.full_name)}</div>
+              <div class="student-meta">
+                ${escapeHtml(UI.idLabel)}=${s.id}
+                • ${escapeHtml(UI.currentClass)}: ${escapeHtml(s.class?.name || "—")}
+                ${s.is_active ? ` • ${escapeHtml(UI.active)}` : ""}
+                • ${escapeHtml(UI.selected)}
+              </div>
+            `;
+            studentCard.addEventListener("click", () => {
+              editingStudentId = s.id;
+              renderStudents(studentsCache);
+            });
+          } else {
+            studentCard.innerHTML = `
+              <div class="student-name">${escapeHtml(s.full_name)}</div>
+              <div class="student-meta">${escapeHtml(UI.editMode)} • ${escapeHtml(UI.idLabel)}=${s.id}</div>
+
+              <div class="student-editor">
+                <div class="editor-row">
+                  <div>
+                    <div class="muted" style="margin-bottom:6px;">{{ T.full_name_unique }}</div>
+                    <input class="input-ui" data-name="${s.id}" value="${escapeHtml(s.full_name)}" style="width:100%;">
+                  </div>
+                  <div>
+                    <div class="muted" style="margin-bottom:6px;">${escapeHtml(UI.changeClass)}</div>
+                    <select class="select-ui" data-class="${s.id}" style="width:100%;">
+                      ${buildClassOptions(s.class?.id)}
+                    </select>
+                  </div>
+                </div>
+
+                <div class="editor-row">
+                  <div>
+                    <div class="muted" style="margin-bottom:6px;">${escapeHtml(UI.newPin)}</div>
+                    <input class="input-ui" data-pin="${s.id}" placeholder="${escapeHtml(UI.pinOptionalChange)}" inputmode="numeric" style="width:100%;">
+                  </div>
+                  <div style="display:flex;align-items:flex-end;">
+                    <label class="muted" style="display:flex;gap:8px;align-items:center;">
+                      <input type="checkbox" data-active="${s.id}" ${s.is_active ? "checked" : ""}/>
+                      ${escapeHtml(UI.active)}
+                    </label>
+                  </div>
+                </div>
+
+                <div class="editor-actions">
+                  <button class="btn" type="button" data-cancel="${s.id}">${escapeHtml(UI.cancel)}</button>
+                  <button class="btn" type="button" data-save="${s.id}">${escapeHtml(UI.save)}</button>
+                  <button class="btn" type="button" data-delete="${s.id}" style="border-color:#fca5a5;">${escapeHtml(UI.delete)}</button>
+                </div>
+              </div>
+            `;
+          }
+
+          studentsWrap.appendChild(studentCard);
+        });
+      }
+
+      grid.appendChild(classCard);
     });
 
-    // wire handlers
+    root.appendChild(grid);
+
+    root.querySelectorAll("button[data-cancel]").forEach(btn => {
+      btn.addEventListener("click", () => {
+        editingStudentId = null;
+        renderStudents(studentsCache);
+      });
+    });
+
     root.querySelectorAll("button[data-save]").forEach(btn => {
       btn.addEventListener("click", async () => {
         const id = btn.getAttribute("data-save");
         const name = (root.querySelector(`input[data-name="${id}"]`).value || "").trim();
-        const classId = root.querySelector(`select[data-class="${id}"]`).value;
+        const classId = parseInt(root.querySelector(`select[data-class="${id}"]`).value);
         const active = root.querySelector(`input[data-active="${id}"]`).checked;
+        const pin = (root.querySelector(`input[data-pin="${id}"]`).value || "").trim();
 
-        const res = await api(`/api/teacher/students/${id}/`, "PATCH", {
-          full_name: name, class_id: parseInt(classId), is_active: active
+        if (!name){
+          setMsg(UI.enterStudentName, "err");
+          return;
+        }
+
+        if (pin && !(pin.length === 6 && /^\d+$/.test(pin))){
+          setMsg(UI.pinMustBe6Digits, "err");
+          return;
+        }
+
+        setBusy(true);
+        setMsg("...", "info");
+
+        const saveRes = await api(`/api/teacher/students/${id}/`, "PATCH", {
+          full_name: name,
+          class_id: classId,
+          is_active: active
         });
-        if (!res.data.ok){ setMsg(res.data.error || "Save failed"); return; }
-        setMsg("Saved.");
-        await load(); // refresh
+
+        if (!saveRes.data.ok){
+          setBusy(false);
+          setMsg(saveRes.data.error || UI.saveFailed, "err");
+          return;
+        }
+
+        if (pin){
+          const pinRes = await api(`/api/teacher/students/${id}/reset-pin/`, "POST", { pin });
+          if (!pinRes.data.ok){
+            setBusy(false);
+            setMsg(pinRes.data.error || UI.resetFailed, "err");
+            return;
+          }
+        }
+
+        editingStudentId = null;
+        setBusy(false);
+        setMsg(pin ? UI.pinUpdated : UI.studentSaved, "ok");
+        await load();
       });
     });
 
-    root.querySelectorAll("button[data-reset]").forEach(btn => {
+    root.querySelectorAll("button[data-delete]").forEach(btn => {
       btn.addEventListener("click", async () => {
-        const id = btn.getAttribute("data-reset");
-        const pin = prompt("Enter new 6-digit PIN:");
-        if (!pin) return;
-        const res = await api(`/api/teacher/students/${id}/reset-pin/`, "POST", { pin });
-        if (!res.data.ok){ setMsg(res.data.error || "Reset failed"); return; }
-        setMsg("PIN updated.");
+        const id = btn.getAttribute("data-delete");
+        if (!confirm(UI.deleteStudentConfirm)) return;
+
+        setBusy(true);
+        setMsg("...", "info");
+        const res = await api(`/api/teacher/students/${id}/`, "DELETE");
+        setBusy(false);
+
+        if (!res.data.ok){
+          setMsg(res.data.error || UI.deleteFailed, "err");
+          return;
+        }
+
+        editingStudentId = null;
+        setMsg(UI.studentDeleted, "ok");
+        await load();
       });
     });
   }
 
   async function load(){
     setMsg("");
-    const classes = await loadClasses();
+    await loadClasses();
+
     const classId = document.getElementById("classSelect").value;
     const url = classId ? `/api/teacher/students/?class_id=${classId}` : "/api/teacher/students/";
     const res = await api(url);
-    if (!res.data.ok){ setMsg(res.data.error || "Failed to load students"); return; }
-    renderStudents(res.data.students || [], classes);
+
+    if (!res.data.ok){
+      setMsg(res.data.error || UI.failedLoadStudents, "err");
+      return;
+    }
+
+    studentsCache = res.data.students || [];
+    renderStudents(studentsCache);
   }
 
   document.getElementById("reloadBtn").addEventListener("click", load);
+  document.getElementById("classSelect").addEventListener("change", load);
 
   document.getElementById("createBtn").addEventListener("click", async () => {
     const full_name = (document.getElementById("newName").value || "").trim();
     const pin = (document.getElementById("newPin").value || "").trim();
     const classId = document.getElementById("classSelect").value;
 
-    if (!full_name){ setMsg("Enter student name."); return; }
-    if (!(pin.length === 6 && /^\d+$/.test(pin))){ setMsg("PIN must be 6 digits."); return; }
-    if (!classId){ setMsg("Select a class first (or pick one from dropdown)."); return; }
+    if (!full_name){
+      setMsg(UI.enterStudentName, "err");
+      return;
+    }
+    if (!(pin.length === 6 && /^\d+$/.test(pin))){
+      setMsg(UI.pinMustBe6Digits, "err");
+      return;
+    }
+    if (!classId){
+      setMsg(UI.selectClassFirst, "err");
+      return;
+    }
 
+    setBusy(true);
+    setMsg("...", "info");
     const res = await api("/api/teacher/students/", "POST", {
-      full_name, pin, class_id: parseInt(classId)
+      full_name,
+      pin,
+      class_id: parseInt(classId)
     });
-    if (!res.data.ok){ setMsg(res.data.error || "Create failed"); return; }
+    setBusy(false);
+
+    if (!res.data.ok){
+      setMsg(res.data.error || UI.createFailed, "err");
+      return;
+    }
 
     document.getElementById("newName").value = "";
     document.getElementById("newPin").value = "";
-    setMsg("Created.");
+    setMsg(UI.studentCreated, "ok");
     await load();
   });
 
-  // init
-  load().catch(e => setMsg("Init error: " + e));
+  load().catch(e => setMsg("Init error: " + e, "err"));
 </script>
 {% endblock %}

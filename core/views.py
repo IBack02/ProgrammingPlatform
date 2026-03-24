@@ -1,45 +1,57 @@
 import hashlib
 import json
 import re
-from collections import defaultdict
+from functools import wraps
 
 from django.contrib.admin.views.decorators import staff_member_required
-from django.db.models import F, Count, Sum, Q
-from django.http import JsonResponse, HttpRequest, HttpResponse
-from django.shortcuts import get_object_or_404, render, redirect
+from django.db import transaction
+from django.db.models import Count, F, Q, Sum
+from django.http import HttpRequest, HttpResponse, JsonResponse
+from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
+from django.utils import timezone as dj_tz
+from django.utils.dateparse import parse_datetime
 from django.views.decorators.csrf import csrf_exempt
-from django.views.decorators.http import require_POST, require_http_methods, require_GET
+from django.views.decorators.http import require_GET, require_http_methods, require_POST
 
 from .ai_assist import build_prompt_snapshot, call_openai_hint, sanitize_no_code
 from .judge0_client import create_batch_submissions, wait_batch
 from .models import (
-    Student,
+    ActivityAggregate,
+    AiAssistMessage,
+    ClassGroup,
     Session,
+    SessionClass,
     SessionTask,
-    TaskTestCase,
+    Student,
     StudentSession,
     StudentTaskProgress,
     Submission,
-    AiAssistMessage,
-    ActivityAggregate,
-    ClassGroup,
-    TaskCodeFragment, SessionClass,  # <-- NEW
+    TaskCodeFragment,
+    TaskTestCase,
+    Teacher,
 )
+from .ui_translations import SUPPORTED_UI_LANGS
 
 PIN_RE = re.compile(r"^\d{6}$")
+TEACHER_PIN_RE = re.compile(r"^\d{6}$")
+SUBMIT_COOLDOWN_SECONDS = 15
 
 
 def _json_body(request: HttpRequest) -> dict:
     try:
-        return json.loads(request.body.decode("utf-8") or "{}")
-    except json.JSONDecodeError:
+        raw = request.body.decode("utf-8") if request.body else "{}"
+        return json.loads(raw or "{}")
+    except (UnicodeDecodeError, json.JSONDecodeError):
         return {}
 
 
-def _require_student(request: HttpRequest):
-    student_id = request.session.get("student_id")
-    return student_id or None
+def _student_id(request: HttpRequest):
+    return request.session.get("student_id") or None
+
+
+def _teacher_id(request: HttpRequest):
+    return request.session.get("teacher_id") or None
 
 
 def _get_student_from_session(request: HttpRequest):
@@ -48,6 +60,41 @@ def _get_student_from_session(request: HttpRequest):
     if not student_id or not class_id:
         return None, None
     return student_id, class_id
+
+
+def _get_logged_in_teacher(request: HttpRequest):
+    teacher_id = request.session.get("teacher_id")
+    if not teacher_id:
+        return None
+    return Teacher.objects.filter(id=teacher_id, is_active=True).first()
+
+
+def _teacher_api_unauthorized():
+    return JsonResponse({"ok": False, "error": "not authenticated"}, status=401)
+
+
+def teacher_required(view_func):
+    @wraps(view_func)
+    def _wrapped(request, *args, **kwargs):
+        if not _teacher_id(request):
+            return redirect("/teacher/login/")
+        return view_func(request, *args, **kwargs)
+
+    return _wrapped
+
+
+def _parse_dt_or_none(value: str):
+    s = (value or "").strip()
+    if not s:
+        return None
+
+    dt = parse_datetime(s)
+    if dt is None:
+        return None
+
+    if dj_tz.is_naive(dt):
+        dt = dj_tz.make_aware(dt, dj_tz.get_current_timezone())
+    return dt
 
 
 def _get_active_session_for_class(class_id: int):
@@ -62,14 +109,53 @@ def _get_active_session_for_class(class_id: int):
     return session
 
 
+def _get_or_create_student_session(student_id: int, session: Session):
+    now = timezone.now()
+    ss, created = StudentSession.objects.get_or_create(
+        student_id=student_id,
+        session=session,
+        defaults={"started_at": now, "last_seen_at": now},
+    )
+    if not created:
+        StudentSession.objects.filter(id=ss.id).update(last_seen_at=now)
+        ss.last_seen_at = now
+    return ss, now
+
+
+def _get_or_create_progress(ss: StudentSession, task: SessionTask, now=None):
+    now = now or timezone.now()
+    progress, created = StudentTaskProgress.objects.get_or_create(
+        student_session=ss,
+        task=task,
+        defaults={"status": StudentTaskProgress.Status.IN_PROGRESS, "opened_at": now},
+    )
+    if not created:
+        changed = []
+        if not progress.opened_at:
+            progress.opened_at = now
+            changed.append("opened_at")
+        if progress.status == StudentTaskProgress.Status.NOT_STARTED:
+            progress.status = StudentTaskProgress.Status.IN_PROGRESS
+            changed.append("status")
+        if changed:
+            progress.save(update_fields=changed)
+    return progress
+
+
+def _unlock_hints_if_needed(progress: StudentTaskProgress, now):
+    changed = []
+    if progress.attempts_failed >= 2 and not progress.hint1_unlocked_at:
+        progress.hint1_unlocked_at = now
+        changed.append("hint1_unlocked_at")
+    if progress.attempts_failed >= 3 and not progress.hint2_unlocked_at:
+        progress.hint2_unlocked_at = now
+        changed.append("hint2_unlocked_at")
+    return changed
+
+
 def _get_task_fragments(task: SessionTask):
-    """
-    Returns (top_fragment, bottom_fragment) as strings.
-    If multiple fragments exist per position -> concatenates them in creation order.
-    """
     frags = list(
-        TaskCodeFragment.objects
-        .filter(task=task, is_active=True)
+        TaskCodeFragment.objects.filter(task=task, is_active=True)
         .order_by("position", "id")
         .values("position", "code")
     )
@@ -89,10 +175,6 @@ def _get_task_fragments(task: SessionTask):
 
 
 def _join_code(top_block: str, user_code: str, bottom_block: str) -> str:
-    """
-    Final code = top + user + bottom.
-    Ensures clean newlines between blocks.
-    """
     parts = []
     if top_block.strip():
         parts.append(top_block.rstrip() + "\n")
@@ -102,8 +184,100 @@ def _join_code(top_block: str, user_code: str, bottom_block: str) -> str:
     return "".join(parts)
 
 
+def _inc_hint_counter(progress: StudentTaskProgress, level: int) -> None:
+    ActivityAggregate.objects.get_or_create(progress=progress)
+    if level == 1:
+        ActivityAggregate.objects.filter(progress=progress).update(hint1_requests=F("hint1_requests") + 1)
+    else:
+        ActivityAggregate.objects.filter(progress=progress).update(hint2_requests=F("hint2_requests") + 1)
+
+
+def _serialize_class_group(class_group: ClassGroup):
+    students = list(
+        Student.objects.filter(class_group=class_group, is_active=True)
+        .order_by("full_name")
+        .values("id", "full_name")
+    )
+    return {
+        "id": class_group.id,
+        "name": class_group.name,
+        "student_count": len(students),
+        "students": students,
+    }
+
+
+def _serialize_student(student: Student):
+    return {
+        "id": student.id,
+        "full_name": student.full_name,
+        "class": {
+            "id": student.class_group_id,
+            "name": student.class_group.name if student.class_group_id else "",
+        },
+        "is_active": student.is_active,
+        "created_at": student.created_at.isoformat() if getattr(student, "created_at", None) else None,
+    }
+
+
+def _serialize_session(session: Session):
+    class_links = list(
+        SessionClass.objects.filter(session=session)
+        .select_related("class_group")
+        .order_by("class_group__name")
+    )
+    return {
+        "id": session.id,
+        "title": session.title,
+        "description": session.description or "",
+        "status": session.status,
+        "starts_at": session.starts_at.isoformat() if session.starts_at else None,
+        "ends_at": session.ends_at.isoformat() if session.ends_at else None,
+        "created_at": session.created_at.isoformat() if getattr(session, "created_at", None) else None,
+        "class_group_ids": [x.class_group_id for x in class_links],
+        "class_groups": [{"id": x.class_group_id, "name": x.class_group.name} for x in class_links],
+        "tasks_count": SessionTask.objects.filter(session=session).count(),
+        "student_sessions_count": StudentSession.objects.filter(session=session).count(),
+        "is_active_now": session.is_active_now(),
+    }
+
+
+def _serialize_task(task: SessionTask):
+    return {
+        "id": task.id,
+        "session_id": task.session_id,
+        "position": task.position,
+        "title": task.title,
+        "statement": task.statement or "",
+        "constraints": task.constraints or "",
+        "created_at": task.created_at.isoformat() if getattr(task, "created_at", None) else None,
+    }
+
+
+def _serialize_testcase(tc: TaskTestCase):
+    return {
+        "id": tc.id,
+        "task_id": tc.task_id,
+        "ordinal": tc.ordinal,
+        "stdin": tc.stdin or "",
+        "expected_stdout": tc.expected_stdout or "",
+        "is_visible": tc.is_visible,
+    }
+
+
+def _serialize_fragment(frag: TaskCodeFragment):
+    return {
+        "id": frag.id,
+        "task_id": frag.task_id,
+        "position": frag.position,
+        "title": frag.title or "",
+        "code": frag.code or "",
+        "is_active": frag.is_active,
+        "created_at": frag.created_at.isoformat() if getattr(frag, "created_at", None) else None,
+    }
+
+
 # -------------------------
-# AUTH API
+# Student auth API
 # -------------------------
 
 @csrf_exempt
@@ -150,8 +324,9 @@ def student_logout(request: HttpRequest):
     return JsonResponse({"ok": True})
 
 
+@require_GET
 def student_me(request: HttpRequest):
-    student_id = request.session.get("student_id")
+    student_id = _student_id(request)
     if not student_id:
         return JsonResponse({"ok": False, "error": "not authenticated"}, status=401)
 
@@ -175,11 +350,12 @@ def student_me(request: HttpRequest):
 
 
 # -------------------------
-# STUDENT SESSION API
+# Student session/task API
 # -------------------------
 
+@require_GET
 def student_active_session(request: HttpRequest):
-    student_id = _require_student(request)
+    student_id = _student_id(request)
     if not student_id:
         return JsonResponse({"ok": False, "error": "not authenticated"}, status=401)
 
@@ -187,29 +363,15 @@ def student_active_session(request: HttpRequest):
     if not class_id:
         return JsonResponse({"ok": False, "error": "invalid session"}, status=401)
 
-    now = timezone.now()
-    session = (
-        Session.objects.filter(status=Session.Status.RUNNING, allowed_classes__id=class_id)
-        .distinct()
-        .order_by("-starts_at", "-created_at")
-        .first()
-    )
-    if not session or not session.is_active_now():
+    session = _get_active_session_for_class(class_id)
+    if not session:
         return JsonResponse({"ok": True, "active": False, "message": "Current session is inactive"}, status=200)
 
-    ss, created = StudentSession.objects.get_or_create(
-        student_id=student_id,
-        session=session,
-        defaults={"started_at": now, "last_seen_at": now},
-    )
-    if not created:
-        ss.last_seen_at = now
-        ss.save(update_fields=["last_seen_at"])
+    ss, _ = _get_or_create_student_session(student_id, session)
 
     tasks = list(
         SessionTask.objects.filter(session=session).order_by("position").values("id", "position", "title")
     )
-
     progress_qs = StudentTaskProgress.objects.filter(student_session=ss).values(
         "task_id", "status", "attempts_total", "attempts_failed"
     )
@@ -218,30 +380,30 @@ def student_active_session(request: HttpRequest):
     tasks_out = []
     for t in tasks:
         p = progress_map.get(t["id"])
-        tasks_out.append({
-            "id": t["id"],
-            "position": t["position"],
-            "title": t["title"],
-            "progress": p or {"status": "not_started", "attempts_total": 0, "attempts_failed": 0},
-        })
+        tasks_out.append(
+            {
+                "id": t["id"],
+                "position": t["position"],
+                "title": t["title"],
+                "progress": p or {"status": "not_started", "attempts_total": 0, "attempts_failed": 0},
+            }
+        )
 
-    return JsonResponse({
-        "ok": True,
-        "active": True,
-        "session": {
-            "id": session.id,
-            "title": session.title,
-            "description": session.description,
-            "starts_at": session.starts_at.isoformat() if session.starts_at else None,
-            "ends_at": session.ends_at.isoformat() if session.ends_at else None,
-        },
-        "tasks": tasks_out
-    })
+    return JsonResponse(
+        {
+            "ok": True,
+            "active": True,
+            "session": {
+                "id": session.id,
+                "title": session.title,
+                "description": session.description,
+                "starts_at": session.starts_at.isoformat() if session.starts_at else None,
+                "ends_at": session.ends_at.isoformat() if session.ends_at else None,
+            },
+            "tasks": tasks_out,
+        }
+    )
 
-
-# -------------------------
-# TASK DETAIL API (includes read-only code fragments)
-# -------------------------
 
 @require_GET
 def student_task_detail(request: HttpRequest, task_id: int):
@@ -254,70 +416,42 @@ def student_task_detail(request: HttpRequest, task_id: int):
         return JsonResponse({"ok": True, "active": False, "message": "Current session is inactive"}, status=200)
 
     task = get_object_or_404(SessionTask, id=task_id, session=session)
-
-    now = timezone.now()
-    ss, _ = StudentSession.objects.get_or_create(
-        student_id=student_id,
-        session=session,
-        defaults={"started_at": now, "last_seen_at": now},
-    )
-    StudentSession.objects.filter(id=ss.id).update(last_seen_at=now)
-
-    progress, created = StudentTaskProgress.objects.get_or_create(
-        student_session=ss,
-        task=task,
-        defaults={"status": StudentTaskProgress.Status.IN_PROGRESS, "opened_at": now},
-    )
-    if not created:
-        if not progress.opened_at:
-            progress.opened_at = now
-        if progress.status == StudentTaskProgress.Status.NOT_STARTED:
-            progress.status = StudentTaskProgress.Status.IN_PROGRESS
-        progress.save(update_fields=["opened_at", "status"])
+    ss, now = _get_or_create_student_session(student_id, session)
+    progress = _get_or_create_progress(ss, task, now)
 
     if progress.status == StudentTaskProgress.Status.SOLVED and progress.locked_after_solve:
-        return JsonResponse(
-            {"ok": True, "locked": True, "message": "Task already solved and locked"},
-            status=200
-        )
+        return JsonResponse({"ok": True, "locked": True, "message": "Task already solved and locked"}, status=200)
 
     visible_tests = list(
         TaskTestCase.objects.filter(task=task, is_visible=True)
         .order_by("ordinal")
         .values("ordinal", "stdin", "expected_stdout")
     )
-
     top_frag, bottom_frag = _get_task_fragments(task)
 
-    return JsonResponse({
-        "ok": True,
-        "locked": False,
-        "task": {
-            "id": task.id,
-            "position": task.position,
-            "title": task.title,
-            "statement": task.statement,
-            "constraints": task.constraints,
-        },
-        "progress": {
-            "status": progress.status,
-            "attempts_total": progress.attempts_total,
-            "attempts_failed": progress.attempts_failed,
-            "hint1_available": bool(progress.hint1_unlocked_at),
-            "hint2_available": bool(progress.hint2_unlocked_at),
-        },
-        "visible_testcases": visible_tests,
-        # NEW: read-only fragments for UI
-        "code_fragments": {
-            "top": top_frag,
-            "bottom": bottom_frag
+    return JsonResponse(
+        {
+            "ok": True,
+            "locked": False,
+            "task": {
+                "id": task.id,
+                "position": task.position,
+                "title": task.title,
+                "statement": task.statement,
+                "constraints": task.constraints,
+            },
+            "progress": {
+                "status": progress.status,
+                "attempts_total": progress.attempts_total,
+                "attempts_failed": progress.attempts_failed,
+                "hint1_available": bool(progress.hint1_unlocked_at),
+                "hint2_available": bool(progress.hint2_unlocked_at),
+            },
+            "visible_testcases": visible_tests,
+            "code_fragments": {"top": top_frag, "bottom": bottom_frag},
         }
-    })
+    )
 
-
-# -------------------------
-# SUBMIT API (prepends/appends read-only fragments before sending to Judge0)
-# -------------------------
 
 @csrf_exempt
 @require_POST
@@ -331,91 +465,147 @@ def student_submit(request: HttpRequest, task_id: int):
         return JsonResponse({"ok": True, "active": False, "message": "Current session is inactive"}, status=200)
 
     task = get_object_or_404(SessionTask, id=task_id, session=session)
-
     data = _json_body(request)
     user_code = (data.get("code") or "").rstrip()
     if not user_code:
         return JsonResponse({"ok": False, "error": "code is required"}, status=400)
 
-    now = timezone.now()
-
-    ss, _ = StudentSession.objects.get_or_create(
-        student_id=student_id,
-        session=session,
-        defaults={"started_at": now, "last_seen_at": now},
-    )
-    StudentSession.objects.filter(id=ss.id).update(last_seen_at=now)
-
-    progress, _ = StudentTaskProgress.objects.get_or_create(
-        student_session=ss,
-        task=task,
-        defaults={"status": StudentTaskProgress.Status.IN_PROGRESS, "opened_at": now},
-    )
+    ss, now = _get_or_create_student_session(student_id, session)
+    progress = _get_or_create_progress(ss, task, now)
 
     if progress.status == StudentTaskProgress.Status.SOLVED and progress.locked_after_solve:
         return JsonResponse({"ok": True, "locked": True, "message": "Task already solved"}, status=200)
 
-    # cooldown 15 sec
-    if getattr(progress, "last_submit_at", None):
+    if progress.last_submit_at:
         delta = (now - progress.last_submit_at).total_seconds()
-        if delta < 10:
-            return JsonResponse({"ok": False, "error": f"Too frequent submits. Wait {int(15 - delta)}s"}, status=429)
+        if delta < SUBMIT_COOLDOWN_SECONDS:
+            wait_seconds = max(1, int(SUBMIT_COOLDOWN_SECONDS - delta))
+            return JsonResponse({"ok": False, "error": f"Too frequent submits. Wait {wait_seconds}s"}, status=429)
 
-    # unchanged code check based on USER code (not including fragments)
     code_hash = hashlib.sha256(user_code.encode("utf-8")).hexdigest()
-    if getattr(progress, "last_code_hash", "") and progress.last_code_hash == code_hash:
+    if progress.last_code_hash and progress.last_code_hash == code_hash:
         return JsonResponse({"ok": False, "error": "No changes in code since last submit"}, status=400)
 
-    progress.attempts_total += 1
-    attempt_no = progress.attempts_total
-
     testcases = list(
-        TaskTestCase.objects.filter(task=task).order_by("ordinal")
-        .values("ordinal", "stdin", "expected_stdout")
+        TaskTestCase.objects.filter(task=task).order_by("ordinal").values("ordinal", "stdin", "expected_stdout")
     )
     if not testcases:
         return JsonResponse({"ok": False, "error": "No testcases configured for this task"}, status=500)
 
-    # NEW: merge read-only fragments with student code before sending to judge
+    progress.attempts_total += 1
+    attempt_no = progress.attempts_total
+
     top_frag, bottom_frag = _get_task_fragments(task)
     final_code = _join_code(top_frag, user_code, bottom_frag)
 
     try:
-        tokens = create_batch_submissions(final_code, testcases)  # <-- use final_code
+        tokens = create_batch_submissions(final_code, testcases)
         results = wait_batch(tokens, timeout_sec=30, poll_interval=0.9)
     except Exception as e:
-        verdict = Submission.Verdict.RUNTIME_ERROR
-        stdout_last = ""
-        stderr_last = f"Judge0 error: {type(e).__name__}: {e}"
-        passed_tests = 0
-        total_tests = len(testcases)
-
         progress.last_submit_at = now
         progress.last_code_hash = code_hash
         progress.attempts_failed += 1
-
-        if progress.attempts_failed == 2 and not progress.hint1_unlocked_at:
-            progress.hint1_unlocked_at = now
-        if progress.attempts_failed == 3 and not progress.hint2_unlocked_at:
-            progress.hint2_unlocked_at = now
-
-        progress.save(update_fields=[
-            "attempts_total", "attempts_failed", "hint1_unlocked_at", "hint2_unlocked_at",
-            "last_submit_at", "last_code_hash"
-        ])
+        changed = [
+            "attempts_total",
+            "attempts_failed",
+            "last_submit_at",
+            "last_code_hash",
+        ]
+        changed += _unlock_hints_if_needed(progress, now)
+        progress.save(update_fields=changed)
 
         sub = Submission.objects.create(
             progress=progress,
             attempt_no=attempt_no,
-            code=user_code,  # store only student-written code
-            verdict=verdict,
-            stdout=stdout_last,
-            stderr=stderr_last,
-            passed_tests=passed_tests,
-            total_tests=total_tests,
+            code=user_code,
+            verdict=Submission.Verdict.RUNTIME_ERROR,
+            stdout="",
+            stderr=f"Judge0 error: {type(e).__name__}: {e}",
+            passed_tests=0,
+            total_tests=len(testcases),
+        )
+        return JsonResponse(
+            {
+                "ok": True,
+                "submission": {
+                    "id": sub.id,
+                    "attempt_no": sub.attempt_no,
+                    "verdict": sub.verdict,
+                    "stdout": sub.stdout,
+                    "stderr": sub.stderr,
+                    "passed_tests": sub.passed_tests,
+                    "total_tests": sub.total_tests,
+                },
+                "progress": {
+                    "status": progress.status,
+                    "attempts_total": progress.attempts_total,
+                    "attempts_failed": progress.attempts_failed,
+                    "hint1_available": bool(progress.hint1_unlocked_at),
+                    "hint2_available": bool(progress.hint2_unlocked_at),
+                },
+            }
         )
 
-        return JsonResponse({
+    passed = 0
+    stdout_last = ""
+    stderr_last = ""
+    verdict = Submission.Verdict.WRONG_ANSWER
+
+    for r in results:
+        stdout_last = getattr(r, "stdout", "") or ""
+        stderr_last = getattr(r, "stderr", "") or getattr(r, "compile_output", "") or getattr(r, "message", "") or ""
+        status_id = getattr(r, "status_id", None)
+
+        if status_id == 3:
+            passed += 1
+            continue
+        if status_id == 4:
+            verdict = Submission.Verdict.WRONG_ANSWER
+            break
+        if status_id == 5:
+            verdict = Submission.Verdict.TIME_LIMIT
+            break
+        if status_id == 6:
+            verdict = Submission.Verdict.COMPILATION_ERROR
+            break
+        if status_id and status_id >= 7:
+            verdict = Submission.Verdict.RUNTIME_ERROR
+            break
+        verdict = Submission.Verdict.RUNTIME_ERROR
+        break
+
+    if passed == len(results):
+        verdict = Submission.Verdict.ACCEPTED
+
+    progress.last_submit_at = now
+    progress.last_code_hash = code_hash
+    changed = ["attempts_total", "last_submit_at", "last_code_hash"]
+
+    if verdict == Submission.Verdict.ACCEPTED:
+        progress.status = StudentTaskProgress.Status.SOLVED
+        progress.solved_at = now
+        progress.locked_after_solve = True
+        changed += ["status", "solved_at", "locked_after_solve"]
+    else:
+        progress.attempts_failed += 1
+        changed.append("attempts_failed")
+        changed += _unlock_hints_if_needed(progress, now)
+
+    progress.save(update_fields=changed)
+
+    sub = Submission.objects.create(
+        progress=progress,
+        attempt_no=attempt_no,
+        code=user_code,
+        verdict=verdict,
+        stdout=stdout_last,
+        stderr=stderr_last,
+        passed_tests=passed,
+        total_tests=len(results),
+    )
+
+    return JsonResponse(
+        {
             "ok": True,
             "submission": {
                 "id": sub.id,
@@ -432,159 +622,16 @@ def student_submit(request: HttpRequest, task_id: int):
                 "attempts_failed": progress.attempts_failed,
                 "hint1_available": bool(progress.hint1_unlocked_at),
                 "hint2_available": bool(progress.hint2_unlocked_at),
-            }
-        })
-
-    passed = 0
-    stdout_last = ""
-    stderr_last = ""
-    verdict = Submission.Verdict.WRONG_ANSWER
-
-    for r in results:
-        stdout_last = r.stdout
-        stderr_last = r.stderr or r.compile_output or r.message
-
-        if r.status_id == 3:
-            passed += 1
-            continue
-        if r.status_id == 4:
-            verdict = Submission.Verdict.WRONG_ANSWER
-            break
-        if r.status_id == 5:
-            verdict = Submission.Verdict.TIME_LIMIT
-            break
-        if r.status_id == 6:
-            verdict = Submission.Verdict.COMPILATION_ERROR
-            break
-        if r.status_id >= 7:
-            verdict = Submission.Verdict.RUNTIME_ERROR
-            break
-
-        verdict = Submission.Verdict.RUNTIME_ERROR
-        break
-
-    if passed == len(results):
-        verdict = Submission.Verdict.ACCEPTED
-
-    total_tests = len(results)
-    passed_tests = passed
-
-    progress.last_submit_at = now
-    progress.last_code_hash = code_hash
-
-    if verdict == Submission.Verdict.ACCEPTED:
-        progress.status = StudentTaskProgress.Status.SOLVED
-        progress.solved_at = now
-        progress.locked_after_solve = True
-    else:
-        progress.attempts_failed += 1
-        if progress.attempts_failed == 2 and not progress.hint1_unlocked_at:
-            progress.hint1_unlocked_at = now
-        if progress.attempts_failed == 3 and not progress.hint2_unlocked_at:
-            progress.hint2_unlocked_at = now
-
-    progress.save(update_fields=[
-        "attempts_total", "attempts_failed", "status", "solved_at", "locked_after_solve",
-        "hint1_unlocked_at", "hint2_unlocked_at",
-        "last_submit_at", "last_code_hash"
-    ])
-
-    sub = Submission.objects.create(
-        progress=progress,
-        attempt_no=attempt_no,
-        code=user_code,  # store only student-written code
-        verdict=verdict,
-        stdout=stdout_last,
-        stderr=stderr_last,
-        passed_tests=passed_tests,
-        total_tests=total_tests,
-    )
-
-    return JsonResponse({
-        "ok": True,
-        "submission": {
-            "id": sub.id,
-            "attempt_no": sub.attempt_no,
-            "verdict": sub.verdict,
-            "stdout": sub.stdout,
-            "stderr": sub.stderr,
-            "passed_tests": sub.passed_tests,
-            "total_tests": sub.total_tests,
-        },
-        "progress": {
-            "status": progress.status,
-            "attempts_total": progress.attempts_total,
-            "attempts_failed": progress.attempts_failed,
-            "hint1_available": bool(progress.hint1_unlocked_at),
-            "hint2_available": bool(progress.hint2_unlocked_at),
+            },
         }
-    })
-
-
-# -------------------------
-# HTML pages
-# -------------------------
-
-@require_http_methods(["GET", "POST"])
-def student_login_page(request: HttpRequest):
-    if request.method == "GET":
-        return render(request, "core/student_login.html")
-
-    full_name = (request.POST.get("full_name") or "").strip()
-    pin = (request.POST.get("pin") or "").strip()
-
-    if not full_name or not pin or not pin.isdigit() or len(pin) != 6:
-        return render(request, "core/student_login.html", {"error": "Enter name and PIN (6 digits)."})
-
-    student = (
-        Student.objects.select_related("class_group")
-        .filter(full_name__iexact=full_name, is_active=True)
-        .first()
     )
-    if not student or not student.check_pin(pin):
-        return render(request, "core/student_login.html", {"error": "Invalid name or PIN."})
-
-    request.session["student_id"] = student.id
-    request.session["student_name"] = student.full_name
-    request.session["student_class_id"] = student.class_group_id
-    request.session["student_logged_in_at"] = timezone.now().isoformat()
-
-    return redirect("/student/")
 
 
-def student_portal_page(request: HttpRequest):
-    if not request.session.get("student_id"):
-        return redirect("/student/login/")
-    return render(request, "core/student_portal.html")
-
-
-@require_POST
-def student_logout_page(request: HttpRequest):
-    request.session.flush()
-    return redirect("/student/login/")
-
-
-# -------------------------
-# Hints counters + hint endpoint (unchanged logic; uses OpenAI)
-# -------------------------
-
-def _inc_hint_counter(progress: StudentTaskProgress, level: int) -> None:
-    ActivityAggregate.objects.get_or_create(progress=progress)
-    if level == 1:
-        ActivityAggregate.objects.filter(progress=progress).update(
-            hint1_requests=F("hint1_requests") + 1
-        )
-    else:
-        ActivityAggregate.objects.filter(progress=progress).update(
-            hint2_requests=F("hint2_requests") + 1
-        )
-
-
+@require_GET
 def student_hint_level(request: HttpRequest, task_id: int, level: int):
     student_id, class_id = _get_student_from_session(request)
     if not student_id:
         return JsonResponse({"ok": False, "error": "not authenticated"}, status=401)
-
     if level not in (1, 2):
         return JsonResponse({"ok": False, "error": "invalid level"}, status=400)
 
@@ -593,20 +640,8 @@ def student_hint_level(request: HttpRequest, task_id: int, level: int):
         return JsonResponse({"ok": True, "active": False, "message": "Current session is inactive"}, status=200)
 
     task = get_object_or_404(SessionTask, id=task_id, session=session)
-
-    now = timezone.now()
-    ss, _ = StudentSession.objects.get_or_create(
-        student_id=student_id,
-        session=session,
-        defaults={"started_at": now, "last_seen_at": now},
-    )
-    StudentSession.objects.filter(id=ss.id).update(last_seen_at=now)
-
-    progress, _ = StudentTaskProgress.objects.get_or_create(
-        student_session=ss,
-        task=task,
-        defaults={"status": StudentTaskProgress.Status.IN_PROGRESS, "opened_at": now},
-    )
+    ss, now = _get_or_create_student_session(student_id, session)
+    progress = _get_or_create_progress(ss, task, now)
 
     if level == 1 and progress.attempts_failed < 2:
         return JsonResponse({"ok": False, "error": "hint level 1 not available yet"}, status=403)
@@ -616,14 +651,12 @@ def student_hint_level(request: HttpRequest, task_id: int, level: int):
     if level == 1 and progress.hint1_text:
         _inc_hint_counter(progress, 1)
         return JsonResponse({"ok": True, "level": 1, "text": progress.hint1_text})
-
     if level == 2 and progress.hint2_text:
         _inc_hint_counter(progress, 2)
         return JsonResponse({"ok": True, "level": 2, "text": progress.hint2_text})
 
     cached = (
-        AiAssistMessage.objects
-        .filter(progress=progress, level=level, status=AiAssistMessage.Status.OK)
+        AiAssistMessage.objects.filter(progress=progress, level=level, status=AiAssistMessage.Status.OK)
         .order_by("-created_at")
         .first()
     )
@@ -634,21 +667,13 @@ def student_hint_level(request: HttpRequest, task_id: int, level: int):
         else:
             progress.hint2_text = cached.response_text
             progress.save(update_fields=["hint2_text"])
-
         _inc_hint_counter(progress, level)
         return JsonResponse({"ok": True, "level": level, "text": cached.response_text})
 
     visible_tests = list(
-        TaskTestCase.objects.filter(task=task, is_visible=True)
-        .order_by("ordinal")
-        .values("stdin", "expected_stdout")
+        TaskTestCase.objects.filter(task=task, is_visible=True).order_by("ordinal").values("stdin", "expected_stdout")
     )
-    last_sub = (
-        Submission.objects
-        .filter(progress=progress)
-        .order_by("-attempt_no")
-        .first()
-    )
+    last_sub = Submission.objects.filter(progress=progress).order_by("-attempt_no").first()
     last_subs = list(Submission.objects.filter(progress=progress).order_by("attempt_no")[:50])
 
     prompt_snapshot = build_prompt_snapshot(
@@ -672,7 +697,6 @@ def student_hint_level(request: HttpRequest, task_id: int, level: int):
         out = call_openai_hint(level, prompt_snapshot)
         if out is None or not isinstance(out, dict):
             raise RuntimeError("call_openai_hint returned invalid response")
-
         data = out.get("data")
         if data is None or not isinstance(data, dict):
             raise RuntimeError("OpenAI response missing 'data'")
@@ -680,7 +704,6 @@ def student_hint_level(request: HttpRequest, task_id: int, level: int):
         text = (data.get("text") or "").strip()
         if not text:
             raise RuntimeError("Empty AI response text")
-
         text = sanitize_no_code(text)
 
         msg.response_text = text
@@ -700,12 +723,53 @@ def student_hint_level(request: HttpRequest, task_id: int, level: int):
 
         _inc_hint_counter(progress, level)
         return JsonResponse({"ok": True, "level": level, "text": text})
-
     except Exception as e:
         msg.status = AiAssistMessage.Status.ERROR
         msg.error_message = f"{type(e).__name__}: {e}"
         msg.save(update_fields=["status", "error_message"])
         return JsonResponse({"ok": False, "error": "AI assistant temporarily unavailable"}, status=502)
+
+
+# -------------------------
+# Student pages
+# -------------------------
+
+@require_http_methods(["GET", "POST"])
+def student_login_page(request: HttpRequest):
+    if request.method == "GET":
+        return render(request, "core/student_login.html")
+
+    full_name = (request.POST.get("full_name") or "").strip()
+    pin = (request.POST.get("pin") or "").strip()
+
+    if not full_name or not pin or not PIN_RE.match(pin):
+        return render(request, "core/student_login.html", {"error": "Enter name and PIN (6 digits)."})
+
+    student = (
+        Student.objects.select_related("class_group")
+        .filter(full_name__iexact=full_name, is_active=True)
+        .first()
+    )
+    if not student or not student.check_pin(pin):
+        return render(request, "core/student_login.html", {"error": "Invalid name or PIN."})
+
+    request.session["student_id"] = student.id
+    request.session["student_name"] = student.full_name
+    request.session["student_class_id"] = student.class_group_id
+    request.session["student_logged_in_at"] = timezone.now().isoformat()
+    return redirect("/student/")
+
+
+def student_portal_page(request: HttpRequest):
+    if not _student_id(request):
+        return redirect("/student/login/")
+    return render(request, "core/student_portal.html")
+
+
+@require_POST
+def student_logout_page(request: HttpRequest):
+    request.session.flush()
+    return redirect("/student/login/")
 
 
 # -------------------------
@@ -732,7 +796,6 @@ def admin_stats_dashboard(request: HttpRequest) -> HttpResponse:
 
     classes = ClassGroup.objects.all().order_by("name")
     students_qs = Student.objects.filter(is_active=True).select_related("class_group").order_by("class_group__name", "full_name")
-
     if class_id.isdigit():
         students_qs = students_qs.filter(class_group_id=int(class_id))
 
@@ -742,25 +805,24 @@ def admin_stats_dashboard(request: HttpRequest) -> HttpResponse:
 
     per_session = (
         sub_qs.values("progress__student_session__session_id", "progress__student_session__session__title")
-        .annotate(
-            total_sub=Count("id"),
-            accepted=Count("id", filter=Q(verdict=Submission.Verdict.ACCEPTED)),
-        )
+        .annotate(total_sub=Count("id"), accepted=Count("id", filter=Q(verdict=Submission.Verdict.ACCEPTED)))
         .order_by("progress__student_session__session_id")
     )
 
     agg_qs = ActivityAggregate.objects.select_related(
-        "progress__student_session__session",
-        "progress__student_session__student",
+        "progress__student_session__session", "progress__student_session__student"
     )
     if class_id.isdigit():
         agg_qs = agg_qs.filter(progress__student_session__student__class_group_id=int(class_id))
 
     per_session_hints = (
         agg_qs.values("progress__student_session__session_id")
-        .annotate(hint_req=Sum(F("hint1_requests") + F("hint2_requests")))
+        .annotate(hint1_sum=Sum("hint1_requests"), hint2_sum=Sum("hint2_requests"))
     )
-    hints_map = {x["progress__student_session__session_id"]: (x["hint_req"] or 0) for x in per_session_hints}
+    hints_map = {
+        x["progress__student_session__session_id"]: (x.get("hint1_sum") or 0) + (x.get("hint2_sum") or 0)
+        for x in per_session_hints
+    }
 
     labels, totals, accepted, hints = [], [], [], []
     for row in per_session:
@@ -788,35 +850,36 @@ def admin_stats_dashboard(request: HttpRequest) -> HttpResponse:
 
     sub_per_student = (
         sub_qs.values("progress__student_session__student_id")
-        .annotate(
-            total_sub=Count("id"),
-            accepted=Count("id", filter=Q(verdict=Submission.Verdict.ACCEPTED)),
-        )
+        .annotate(total_sub=Count("id"), accepted=Count("id", filter=Q(verdict=Submission.Verdict.ACCEPTED)))
     )
     sub_map = {x["progress__student_session__student_id"]: (x["total_sub"] or 0, x["accepted"] or 0) for x in sub_per_student}
 
     hints_per_student = (
         agg_qs.values("progress__student_session__student_id")
-        .annotate(hint_req=Sum(F("hint1_requests") + F("hint2_requests")))
+        .annotate(hint1_sum=Sum("hint1_requests"), hint2_sum=Sum("hint2_requests"))
     )
-    hints_student_map = {x["progress__student_session__student_id"]: (x["hint_req"] or 0) for x in hints_per_student}
+    hints_student_map = {
+        x["progress__student_session__student_id"]: (x.get("hint1_sum") or 0) + (x.get("hint2_sum") or 0)
+        for x in hints_per_student
+    }
 
     student_cards = []
     for st in students_qs:
         sc = sessions_count_map.get(st.id, 0) or 0
         total_s, acc_s = sub_map.get(st.id, (0, 0))
         hint_s = hints_student_map.get(st.id, 0)
-
         denom = sc if sc > 0 else 1
-        student_cards.append({
-            "id": st.id,
-            "name": st.full_name,
-            "class_name": st.class_group.name if st.class_group_id else "—",
-            "sessions_count": sc,
-            "avg_total": round(total_s / denom, 2),
-            "avg_accepted": round(acc_s / denom, 2),
-            "avg_hints": round(hint_s / denom, 2),
-        })
+        student_cards.append(
+            {
+                "id": st.id,
+                "name": st.full_name,
+                "class_name": st.class_group.name if st.class_group_id else "—",
+                "sessions_count": sc,
+                "avg_total": round(total_s / denom, 2),
+                "avg_accepted": round(acc_s / denom, 2),
+                "avg_hints": round(hint_s / denom, 2),
+            }
+        )
 
     context = {
         "classes": classes,
@@ -842,10 +905,7 @@ def admin_student_profile(request: HttpRequest, student_id: int) -> HttpResponse
     sub_qs = Submission.objects.filter(progress__student_session__student=student)
     per_session = (
         sub_qs.values("progress__student_session__session_id", "progress__student_session__session__title")
-        .annotate(
-            total_sub=Count("id"),
-            accepted=Count("id", filter=Q(verdict=Submission.Verdict.ACCEPTED)),
-        )
+        .annotate(total_sub=Count("id"), accepted=Count("id", filter=Q(verdict=Submission.Verdict.ACCEPTED)))
     )
     per_map = {x["progress__student_session__session_id"]: x for x in per_session}
 
@@ -857,35 +917,26 @@ def admin_student_profile(request: HttpRequest, student_id: int) -> HttpResponse
         t = int(x.get("total_sub") or 0)
         a = int(x.get("accepted") or 0)
         rate = (a / t) if t > 0 else 0.0
-
         labels.append(title)
         rates.append(round(rate * 100, 2))
         totals.append(t)
         accepts.append(a)
 
     chart = {"labels": labels, "rates": rates, "totals": totals, "accepts": accepts}
-    return render(request, "core/admin_student_profile.html", {
-        "student": student,
-        "chart_json": json.dumps(chart, ensure_ascii=False),
-    })
+    return render(
+        request,
+        "core/admin_student_profile.html",
+        {"student": student, "chart_json": json.dumps(chart, ensure_ascii=False)},
+    )
 
-import re
-from django.views.decorators.http import require_POST, require_GET
-from django.views.decorators.csrf import csrf_exempt
-from django.http import JsonResponse, HttpRequest
-from django.utils import timezone
 
-from .models import Teacher
-
-TEACHER_PIN_RE = re.compile(r"^\d{6}$")
+# -------------------------
+# Teacher auth/pages
+# -------------------------
 
 @csrf_exempt
 @require_POST
 def teacher_login(request: HttpRequest):
-    """
-    POST /api/auth/teacher-login
-    body: {"full_name":"...", "pin":"123456"}
-    """
     data = _json_body(request)
     full_name = (data.get("full_name") or "").strip()
     pin = str(data.get("pin") or "").strip()
@@ -898,7 +949,6 @@ def teacher_login(request: HttpRequest):
     teacher = Teacher.objects.filter(full_name__iexact=full_name, is_active=True).first()
     if not teacher:
         return JsonResponse({"ok": False, "error": "teacher not found"}, status=404)
-
     if not teacher.check_pin(pin):
         return JsonResponse({"ok": False, "error": "invalid credentials"}, status=401)
 
@@ -908,36 +958,29 @@ def teacher_login(request: HttpRequest):
 
     return JsonResponse({"ok": True, "teacher": {"id": teacher.id, "full_name": teacher.full_name}})
 
+
 @csrf_exempt
 @require_POST
 def teacher_logout(request: HttpRequest):
-    """
-    POST /api/auth/teacher-logout
-    """
-    # очищаем только teacher-ключи, не трогая student (на всякий случай)
-    for k in ["teacher_id", "teacher_name", "teacher_logged_in_at"]:
-        request.session.pop(k, None)
+    for key in ["teacher_id", "teacher_name", "teacher_logged_in_at"]:
+        request.session.pop(key, None)
     return JsonResponse({"ok": True})
+
 
 @require_GET
 def teacher_me(request: HttpRequest):
-    """
-    GET /api/auth/teacher-me
-    """
-    teacher_id = request.session.get("teacher_id")
+    teacher_id = _teacher_id(request)
     if not teacher_id:
         return JsonResponse({"ok": False, "error": "not authenticated"}, status=401)
 
     teacher = Teacher.objects.filter(id=teacher_id, is_active=True).first()
     if not teacher:
-        for k in ["teacher_id", "teacher_name", "teacher_logged_in_at"]:
-            request.session.pop(k, None)
+        for key in ["teacher_id", "teacher_name", "teacher_logged_in_at"]:
+            request.session.pop(key, None)
         return JsonResponse({"ok": False, "error": "not authenticated"}, status=401)
 
     return JsonResponse({"ok": True, "teacher": {"id": teacher.id, "full_name": teacher.full_name}})
 
-from django.shortcuts import render, redirect
-from django.views.decorators.http import require_http_methods
 
 @require_http_methods(["GET", "POST"])
 def teacher_login_page(request: HttpRequest):
@@ -947,7 +990,7 @@ def teacher_login_page(request: HttpRequest):
     full_name = (request.POST.get("full_name") or "").strip()
     pin = (request.POST.get("pin") or "").strip()
 
-    if not full_name or not pin or not pin.isdigit() or len(pin) != 6:
+    if not full_name or not pin or not TEACHER_PIN_RE.match(pin):
         return render(request, "core/teacher_login.html", {"error": "Enter name and PIN (6 digits)."})
 
     teacher = Teacher.objects.filter(full_name__iexact=full_name, is_active=True).first()
@@ -957,81 +1000,68 @@ def teacher_login_page(request: HttpRequest):
     request.session["teacher_id"] = teacher.id
     request.session["teacher_name"] = teacher.full_name
     request.session["teacher_logged_in_at"] = timezone.now().isoformat()
-
     return redirect("/teacher/")
 
-def teacher_dashboard_page(request: HttpRequest):
-    if not request.session.get("teacher_id"):
-        return redirect("/teacher/login/")
-    return render(request, "core/teacher_dashboard.html")
 
-from functools import wraps
-from django.shortcuts import redirect
-
-def teacher_required(view_func):
-    @wraps(view_func)
-    def _wrapped(request, *args, **kwargs):
-        if not request.session.get("teacher_id"):
-            return redirect("/teacher/login/")
-        return view_func(request, *args, **kwargs)
-    return _wrapped
 @teacher_required
-def teacher_dashboard_page(request):
+def teacher_dashboard_page(request: HttpRequest):
     return render(request, "core/teacher/dashboard.html", {"active": "dashboard"})
 
+
 @teacher_required
-def teacher_sessions_page(request):
+def teacher_sessions_page(request: HttpRequest):
     return render(request, "core/teacher/sessions.html", {"active": "sessions"})
 
+
 @teacher_required
-def teacher_classes_page(request):
+def teacher_classes_page(request: HttpRequest):
     return render(request, "core/teacher/classes.html", {"active": "classes"})
 
+
 @teacher_required
-def teacher_students_page(request):
+def teacher_students_page(request: HttpRequest):
     return render(request, "core/teacher/students.html", {"active": "students"})
 
+
 @teacher_required
-def teacher_tasks_page(request):
+def teacher_tasks_page(request: HttpRequest):
     return render(request, "core/teacher/tasks.html", {"active": "tasks"})
 
-from django.http import HttpResponse
 
-def healthz(request):
+def healthz(request: HttpRequest):
     return HttpResponse("ok", content_type="text/plain")
-def _require_teacher_api(request: HttpRequest):
-    teacher_id = request.session.get("teacher_id")
-    if not teacher_id:
-        return None
-    return teacher_id
 
-from django.views.decorators.csrf import csrf_exempt
-from django.views.decorators.http import require_http_methods
+
+# -------------------------
+# Teacher classes API
+# -------------------------
 
 @csrf_exempt
 @require_http_methods(["GET", "POST"])
 def teacher_classes_api(request: HttpRequest):
-    if not request.session.get("teacher_id"):
-        return JsonResponse({"ok": False, "error": "not authenticated"}, status=401)
+    if not _get_logged_in_teacher(request):
+        return _teacher_api_unauthorized()
 
     if request.method == "GET":
-        items = list(ClassGroup.objects.all().order_by("name").values("id", "name"))
-        return JsonResponse({"ok": True, "classes": items})
+        classes = ClassGroup.objects.all().order_by("name")
+        return JsonResponse({"ok": True, "classes": [_serialize_class_group(c) for c in classes]})
 
     data = _json_body(request)
     name = (data.get("name") or "").strip()
     if not name:
         return JsonResponse({"ok": False, "error": "name is required"}, status=400)
+    if ClassGroup.objects.filter(name__iexact=name).exists():
+        return JsonResponse({"ok": False, "error": "class with this name already exists"}, status=409)
 
     obj = ClassGroup.objects.create(name=name)
-    return JsonResponse({"ok": True, "class": {"id": obj.id, "name": obj.name}})
+    return JsonResponse({"ok": True, "class": _serialize_class_group(obj)}, status=201)
 
 
 @csrf_exempt
 @require_http_methods(["PATCH", "DELETE"])
 def teacher_class_detail_api(request: HttpRequest, class_id: int):
-    if not request.session.get("teacher_id"):
-        return JsonResponse({"ok": False, "error": "not authenticated"}, status=401)
+    if not _get_logged_in_teacher(request):
+        return _teacher_api_unauthorized()
 
     obj = get_object_or_404(ClassGroup, id=class_id)
 
@@ -1040,48 +1070,36 @@ def teacher_class_detail_api(request: HttpRequest, class_id: int):
         name = (data.get("name") or "").strip()
         if not name:
             return JsonResponse({"ok": False, "error": "name is required"}, status=400)
+        if ClassGroup.objects.exclude(id=obj.id).filter(name__iexact=name).exists():
+            return JsonResponse({"ok": False, "error": "class with this name already exists"}, status=409)
         obj.name = name
         obj.save(update_fields=["name"])
-        return JsonResponse({"ok": True, "class": {"id": obj.id, "name": obj.name}})
+        return JsonResponse({"ok": True, "class": _serialize_class_group(obj)})
 
-    # DELETE
     if Student.objects.filter(class_group=obj).exists():
         return JsonResponse({"ok": False, "error": "cannot delete: class has students"}, status=409)
 
     obj.delete()
     return JsonResponse({"ok": True})
 
-# core/views.py
-from django.views.decorators.http import require_http_methods
-from django.views.decorators.csrf import csrf_exempt
+
+# -------------------------
+# Teacher students API
+# -------------------------
 
 @csrf_exempt
 @require_http_methods(["GET", "POST"])
 def teacher_students_api(request: HttpRequest):
-    if not request.session.get("teacher_id"):
-        return JsonResponse({"ok": False, "error": "not authenticated"}, status=401)
+    if not _get_logged_in_teacher(request):
+        return _teacher_api_unauthorized()
 
     if request.method == "GET":
         class_id = request.GET.get("class_id") or ""
         qs = Student.objects.select_related("class_group").order_by("class_group__name", "full_name")
         if class_id.isdigit():
             qs = qs.filter(class_group_id=int(class_id))
-        items = list(qs.values(
-            "id", "full_name", "class_group_id", "class_group__name", "is_active", "created_at"
-        ))
-        # нормализуем имя поля класса
-        out = []
-        for s in items:
-            out.append({
-                "id": s["id"],
-                "full_name": s["full_name"],
-                "class": {"id": s["class_group_id"], "name": s["class_group__name"]},
-                "is_active": s["is_active"],
-                "created_at": s["created_at"].isoformat() if s["created_at"] else None,
-            })
-        return JsonResponse({"ok": True, "students": out})
+        return JsonResponse({"ok": True, "students": [_serialize_student(s) for s in qs]})
 
-    # POST create
     data = _json_body(request)
     full_name = (data.get("full_name") or "").strip()
     pin = str(data.get("pin") or "").strip()
@@ -1089,39 +1107,38 @@ def teacher_students_api(request: HttpRequest):
 
     if not full_name:
         return JsonResponse({"ok": False, "error": "full_name is required"}, status=400)
-    if not (pin.isdigit() and len(pin) == 6):
+    if not PIN_RE.match(pin):
         return JsonResponse({"ok": False, "error": "pin must be 6 digits"}, status=400)
-    if not (isinstance(class_id, int) or (isinstance(class_id, str) and class_id.isdigit())):
+    if not (isinstance(class_id, int) or (isinstance(class_id, str) and str(class_id).isdigit())):
         return JsonResponse({"ok": False, "error": "class_id is required"}, status=400)
-
-    class_id = int(class_id)
-    cg = get_object_or_404(ClassGroup, id=class_id)
-
     if Student.objects.filter(full_name__iexact=full_name).exists():
         return JsonResponse({"ok": False, "error": "student with this name already exists"}, status=409)
 
+    cg = get_object_or_404(ClassGroup, id=int(class_id))
     st = Student(full_name=full_name, class_group=cg, is_active=True)
     st.set_pin(pin)
     st.save()
-
-    return JsonResponse({"ok": True, "student": {"id": st.id}})
+    return JsonResponse({"ok": True, "student": _serialize_student(st)}, status=201)
 
 
 @csrf_exempt
-@require_http_methods(["PATCH"])
+@require_http_methods(["PATCH", "DELETE"])
 def teacher_student_detail_api(request: HttpRequest, student_id: int):
-    if not request.session.get("teacher_id"):
-        return JsonResponse({"ok": False, "error": "not authenticated"}, status=401)
+    if not _get_logged_in_teacher(request):
+        return _teacher_api_unauthorized()
 
-    st = get_object_or_404(Student, id=student_id)
+    st = get_object_or_404(Student.objects.select_related("class_group"), id=student_id)
+
+    if request.method == "DELETE":
+        st.delete()
+        return JsonResponse({"ok": True})
 
     data = _json_body(request)
-    # allow changing class_id, is_active, full_name
+
     if "full_name" in data:
         name = (data.get("full_name") or "").strip()
         if not name:
             return JsonResponse({"ok": False, "error": "full_name cannot be empty"}, status=400)
-        # уникальность (у тебя имена уникальны)
         if Student.objects.exclude(id=st.id).filter(full_name__iexact=name).exists():
             return JsonResponse({"ok": False, "error": "student with this name already exists"}, status=409)
         st.full_name = name
@@ -1130,92 +1147,50 @@ def teacher_student_detail_api(request: HttpRequest, student_id: int):
         cid = data.get("class_id")
         if not (isinstance(cid, int) or (isinstance(cid, str) and str(cid).isdigit())):
             return JsonResponse({"ok": False, "error": "invalid class_id"}, status=400)
-        cg = get_object_or_404(ClassGroup, id=int(cid))
-        st.class_group = cg
+        st.class_group = get_object_or_404(ClassGroup, id=int(cid))
 
     if "is_active" in data:
         st.is_active = bool(data.get("is_active"))
 
     st.save()
-    return JsonResponse({"ok": True})
+    return JsonResponse({"ok": True, "student": _serialize_student(st)})
 
 
 @csrf_exempt
 @require_POST
 def teacher_student_reset_pin_api(request: HttpRequest, student_id: int):
-    if not request.session.get("teacher_id"):
-        return JsonResponse({"ok": False, "error": "not authenticated"}, status=401)
+    if not _get_logged_in_teacher(request):
+        return _teacher_api_unauthorized()
 
     st = get_object_or_404(Student, id=student_id)
-
     data = _json_body(request)
     pin = str(data.get("pin") or "").strip()
-    if not (pin.isdigit() and len(pin) == 6):
+    if not PIN_RE.match(pin):
         return JsonResponse({"ok": False, "error": "pin must be 6 digits"}, status=400)
 
     st.set_pin(pin)
     st.save(update_fields=["pin_hash"])
     return JsonResponse({"ok": True})
 
-from django.utils.dateparse import parse_datetime
-from django.views.decorators.http import require_http_methods
-from django.views.decorators.csrf import csrf_exempt
-from django.utils import timezone as dj_tz
 
-# убедись что импортированы модели:
-# Session, SessionClass, ClassGroup
-
-def _require_teacher_api(request: HttpRequest):
-    return request.session.get("teacher_id") or None
-
-
-def _parse_dt_or_none(value: str):
-    """
-    Принимаем ISO строки:
-    - "2026-03-23T12:00"
-    - "2026-03-23T12:00:00"
-    - "2026-03-23T12:00:00+05:00"
-    Возвращаем aware datetime (в текущем TZ), либо None.
-    """
-    s = (value or "").strip()
-    if not s:
-        return None
-
-    dt = parse_datetime(s)
-    if dt is None:
-        # иногда datetime-local приходит без секунд, parse_datetime обычно ок,
-        # но если вдруг нет — можно попробовать руками (не будем усложнять)
-        return None
-
-    if dj_tz.is_naive(dt):
-        dt = dj_tz.make_aware(dt, dj_tz.get_current_timezone())
-    return dt
-
+# -------------------------
+# Teacher sessions API
+# -------------------------
 
 @csrf_exempt
 @require_http_methods(["GET", "POST"])
 def teacher_sessions_api(request: HttpRequest):
-    """
-    GET  /api/teacher/sessions/
-    POST /api/teacher/sessions/ body: {title, description?, starts_at?, ends_at?, status?}
-    """
-    if not _require_teacher_api(request):
-        return JsonResponse({"ok": False, "error": "not authenticated"}, status=401)
+    if not _get_logged_in_teacher(request):
+        return _teacher_api_unauthorized()
 
     if request.method == "GET":
-        qs = Session.objects.all().order_by("-created_at")
-        out = []
-        for s in qs:
-            out.append({
-                "id": s.id,
-                "title": s.title,
-                "description": s.description or "",
-                "status": s.status,
-                "starts_at": s.starts_at.isoformat() if s.starts_at else None,
-                "ends_at": s.ends_at.isoformat() if s.ends_at else None,
-                "created_at": s.created_at.isoformat() if getattr(s, "created_at", None) else None,
-            })
-        return JsonResponse({"ok": True, "sessions": out})
+        sessions = Session.objects.all().order_by("-created_at")
+        available_classes = list(ClassGroup.objects.order_by("name").values("id", "name"))
+        return JsonResponse({
+            "ok": True,
+            "sessions": [_serialize_session(s) for s in sessions],
+            "available_classes": available_classes,
+        })
 
     data = _json_body(request)
     title = (data.get("title") or "").strip()
@@ -1223,30 +1198,58 @@ def teacher_sessions_api(request: HttpRequest):
         return JsonResponse({"ok": False, "error": "title is required"}, status=400)
 
     status = (data.get("status") or Session.Status.DRAFT).strip()
+    if status not in {Session.Status.DRAFT, Session.Status.RUNNING, Session.Status.STOPPED}:
+        return JsonResponse({"ok": False, "error": "invalid status"}, status=400)
+
     starts_at = _parse_dt_or_none(data.get("starts_at") or "")
     ends_at = _parse_dt_or_none(data.get("ends_at") or "")
-    description = data.get("description") or ""
+    if starts_at and ends_at and ends_at <= starts_at:
+        return JsonResponse({"ok": False, "error": "ends_at must be after starts_at"}, status=400)
 
-    s = Session.objects.create(
-        title=title,
-        description=description,
-        status=status,
-        starts_at=starts_at,
-        ends_at=ends_at,
-    )
-    return JsonResponse({"ok": True, "session": {"id": s.id}})
+    class_ids = data.get("class_group_ids") or []
+    if not isinstance(class_ids, list):
+        return JsonResponse({"ok": False, "error": "class_group_ids must be a list"}, status=400)
+
+    with transaction.atomic():
+        s = Session.objects.create(
+            title=title,
+            description=(data.get("description") or ""),
+            status=status,
+            starts_at=starts_at,
+            ends_at=ends_at,
+        )
+        clean_ids = []
+        for cid in class_ids:
+            try:
+                clean_ids.append(int(cid))
+            except (TypeError, ValueError):
+                return JsonResponse({"ok": False, "error": "class_group_ids must contain integers"}, status=400)
+        if clean_ids:
+            existing_ids = set(ClassGroup.objects.filter(id__in=clean_ids).values_list("id", flat=True))
+            missing = [cid for cid in clean_ids if cid not in existing_ids]
+            if missing:
+                return JsonResponse({"ok": False, "error": f"Some classes do not exist: {missing}"}, status=400)
+            SessionClass.objects.bulk_create([SessionClass(session=s, class_group_id=cid) for cid in clean_ids])
+
+    return JsonResponse({"ok": True, "session": _serialize_session(s)}, status=201)
 
 
 @csrf_exempt
-@require_http_methods(["PATCH"])
+@require_http_methods(["PATCH", "DELETE"])
 def teacher_session_detail_api(request: HttpRequest, session_id: int):
-    """
-    PATCH /api/teacher/sessions/<id>/ body: any of {title, description, starts_at, ends_at, status}
-    """
-    if not _require_teacher_api(request):
-        return JsonResponse({"ok": False, "error": "not authenticated"}, status=401)
+    if not _get_logged_in_teacher(request):
+        return _teacher_api_unauthorized()
 
     s = get_object_or_404(Session, id=session_id)
+
+    if request.method == "DELETE":
+        if SessionTask.objects.filter(session=s).exists():
+            return JsonResponse({"ok": False, "error": "cannot delete session with tasks"}, status=409)
+        if StudentSession.objects.filter(session=s).exists():
+            return JsonResponse({"ok": False, "error": "cannot delete session with student activity"}, status=409)
+        s.delete()
+        return JsonResponse({"ok": True})
+
     data = _json_body(request)
 
     if "title" in data:
@@ -1259,239 +1262,187 @@ def teacher_session_detail_api(request: HttpRequest, session_id: int):
         s.description = data.get("description") or ""
 
     if "starts_at" in data:
-        v = data.get("starts_at")
-        s.starts_at = _parse_dt_or_none(v) if v else None
+        s.starts_at = _parse_dt_or_none(data.get("starts_at") or "")
 
     if "ends_at" in data:
-        v = data.get("ends_at")
-        s.ends_at = _parse_dt_or_none(v) if v else None
+        s.ends_at = _parse_dt_or_none(data.get("ends_at") or "")
 
     if "status" in data:
-        st = (data.get("status") or "").strip()
-        if st:
-            s.status = st
+        status = (data.get("status") or "").strip()
+        if status not in {Session.Status.DRAFT, Session.Status.RUNNING, Session.Status.STOPPED}:
+            return JsonResponse({"ok": False, "error": "invalid status"}, status=400)
+        s.status = status
 
-    # простая валидация времени
     if s.starts_at and s.ends_at and s.ends_at <= s.starts_at:
         return JsonResponse({"ok": False, "error": "ends_at must be after starts_at"}, status=400)
 
+    if "class_group_ids" in data:
+        class_ids = data.get("class_group_ids") or []
+        if not isinstance(class_ids, list):
+            return JsonResponse({"ok": False, "error": "class_group_ids must be a list"}, status=400)
+        clean_ids = []
+        for cid in class_ids:
+            try:
+                clean_ids.append(int(cid))
+            except (TypeError, ValueError):
+                return JsonResponse({"ok": False, "error": "class_group_ids must contain integers"}, status=400)
+        existing_ids = set(ClassGroup.objects.filter(id__in=clean_ids).values_list("id", flat=True))
+        missing = [cid for cid in clean_ids if cid not in existing_ids]
+        if missing:
+            return JsonResponse({"ok": False, "error": f"Some classes do not exist: {missing}"}, status=400)
+        with transaction.atomic():
+            s.save()
+            SessionClass.objects.filter(session=s).delete()
+            SessionClass.objects.bulk_create([SessionClass(session=s, class_group_id=cid) for cid in clean_ids])
+        return JsonResponse({"ok": True, "session": _serialize_session(s)})
+
     s.save()
-    return JsonResponse({"ok": True})
+    return JsonResponse({"ok": True, "session": _serialize_session(s)})
 
 
-@require_http_methods(["GET"])
+@require_GET
 def teacher_session_classes_api(request: HttpRequest, session_id: int):
-    """
-    GET /api/teacher/sessions/<id>/classes/ -> {class_ids:[...]}
-    """
-    if not _require_teacher_api(request):
-        return JsonResponse({"ok": False, "error": "not authenticated"}, status=401)
-
-    s = get_object_or_404(Session, id=session_id)
-    ids = list(SessionClass.objects.filter(session=s).values_list("class_group_id", flat=True))
-    return JsonResponse({"ok": True, "class_ids": ids})
+    if not _get_logged_in_teacher(request):
+        return _teacher_api_unauthorized()
+    session = get_object_or_404(Session, id=session_id)
+    class_ids = list(SessionClass.objects.filter(session=session).values_list("class_group_id", flat=True))
+    return JsonResponse({"ok": True, "class_ids": class_ids})
 
 
 @csrf_exempt
-@require_http_methods(["POST"])
+@require_POST
 def teacher_session_assign_classes_api(request: HttpRequest, session_id: int):
-    """
-    POST /api/teacher/sessions/<id>/assign-classes/ body: {class_ids:[1,2,3]}
-    """
-    if not _require_teacher_api(request):
-        return JsonResponse({"ok": False, "error": "not authenticated"}, status=401)
+    if not _get_logged_in_teacher(request):
+        return _teacher_api_unauthorized()
 
-    s = get_object_or_404(Session, id=session_id)
+    session = get_object_or_404(Session, id=session_id)
     data = _json_body(request)
-    class_ids = data.get("class_ids")
+    raw_ids = data.get("class_ids") or data.get("class_group_ids") or []
+    if not isinstance(raw_ids, list):
+        return JsonResponse({"ok": False, "error": "class_ids must be a list"}, status=400)
 
-    if not isinstance(class_ids, list):
-        return JsonResponse({"ok": False, "error": "class_ids must be list"}, status=400)
+    clean_ids = []
+    for cid in raw_ids:
+        try:
+            clean_ids.append(int(cid))
+        except (TypeError, ValueError):
+            return JsonResponse({"ok": False, "error": "class_ids must contain integers"}, status=400)
 
-    # нормализуем
-    norm_ids = []
-    for x in class_ids:
-        if str(x).isdigit():
-            norm_ids.append(int(x))
+    existing_ids = set(ClassGroup.objects.filter(id__in=clean_ids).values_list("id", flat=True))
+    missing = [cid for cid in clean_ids if cid not in existing_ids]
+    if missing:
+        return JsonResponse({"ok": False, "error": f"Some classes do not exist: {missing}"}, status=400)
 
-    # оставляем только реально существующие классы
-    existing_ids = set(ClassGroup.objects.filter(id__in=norm_ids).values_list("id", flat=True))
+    with transaction.atomic():
+        SessionClass.objects.filter(session=session).delete()
+        SessionClass.objects.bulk_create([SessionClass(session=session, class_group_id=cid) for cid in clean_ids])
 
-    # удалить лишние
-    SessionClass.objects.filter(session=s).exclude(class_group_id__in=existing_ids).delete()
+    return JsonResponse({"ok": True, "class_ids": clean_ids})
 
-    # добавить недостающие
-    already = set(SessionClass.objects.filter(session=s).values_list("class_group_id", flat=True))
-    to_add = [cid for cid in existing_ids if cid not in already]
-    SessionClass.objects.bulk_create([SessionClass(session=s, class_group_id=cid) for cid in to_add])
 
-    return JsonResponse({"ok": True, "assigned": len(existing_ids)})
-
-from django.views.decorators.csrf import csrf_exempt
-from django.views.decorators.http import require_http_methods
-
-# убедись, что импортированы модели:
-# Session, SessionTask, TaskTestCase, TaskCodeFragment
-
-def _require_teacher_api(request: HttpRequest):
-    return request.session.get("teacher_id") or None
-
+# -------------------------
+# Teacher tasks / tests / fragments API
+# -------------------------
 
 @csrf_exempt
 @require_http_methods(["GET", "POST"])
 def teacher_session_tasks_api(request: HttpRequest, session_id: int):
-    """
-    GET  /api/teacher/sessions/<session_id>/tasks/
-    POST /api/teacher/sessions/<session_id>/tasks/
-         body: {position, title, statement, constraints}
-    """
-    if not _require_teacher_api(request):
-        return JsonResponse({"ok": False, "error": "not authenticated"}, status=401)
+    if not _get_logged_in_teacher(request):
+        return _teacher_api_unauthorized()
 
     session = get_object_or_404(Session, id=session_id)
 
     if request.method == "GET":
-        tasks = list(
-            SessionTask.objects.filter(session=session)
-            .order_by("position", "id")
-            .values("id", "position", "title", "created_at")
-        )
-        out = []
-        for t in tasks:
-            out.append({
-                "id": t["id"],
-                "position": t["position"],
-                "title": t["title"],
-                "created_at": t["created_at"].isoformat() if t["created_at"] else None,
-            })
-        return JsonResponse({"ok": True, "tasks": out})
+        tasks = SessionTask.objects.filter(session=session).order_by("position", "id")
+        return JsonResponse({"ok": True, "tasks": [_serialize_task(t) for t in tasks]})
 
-    # POST create
     data = _json_body(request)
     title = (data.get("title") or "").strip()
     if not title:
         return JsonResponse({"ok": False, "error": "title is required"}, status=400)
-
     try:
         position = int(data.get("position") or 1)
-    except Exception:
-        position = 1
+    except (TypeError, ValueError):
+        return JsonResponse({"ok": False, "error": "position must be integer"}, status=400)
 
     task = SessionTask.objects.create(
         session=session,
         position=position,
         title=title,
-        statement=(data.get("statement") or ""),
-        constraints=(data.get("constraints") or ""),
+        statement=data.get("statement") or "",
+        constraints=data.get("constraints") or "",
     )
-    return JsonResponse({"ok": True, "task": {"id": task.id}})
+    return JsonResponse({"ok": True, "task": _serialize_task(task)}, status=201)
 
 
 @csrf_exempt
 @require_http_methods(["GET", "PATCH", "DELETE"])
 def teacher_task_detail_api(request: HttpRequest, task_id: int):
-    """
-    GET    /api/teacher/tasks/<task_id>/
-    PATCH  /api/teacher/tasks/<task_id>/ body: {position?, title?, statement?, constraints?}
-    DELETE /api/teacher/tasks/<task_id>/
-    """
-    if not _require_teacher_api(request):
-        return JsonResponse({"ok": False, "error": "not authenticated"}, status=401)
+    if not _get_logged_in_teacher(request):
+        return _teacher_api_unauthorized()
 
-    task = get_object_or_404(SessionTask.objects.select_related("session"), id=task_id)
+    task = get_object_or_404(SessionTask, id=task_id)
 
     if request.method == "GET":
-        return JsonResponse({
-            "ok": True,
-            "task": {
-                "id": task.id,
-                "session_id": task.session_id,
-                "position": task.position,
-                "title": task.title,
-                "statement": task.statement,
-                "constraints": task.constraints,
-            }
-        })
+        return JsonResponse({"ok": True, "task": _serialize_task(task)})
 
     if request.method == "DELETE":
         task.delete()
         return JsonResponse({"ok": True})
 
-    # PATCH
     data = _json_body(request)
-
     if "position" in data:
         try:
-            task.position = int(data.get("position"))
-        except Exception:
-            return JsonResponse({"ok": False, "error": "position must be int"}, status=400)
-
+            task.position = int(data.get("position") or 1)
+        except (TypeError, ValueError):
+            return JsonResponse({"ok": False, "error": "position must be integer"}, status=400)
     if "title" in data:
         title = (data.get("title") or "").strip()
         if not title:
             return JsonResponse({"ok": False, "error": "title cannot be empty"}, status=400)
         task.title = title
-
     if "statement" in data:
         task.statement = data.get("statement") or ""
-
     if "constraints" in data:
         task.constraints = data.get("constraints") or ""
 
     task.save()
-    return JsonResponse({"ok": True})
+    return JsonResponse({"ok": True, "task": _serialize_task(task)})
 
-
-# ------------------------
-# TESTCASES
-# ------------------------
 
 @csrf_exempt
 @require_http_methods(["GET", "POST"])
 def teacher_task_tests_api(request: HttpRequest, task_id: int):
-    """
-    GET  /api/teacher/tasks/<task_id>/tests/
-    POST /api/teacher/tasks/<task_id>/tests/
-         body: {ordinal, stdin, expected_stdout, is_visible}
-    """
-    if not _require_teacher_api(request):
-        return JsonResponse({"ok": False, "error": "not authenticated"}, status=401)
+    if not _get_logged_in_teacher(request):
+        return _teacher_api_unauthorized()
 
     task = get_object_or_404(SessionTask, id=task_id)
 
     if request.method == "GET":
-        tests = list(
-            TaskTestCase.objects.filter(task=task)
-            .order_by("ordinal", "id")
-            .values("id", "ordinal", "stdin", "expected_stdout", "is_visible")
-        )
-        return JsonResponse({"ok": True, "tests": tests})
+        tests = TaskTestCase.objects.filter(task=task).order_by("ordinal", "id")
+        return JsonResponse({"ok": True, "tests": [_serialize_testcase(t) for t in tests]})
 
     data = _json_body(request)
     try:
         ordinal = int(data.get("ordinal") or 1)
-    except Exception:
-        ordinal = 1
+    except (TypeError, ValueError):
+        return JsonResponse({"ok": False, "error": "ordinal must be integer"}, status=400)
 
     tc = TaskTestCase.objects.create(
         task=task,
         ordinal=ordinal,
-        stdin=(data.get("stdin") or ""),
-        expected_stdout=(data.get("expected_stdout") or ""),
-        is_visible=bool(data.get("is_visible", True)),
+        stdin=data.get("stdin") or "",
+        expected_stdout=data.get("expected_stdout") or "",
+        is_visible=bool(data.get("is_visible", False)),
     )
-    return JsonResponse({"ok": True, "test": {"id": tc.id}})
+    return JsonResponse({"ok": True, "test": _serialize_testcase(tc)}, status=201)
 
 
 @csrf_exempt
 @require_http_methods(["PATCH", "DELETE"])
 def teacher_test_detail_api(request: HttpRequest, test_id: int):
-    """
-    PATCH  /api/teacher/tests/<test_id>/ body: {ordinal?, stdin?, expected_stdout?, is_visible?}
-    DELETE /api/teacher/tests/<test_id>/
-    """
-    if not _require_teacher_api(request):
-        return JsonResponse({"ok": False, "error": "not authenticated"}, status=401)
+    if not _get_logged_in_teacher(request):
+        return _teacher_api_unauthorized()
 
     tc = get_object_or_404(TaskTestCase, id=test_id)
 
@@ -1500,89 +1451,57 @@ def teacher_test_detail_api(request: HttpRequest, test_id: int):
         return JsonResponse({"ok": True})
 
     data = _json_body(request)
-
     if "ordinal" in data:
         try:
-            tc.ordinal = int(data.get("ordinal"))
-        except Exception:
-            return JsonResponse({"ok": False, "error": "ordinal must be int"}, status=400)
-
+            tc.ordinal = int(data.get("ordinal") or 1)
+        except (TypeError, ValueError):
+            return JsonResponse({"ok": False, "error": "ordinal must be integer"}, status=400)
     if "stdin" in data:
         tc.stdin = data.get("stdin") or ""
-
     if "expected_stdout" in data:
         tc.expected_stdout = data.get("expected_stdout") or ""
-
     if "is_visible" in data:
         tc.is_visible = bool(data.get("is_visible"))
 
     tc.save()
-    return JsonResponse({"ok": True})
+    return JsonResponse({"ok": True, "test": _serialize_testcase(tc)})
 
-
-# ------------------------
-# CODE FRAGMENTS (top/bottom)
-# ------------------------
 
 @csrf_exempt
 @require_http_methods(["GET", "POST"])
 def teacher_task_fragments_api(request: HttpRequest, task_id: int):
-    """
-    GET  /api/teacher/tasks/<task_id>/fragments/
-    POST /api/teacher/tasks/<task_id>/fragments/
-         body: {position: "top"|"bottom", title?, code, is_active}
-    """
-    if not _require_teacher_api(request):
-        return JsonResponse({"ok": False, "error": "not authenticated"}, status=401)
+    if not _get_logged_in_teacher(request):
+        return _teacher_api_unauthorized()
 
     task = get_object_or_404(SessionTask, id=task_id)
 
     if request.method == "GET":
-        frags = list(
-            TaskCodeFragment.objects.filter(task=task)
-            .order_by("position", "id")
-            .values("id", "position", "title", "code", "is_active", "created_at")
-        )
-        out = []
-        for f in frags:
-            out.append({
-                "id": f["id"],
-                "position": f["position"],
-                "title": f["title"] or "",
-                "code": f["code"] or "",
-                "is_active": f["is_active"],
-                "created_at": f["created_at"].isoformat() if f["created_at"] else None,
-            })
-        return JsonResponse({"ok": True, "fragments": out})
+        frags = TaskCodeFragment.objects.filter(task=task).order_by("position", "id")
+        return JsonResponse({"ok": True, "fragments": [_serialize_fragment(f) for f in frags]})
 
     data = _json_body(request)
-    pos = (data.get("position") or "").strip()
-    if pos not in ("top", "bottom"):
-        return JsonResponse({"ok": False, "error": "position must be 'top' or 'bottom'"}, status=400)
-
-    code = (data.get("code") or "")
-    if not code.strip():
+    position = (data.get("position") or "").strip()
+    if position not in {TaskCodeFragment.Position.TOP, TaskCodeFragment.Position.BOTTOM}:
+        return JsonResponse({"ok": False, "error": "invalid position"}, status=400)
+    code = data.get("code") or ""
+    if not str(code).strip():
         return JsonResponse({"ok": False, "error": "code is required"}, status=400)
 
     frag = TaskCodeFragment.objects.create(
         task=task,
-        position=pos,
-        title=(data.get("title") or ""),
+        position=position,
+        title=(data.get("title") or "").strip(),
         code=code,
         is_active=bool(data.get("is_active", True)),
     )
-    return JsonResponse({"ok": True, "fragment": {"id": frag.id}})
+    return JsonResponse({"ok": True, "fragment": _serialize_fragment(frag)}, status=201)
 
 
 @csrf_exempt
 @require_http_methods(["PATCH", "DELETE"])
 def teacher_fragment_detail_api(request: HttpRequest, frag_id: int):
-    """
-    PATCH  /api/teacher/fragments/<frag_id>/ body: {position?, title?, code?, is_active?}
-    DELETE /api/teacher/fragments/<frag_id>/
-    """
-    if not _require_teacher_api(request):
-        return JsonResponse({"ok": False, "error": "not authenticated"}, status=401)
+    if not _get_logged_in_teacher(request):
+        return _teacher_api_unauthorized()
 
     frag = get_object_or_404(TaskCodeFragment, id=frag_id)
 
@@ -1591,33 +1510,28 @@ def teacher_fragment_detail_api(request: HttpRequest, frag_id: int):
         return JsonResponse({"ok": True})
 
     data = _json_body(request)
-
     if "position" in data:
-        pos = (data.get("position") or "").strip()
-        if pos not in ("top", "bottom"):
-            return JsonResponse({"ok": False, "error": "position must be 'top' or 'bottom'"}, status=400)
-        frag.position = pos
-
+        position = (data.get("position") or "").strip()
+        if position not in {TaskCodeFragment.Position.TOP, TaskCodeFragment.Position.BOTTOM}:
+            return JsonResponse({"ok": False, "error": "invalid position"}, status=400)
+        frag.position = position
     if "title" in data:
-        frag.title = data.get("title") or ""
-
+        frag.title = (data.get("title") or "").strip()
     if "code" in data:
-        c = data.get("code") or ""
-        if not c.strip():
-            return JsonResponse({"ok": False, "error": "code cannot be empty"}, status=400)
-        frag.code = c
-
+        code = data.get("code") or ""
+        if not str(code).strip():
+            return JsonResponse({"ok": False, "error": "code is required"}, status=400)
+        frag.code = code
     if "is_active" in data:
         frag.is_active = bool(data.get("is_active"))
 
     frag.save()
-    return JsonResponse({"ok": True})
+    return JsonResponse({"ok": True, "fragment": _serialize_fragment(frag)})
 
-from django.shortcuts import redirect
-from django.views.decorators.http import require_POST
 
-from .ui_translations import SUPPORTED_UI_LANGS
-
+# -------------------------
+# UI language
+# -------------------------
 
 @require_POST
 def set_ui_language(request):
@@ -1633,76 +1547,3 @@ def set_ui_language(request):
     response = redirect(next_url)
     response.set_cookie("ui_lang", lang, max_age=60 * 60 * 24 * 365, samesite="Lax")
     return response
-
-import json
-from django.http import JsonResponse
-from django.shortcuts import get_object_or_404
-from django.views.decorators.http import require_http_methods
-
-from .models import Teacher, ClassGroup, Student
-
-
-def _get_logged_in_teacher(request):
-    teacher_id = request.session.get("teacher_id")
-    if not teacher_id:
-        return None
-    return Teacher.objects.filter(id=teacher_id, is_active=True).first()
-
-
-def _parse_json_body(request):
-    try:
-        raw = request.body.decode("utf-8") if request.body else "{}"
-        return json.loads(raw or "{}")
-    except json.JSONDecodeError:
-        raise ValueError("Invalid JSON body")
-
-
-def _serialize_class_group(class_group):
-    students = list(
-        Student.objects.filter(class_group=class_group, is_active=True)
-        .order_by("full_name")
-        .values("id", "full_name")
-    )
-
-    return {
-        "id": class_group.id,
-        "name": class_group.name,
-        "student_count": len(students),
-        "students": students,
-    }
-
-
-@require_http_methods(["GET", "POST"])
-def teacher_classes_api(request):
-    teacher = _get_logged_in_teacher(request)
-    if not teacher:
-        return JsonResponse({"ok": False, "error": "Unauthorized"}, status=401)
-
-    if request.method == "GET":
-        classes = ClassGroup.objects.all().order_by("name")
-        return JsonResponse({
-            "ok": True,
-            "classes": [_serialize_class_group(c) for c in classes],
-        })
-
-    try:
-        data = _parse_json_body(request)
-        name = (data.get("name") or "").strip()
-
-        if not name:
-            return JsonResponse({"ok": False, "error": "Class name is required"}, status=400)
-
-        if ClassGroup.objects.filter(name=name).exists():
-            return JsonResponse({"ok": False, "error": "Class with this name already exists"}, status=400)
-
-        class_group = ClassGroup.objects.create(name=name)
-
-        return JsonResponse({
-            "ok": True,
-            "class": _serialize_class_group(class_group),
-        }, status=201)
-
-    except ValueError as e:
-        return JsonResponse({"ok": False, "error": str(e)}, status=400)
-    except Exception as e:
-        return JsonResponse({"ok": False, "error": f"Server error: {str(e)}"}, status=500)
