@@ -803,7 +803,7 @@ def student_hint_level(request: HttpRequest, task_id: int, level: int):
             top_fragment=top_frag,
             bottom_fragment=bottom_frag,
         )
-        )
+
 
     msg = AiAssistMessage.objects.create(
         progress=progress,
