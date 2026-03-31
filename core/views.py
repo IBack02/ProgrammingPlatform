@@ -1300,7 +1300,78 @@ def teacher_student_reset_pin_api(request: HttpRequest, student_id: int):
 # -------------------------
 # Teacher sessions API
 # -------------------------
+@csrf_exempt
+@require_http_methods(["GET", "POST"])
+def teacher_sessions_api(request: HttpRequest):
+    if not _get_logged_in_teacher(request):
+        return _teacher_api_unauthorized()
 
+    try:
+        if request.method == "GET":
+            sessions = Session.objects.all().order_by("-created_at")
+            available_classes = list(
+                ClassGroup.objects.order_by("name").values("id", "name")
+            )
+            return JsonResponse({
+                "ok": True,
+                "sessions": [_serialize_session(s) for s in sessions],
+                "available_classes": available_classes,
+            })
+
+        data = _json_body(request)
+
+        title = (data.get("title") or "").strip()
+        if not title:
+            return JsonResponse({"ok": False, "error": "title is required"}, status=400)
+
+        status = (data.get("status") or SESSION_STATUS_DRAFT).strip()
+        if status not in SESSION_STATUSES:
+            return JsonResponse({"ok": False, "error": "invalid status"}, status=400)
+
+        starts_at = _parse_dt_or_none(data.get("starts_at") or "")
+        ends_at = _parse_dt_or_none(data.get("ends_at") or "")
+        if starts_at and ends_at and ends_at <= starts_at:
+            return JsonResponse({"ok": False, "error": "ends_at must be after starts_at"}, status=400)
+
+        class_ids = data.get("class_group_ids") or []
+        if not isinstance(class_ids, list):
+            return JsonResponse({"ok": False, "error": "class_group_ids must be a list"}, status=400)
+
+        with transaction.atomic():
+            session = Session.objects.create(
+                title=title,
+                description=(data.get("description") or ""),
+                status=status,
+                starts_at=starts_at,
+                ends_at=ends_at,
+            )
+
+            clean_ids = []
+            for cid in class_ids:
+                try:
+                    clean_ids.append(int(cid))
+                except (TypeError, ValueError):
+                    return JsonResponse({"ok": False, "error": "class_group_ids must contain integers"}, status=400)
+
+            if clean_ids:
+                existing_ids = set(
+                    ClassGroup.objects.filter(id__in=clean_ids).values_list("id", flat=True)
+                )
+                missing = [cid for cid in clean_ids if cid not in existing_ids]
+                if missing:
+                    return JsonResponse(
+                        {"ok": False, "error": f"Some classes do not exist: {missing}"},
+                        status=400,
+                    )
+
+                SessionClass.objects.bulk_create(
+                    [SessionClass(session=session, class_group_id=cid) for cid in clean_ids]
+                )
+
+        return JsonResponse({"ok": True, "session": _serialize_session(session)}, status=201)
+
+    except Exception as e:
+        return JsonResponse({"ok": False, "error": f"{type(e).__name__}: {e}"}, status=500)
 @csrf_exempt
 @require_http_methods(["GET", "POST"])
 def teacher_session_tasks_api(request: HttpRequest, session_id: int):
