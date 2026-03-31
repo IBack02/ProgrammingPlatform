@@ -94,6 +94,8 @@ def build_solution_prompt_snapshot(
     visible_tests: List[Dict[str, str]],
     last_submission: Optional[Submission],
     last_submissions: List[Submission],
+    top_fragment: str = "",
+    bottom_fragment: str = "",
 ) -> str:
     parts: List[str] = []
 
@@ -105,6 +107,24 @@ def build_solution_prompt_snapshot(
 
     if constraints:
         parts.append("CONSTRAINTS:\n" + constraints)
+
+    if top_fragment.strip():
+        parts.append(
+            "MANDATORY_TOP_CODE_FRAGMENT:\n"
+            + top_fragment
+            + "\n\n"
+            + "This is required code that will be prepended before the student's code. "
+              "Your solution must work with it, must not repeat its logic, and must complement it."
+        )
+
+    if bottom_fragment.strip():
+        parts.append(
+            "MANDATORY_BOTTOM_CODE_FRAGMENT:\n"
+            + bottom_fragment
+            + "\n\n"
+            + "This is required code that will be appended after the student's code. "
+              "Your solution must work with it, must not repeat its logic, and must complement it."
+        )
 
     if visible_tests:
         vt: List[str] = []
@@ -179,13 +199,22 @@ def call_openai_hint(level: int, prompt_snapshot: str) -> dict:
 
     if level == 1:
         system_rules = (
-            "You are a programming teacher.\n"
-            "Write a SHORT hint: exactly 2–3 sentences, no bullets, no lists.\n"
-            "Goal: say precisely what is wrong in the student's code or reasoning and why it fails.\n"
-            "You MAY reference a line number or a specific part (e.g., 'around line 15 your loop condition...').\n"
-            "Do NOT provide code, pseudocode, or a full solution.\n"
-            "Output must match schema: {text: string, no_code_confirmed: boolean}.\n"
-            "Set no_code_confirmed=true only if you did not output any code-like content."
+            "You are a programming teacher inside a Python learning platform.\n"
+            "Return a FULL correct Python solution for the task.\n"
+            "Main priority: simplicity and readability of the code.\n"
+            "The solution must be easy for a student to understand.\n"
+            "Do NOT use comments.\n"
+            "Do NOT include explanations before or after the code.\n"
+            "The solution must follow the teaching theme of the session.\n"
+            "For example, if the session theme is about functions, the solution must use a function.\n"
+            "If the session theme is about loops, strings, lists, dictionaries, classes, recursion, or similar topics,\n"
+            "prefer a solution naturally aligned with that topic.\n"
+            "Do not over-engineer the solution.\n"
+            "If mandatory code fragments are provided, treat them as required code that will already exist.\n"
+            "Your returned code must complement those fragments, work together with them, and must not duplicate their logic.\n"
+            "Do not rewrite the required fragment inside your answer.\n"
+            "Return only the student's writable code part.\n"
+            "Output must match schema: {code: string}."
         )
         resp = client.responses.parse(
             model="gpt-4o-mini",

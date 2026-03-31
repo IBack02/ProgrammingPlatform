@@ -14,7 +14,7 @@ from django.utils.dateparse import parse_datetime
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_GET, require_http_methods, require_POST
 
-from .ai_assist import build_prompt_snapshot, call_openai_hint, sanitize_no_code
+
 from .judge0_client import create_batch_submissions, wait_batch
 from .models import (
     ActivityAggregate,
@@ -791,6 +791,7 @@ def student_hint_level(request: HttpRequest, task_id: int, level: int):
             last_submissions=last_subs,
         )
     else:
+        top_frag, bottom_frag = _get_task_fragments(task)
         prompt_snapshot = build_solution_prompt_snapshot(
             session_title=session.title,
             session_description=session.description,
@@ -799,6 +800,9 @@ def student_hint_level(request: HttpRequest, task_id: int, level: int):
             visible_tests=visible_tests,
             last_submission=last_sub,
             last_submissions=last_subs,
+            top_fragment=top_frag,
+            bottom_fragment=bottom_frag,
+        )
         )
 
     msg = AiAssistMessage.objects.create(

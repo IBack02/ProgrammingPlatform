@@ -7,6 +7,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>{{ T.student_portal_title }}</title>
   <script src="{% static 'core/student_activity.js' %}"></script>
+
   <style>
     :root{
       --bg:#f6f7fb;
@@ -38,14 +39,22 @@
 
     .sidebarWrap{ display:flex; height:100%; }
     .sidebar {
-      width: 300px; min-width: 240px; max-width: 520px;
+      width: 300px;
+      min-width: 240px;
+      max-width: 520px;
       background:var(--card);
       border-right:1px solid var(--border);
       padding: 16px;
       box-sizing:border-box;
       overflow:auto;
     }
-    .resizer { width: 8px; cursor: col-resize; background: transparent; position:relative; }
+
+    .resizer {
+      width: 8px;
+      cursor: col-resize;
+      background: transparent;
+      position:relative;
+    }
     .resizer:after{
       content:"";
       position:absolute; inset:0;
@@ -53,9 +62,43 @@
       opacity:.55;
     }
 
-    .content { flex:1; padding: 18px; overflow:auto; min-width: 360px; }
+    .content {
+      flex:1;
+      padding: 18px;
+      overflow:auto;
+      min-width: 360px;
+    }
 
-    .top { display:flex; justify-content:space-between; align-items:center; margin-bottom: 12px; gap:10px; }
+    .top {
+      display:flex;
+      justify-content:space-between;
+      align-items:flex-start;
+      margin-bottom: 12px;
+      gap:10px;
+      flex-wrap:wrap;
+    }
+
+    .topRight{
+      display:flex;
+      flex-direction:column;
+      gap:8px;
+      align-items:flex-end;
+    }
+
+    .langForm{
+      display:flex;
+      align-items:center;
+      gap:8px;
+      flex-wrap:wrap;
+    }
+
+    .langSelect{
+      padding:8px 10px;
+      border-radius:10px;
+      border:1px solid var(--border);
+      background:#fff;
+    }
+
     .title { font-size:18px; font-weight:700; }
     .small { color:#555; font-size:12px; }
     .muted { color:var(--muted); }
@@ -63,7 +106,9 @@
     .ok { color:var(--ok); }
 
     .taskbtn {
-      width:100%; text-align:left; padding:10px;
+      width:100%;
+      text-align:left;
+      padding:10px;
       border:1px solid var(--border);
       border-radius:10px;
       background:var(--card);
@@ -71,12 +116,18 @@
       cursor:pointer;
       transition: border-color .15s ease, box-shadow .15s ease, transform .08s ease;
     }
+
     .taskbtn:hover{
       transform: translateY(-1px);
       border-color:#bfdbfe;
       box-shadow: 0 10px 20px rgba(17,24,39,.05);
     }
-    .taskbtn.active { border-color:var(--primary); box-shadow: 0 0 0 2px rgba(14,165,233,.15); }
+
+    .taskbtn.active {
+      border-color:var(--primary);
+      box-shadow: 0 0 0 2px rgba(14,165,233,.15);
+    }
+
     .badge {
       float:right;
       font-size:11px;
@@ -105,6 +156,7 @@
       border-radius:10px;
       overflow:auto;
       margin:8px 0 0 0;
+      white-space: pre-wrap;
     }
 
     textarea {
@@ -126,8 +178,8 @@
       padding:10px 14px;
       border-radius:10px;
       cursor:pointer;
-      transition: opacity .15s ease, transform .08s ease;
     }
+
     button.ghost {
       background:#fff;
       color:#111827;
@@ -135,18 +187,15 @@
       padding:10px 14px;
       border-radius:10px;
       cursor:pointer;
-      transition: opacity .15s ease, transform .08s ease;
     }
-    button.primary:hover, button.ghost:hover{
-      transform: translateY(-1px);
-    }
+
     button.primary:disabled, button.ghost:disabled {
       opacity: 0.6;
       cursor:not-allowed;
-      transform:none;
     }
 
     .row { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+
     .msg {
       padding: 10px;
       border-radius: 10px;
@@ -170,24 +219,41 @@
       transition: box-shadow .18s ease, border-color .18s ease, transform .18s ease;
       box-shadow: var(--shadow);
     }
+
     .flipCard.disabled{
       opacity: .75;
       cursor: not-allowed;
     }
+
     .flipCard.available{
       border-color: rgba(14,165,233,.55);
       box-shadow: 0 0 0 3px rgba(14,165,233,.12), 0 0 20px var(--hintglow);
     }
+
     .flipCardHeader{
-      display:flex; justify-content:space-between; align-items:center; gap:8px;
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:8px;
     }
+
     .flipCardTitle{ font-weight:700; }
+
     .pill{
-      font-size:11px; padding:2px 8px; border-radius:999px;
+      font-size:11px;
+      padding:2px 8px;
+      border-radius:999px;
       border:1px solid var(--border);
-      color:#111827; background:#f9fafb;
+      color:#111827;
+      background:#f9fafb;
     }
-    .pill.blue{ border-color: rgba(14,165,233,.45); background: rgba(14,165,233,.08); color:#0b4b66; }
+
+    .pill.blue{
+      border-color: rgba(14,165,233,.45);
+      background: rgba(14,165,233,.08);
+      color:#0b4b66;
+    }
+
     .pill.gray{ color:var(--muted); }
 
     .flipBody{
@@ -197,12 +263,13 @@
       max-height: 420px;
       overflow:auto;
     }
+
     .flipBack{
       display:none;
       margin-top:10px;
       white-space:pre-wrap;
       overflow-wrap:anywhere;
-      max-height:420px;
+      max-height: 420px;
       overflow:auto;
     }
 
@@ -212,6 +279,7 @@
     .flipCard.animating{
       animation: flipAnim .45s ease;
     }
+
     @keyframes flipAnim{
       0% { transform: rotateY(0deg); }
       49% { transform: rotateY(90deg); }
@@ -234,6 +302,7 @@
       height: calc(100vh - 36px);
       min-height: 520px;
     }
+
     .leftPane{
       width: 52%;
       min-width: 320px;
@@ -242,6 +311,7 @@
       box-sizing: border-box;
       overflow:auto;
     }
+
     .splitResizer{
       width: 8px;
       cursor: col-resize;
@@ -249,12 +319,14 @@
       position: relative;
       flex: 0 0 auto;
     }
+
     .splitResizer:after{
       content:"";
       position:absolute; inset:0;
       background: linear-gradient(to right, transparent, rgba(17,24,39,.08), transparent);
       opacity:.55;
     }
+
     .rightPane{
       flex: 1;
       min-width: 320px;
@@ -278,10 +350,23 @@
           <div class="title" id="studentName">{{ T.student_portal_title }}</div>
           <div class="small" id="studentClass"></div>
         </div>
-        <form method="post" action="/student/logout/">
-          {% csrf_token %}
-          <button class="ghost" type="submit">{{ T.logout }}</button>
-        </form>
+
+        <div class="topRight">
+          <form method="post" action="/set-ui-language/" class="langForm">
+            {% csrf_token %}
+            <input type="hidden" name="next" value="{{ request.get_full_path }}">
+            <select name="lang" class="langSelect" onchange="this.form.submit()">
+              <option value="ru" {% if ui_lang == 'ru' %}selected{% endif %}>{{ T.russian }}</option>
+              <option value="kk" {% if ui_lang == 'kk' %}selected{% endif %}>{{ T.kazakh }}</option>
+              <option value="en" {% if ui_lang == 'en' %}selected{% endif %}>{{ T.english }}</option>
+            </select>
+          </form>
+
+          <form method="post" action="/student/logout/">
+            {% csrf_token %}
+            <button class="ghost" type="submit">{{ T.logout }}</button>
+          </form>
+        </div>
       </div>
 
       <div class="card">
@@ -326,6 +411,7 @@
         </div>
       </div>
     </div>
+
     <div class="resizer" id="sidebarResizer" title="Drag to resize"></div>
   </div>
 
@@ -338,7 +424,8 @@
           <div class="title" id="taskTitle"></div>
           <div class="small muted" id="taskMeta"></div>
           <hr>
-          <div class="small"><b>{{ T.task_statement }}</b></div>
+
+          <div><b>{{ T.task_statement }}</b></div>
           <div id="taskStatement"></div>
 
           <div style="margin-top:10px;"></div>
@@ -357,7 +444,7 @@
         <div class="card" id="editorCard" style="display:none;">
           <div class="row" style="justify-content:space-between;">
             <div>
-              <div class="title">{{ T.code_python }}</div>
+              <div class="title">{{ T.your_code }}</div>
               <div class="small muted">{{ T.judge0_note }}</div>
             </div>
           </div>
@@ -365,14 +452,14 @@
           <div style="margin-top:10px;"></div>
 
           <div class="card" id="topFragmentCard" style="display:none;">
-            <div class="small muted"><b>{{ T.top_fragment }} — {{ T.read_only_starter }}</b></div>
+            <div class="small muted"><b>{{ T.read_only_starter }}</b></div>
             <pre id="topFragment"></pre>
           </div>
 
           <textarea id="codeArea" spellcheck="false">print("Hello")</textarea>
 
           <div class="card" id="bottomFragmentCard" style="display:none;">
-            <div class="small muted"><b>{{ T.bottom_fragment }} — {{ T.read_only_ending }}</b></div>
+            <div class="small muted"><b>{{ T.read_only_ending }}</b></div>
             <pre id="bottomFragment"></pre>
           </div>
 
@@ -399,19 +486,24 @@
 <script>
   const UI = {
     classLabel: "{{ T.class_label|escapejs }}",
+    session: "{{ T.session|escapejs }}",
+    hints: "{{ T.hints|escapejs }}",
     hint1: "{{ T.hint_1|escapejs }}",
     hint2: "{{ T.hint_2|escapejs }}",
     hint3: "{{ T.hint_3|escapejs }}",
-    hint3FullSolution: "{{ T.hint_3_full_solution|escapejs }}",
-    hint3Inserted: "{{ T.hint_3_inserted|escapejs }}",
-    hint3Failed: "{{ T.hint_3_failed|escapejs }}",
-    solutionLoaded: "{{ T.solution_loaded|escapejs }}",
     locked: "{{ T.locked|escapejs }}",
     available: "{{ T.available|escapejs }}",
     cooldown: "{{ T.cooldown|escapejs }}",
+    submitSolution: "{{ T.submit_solution|escapejs }}",
+    yourCode: "{{ T.your_code|escapejs }}",
+    taskStatement: "{{ T.task_statement|escapejs }}",
+    constraints: "{{ T.constraints|escapejs }}",
+    visibleTests: "{{ T.visible_tests|escapejs }}",
+    hint3Inserted: "{{ T.hint_3_inserted|escapejs }}",
+    hint3Failed: "{{ T.hint_3_failed|escapejs }}",
+    solutionLoaded: "{{ T.solution_loaded|escapejs }}",
     noTasksInSession: "{{ T.no_tasks_in_session|escapejs }}",
     ready: "{{ T.ready|escapejs }}",
-    selectTaskLeft: "{{ T.select_task_left|escapejs }}",
     failedLoadTask: "{{ T.failed_load_task|escapejs }}",
     failedLoadSession: "{{ T.failed_load_session|escapejs }}",
     noActiveSession: "{{ T.no_active_session|escapejs }}",
@@ -429,13 +521,11 @@
     loadingTask: "{{ T.loading_task|escapejs }}",
     loadingSession: "{{ T.loading_session|escapejs }}",
     taskLocked: "{{ T.task_locked|escapejs }}",
-    lockedTaskHidden: "{{ T.locked_task_hidden|escapejs }}",
     attemptsInfo: "{{ T.attempts_info|escapejs }}",
     statusCooldown: "{{ T.status_cooldown|escapejs }}",
     statusCodeUnchanged: "{{ T.status_code_unchanged|escapejs }}",
     statusReady: "{{ T.status_ready|escapejs }}",
     hintTextEmpty: "{{ T.hint_text_empty|escapejs }}",
-    solutionPreview: "{{ T.solution_preview|escapejs }}",
     notStarted: "{{ T.not_started|escapejs }}",
     inProgress: "{{ T.in_progress|escapejs }}",
     solved: "{{ T.solved|escapejs }}",
@@ -551,7 +641,7 @@
     });
   }
 
-  function makeContentSplitResizer(resizerEl, leftPane, rightPane){
+  function makeContentSplitResizer(resizerEl, leftPane){
     let dragging = false;
 
     resizerEl.addEventListener("mousedown", (e) => {
@@ -620,7 +710,7 @@
   function setSubmitButtonState(enabled, label){
     const btn = qs("submitBtn");
     btn.disabled = !enabled;
-    btn.textContent = label || "{{ T.submit_solution|escapejs }}";
+    btn.textContent = label || UI.submitSolution;
   }
 
   async function updateSubmitAvailability(){
@@ -628,7 +718,7 @@
 
     const left = getSubmitCooldownLeft();
     if (left > 0){
-      setSubmitButtonState(false, `{{ T.submit_solution|escapejs }} (${left}s)`);
+      setSubmitButtonState(false, `${UI.submitSolution} (${left}s)`);
       qs("submitState").textContent = formatStr(UI.statusCooldown, {seconds:left});
       return;
     }
@@ -639,10 +729,10 @@
     const changed = !lastSub || lastSub !== h;
 
     if (!changed){
-      setSubmitButtonState(false, "{{ T.submit_solution|escapejs }}");
+      setSubmitButtonState(false, UI.submitSolution);
       qs("submitState").textContent = UI.statusCodeUnchanged;
     } else {
-      setSubmitButtonState(true, "{{ T.submit_solution|escapejs }}");
+      setSubmitButtonState(true, UI.submitSolution);
       qs("submitState").textContent = UI.statusReady;
     }
   }
@@ -650,7 +740,7 @@
   function tickSubmitCooldown(){
     const left = getSubmitCooldownLeft();
     if (left > 0){
-      setSubmitButtonState(false, `{{ T.submit_solution|escapejs }} (${left}s)`);
+      setSubmitButtonState(false, `${UI.submitSolution} (${left}s)`);
       qs("submitState").textContent = formatStr(UI.statusCooldown, {seconds:left});
       setTimeout(tickSubmitCooldown, 250);
     } else {
@@ -725,9 +815,6 @@
     if (!currentTaskId) return false;
 
     if (!hintUnlocked(level)){
-      if (level === 1) showStatus("{{ T.hint_locked_after_2|escapejs }}");
-      else if (level === 2) showStatus("{{ T.hint_locked_after_3|escapejs }}");
-      else showStatus("{{ T.hint_locked_after_3_solution|escapejs }}");
       return false;
     }
 
@@ -776,7 +863,9 @@
     const { card, back } = getHintElements(level);
     if (!card) return;
 
-    if (!hintUnlocked(level)) return;
+    if (!hintUnlocked(level)){
+      return;
+    }
 
     if (card.classList.contains("flipped")){
       flipCard(card);
@@ -812,8 +901,8 @@
 
       btn.textContent = `${t.position}. ${t.title}`;
       btn.appendChild(badge);
-      btn.onclick = () => openTask(t.id, btn);
 
+      btn.onclick = () => openTask(t.id, btn);
       list.appendChild(btn);
     });
   }
@@ -911,7 +1000,6 @@
 
   async function submit(){
     if (!currentTaskId){
-      showStatus(UI.selectTaskLeft);
       return;
     }
 
@@ -970,7 +1058,7 @@
 
   async function init(){
     makeResizer(qs("sidebarResizer"), qs("sidebar"), {min:240, max:520});
-    makeContentSplitResizer(qs("contentResizer"), qs("taskPane"), qs("editorPane"));
+    makeContentSplitResizer(qs("contentResizer"), qs("taskPane"));
 
     const me = await apiGet("/api/auth/student-me");
     if (me.status === 401){
