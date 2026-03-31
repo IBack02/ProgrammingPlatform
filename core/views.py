@@ -274,7 +274,6 @@ def _serialize_task(task: SessionTask):
         "created_at": task.created_at.isoformat() if getattr(task, "created_at", None) else None,
     }
 
-
 def _serialize_testcase(tc: TaskTestCase):
     return {
         "id": tc.id,
@@ -1304,70 +1303,55 @@ def teacher_student_reset_pin_api(request: HttpRequest, student_id: int):
 
 @csrf_exempt
 @require_http_methods(["GET", "POST"])
-@csrf_exempt
-@require_http_methods(["GET", "POST"])
-def teacher_sessions_api(request: HttpRequest):
+def teacher_session_tasks_api(request: HttpRequest, session_id: int):
     if not _get_logged_in_teacher(request):
         return _teacher_api_unauthorized()
 
-    if request.method == "GET":
-        sessions = Session.objects.all().order_by("-created_at")
-        available_classes = list(ClassGroup.objects.order_by("name").values("id", "name"))
-        return JsonResponse({
-            "ok": True,
-            "sessions": [_serialize_session(s) for s in sessions],
-            "available_classes": available_classes,
-        })
+    session = get_object_or_404(Session, id=session_id)
 
     try:
+        if request.method == "GET":
+            tasks = SessionTask.objects.filter(session=session).order_by("position", "id")
+            return JsonResponse({
+                "ok": True,
+                "tasks": [_serialize_task(t) for t in tasks],
+            })
+
         data = _json_body(request)
+
         title = (data.get("title") or "").strip()
         if not title:
             return JsonResponse({"ok": False, "error": "title is required"}, status=400)
 
-        status = (data.get("status") or SESSION_STATUS_DRAFT).strip()
-        if status not in SESSION_STATUSES:
-            return JsonResponse({"ok": False, "error": "invalid status"}, status=400)
+        try:
+            position = int(data.get("position") or 1)
+        except (TypeError, ValueError):
+            return JsonResponse({"ok": False, "error": "position must be integer"}, status=400)
 
-        starts_at = _parse_dt_or_none(data.get("starts_at") or "")
-        ends_at = _parse_dt_or_none(data.get("ends_at") or "")
-        if starts_at and ends_at and ends_at <= starts_at:
-            return JsonResponse({"ok": False, "error": "ends_at must be after starts_at"}, status=400)
+        if position < 1:
+            return JsonResponse({"ok": False, "error": "position must be >= 1"}, status=400)
 
-        class_ids = data.get("class_group_ids") or []
-        if not isinstance(class_ids, list):
-            return JsonResponse({"ok": False, "error": "class_group_ids must be a list"}, status=400)
+        statement = data.get("statement") or ""
+        constraints = data.get("constraints") or ""
 
-        with transaction.atomic():
-            s = Session.objects.create(
-                title=title,
-                description=(data.get("description") or ""),
-                status=status,
-                starts_at=starts_at,
-                ends_at=ends_at,
-            )
+        task = SessionTask.objects.create(
+            session=session,
+            position=position,
+            title=title,
+            statement=statement,
+            constraints=constraints,
+        )
 
-            clean_ids = []
-            for cid in class_ids:
-                try:
-                    clean_ids.append(int(cid))
-                except (TypeError, ValueError):
-                    return JsonResponse({"ok": False, "error": "class_group_ids must contain integers"}, status=400)
-
-            if clean_ids:
-                existing_ids = set(ClassGroup.objects.filter(id__in=clean_ids).values_list("id", flat=True))
-                missing = [cid for cid in clean_ids if cid not in existing_ids]
-                if missing:
-                    return JsonResponse({"ok": False, "error": f"Some classes do not exist: {missing}"}, status=400)
-
-                SessionClass.objects.bulk_create(
-                    [SessionClass(session=s, class_group_id=cid) for cid in clean_ids]
-                )
-
-        return JsonResponse({"ok": True, "session": _serialize_session(s)}, status=201)
+        return JsonResponse({
+            "ok": True,
+            "task": _serialize_task(task),
+        }, status=201)
 
     except Exception as e:
-        return JsonResponse({"ok": False, "error": f"{type(e).__name__}: {e}"}, status=500)
+        return JsonResponse(
+            {"ok": False, "error": f"{type(e).__name__}: {e}"},
+            status=500
+        )
 
 
 @csrf_exempt
