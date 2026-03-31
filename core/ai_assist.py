@@ -1,13 +1,11 @@
+import os
 import re
 from typing import Dict, Any, List, Optional
-import os
 
 from openai import OpenAI
 from pydantic import BaseModel
-from typing import List as TList
 
 from .models import Submission
-
 
 
 CODE_BLOCK_RE = re.compile(r"```.*?```", re.DOTALL)
@@ -15,6 +13,7 @@ PY_LINE_RE = re.compile(
     r"^\s*(def |class |for |while |if |elif |else:|print\(|import |from )",
     re.MULTILINE,
 )
+FENCED_CODE_STRIP_RE = re.compile(r"^```(?:python)?\s*|\s*```$", re.IGNORECASE | re.DOTALL)
 
 
 def sanitize_no_code(text: str) -> str:
@@ -31,6 +30,13 @@ def sanitize_no_code(text: str) -> str:
     return "\n".join(cleaned).strip()
 
 
+def strip_code_fences(text: str) -> str:
+    t = (text or "").strip()
+    if t.startswith("```"):
+        t = FENCED_CODE_STRIP_RE.sub("", t).strip()
+    return t
+
+
 def build_prompt_snapshot(
     *,
     level: int,
@@ -40,7 +46,6 @@ def build_prompt_snapshot(
     last_submission: Optional[Submission],
     last_submissions: List[Submission],
 ) -> str:
-
     parts: List[str] = []
     parts.append(f"LEVEL={level}")
     parts.append("TASK_STATEMENT:\n" + (statement or ""))
@@ -80,6 +85,63 @@ def build_prompt_snapshot(
     return "\n\n".join(parts)
 
 
+def build_solution_prompt_snapshot(
+    *,
+    session_title: str,
+    session_description: str,
+    statement: str,
+    constraints: str,
+    visible_tests: List[Dict[str, str]],
+    last_submission: Optional[Submission],
+    last_submissions: List[Submission],
+) -> str:
+    parts: List[str] = []
+
+    parts.append("SESSION_THEME_TITLE:\n" + (session_title or ""))
+    if session_description:
+        parts.append("SESSION_THEME_DESCRIPTION:\n" + session_description)
+
+    parts.append("TASK_STATEMENT:\n" + (statement or ""))
+
+    if constraints:
+        parts.append("CONSTRAINTS:\n" + constraints)
+
+    if visible_tests:
+        vt: List[str] = []
+        for i, tc in enumerate(visible_tests[:5], start=1):
+            vt.append(
+                f"Visible test {i}:\n"
+                f"Input:\n{tc.get('stdin', '')}\n"
+                f"Output:\n{tc.get('expected_stdout', '')}"
+            )
+        parts.append("VISIBLE_TESTS:\n" + "\n\n".join(vt))
+
+    if last_submission:
+        parts.append(
+            "LAST_SUBMISSION:\n"
+            f"verdict={last_submission.verdict}\n"
+            f"stderr={last_submission.stderr}\n"
+            f"passed={last_submission.passed_tests}/{last_submission.total_tests}\n"
+            f"CODE:\n{last_submission.code}"
+        )
+
+    if last_submissions:
+        attempts: List[str] = []
+        for s in last_submissions[-5:]:
+            err = (s.stderr or "")[:400]
+            out = (s.stdout or "")[:400]
+            attempts.append(
+                f"attempt={s.attempt_no}\n"
+                f"verdict={s.verdict}\n"
+                f"passed={s.passed_tests}/{s.total_tests}\n"
+                f"stdout={out}\n"
+                f"stderr={err}\n"
+                f"code:\n{s.code}"
+            )
+        parts.append("RECENT_ATTEMPTS:\n" + "\n\n".join(attempts))
+
+    return "\n\n".join(parts)
+
 
 class HintTextLevel1(BaseModel):
     text: str
@@ -91,12 +153,29 @@ class HintTextLevel2(BaseModel):
     no_code_confirmed: bool
 
 
-def call_openai_hint(level: int, prompt_snapshot: str) -> dict:
+class FullSolutionLevel3(BaseModel):
+    code: str
+
+
+def _get_openai_client() -> OpenAI:
     api_key = os.getenv("OPENAI_API_KEY", "").strip()
     if not api_key:
         raise RuntimeError("OPENAI_API_KEY is not set in environment variables")
+    return OpenAI(api_key=api_key)
 
-    client = OpenAI(api_key=api_key)
+
+def _extract_usage(resp) -> tuple[Optional[int], Optional[int]]:
+    usage = getattr(resp, "usage", None)
+    tokens_in = getattr(usage, "input_tokens", None) if usage else None
+    tokens_out = getattr(usage, "output_tokens", None) if usage else None
+    return tokens_in, tokens_out
+
+
+def call_openai_hint(level: int, prompt_snapshot: str) -> dict:
+    if level not in (1, 2):
+        raise ValueError("call_openai_hint only supports levels 1 and 2")
+
+    client = _get_openai_client()
 
     if level == 1:
         system_rules = (
@@ -118,7 +197,13 @@ def call_openai_hint(level: int, prompt_snapshot: str) -> dict:
             max_output_tokens=380,
         )
         parsed = resp.output_parsed
-        data = {"text": (parsed.text or "").strip(), "no_code_confirmed": bool(parsed.no_code_confirmed)}
+        if parsed is None:
+            raise RuntimeError("OpenAI returned no parsed output for hint level 1")
+
+        data = {
+            "text": (parsed.text or "").strip(),
+            "no_code_confirmed": bool(parsed.no_code_confirmed),
+        }
 
     else:
         system_rules = (
@@ -140,10 +225,65 @@ def call_openai_hint(level: int, prompt_snapshot: str) -> dict:
             max_output_tokens=420,
         )
         parsed = resp.output_parsed
-        data = {"text": (parsed.text or "").strip(), "no_code_confirmed": bool(parsed.no_code_confirmed)}
+        if parsed is None:
+            raise RuntimeError("OpenAI returned no parsed output for hint level 2")
 
-    usage = getattr(resp, "usage", None)
-    tokens_in = getattr(usage, "input_tokens", None) if usage else None
-    tokens_out = getattr(usage, "output_tokens", None) if usage else None
+        data = {
+            "text": (parsed.text or "").strip(),
+            "no_code_confirmed": bool(parsed.no_code_confirmed),
+        }
 
-    return {"data": data, "tokens_in": tokens_in, "tokens_out": tokens_out, "model": "gpt-4o-mini"}
+    tokens_in, tokens_out = _extract_usage(resp)
+
+    return {
+        "data": data,
+        "tokens_in": tokens_in,
+        "tokens_out": tokens_out,
+        "model": "gpt-4o-mini",
+    }
+
+
+def call_openai_solution(prompt_snapshot: str) -> dict:
+    client = _get_openai_client()
+
+    system_rules = (
+        "You are a programming teacher inside a Python learning platform.\n"
+        "Return a FULL correct Python solution for the task.\n"
+        "Main priority: simplicity and readability of the code.\n"
+        "The solution must be easy for a student to understand.\n"
+        "Do NOT use comments.\n"
+        "Do NOT include explanations before or after the code.\n"
+        "The solution must follow the teaching theme of the session.\n"
+        "For example, if the session theme is about functions, the solution must use a function.\n"
+        "If the session theme is about loops, strings, lists, dictionaries, classes, recursion, or similar topics,\n"
+        "prefer a solution naturally aligned with that topic.\n"
+        "Do not over-engineer the solution.\n"
+        "Output must match schema: {code: string}."
+    )
+
+    resp = client.responses.parse(
+        model="gpt-4o-mini",
+        input=[
+            {"role": "system", "content": system_rules},
+            {"role": "user", "content": prompt_snapshot},
+        ],
+        text_format=FullSolutionLevel3,
+        max_output_tokens=1400,
+    )
+
+    parsed = resp.output_parsed
+    if parsed is None:
+        raise RuntimeError("OpenAI returned no parsed output for full solution")
+
+    code = strip_code_fences(parsed.code or "").strip()
+    if not code:
+        raise RuntimeError("OpenAI returned empty solution code")
+
+    tokens_in, tokens_out = _extract_usage(resp)
+
+    return {
+        "data": {"code": code},
+        "tokens_in": tokens_in,
+        "tokens_out": tokens_out,
+        "model": "gpt-4o-mini",
+    }

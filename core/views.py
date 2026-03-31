@@ -151,12 +151,19 @@ def _get_or_create_progress(ss: StudentSession, task: SessionTask, now=None):
 
 def _unlock_hints_if_needed(progress: StudentTaskProgress, now):
     changed = []
+
     if progress.attempts_failed >= 2 and not progress.hint1_unlocked_at:
         progress.hint1_unlocked_at = now
         changed.append("hint1_unlocked_at")
+
     if progress.attempts_failed >= 3 and not progress.hint2_unlocked_at:
         progress.hint2_unlocked_at = now
         changed.append("hint2_unlocked_at")
+
+    if progress.attempts_failed >= 3 and not progress.hint3_unlocked_at:
+        progress.hint3_unlocked_at = now
+        changed.append("hint3_unlocked_at")
+
     return changed
 
 
@@ -193,11 +200,19 @@ def _join_code(top_block: str, user_code: str, bottom_block: str) -> str:
 
 def _inc_hint_counter(progress: StudentTaskProgress, level: int) -> None:
     ActivityAggregate.objects.get_or_create(progress=progress)
-    if level == 1:
-        ActivityAggregate.objects.filter(progress=progress).update(hint1_requests=F("hint1_requests") + 1)
-    else:
-        ActivityAggregate.objects.filter(progress=progress).update(hint2_requests=F("hint2_requests") + 1)
 
+    if level == 1:
+        ActivityAggregate.objects.filter(progress=progress).update(
+            hint1_requests=F("hint1_requests") + 1
+        )
+    elif level == 2:
+        ActivityAggregate.objects.filter(progress=progress).update(
+            hint2_requests=F("hint2_requests") + 1
+        )
+    elif level == 3:
+        ActivityAggregate.objects.filter(progress=progress).update(
+            hint3_requests=F("hint3_requests") + 1
+        )
 
 def _serialize_class_group(class_group: ClassGroup):
     students = list(
@@ -427,7 +442,10 @@ def student_task_detail(request: HttpRequest, task_id: int):
     progress = _get_or_create_progress(ss, task, now)
 
     if progress.status == StudentTaskProgress.Status.SOLVED and progress.locked_after_solve:
-        return JsonResponse({"ok": True, "locked": True, "message": "Task already solved and locked"}, status=200)
+        return JsonResponse(
+            {"ok": True, "locked": True, "message": "Task already solved and locked"},
+            status=200,
+        )
 
     visible_tests = list(
         TaskTestCase.objects.filter(task=task, is_visible=True)
@@ -453,11 +471,16 @@ def student_task_detail(request: HttpRequest, task_id: int):
                 "attempts_failed": progress.attempts_failed,
                 "hint1_available": bool(progress.hint1_unlocked_at),
                 "hint2_available": bool(progress.hint2_unlocked_at),
+                "hint3_available": bool(progress.hint3_unlocked_at),
             },
             "visible_testcases": visible_tests,
-            "code_fragments": {"top": top_frag, "bottom": bottom_frag},
+            "code_fragments": {
+                "top": top_frag,
+                "bottom": bottom_frag,
+            },
         }
     )
+
 
 
 @csrf_exempt
@@ -474,6 +497,7 @@ def student_submit(request: HttpRequest, task_id: int):
     task = get_object_or_404(SessionTask, id=task_id, session=session)
     data = _json_body(request)
     user_code = (data.get("code") or "").rstrip()
+
     if not user_code:
         return JsonResponse({"ok": False, "error": "code is required"}, status=400)
 
@@ -487,14 +511,19 @@ def student_submit(request: HttpRequest, task_id: int):
         delta = (now - progress.last_submit_at).total_seconds()
         if delta < SUBMIT_COOLDOWN_SECONDS:
             wait_seconds = max(1, int(SUBMIT_COOLDOWN_SECONDS - delta))
-            return JsonResponse({"ok": False, "error": f"Too frequent submits. Wait {wait_seconds}s"}, status=429)
+            return JsonResponse(
+                {"ok": False, "error": f"Too frequent submits. Wait {wait_seconds}s"},
+                status=429,
+            )
 
     code_hash = hashlib.sha256(user_code.encode("utf-8")).hexdigest()
     if progress.last_code_hash and progress.last_code_hash == code_hash:
         return JsonResponse({"ok": False, "error": "No changes in code since last submit"}, status=400)
 
     testcases = list(
-        TaskTestCase.objects.filter(task=task).order_by("ordinal").values("ordinal", "stdin", "expected_stdout")
+        TaskTestCase.objects.filter(task=task)
+        .order_by("ordinal")
+        .values("ordinal", "stdin", "expected_stdout")
     )
     if not testcases:
         return JsonResponse({"ok": False, "error": "No testcases configured for this task"}, status=500)
@@ -512,6 +541,7 @@ def student_submit(request: HttpRequest, task_id: int):
         progress.last_submit_at = now
         progress.last_code_hash = code_hash
         progress.attempts_failed += 1
+
         changed = [
             "attempts_total",
             "attempts_failed",
@@ -531,6 +561,7 @@ def student_submit(request: HttpRequest, task_id: int):
             passed_tests=0,
             total_tests=len(testcases),
         )
+
         return JsonResponse(
             {
                 "ok": True,
@@ -549,6 +580,7 @@ def student_submit(request: HttpRequest, task_id: int):
                     "attempts_failed": progress.attempts_failed,
                     "hint1_available": bool(progress.hint1_unlocked_at),
                     "hint2_available": bool(progress.hint2_unlocked_at),
+                    "hint3_available": bool(progress.hint3_unlocked_at),
                 },
             }
         )
@@ -560,7 +592,12 @@ def student_submit(request: HttpRequest, task_id: int):
 
     for r in results:
         stdout_last = getattr(r, "stdout", "") or ""
-        stderr_last = getattr(r, "stderr", "") or getattr(r, "compile_output", "") or getattr(r, "message", "") or ""
+        stderr_last = (
+            getattr(r, "stderr", "")
+            or getattr(r, "compile_output", "")
+            or getattr(r, "message", "")
+            or ""
+        )
         status_id = getattr(r, "status_id", None)
 
         if status_id == 3:
@@ -578,6 +615,7 @@ def student_submit(request: HttpRequest, task_id: int):
         if status_id and status_id >= 7:
             verdict = Submission.Verdict.RUNTIME_ERROR
             break
+
         verdict = Submission.Verdict.RUNTIME_ERROR
         break
 
@@ -629,17 +667,27 @@ def student_submit(request: HttpRequest, task_id: int):
                 "attempts_failed": progress.attempts_failed,
                 "hint1_available": bool(progress.hint1_unlocked_at),
                 "hint2_available": bool(progress.hint2_unlocked_at),
+                "hint3_available": bool(progress.hint3_unlocked_at),
             },
         }
     )
 
 
+
+from .ai_assist import (
+    build_prompt_snapshot,
+    call_openai_hint,
+    sanitize_no_code,
+    build_solution_prompt_snapshot,
+    call_openai_solution,
+)
 @require_GET
 def student_hint_level(request: HttpRequest, task_id: int, level: int):
     student_id, class_id = _get_student_from_session(request)
     if not student_id:
         return JsonResponse({"ok": False, "error": "not authenticated"}, status=401)
-    if level not in (1, 2):
+
+    if level not in (1, 2, 3):
         return JsonResponse({"ok": False, "error": "invalid level"}, status=400)
 
     session = _get_active_session_for_class(class_id)
@@ -647,50 +695,112 @@ def student_hint_level(request: HttpRequest, task_id: int, level: int):
         return JsonResponse({"ok": True, "active": False, "message": "Current session is inactive"}, status=200)
 
     task = get_object_or_404(SessionTask, id=task_id, session=session)
-    ss, now = _get_or_create_student_session(student_id, session)
-    progress = _get_or_create_progress(ss, task, now)
+
+    now = timezone.now()
+    ss, _ = StudentSession.objects.get_or_create(
+        student_id=student_id,
+        session=session,
+        defaults={"started_at": now, "last_seen_at": now},
+    )
+    StudentSession.objects.filter(id=ss.id).update(last_seen_at=now)
+
+    progress, _ = StudentTaskProgress.objects.get_or_create(
+        student_session=ss,
+        task=task,
+        defaults={"status": StudentTaskProgress.Status.IN_PROGRESS, "opened_at": now},
+    )
 
     if level == 1 and progress.attempts_failed < 2:
         return JsonResponse({"ok": False, "error": "hint level 1 not available yet"}, status=403)
     if level == 2 and progress.attempts_failed < 3:
         return JsonResponse({"ok": False, "error": "hint level 2 not available yet"}, status=403)
+    if level == 3 and progress.attempts_failed < 3:
+        return JsonResponse({"ok": False, "error": "hint level 3 not available yet"}, status=403)
 
     if level == 1 and progress.hint1_text:
         _inc_hint_counter(progress, 1)
-        return JsonResponse({"ok": True, "level": 1, "text": progress.hint1_text})
+        return JsonResponse({"ok": True, "level": 1, "kind": "text", "text": progress.hint1_text})
+
     if level == 2 and progress.hint2_text:
         _inc_hint_counter(progress, 2)
-        return JsonResponse({"ok": True, "level": 2, "text": progress.hint2_text})
+        return JsonResponse({"ok": True, "level": 2, "kind": "text", "text": progress.hint2_text})
+
+    if level == 3 and progress.hint3_text:
+        progress.hint3_used_at = now
+        progress.save(update_fields=["hint3_used_at"])
+        _inc_hint_counter(progress, 3)
+        return JsonResponse(
+            {
+                "ok": True,
+                "level": 3,
+                "kind": "code",
+                "code": progress.hint3_text,
+                "insert_into_editor": True,
+            }
+        )
 
     cached = (
-        AiAssistMessage.objects.filter(progress=progress, level=level, status=AiAssistMessage.Status.OK)
+        AiAssistMessage.objects
+        .filter(progress=progress, level=level, status=AiAssistMessage.Status.OK)
         .order_by("-created_at")
         .first()
     )
+
     if cached and cached.response_text:
         if level == 1:
             progress.hint1_text = cached.response_text
             progress.save(update_fields=["hint1_text"])
-        else:
+            _inc_hint_counter(progress, 1)
+            return JsonResponse({"ok": True, "level": 1, "kind": "text", "text": cached.response_text})
+
+        if level == 2:
             progress.hint2_text = cached.response_text
             progress.save(update_fields=["hint2_text"])
-        _inc_hint_counter(progress, level)
-        return JsonResponse({"ok": True, "level": level, "text": cached.response_text})
+            _inc_hint_counter(progress, 2)
+            return JsonResponse({"ok": True, "level": 2, "kind": "text", "text": cached.response_text})
+
+        if level == 3:
+            progress.hint3_text = cached.response_text
+            progress.hint3_used_at = now
+            progress.save(update_fields=["hint3_text", "hint3_used_at"])
+            _inc_hint_counter(progress, 3)
+            return JsonResponse(
+                {
+                    "ok": True,
+                    "level": 3,
+                    "kind": "code",
+                    "code": cached.response_text,
+                    "insert_into_editor": True,
+                }
+            )
 
     visible_tests = list(
-        TaskTestCase.objects.filter(task=task, is_visible=True).order_by("ordinal").values("stdin", "expected_stdout")
+        TaskTestCase.objects.filter(task=task, is_visible=True)
+        .order_by("ordinal")
+        .values("stdin", "expected_stdout")
     )
     last_sub = Submission.objects.filter(progress=progress).order_by("-attempt_no").first()
     last_subs = list(Submission.objects.filter(progress=progress).order_by("attempt_no")[:50])
 
-    prompt_snapshot = build_prompt_snapshot(
-        level=level,
-        statement=task.statement,
-        constraints=task.constraints,
-        visible_tests=visible_tests,
-        last_submission=last_sub,
-        last_submissions=last_subs,
-    )
+    if level in (1, 2):
+        prompt_snapshot = build_prompt_snapshot(
+            level=level,
+            statement=task.statement,
+            constraints=task.constraints,
+            visible_tests=visible_tests,
+            last_submission=last_sub,
+            last_submissions=last_subs,
+        )
+    else:
+        prompt_snapshot = build_solution_prompt_snapshot(
+            session_title=session.title,
+            session_description=session.description,
+            statement=task.statement,
+            constraints=task.constraints,
+            visible_tests=visible_tests,
+            last_submission=last_sub,
+            last_submissions=last_subs,
+        )
 
     msg = AiAssistMessage.objects.create(
         progress=progress,
@@ -701,19 +811,52 @@ def student_hint_level(request: HttpRequest, task_id: int, level: int):
     )
 
     try:
-        out = call_openai_hint(level, prompt_snapshot)
+        if level in (1, 2):
+            out = call_openai_hint(level, prompt_snapshot)
+            if out is None or not isinstance(out, dict):
+                raise RuntimeError("call_openai_hint returned invalid response")
+
+            data = out.get("data")
+            if data is None or not isinstance(data, dict):
+                raise RuntimeError("OpenAI response missing 'data'")
+
+            text = (data.get("text") or "").strip()
+            if not text:
+                raise RuntimeError("Empty AI response text")
+
+            text = sanitize_no_code(text)
+
+            msg.response_text = text
+            msg.model = out.get("model", "")
+            msg.tokens_in = out.get("tokens_in")
+            msg.tokens_out = out.get("tokens_out")
+            msg.status = AiAssistMessage.Status.OK
+            msg.error_message = ""
+            msg.save(update_fields=["response_text", "model", "tokens_in", "tokens_out", "status", "error_message"])
+
+            if level == 1:
+                progress.hint1_text = text
+                progress.save(update_fields=["hint1_text"])
+            else:
+                progress.hint2_text = text
+                progress.save(update_fields=["hint2_text"])
+
+            _inc_hint_counter(progress, level)
+            return JsonResponse({"ok": True, "level": level, "kind": "text", "text": text})
+
+        out = call_openai_solution(prompt_snapshot)
         if out is None or not isinstance(out, dict):
-            raise RuntimeError("call_openai_hint returned invalid response")
+            raise RuntimeError("call_openai_solution returned invalid response")
+
         data = out.get("data")
         if data is None or not isinstance(data, dict):
             raise RuntimeError("OpenAI response missing 'data'")
 
-        text = (data.get("text") or "").strip()
-        if not text:
-            raise RuntimeError("Empty AI response text")
-        text = sanitize_no_code(text)
+        code = (data.get("code") or "").strip()
+        if not code:
+            raise RuntimeError("Empty solution code")
 
-        msg.response_text = text
+        msg.response_text = code
         msg.model = out.get("model", "")
         msg.tokens_in = out.get("tokens_in")
         msg.tokens_out = out.get("tokens_out")
@@ -721,15 +864,22 @@ def student_hint_level(request: HttpRequest, task_id: int, level: int):
         msg.error_message = ""
         msg.save(update_fields=["response_text", "model", "tokens_in", "tokens_out", "status", "error_message"])
 
-        if level == 1:
-            progress.hint1_text = text
-            progress.save(update_fields=["hint1_text"])
-        else:
-            progress.hint2_text = text
-            progress.save(update_fields=["hint2_text"])
+        progress.hint3_text = code
+        progress.hint3_used_at = now
+        progress.save(update_fields=["hint3_text", "hint3_used_at"])
 
-        _inc_hint_counter(progress, level)
-        return JsonResponse({"ok": True, "level": level, "text": text})
+        _inc_hint_counter(progress, 3)
+
+        return JsonResponse(
+            {
+                "ok": True,
+                "level": 3,
+                "kind": "code",
+                "code": code,
+                "insert_into_editor": True,
+            }
+        )
+
     except Exception as e:
         msg.status = AiAssistMessage.Status.ERROR
         msg.error_message = f"{type(e).__name__}: {e}"

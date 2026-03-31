@@ -1,12 +1,12 @@
 {% load static %}
 
 <!doctype html>
-<html lang="en">
+<html lang="{{ ui_lang|default:'en' }}">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Student Portal</title>
-    <script src="{% static 'core/student_activity.js' %}"></script>
+  <title>{{ T.student_portal_title }}</title>
+  <script src="{% static 'core/student_activity.js' %}"></script>
   <style>
     :root{
       --bg:#f6f7fb;
@@ -20,14 +20,31 @@
       --hintborder:#d1d5db;
       --hintglow: rgba(14,165,233,.55);
       --shadow: 0 10px 20px rgba(17,24,39,.06);
+      --ui-font-default: Arial, "Segoe UI", sans-serif;
+      --ui-font-kk: "Noto Sans", "DejaVu Sans", "Segoe UI", Arial, sans-serif;
+      --code-font: Consolas, "Courier New", monospace;
     }
 
-    body { font-family: Arial, sans-serif; margin:0; background:var(--bg); }
+    body {
+      font-family: {% if ui_lang == 'kk' %}var(--ui-font-kk){% else %}var(--ui-font-default){% endif %};
+      margin:0;
+      background:var(--bg);
+      text-rendering: optimizeLegibility;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
     .layout { display:flex; height:100vh; overflow:hidden; }
 
-    /* Resizable sidebar */
     .sidebarWrap{ display:flex; height:100%; }
-    .sidebar { width: 300px; min-width: 240px; max-width: 520px; background:var(--card); border-right:1px solid var(--border); padding: 16px; box-sizing:border-box; overflow:auto; }
+    .sidebar {
+      width: 300px; min-width: 240px; max-width: 520px;
+      background:var(--card);
+      border-right:1px solid var(--border);
+      padding: 16px;
+      box-sizing:border-box;
+      overflow:auto;
+    }
     .resizer { width: 8px; cursor: col-resize; background: transparent; position:relative; }
     .resizer:after{
       content:"";
@@ -45,28 +62,100 @@
     .danger { color:var(--danger); }
     .ok { color:var(--ok); }
 
-    .taskbtn { width:100%; text-align:left; padding:10px; border:1px solid var(--border); border-radius:10px; background:var(--card); margin-bottom:8px; cursor:pointer; }
+    .taskbtn {
+      width:100%; text-align:left; padding:10px;
+      border:1px solid var(--border);
+      border-radius:10px;
+      background:var(--card);
+      margin-bottom:8px;
+      cursor:pointer;
+      transition: border-color .15s ease, box-shadow .15s ease, transform .08s ease;
+    }
+    .taskbtn:hover{
+      transform: translateY(-1px);
+      border-color:#bfdbfe;
+      box-shadow: 0 10px 20px rgba(17,24,39,.05);
+    }
     .taskbtn.active { border-color:var(--primary); box-shadow: 0 0 0 2px rgba(14,165,233,.15); }
-    .badge { float:right; font-size:11px; padding:2px 6px; border-radius:999px; background:#eef2ff; }
-
-    .card { background:var(--card); border:1px solid var(--border); border-radius:12px; padding: 14px; margin-bottom: 12px; box-shadow: var(--shadow); }
-    pre { background:#0b1020; color:#d1d5db; padding: 10px; border-radius:10px; overflow:auto; margin:8px 0 0 0; }
-
-    textarea {
-      width:100%; height:240px;
-      border:1px solid #cbd5e1; border-radius:12px;
-      padding: 12px; font-family: Consolas, monospace; font-size: 13px;
-      box-sizing:border-box; resize: vertical;
+    .badge {
+      float:right;
+      font-size:11px;
+      padding:2px 6px;
+      border-radius:999px;
+      background:#eef2ff;
     }
 
-    button.primary { background:var(--primary); color:#fff; border:0; padding:10px 14px; border-radius:10px; cursor:pointer; }
-    button.ghost { background:#fff; color:#111827; border:1px solid var(--border); padding:10px 14px; border-radius:10px; cursor:pointer; }
-    button.primary:disabled, button.ghost:disabled { opacity: 0.6; cursor:not-allowed; }
+    .card {
+      background:var(--card);
+      border:1px solid var(--border);
+      border-radius:12px;
+      padding: 14px;
+      margin-bottom: 12px;
+      box-shadow: var(--shadow);
+    }
+
+    pre, code, .code-font {
+      font-family: var(--code-font);
+    }
+
+    pre {
+      background:#0b1020;
+      color:#d1d5db;
+      padding: 10px;
+      border-radius:10px;
+      overflow:auto;
+      margin:8px 0 0 0;
+    }
+
+    textarea {
+      width:100%;
+      height:240px;
+      border:1px solid #cbd5e1;
+      border-radius:12px;
+      padding: 12px;
+      font-family: var(--code-font);
+      font-size: 13px;
+      box-sizing:border-box;
+      resize: vertical;
+    }
+
+    button.primary {
+      background:var(--primary);
+      color:#fff;
+      border:0;
+      padding:10px 14px;
+      border-radius:10px;
+      cursor:pointer;
+      transition: opacity .15s ease, transform .08s ease;
+    }
+    button.ghost {
+      background:#fff;
+      color:#111827;
+      border:1px solid var(--border);
+      padding:10px 14px;
+      border-radius:10px;
+      cursor:pointer;
+      transition: opacity .15s ease, transform .08s ease;
+    }
+    button.primary:hover, button.ghost:hover{
+      transform: translateY(-1px);
+    }
+    button.primary:disabled, button.ghost:disabled {
+      opacity: 0.6;
+      cursor:not-allowed;
+      transform:none;
+    }
 
     .row { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
-    .msg { padding: 10px; border-radius: 10px; background:#fff7ed; border:1px solid #fed7aa; box-shadow: var(--shadow); }
+    .msg {
+      padding: 10px;
+      border-radius: 10px;
+      background:#fff7ed;
+      border:1px solid #fed7aa;
+      box-shadow: var(--shadow);
+      white-space: pre-wrap;
+    }
 
-    /* Hint cards (left, flip) */
     .hintPanelTitle{ font-weight:700; margin: 8px 0 10px; }
     .hintGrid{ display:flex; flex-direction:column; gap:10px; }
 
@@ -113,12 +202,13 @@
       margin-top:10px;
       white-space:pre-wrap;
       overflow-wrap:anywhere;
+      max-height:420px;
+      overflow:auto;
     }
 
     .flipCard.flipped .flipBody{ display:none; }
     .flipCard.flipped .flipBack{ display:block; }
 
-    /* flip animation */
     .flipCard.animating{
       animation: flipAnim .45s ease;
     }
@@ -129,7 +219,6 @@
       100% { transform: rotateY(0deg); }
     }
 
-    /* Submit button at bottom of editor card */
     .editorFooter{
       display:flex;
       justify-content:space-between;
@@ -138,7 +227,6 @@
       margin-top:10px;
     }
 
-    /* right side split (task vs editor) horizontal resizer */
     .contentSplit{
       display:flex;
       gap:0;
@@ -177,62 +265,66 @@
 
     a { color:var(--primary); text-decoration:none; }
     hr { border:none; border-top:1px solid var(--border); margin:12px 0; }
-
-    /* small helper text */
     .tiny { font-size:11px; color:var(--muted); }
   </style>
 </head>
 <body>
 <div class="layout">
 
-  <!-- Resizable sidebar -->
   <div class="sidebarWrap">
     <div class="sidebar" id="sidebar">
       <div class="top">
         <div>
-          <div class="title" id="studentName">Student</div>
+          <div class="title" id="studentName">{{ T.student_portal_title }}</div>
           <div class="small" id="studentClass"></div>
         </div>
         <form method="post" action="/student/logout/">
           {% csrf_token %}
-          <button class="ghost" type="submit">Logout</button>
+          <button class="ghost" type="submit">{{ T.logout }}</button>
         </form>
       </div>
 
       <div class="card">
-        <div class="title" id="sessionTitle">Session</div>
+        <div class="title" id="sessionTitle">{{ T.session }}</div>
         <div class="small" id="sessionTime"></div>
         <div class="small muted" id="sessionDesc"></div>
       </div>
 
       <div id="taskList"></div>
 
-      <!-- Hints panel (left, under tasks) -->
       <div class="card">
-        <div class="hintPanelTitle">Hints</div>
-        <div class="tiny">Hints unlock after 5/8 failed attempts. Tap a card to reveal/hide.</div>
+        <div class="hintPanelTitle">{{ T.hints }}</div>
+        <div class="tiny">{{ T.hints_unlock_note }}</div>
 
         <div class="hintGrid" style="margin-top:10px;">
           <div class="flipCard disabled" id="hintCard1" data-level="1">
             <div class="flipCardHeader">
-              <div class="flipCardTitle">Hint Level 1</div>
-              <div class="pill gray" id="hintPill1">locked</div>
+              <div class="flipCardTitle">{{ T.hint_1 }}</div>
+              <div class="pill gray" id="hintPill1">{{ T.locked }}</div>
             </div>
-            <div class="flipBody muted" id="hintFront1">Hint is locked. It will unlock after 5 failed attempts.</div>
+            <div class="flipBody muted" id="hintFront1">{{ T.hint_locked_after_2 }}</div>
             <div class="flipBack" id="hintBack1"></div>
           </div>
 
           <div class="flipCard disabled" id="hintCard2" data-level="2">
             <div class="flipCardHeader">
-              <div class="flipCardTitle">Hint Level 2</div>
-              <div class="pill gray" id="hintPill2">locked</div>
+              <div class="flipCardTitle">{{ T.hint_2 }}</div>
+              <div class="pill gray" id="hintPill2">{{ T.locked }}</div>
             </div>
-            <div class="flipBody muted" id="hintFront2">Hint is locked. It will unlock after 8 failed attempts.</div>
+            <div class="flipBody muted" id="hintFront2">{{ T.hint_locked_after_3 }}</div>
             <div class="flipBack" id="hintBack2"></div>
+          </div>
+
+          <div class="flipCard disabled" id="hintCard3" data-level="3">
+            <div class="flipCardHeader">
+              <div class="flipCardTitle">{{ T.hint_3 }}</div>
+              <div class="pill gray" id="hintPill3">{{ T.locked }}</div>
+            </div>
+            <div class="flipBody muted" id="hintFront3">{{ T.hint_locked_after_3_solution }}</div>
+            <div class="flipBack code-font" id="hintBack3"></div>
           </div>
         </div>
       </div>
-
     </div>
     <div class="resizer" id="sidebarResizer" title="Drag to resize"></div>
   </div>
@@ -241,56 +333,58 @@
     <div id="statusBox" class="msg" style="display:none;"></div>
 
     <div class="contentSplit">
-      <!-- Task pane -->
       <div class="leftPane" id="taskPane">
         <div class="card" id="taskCard" style="display:none;">
           <div class="title" id="taskTitle"></div>
           <div class="small muted" id="taskMeta"></div>
           <hr>
+          <div class="small"><b>{{ T.task_statement }}</b></div>
           <div id="taskStatement"></div>
 
           <div style="margin-top:10px;"></div>
-          <div class="small"><b>Constraints:</b></div>
+          <div class="small"><b>{{ T.constraints }}</b></div>
           <div class="small" id="taskConstraints"></div>
 
           <div style="margin-top:12px;"></div>
-          <div class="small"><b>Sample tests:</b></div>
+          <div class="small"><b>{{ T.visible_tests }}</b></div>
           <div id="visibleTests"></div>
         </div>
       </div>
 
       <div class="splitResizer" id="contentResizer" title="Drag to resize"></div>
 
-      <!-- Editor pane -->
       <div class="rightPane" id="editorPane">
         <div class="card" id="editorCard" style="display:none;">
           <div class="row" style="justify-content:space-between;">
             <div>
-              <div class="title">Code (Python)</div>
-              <div class="small muted">Evaluation via Judge0. Limit: 15 seconds between submissions. Submissions are blocked if code is unchanged.</div>
+              <div class="title">{{ T.code_python }}</div>
+              <div class="small muted">{{ T.judge0_note }}</div>
             </div>
           </div>
 
           <div style="margin-top:10px;"></div>
-            <div class="card" id="topFragmentCard" style="display:none;">
-  <div class="small muted"><b>Read-only starter code (cannot be changed):</b></div>
-  <pre id="topFragment"></pre>
-</div>
+
+          <div class="card" id="topFragmentCard" style="display:none;">
+            <div class="small muted"><b>{{ T.top_fragment }} — {{ T.read_only_starter }}</b></div>
+            <pre id="topFragment"></pre>
+          </div>
+
           <textarea id="codeArea" spellcheck="false">print("Hello")</textarea>
-<div class="card" id="bottomFragmentCard" style="display:none;">
-  <div class="small muted"><b>Read-only ending code (cannot be changed):</b></div>
-  <pre id="bottomFragment"></pre>
-</div>
-          <!-- Submit moved down -->
+
+          <div class="card" id="bottomFragmentCard" style="display:none;">
+            <div class="small muted"><b>{{ T.bottom_fragment }} — {{ T.read_only_ending }}</b></div>
+            <pre id="bottomFragment"></pre>
+          </div>
+
           <div class="editorFooter">
-            <div class="tiny" id="submitState">Ready</div>
-            <button class="primary" id="submitBtn">Submit</button>
+            <div class="tiny" id="submitState">{{ T.ready }}</div>
+            <button class="primary" id="submitBtn">{{ T.submit_solution }}</button>
           </div>
 
           <div style="margin-top:12px;"></div>
           <div class="card" id="resultCard" style="display:none;">
             <div class="row">
-              <div><b>Verdict:</b> <span id="verdict"></span></div>
+              <div><b>{{ T.verdict }}:</b> <span id="verdict"></span></div>
               <div class="muted" id="attemptsInfo"></div>
             </div>
             <div id="stderrBox" class="danger" style="margin-top:10px;white-space:pre-wrap;"></div>
@@ -299,24 +393,60 @@
         </div>
       </div>
     </div>
-
   </div>
 </div>
 
 <script>
+  const UI = {
+    classLabel: "{{ T.class_label|escapejs }}",
+    hint1: "{{ T.hint_1|escapejs }}",
+    hint2: "{{ T.hint_2|escapejs }}",
+    hint3: "{{ T.hint_3|escapejs }}",
+    hint3FullSolution: "{{ T.hint_3_full_solution|escapejs }}",
+    hint3Inserted: "{{ T.hint_3_inserted|escapejs }}",
+    hint3Failed: "{{ T.hint_3_failed|escapejs }}",
+    solutionLoaded: "{{ T.solution_loaded|escapejs }}",
+    locked: "{{ T.locked|escapejs }}",
+    available: "{{ T.available|escapejs }}",
+    cooldown: "{{ T.cooldown|escapejs }}",
+    noTasksInSession: "{{ T.no_tasks_in_session|escapejs }}",
+    ready: "{{ T.ready|escapejs }}",
+    selectTaskLeft: "{{ T.select_task_left|escapejs }}",
+    failedLoadTask: "{{ T.failed_load_task|escapejs }}",
+    failedLoadSession: "{{ T.failed_load_session|escapejs }}",
+    noActiveSession: "{{ T.no_active_session|escapejs }}",
+    startLabel: "{{ T.start_label|escapejs }}",
+    endLabel: "{{ T.end_label|escapejs }}",
+    testLabel: "{{ T.test_label|escapejs }}",
+    inputLabel: "{{ T.input_label|escapejs }}",
+    outputLabel: "{{ T.output_label|escapejs }}",
+    hintRequestFailed: "{{ T.hint_request_failed|escapejs }}",
+    pleaseWaitHint: "{{ T.please_wait_hint|escapejs }}",
+    pleaseWaitSubmit: "{{ T.please_wait_submit|escapejs }}",
+    codeUnchanged: "{{ T.code_unchanged|escapejs }}",
+    submitting: "{{ T.submitting|escapejs }}",
+    submitFailed: "{{ T.submit_failed|escapejs }}",
+    loadingTask: "{{ T.loading_task|escapejs }}",
+    loadingSession: "{{ T.loading_session|escapejs }}",
+    taskLocked: "{{ T.task_locked|escapejs }}",
+    lockedTaskHidden: "{{ T.locked_task_hidden|escapejs }}",
+    attemptsInfo: "{{ T.attempts_info|escapejs }}",
+    statusCooldown: "{{ T.status_cooldown|escapejs }}",
+    statusCodeUnchanged: "{{ T.status_code_unchanged|escapejs }}",
+    statusReady: "{{ T.status_ready|escapejs }}",
+    hintTextEmpty: "{{ T.hint_text_empty|escapejs }}",
+    solutionPreview: "{{ T.solution_preview|escapejs }}",
+    notStarted: "{{ T.not_started|escapejs }}",
+    inProgress: "{{ T.in_progress|escapejs }}",
+    solved: "{{ T.solved|escapejs }}",
+    lockedStatus: "{{ T.locked_status|escapejs }}"
+  };
+
   let currentTaskId = null;
-
-  // per-task local code cache
   const CODE_CACHE_PREFIX = "pp_code_task_";
-
-  // Submit anti-spam
-  let lastSubmittedHashByTask = {};   // {taskId: sha256(code)} for last successful submit
-  let submitCooldownUntil = 0;        // timestamp ms for submit
-
-  // Hint anti-spam (independent per level)
-  let hintCooldownUntil = {1:0, 2:0}; // timestamps ms
-
-  // progress from backend for current task
+  let lastSubmittedHashByTask = {};
+  let submitCooldownUntil = 0;
+  let hintCooldownUntil = {1:0, 2:0, 3:0};
   let lastProgress = null;
 
   function qs(id){ return document.getElementById(id); }
@@ -326,8 +456,25 @@
     el.style.display = "block";
     el.textContent = text;
   }
+
   function hideStatus(){
     qs("statusBox").style.display = "none";
+  }
+
+  function formatStr(template, values){
+    let result = template || "";
+    Object.keys(values || {}).forEach(key => {
+      result = result.replaceAll(`{${key}}`, String(values[key]));
+    });
+    return result;
+  }
+
+  function statusLabel(st){
+    if (st === "not_started") return UI.notStarted;
+    if (st === "in_progress") return UI.inProgress;
+    if (st === "solved") return UI.solved;
+    if (st === "locked") return UI.lockedStatus;
+    return st || "";
   }
 
   async function sha256Hex(text) {
@@ -337,31 +484,48 @@
     return hashArr.map(b => b.toString(16).padStart(2, "0")).join("");
   }
 
-  async function apiGet(url){
-    const r = await fetch(url, { credentials: "include" });
+  async function parseJsonResponse(r){
+    const ct = r.headers.get("content-type") || "";
+    if (!ct.includes("application/json")){
+      const text = await r.text();
+      return {
+        status: r.status,
+        data: { ok:false, error:`Non-JSON (${r.status}): ${text.slice(0,200)}` }
+      };
+    }
     return { status: r.status, data: await r.json() };
   }
+
+  async function apiGet(url){
+    const r = await fetch(url, {
+      credentials: "include",
+      headers: { "Accept": "application/json" }
+    });
+    return parseJsonResponse(r);
+  }
+
   async function apiPost(url, body){
     const r = await fetch(url, {
       method: "POST",
       credentials: "include",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        "Accept": "application/json"
+      },
       body: JSON.stringify(body)
     });
-    return { status: r.status, data: await r.json() };
+    return parseJsonResponse(r);
   }
 
   function escapeHtml(s){
-    return (s || "")
+    return String(s || "")
       .replaceAll("&","&amp;")
       .replaceAll("<","&lt;")
       .replaceAll(">","&gt;");
   }
 
-  // ---------- Resizers (sidebar + content split) ----------
   function makeResizer(resizerEl, leftEl, opts){
     let dragging = false;
-
     const min = opts.min ?? 240;
     const max = opts.max ?? 600;
 
@@ -399,19 +563,16 @@
     window.addEventListener("mousemove", (e) => {
       if (!dragging) return;
 
-      const container = resizerEl.parentElement; // .contentSplit
+      const container = resizerEl.parentElement;
       const rect = container.getBoundingClientRect();
       const x = e.clientX - rect.left;
 
-      // keep some minimums
       const minLeft = 320;
       const minRight = 320;
-
       const maxLeft = rect.width - minRight - resizerEl.offsetWidth;
 
       let newLeft = Math.max(minLeft, Math.min(maxLeft, x));
       leftPane.style.width = newLeft + "px";
-      // rightPane is flex:1, so it fills the rest
     });
 
     window.addEventListener("mouseup", () => {
@@ -421,7 +582,6 @@
     });
   }
 
-  // ---------- Code cache per task ----------
   function loadCachedCode(taskId){
     try{
       const v = localStorage.getItem(CODE_CACHE_PREFIX + taskId);
@@ -430,13 +590,27 @@
       return "";
     }
   }
+
   function saveCachedCode(taskId, code){
     try{
       localStorage.setItem(CODE_CACHE_PREFIX + taskId, code);
     }catch(e){}
   }
 
-  // ---------- Submit cooldown + change check ----------
+  function insertCodeIntoEditor(code) {
+    const editor = qs("codeArea");
+    if (!editor) return false;
+
+    editor.value = code || "";
+    editor.dispatchEvent(new Event("input", { bubbles: true }));
+    editor.dispatchEvent(new Event("change", { bubbles: true }));
+
+    if (currentTaskId){
+      saveCachedCode(currentTaskId, editor.value);
+    }
+    return true;
+  }
+
   function getSubmitCooldownLeft(){
     const now = Date.now();
     if (now >= submitCooldownUntil) return 0;
@@ -446,7 +620,7 @@
   function setSubmitButtonState(enabled, label){
     const btn = qs("submitBtn");
     btn.disabled = !enabled;
-    btn.textContent = label || "Submit";
+    btn.textContent = label || "{{ T.submit_solution|escapejs }}";
   }
 
   async function updateSubmitAvailability(){
@@ -454,8 +628,8 @@
 
     const left = getSubmitCooldownLeft();
     if (left > 0){
-      setSubmitButtonState(false, `Submit (${left}s)`);
-      qs("submitState").textContent = `Cooldown: ${left}s`;
+      setSubmitButtonState(false, `{{ T.submit_solution|escapejs }} (${left}s)`);
+      qs("submitState").textContent = formatStr(UI.statusCooldown, {seconds:left});
       return;
     }
 
@@ -465,30 +639,30 @@
     const changed = !lastSub || lastSub !== h;
 
     if (!changed){
-      setSubmitButtonState(false, "Submit (no changes)");
-      qs("submitState").textContent = "Blocked: code unchanged";
+      setSubmitButtonState(false, "{{ T.submit_solution|escapejs }}");
+      qs("submitState").textContent = UI.statusCodeUnchanged;
     } else {
-      setSubmitButtonState(true, "Submit");
-      qs("submitState").textContent = "Ready";
+      setSubmitButtonState(true, "{{ T.submit_solution|escapejs }}");
+      qs("submitState").textContent = UI.statusReady;
     }
   }
 
   function tickSubmitCooldown(){
     const left = getSubmitCooldownLeft();
     if (left > 0){
-      setSubmitButtonState(false, `Submit (${left}s)`);
-      qs("submitState").textContent = `Cooldown: ${left}s`;
+      setSubmitButtonState(false, `{{ T.submit_solution|escapejs }} (${left}s)`);
+      qs("submitState").textContent = formatStr(UI.statusCooldown, {seconds:left});
       setTimeout(tickSubmitCooldown, 250);
     } else {
       updateSubmitAvailability();
     }
   }
 
-  // ---------- Hints (two cards, flip, 15s cooldown per card) ----------
   function hintUnlocked(level){
     if (!lastProgress) return false;
     if (level === 1) return !!lastProgress.hint1_available;
     if (level === 2) return !!lastProgress.hint2_available;
+    if (level === 3) return !!lastProgress.hint3_available;
     return false;
   }
 
@@ -499,29 +673,38 @@
     return Math.ceil((until - now) / 1000);
   }
 
+  function getHintElements(level){
+    return {
+      card: qs(`hintCard${level}`),
+      pill: qs(`hintPill${level}`),
+      back: qs(`hintBack${level}`)
+    };
+  }
+
   function setHintCardState(level){
-    const card = qs(level === 1 ? "hintCard1" : "hintCard2");
-    const pill = qs(level === 1 ? "hintPill1" : "hintPill2");
+    const { card, pill } = getHintElements(level);
+    if (!card || !pill) return;
 
     const unlocked = hintUnlocked(level);
 
     card.classList.remove("available");
     card.classList.add("disabled");
     pill.className = "pill gray";
-    pill.textContent = "locked";
+    pill.textContent = UI.locked;
 
     if (unlocked){
       card.classList.add("available");
       card.classList.remove("disabled");
       pill.className = "pill blue";
       const left = getHintCooldownLeft(level);
-      pill.textContent = left > 0 ? `cooldown ${left}s` : "available";
+      pill.textContent = left > 0 ? `${UI.cooldown} ${left}s` : UI.available;
     }
   }
 
   function updateHintsUI(){
     setHintCardState(1);
     setHintCardState(2);
+    setHintCardState(3);
   }
 
   function flipCard(card){
@@ -533,85 +716,87 @@
   }
 
   function setHintText(level, text){
-    const back = qs(level === 1 ? "hintBack1" : "hintBack2");
-    back.textContent = text || "";
+    const { back } = getHintElements(level);
+    if (!back) return;
+    back.textContent = text || UI.hintTextEmpty;
   }
 
   async function fetchHint(level){
-    if (!currentTaskId) return;
+    if (!currentTaskId) return false;
 
     if (!hintUnlocked(level)){
-      showStatus(level === 1 ? "Hint level 1 is locked." : "Hint level 2 is locked.");
-      return;
+      if (level === 1) showStatus("{{ T.hint_locked_after_2|escapejs }}");
+      else if (level === 2) showStatus("{{ T.hint_locked_after_3|escapejs }}");
+      else showStatus("{{ T.hint_locked_after_3_solution|escapejs }}");
+      return false;
     }
 
     const left = getHintCooldownLeft(level);
     if (left > 0){
-      showStatus(`Please wait ${left}s before requesting this hint again.`);
-      return;
+      showStatus(formatStr(UI.pleaseWaitHint, {seconds:left}));
+      return false;
     }
 
-    // request
     const res = await apiGet(`/api/student/task/${currentTaskId}/hint/${level}`);
     if (!res.data.ok){
-      showStatus(res.data.error || "Hint request failed");
-      return;
+      showStatus(res.data.error || UI.hintRequestFailed);
+      return false;
     }
 
-    // success: set cooldown for this hint card (15s)
     hintCooldownUntil[level] = Date.now() + 15000;
 
-    // display
-    setHintText(level, res.data.text || "(empty)");
+    if (level === 3 && res.data.kind === "code"){
+      const code = res.data.code || "";
+      setHintText(level, code || UI.hintTextEmpty);
+      const inserted = insertCodeIntoEditor(code);
+      showStatus(inserted ? UI.hint3Inserted : UI.hint3Failed);
+    } else {
+      setHintText(level, res.data.text || UI.hintTextEmpty);
+    }
 
-    // Update pill to show cooldown
     updateHintsUI();
     tickHintCooldown(level);
+    return true;
   }
 
   function tickHintCooldown(level){
     const left = getHintCooldownLeft(level);
+    const { pill } = getHintElements(level);
+    if (!pill) return;
+
     if (left > 0){
-      const pill = qs(level === 1 ? "hintPill1" : "hintPill2");
-      pill.textContent = `cooldown ${left}s`;
+      pill.textContent = `${UI.cooldown} ${left}s`;
       setTimeout(() => tickHintCooldown(level), 250);
     } else {
       updateHintsUI();
     }
   }
 
-  function onHintCardClick(level){
-    const card = qs(level === 1 ? "hintCard1" : "hintCard2");
+  async function onHintCardClick(level){
+    const { card, back } = getHintElements(level);
+    if (!card) return;
 
-    if (!hintUnlocked(level)){
-      return;
-    }
+    if (!hintUnlocked(level)) return;
 
-    // If flipped (showing hint), just flip back
     if (card.classList.contains("flipped")){
       flipCard(card);
       return;
     }
 
-    // Not flipped: if we already have text cached in the card, allow flip without new request
-    const back = qs(level === 1 ? "hintBack1" : "hintBack2");
-    const hasText = (back.textContent || "").trim().length > 0;
+    const hasText = (back?.textContent || "").trim().length > 0;
+    const fetched = hasText ? true : await fetchHint(level);
 
-    // If no text yet OR user wants refreshed hint -> we fetch when opening
-    // but we still respect cooldown
-    fetchHint(level).then(() => {
-      // flip open to show after fetching (even if already had text)
+    if (hasText || fetched){
       flipCard(card);
-    });
+    }
   }
 
-  // ---------- Tasks ----------
   function renderTasks(tasks){
     const list = qs("taskList");
     list.innerHTML = "";
 
     if (!tasks || tasks.length === 0){
-      list.innerHTML = '<div class="card"><div class="small muted">No tasks in this session.</div></div>';
+      list.innerHTML = `<div class="card"><div class="small muted">${escapeHtml(UI.noTasksInSession)}</div></div>`;
       return;
     }
 
@@ -623,158 +808,145 @@
       const st = t.progress?.status || "not_started";
       const badge = document.createElement("span");
       badge.className = "badge";
-      badge.textContent = st;
+      badge.textContent = statusLabel(st);
 
       btn.textContent = `${t.position}. ${t.title}`;
       btn.appendChild(badge);
-
       btn.onclick = () => openTask(t.id, btn);
+
       list.appendChild(btn);
     });
   }
 
-async function openTask(taskId, btn){
-  // Save current code before switching
-  if (currentTaskId){
-    saveCachedCode(currentTaskId, qs("codeArea").value || "");
-  }
-
-  currentTaskId = taskId;
-
-  document.querySelectorAll(".taskbtn").forEach(b => b.classList.remove("active"));
-  if (btn) btn.classList.add("active");
-
-  hideStatus();
-
-  const res = await apiGet(`/api/student/task/${taskId}`);
-  if (!res.data.ok){
-    showStatus(res.data.error || "Failed to load task");
-    return;
-  }
-
-  if (res.data.locked){
-    showStatus(res.data.message || "Task is locked");
-    qs("taskCard").style.display = "none";
-    qs("editorCard").style.display = "none";
-    return;
-  }
-
-  qs("taskCard").style.display = "block";
-  qs("editorCard").style.display = "block";
-
-  qs("taskTitle").textContent = res.data.task.title;
-  qs("taskMeta").textContent = `Task #${res.data.task.position} (id=${res.data.task.id})`;
-  qs("taskStatement").textContent = res.data.task.statement;
-  qs("taskConstraints").textContent = res.data.task.constraints || "—";
-
-  // progress/hints
-  lastProgress = res.data.progress || null;
-  updateHintsUI();
-
-  // visible tests
-  const vt = qs("visibleTests");
-  vt.innerHTML = "";
-  (res.data.visible_testcases || []).forEach(tc => {
-    const wrap = document.createElement("div");
-    wrap.className = "card";
-    wrap.innerHTML = `
-      <div class="small"><b>Test ${tc.ordinal}</b></div>
-      <div class="small muted">Input:</div>
-      <pre>${escapeHtml(tc.stdin)}</pre>
-      <div class="small muted">Output:</div>
-      <pre>${escapeHtml(tc.expected_stdout)}</pre>
-    `;
-    vt.appendChild(wrap);
-  });
-
-  // NEW: read-only code fragments (top/bottom)
-  const top = res.data.code_fragments?.top || "";
-  const bottom = res.data.code_fragments?.bottom || "";
-
-  if (qs("topFragmentCard") && qs("topFragment")){
-    if (top.trim()){
-      qs("topFragmentCard").style.display = "block";
-      qs("topFragment").textContent = top;
-    } else {
-      qs("topFragmentCard").style.display = "none";
-      qs("topFragment").textContent = "";
+  async function openTask(taskId, btn){
+    if (currentTaskId){
+      saveCachedCode(currentTaskId, qs("codeArea").value || "");
     }
-  }
 
-  if (qs("bottomFragmentCard") && qs("bottomFragment")){
-    if (bottom.trim()){
-      qs("bottomFragmentCard").style.display = "block";
-      qs("bottomFragment").textContent = bottom;
-    } else {
-      qs("bottomFragmentCard").style.display = "none";
-      qs("bottomFragment").textContent = "";
+    currentTaskId = taskId;
+
+    document.querySelectorAll(".taskbtn").forEach(b => b.classList.remove("active"));
+    if (btn) btn.classList.add("active");
+
+    hideStatus();
+    showStatus(UI.loadingTask);
+
+    const res = await apiGet(`/api/student/task/${taskId}`);
+    if (!res.data.ok){
+      showStatus(res.data.error || UI.failedLoadTask);
+      return;
     }
+
+    if (res.data.locked){
+      showStatus(res.data.message || UI.taskLocked);
+      qs("taskCard").style.display = "none";
+      qs("editorCard").style.display = "none";
+      return;
+    }
+
+    qs("taskCard").style.display = "block";
+    qs("editorCard").style.display = "block";
+
+    qs("taskTitle").textContent = res.data.task.title;
+    qs("taskMeta").textContent = `Task #${res.data.task.position} (id=${res.data.task.id})`;
+    qs("taskStatement").textContent = res.data.task.statement;
+    qs("taskConstraints").textContent = res.data.task.constraints || "—";
+
+    lastProgress = res.data.progress || null;
+    updateHintsUI();
+
+    const vt = qs("visibleTests");
+    vt.innerHTML = "";
+    (res.data.visible_testcases || []).forEach(tc => {
+      const wrap = document.createElement("div");
+      wrap.className = "card";
+      wrap.innerHTML = `
+        <div class="small"><b>${escapeHtml(UI.testLabel)} ${tc.ordinal}</b></div>
+        <div class="small muted">${escapeHtml(UI.inputLabel)}:</div>
+        <pre>${escapeHtml(tc.stdin)}</pre>
+        <div class="small muted">${escapeHtml(UI.outputLabel)}:</div>
+        <pre>${escapeHtml(tc.expected_stdout)}</pre>
+      `;
+      vt.appendChild(wrap);
+    });
+
+    const top = res.data.code_fragments?.top || "";
+    const bottom = res.data.code_fragments?.bottom || "";
+
+    if (qs("topFragmentCard") && qs("topFragment")){
+      if (top.trim()){
+        qs("topFragmentCard").style.display = "block";
+        qs("topFragment").textContent = top;
+      } else {
+        qs("topFragmentCard").style.display = "none";
+        qs("topFragment").textContent = "";
+      }
+    }
+
+    if (qs("bottomFragmentCard") && qs("bottomFragment")){
+      if (bottom.trim()){
+        qs("bottomFragmentCard").style.display = "block";
+        qs("bottomFragment").textContent = bottom;
+      } else {
+        qs("bottomFragmentCard").style.display = "none";
+        qs("bottomFragment").textContent = "";
+      }
+    }
+
+    const cached = loadCachedCode(taskId);
+    qs("codeArea").value = cached || 'print("Hello")';
+
+    qs("hintBack1").textContent = "";
+    qs("hintBack2").textContent = "";
+    qs("hintBack3").textContent = "";
+    qs("hintCard1").classList.remove("flipped");
+    qs("hintCard2").classList.remove("flipped");
+    qs("hintCard3").classList.remove("flipped");
+
+    window.StudentActivityTracker?.setContext({ taskId: taskId });
+
+    hideStatus();
+    updateSubmitAvailability();
   }
 
-  // Load cached code for this task (or fallback)
-  const cached = loadCachedCode(taskId);
-  if (cached){
-    qs("codeArea").value = cached;
-  } else {
-    qs("codeArea").value = 'print("Hello")';
-  }
-
-  // Reset hint display state per task
-  qs("hintBack1").textContent = "";
-  qs("hintBack2").textContent = "";
-  qs("hintCard1").classList.remove("flipped");
-  qs("hintCard2").classList.remove("flipped");
-
-  // Activity tracker context
-  window.StudentActivityTracker?.setContext({ taskId: taskId });
-
-  updateSubmitAvailability();
-}
-  // ---------- Submit ----------
   async function submit(){
     if (!currentTaskId){
-      showStatus("Select a task on the left.");
+      showStatus(UI.selectTaskLeft);
       return;
     }
 
     hideStatus();
 
     const code = qs("codeArea").value || "";
-
-    // prevent submit if unchanged
     const h = await sha256Hex(code);
     const lastSub = lastSubmittedHashByTask[currentTaskId];
+
     if (lastSub && lastSub === h){
-      showStatus("Your code is unchanged since the last submission.");
+      showStatus(UI.codeUnchanged);
       updateSubmitAvailability();
       return;
     }
 
-    // cooldown check
     const left = getSubmitCooldownLeft();
     if (left > 0){
-      showStatus(`Please wait ${left}s before submitting again.`);
+      showStatus(formatStr(UI.pleaseWaitSubmit, {seconds:left}));
       return;
     }
 
-    setSubmitButtonState(false, "Submitting...");
-    qs("submitState").textContent = "Submitting...";
+    setSubmitButtonState(false, UI.submitting);
+    qs("submitState").textContent = UI.submitting;
 
     const res = await apiPost(`/api/student/task/${currentTaskId}/submit`, { code });
 
     if (!res.data.ok){
-      showStatus(res.data.error || "Submit failed");
+      showStatus(res.data.error || UI.submitFailed);
       updateSubmitAvailability();
       return;
     }
 
-    // Save code cache after successful submit
     saveCachedCode(currentTaskId, code);
-
-    // remember last submitted hash
     lastSubmittedHashByTask[currentTaskId] = h;
 
-    // start submit cooldown 15s
     submitCooldownUntil = Date.now() + 15000;
     tickSubmitCooldown();
 
@@ -783,71 +955,72 @@ async function openTask(taskId, btn){
 
     qs("resultCard").style.display = "block";
     qs("verdict").textContent = sub.verdict;
-    qs("attemptsInfo").textContent = `attempts: ${p.attempts_total}, failed: ${p.attempts_failed}`;
+    qs("attemptsInfo").textContent = formatStr(UI.attemptsInfo, {
+      total: p.attempts_total,
+      failed: p.attempts_failed
+    });
 
     qs("stderrBox").textContent = sub.stderr || "";
     qs("stdoutBox").textContent = sub.stdout || "";
 
-    // update progress + hints availability
     lastProgress = p || null;
     updateHintsUI();
-
     updateSubmitAvailability();
   }
 
-  // ---------- Init ----------
   async function init(){
-    // Setup resizers
     makeResizer(qs("sidebarResizer"), qs("sidebar"), {min:240, max:520});
     makeContentSplitResizer(qs("contentResizer"), qs("taskPane"), qs("editorPane"));
 
-    // student info
     const me = await apiGet("/api/auth/student-me");
     if (me.status === 401){
       window.location.href = "/student/login/";
       return;
     }
-    qs("studentName").textContent = me.data.student.full_name;
-    qs("studentClass").textContent = "Class: " + me.data.student.class.name;
 
-    // active session
+    qs("studentName").textContent = me.data.student.full_name;
+    qs("studentClass").textContent = `${UI.classLabel}: ${me.data.student.class.name}`;
+
+    showStatus(UI.loadingSession);
     const res = await apiGet("/api/student/active-session");
+
     if (!res.data.ok){
-      showStatus(res.data.error || "Failed to load session");
+      showStatus(res.data.error || UI.failedLoadSession);
       return;
     }
+
     if (!res.data.active){
-      showStatus(res.data.message || "No active session");
-      qs("sessionTitle").textContent = "No active session";
+      showStatus(res.data.message || UI.noActiveSession);
+      qs("sessionTitle").textContent = UI.noActiveSession;
       qs("taskList").innerHTML = "";
       return;
     }
 
     qs("sessionTitle").textContent = res.data.session.title;
     qs("sessionDesc").textContent = res.data.session.description || "";
-    qs("sessionTime").textContent = `start: ${res.data.session.starts_at || "—"} | end: ${res.data.session.ends_at || "—"}`;
+    qs("sessionTime").textContent =
+      `${UI.startLabel}: ${res.data.session.starts_at || "—"} | ${UI.endLabel}: ${res.data.session.ends_at || "—"}`;
 
     renderTasks(res.data.tasks);
 
-    // auto-open first task
     if (res.data.tasks && res.data.tasks.length > 0){
       const first = res.data.tasks[0];
       const firstBtn = document.querySelector(`.taskbtn[data-id="${first.id}"]`);
-      openTask(first.id, firstBtn);
+      await openTask(first.id, firstBtn);
+    } else {
+      hideStatus();
     }
 
-    // events
     qs("submitBtn").addEventListener("click", submit);
     qs("codeArea").addEventListener("input", () => {
       if (!currentTaskId) return;
-      // save code to cache while typing
       saveCachedCode(currentTaskId, qs("codeArea").value || "");
       updateSubmitAvailability();
     });
 
-    // hint cards click to fetch + flip
     qs("hintCard1").addEventListener("click", () => onHintCardClick(1));
     qs("hintCard2").addEventListener("click", () => onHintCardClick(2));
+    qs("hintCard3").addEventListener("click", () => onHintCardClick(3));
 
     updateHintsUI();
     updateSubmitAvailability();

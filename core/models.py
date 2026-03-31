@@ -205,6 +205,9 @@ class StudentTaskProgress(models.Model):
     hint2_text = models.TextField(blank=True)
     last_submit_at = models.DateTimeField(null=True, blank=True)
     last_code_hash = models.CharField(max_length=64, blank=True, default="")
+    hint3_unlocked_at = models.DateTimeField(null=True, blank=True)
+    hint3_text = models.TextField(blank=True, default="")
+    hint3_used_at = models.DateTimeField(null=True, blank=True)
 
     locked_after_solve = models.BooleanField(default=True)
 
@@ -322,7 +325,7 @@ class ActivityAggregate(models.Model):
 
     hint1_requests = models.PositiveIntegerField(default=0)
     hint2_requests = models.PositiveIntegerField(default=0)
-
+    hint3_requests = models.PositiveIntegerField(default=0)
     updated_at = models.DateTimeField(auto_now=True)
 
 from django.db import models
