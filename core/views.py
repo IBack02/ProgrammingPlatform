@@ -803,40 +803,103 @@ def admin_stats_dashboard(request: HttpRequest) -> HttpResponse:
 
 
 @staff_member_required
+@staff_member_required
 def admin_student_profile(request: HttpRequest, student_id: int) -> HttpResponse:
-    student = get_object_or_404(Student.objects.select_related("class_group"), id=student_id, is_active=True)
+    student = get_object_or_404(
+        Student.objects.select_related("class_group"),
+        id=student_id,
+        is_active=True,
+    )
 
-    ss = (
+    ss_qs = (
         StudentSession.objects.filter(student=student)
         .select_related("session")
-        .order_by("session__starts_at", "session__created_at")
+        .order_by("session__starts_at", "session__created_at", "id")
     )
 
-    sub_qs = Submission.objects.filter(progress__student_session__student=student)
-    per_session = (
-        sub_qs.values("progress__student_session__session_id", "progress__student_session__session__title")
-        .annotate(total_sub=Count("id"), accepted=Count("id", filter=Q(verdict=Submission.Verdict.ACCEPTED)))
-    )
-    per_map = {x["progress__student_session__session_id"]: x for x in per_session}
+    student_session_ids = list(ss_qs.values_list("id", flat=True))
+    session_ids = list(ss_qs.values_list("session_id", flat=True))
 
-    labels, rates, totals, accepts = [], [], [], []
-    for row in ss:
-        sid = row.session_id
-        title = row.session.title or f"Session {sid}"
-        x = per_map.get(sid, {"total_sub": 0, "accepted": 0})
-        t = int(x.get("total_sub") or 0)
-        a = int(x.get("accepted") or 0)
-        rate = (a / t) if t > 0 else 0.0
-        labels.append(title)
-        rates.append(round(rate * 100, 2))
-        totals.append(t)
-        accepts.append(a)
+    total_tasks_map = {
+        row["session_id"]: row["c"]
+        for row in SessionTask.objects.filter(session_id__in=session_ids)
+        .values("session_id")
+        .annotate(c=Count("id"))
+    }
 
-    chart = {"labels": labels, "rates": rates, "totals": totals, "accepts": accepts}
+    solved_progress_map = {
+        row["student_session_id"]: row["c"]
+        for row in StudentTaskProgress.objects.filter(student_session_id__in=student_session_ids)
+        .filter(
+            Q(status=StudentTaskProgress.Status.SOLVED)
+            | Q(status=StudentTaskProgress.Status.LOCKED)
+            | Q(solved_at__isnull=False)
+        )
+        .values("student_session_id")
+        .annotate(c=Count("task_id", distinct=True))
+    }
+
+    submission_map = {
+        row["progress__student_session_id"]: {
+            "total": row["total"],
+            "accepted": row["accepted"],
+        }
+        for row in Submission.objects.filter(progress__student_session_id__in=student_session_ids)
+        .values("progress__student_session_id")
+        .annotate(
+            total=Count("id"),
+            accepted=Count("id", filter=Q(verdict=Submission.Verdict.ACCEPTED)),
+        )
+    }
+
+    labels = []
+    task_completion_rates = []
+    success_rates = []
+    solved_counts = []
+    total_tasks = []
+    accepted_counts = []
+    total_attempts = []
+
+    for ss in ss_qs:
+        session = ss.session
+        label = session.title or f"Session {session.id}"
+
+        session_total_tasks = int(total_tasks_map.get(session.id, 0) or 0)
+        session_solved = int(solved_progress_map.get(ss.id, 0) or 0)
+
+        sub_data = submission_map.get(ss.id, {"total": 0, "accepted": 0})
+        session_total_attempts = int(sub_data["total"] or 0)
+        session_accepted = int(sub_data["accepted"] or 0)
+
+        task_completion_pct = round((session_solved * 100.0 / session_total_tasks), 2) if session_total_tasks > 0 else 0.0
+        success_pct = round((session_accepted * 100.0 / session_total_attempts), 2) if session_total_attempts > 0 else 0.0
+
+        labels.append(label)
+        task_completion_rates.append(task_completion_pct)
+        success_rates.append(success_pct)
+        solved_counts.append(session_solved)
+        total_tasks.append(session_total_tasks)
+        accepted_counts.append(session_accepted)
+        total_attempts.append(session_total_attempts)
+
+    chart = {
+        "labels": labels,
+        "task_completion_rates": task_completion_rates,
+        "success_rates": success_rates,
+        "solved_counts": solved_counts,
+        "total_tasks": total_tasks,
+        "accepted_counts": accepted_counts,
+        "total_attempts": total_attempts,
+    }
+
     return render(
         request,
         "core/admin_student_profile.html",
-        {"student": student, "chart_json": json.dumps(chart, ensure_ascii=False)},
+        {
+            "student": student,
+            "chart_json": json.dumps(chart, ensure_ascii=False),
+            "active": "",
+        },
     )
 
 

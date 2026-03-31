@@ -1,53 +1,100 @@
-<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>Student Profile</title>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-  <style>
-    body { font-family: Arial, sans-serif; margin:0; background:#f6f7fb; }
-    .wrap { max-width: 1100px; margin: 18px auto; padding: 0 14px; }
-    .card { background:#fff; border:1px solid #e5e7eb; border-radius:14px; padding: 14px; box-shadow: 0 10px 20px rgba(17,24,39,.06); }
-    .row { display:flex; gap:14px; align-items:center; flex-wrap:wrap; }
-    .title { font-size:20px; font-weight:900; }
-    .small { font-size:12px; color:#6b7280; }
-    .btn { display:inline-block; padding:8px 10px; border-radius:10px; border:1px solid #e5e7eb; background:#fff; text-decoration:none; color:#111827; }
-    .avatar {
-      width:64px; height:64px; border-radius:18px;
-      background:#eef2ff; display:flex; align-items:center; justify-content:center;
-      font-weight:900; font-size:22px; color:#111827;
-    }
-  </style>
-</head>
-<body>
-  <div class="wrap">
-    <div class="row" style="justify-content:space-between; margin-bottom:12px;">
-      <a class="btn" href="/teacher/">← Back to Analytics</a>
-    </div>
-    <div class="card" style="margin-bottom:12px;">
-      <div class="row">
-        <div class="avatar">👤</div>
-        <div>
-          <div class="title">{{ student.full_name }}</div>
-          <div class="small">Class: {{ student.class_group.name }}</div>
-          <div class="small">
-            PIN: <b>******</b> (stored as hash; cannot be shown)
-          </div>
-        </div>
-      </div>
-    </div>
+{% extends "core/teacher/_base.html" %}
+{% block title %}{{ T.student_profile_title }}{% endblock %}
+{% block subtitle %}{{ T.student_profile_subtitle }}{% endblock %}
 
-    <div class="card">
-      <div style="font-weight:900;">Success rate by session</div>
-      <div class="small">Y axis: accepted / total submissions (in %). If a session has 0 submissions, rate is 0%.</div>
-      <div style="margin-top:12px;">
-        <canvas id="rateChart" height="120"></canvas>
-      </div>
+{% block content %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+
+<style>
+  .profile-top {
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    gap:12px;
+    flex-wrap:wrap;
+    margin-bottom:12px;
+  }
+
+  .profile-card {
+    background:#fff;
+    border:1px solid #e5e7eb;
+    border-radius:14px;
+    padding:14px;
+    box-shadow:0 10px 20px rgba(17,24,39,.06);
+  }
+
+  .row {
+    display:flex;
+    gap:14px;
+    align-items:center;
+    flex-wrap:wrap;
+  }
+
+  .title-lg {
+    font-size:20px;
+    font-weight:900;
+  }
+
+  .small {
+    font-size:12px;
+    color:#6b7280;
+  }
+
+  .avatar {
+    width:64px;
+    height:64px;
+    border-radius:18px;
+    background:#eef2ff;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-weight:900;
+    font-size:22px;
+    color:#111827;
+  }
+
+  .chart-card {
+    background:#fff;
+    border:1px solid #e5e7eb;
+    border-radius:14px;
+    padding:14px;
+    box-shadow:0 10px 20px rgba(17,24,39,.06);
+  }
+</style>
+
+<div class="profile-top">
+  <a class="btn" href="/teacher/">{{ T.back_to_dashboard }}</a>
+</div>
+
+<div class="profile-card" style="margin-bottom:12px;">
+  <div class="row">
+    <div class="avatar">👤</div>
+    <div>
+      <div class="title-lg">{{ student.full_name }}</div>
+      <div class="small">{{ T.class_label }}: {{ student.class_group.name }}</div>
+      <div class="small">{{ T.pin_hidden_note }}</div>
     </div>
   </div>
+</div>
+
+<div class="chart-card">
+  <div style="font-weight:900;">{{ T.performance_by_session }}</div>
+  <div class="small">{{ T.performance_formula_note }}</div>
+  <div style="margin-top:12px;">
+    <canvas id="rateChart" height="120"></canvas>
+  </div>
+</div>
 
 <script>
+  const UI = {
+    taskCompletionPercent: "{{ T.task_completion_percent|escapejs }}",
+    successfulAnswersPercent: "{{ T.successful_answers_percent|escapejs }}",
+    tasksSolved: "{{ T.tasks_solved|escapejs }}",
+    totalTasks: "{{ T.total_tasks|escapejs }}",
+    acceptedAnswers: "{{ T.accepted_answers|escapejs }}",
+    totalAttempts: "{{ T.total_attempts|escapejs }}"
+  };
+
   const data = {{ chart_json|safe }};
   const ctx = document.getElementById("rateChart");
 
@@ -55,15 +102,27 @@
     type: "line",
     data: {
       labels: data.labels,
-      datasets: [{
-        label: "Success rate (%)",
-        data: data.rates,
-        tension: 0.25,
-        borderWidth: 2,
-        pointRadius: 4,
-      }]
+      datasets: [
+        {
+          label: UI.taskCompletionPercent,
+          data: data.task_completion_rates,
+          tension: 0.25,
+          borderWidth: 2,
+          pointRadius: 4,
+          borderColor: "#2563eb",
+          backgroundColor: "#2563eb",
+        },
+        {
+          label: UI.successfulAnswersPercent,
+          data: data.success_rates,
+          tension: 0.25,
+          borderWidth: 2,
+          pointRadius: 4,
+          borderColor: "#dc2626",
+          backgroundColor: "#dc2626",
+        }
+      ]
     },
-
     options: {
       responsive: true,
       plugins: {
@@ -72,16 +131,21 @@
           callbacks: {
             afterBody: (items) => {
               const i = items[0].dataIndex;
-              return `Accepted: ${data.accepts[i]} / Total: ${data.totals[i]}`;
+              return [
+                `${UI.tasksSolved}: ${data.solved_counts[i]} / ${data.total_tasks[i]}`,
+                `${UI.acceptedAnswers}: ${data.accepted_counts[i]} / ${data.total_attempts[i]}`
+              ];
             }
           }
         }
       },
       scales: {
-        y: { beginAtZero: true, max: 100 }
+        y: {
+          beginAtZero: true,
+          max: 100
+        }
       }
     }
   });
 </script>
-</body>
-</html>
+{% endblock %}
