@@ -1486,35 +1486,6 @@ def teacher_session_assign_classes_api(request: HttpRequest, session_id: int):
 # Teacher tasks / tests / fragments API
 # -------------------------
 
-@csrf_exempt
-@require_http_methods(["GET", "POST"])
-def teacher_session_tasks_api(request: HttpRequest, session_id: int):
-    if not _get_logged_in_teacher(request):
-        return _teacher_api_unauthorized()
-
-    session = get_object_or_404(Session, id=session_id)
-
-    if request.method == "GET":
-        tasks = SessionTask.objects.filter(session=session).order_by("position", "id")
-        return JsonResponse({"ok": True, "tasks": [_serialize_task(t) for t in tasks]})
-
-    data = _json_body(request)
-    title = (data.get("title") or "").strip()
-    if not title:
-        return JsonResponse({"ok": False, "error": "title is required"}, status=400)
-    try:
-        position = int(data.get("position") or 1)
-    except (TypeError, ValueError):
-        return JsonResponse({"ok": False, "error": "position must be integer"}, status=400)
-
-    task = SessionTask.objects.create(
-        session=session,
-        position=position,
-        title=title,
-        statement=data.get("statement") or "",
-        constraints=data.get("constraints") or "",
-    )
-    return JsonResponse({"ok": True, "task": _serialize_task(task)}, status=201)
 
 
 @csrf_exempt

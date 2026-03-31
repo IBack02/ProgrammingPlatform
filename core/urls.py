@@ -51,7 +51,7 @@ urlpatterns = [
     path("api/teacher/students/<int:student_id>/reset-pin/", views.teacher_student_reset_pin_api, name="teacher_student_reset_pin_api"),
 
     # Teacher sessions API
-    path("api/teacher/sessions/", views.teacher_session_tasks_api, name="teacher_sessions_api"),
+    path("api/teacher/sessions/", views.teacher_sessions_api, name="teacher_sessions_api"),
     path("api/teacher/sessions/<int:session_id>/", views.teacher_session_detail_api, name="teacher_session_detail_api"),
     path("api/teacher/sessions/<int:session_id>/classes/", views.teacher_session_classes_api, name="teacher_session_classes_api"),
     path("api/teacher/sessions/<int:session_id>/assign-classes/", views.teacher_session_assign_classes_api, name="teacher_session_assign_classes_api"),
