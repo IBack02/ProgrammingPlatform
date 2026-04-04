@@ -1,0 +1,248 @@
+{% extends "core/teacher/_base.html" %}
+{% block title %}{{ T.modules }}{% endblock %}
+{% block subtitle %}{{ T.modules_subtitle }}{% endblock %}
+
+{% block content %}
+<style>
+  .input-ui,.textarea-ui,.select-ui{padding:10px;border:1px solid #e5e7eb;border-radius:10px;box-sizing:border-box;background:#fff}
+  .btn{cursor:pointer}
+  .module-item,.block-item{border:1px solid #e5e7eb;border-radius:12px;padding:10px;margin:8px 0;background:#fff}
+  .module-item.active{border-color:#0ea5e9;background:#eff6ff}
+  .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+  .muted{color:#6b7280;font-size:12px}
+  .code-like{font-family:Consolas,"Courier New",monospace}
+</style>
+
+<div class="card" style="margin-bottom:12px;">
+  <div class="row">
+    <select id="sessionSelect" class="select-ui" style="min-width:240px;"></select>
+    <button id="loadBtn" class="btn" type="button">{{ T.load }}</button>
+    <div id="msg" class="muted"></div>
+  </div>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 1.2fr;gap:12px;">
+  <div class="card">
+    <div class="row" style="margin-bottom:10px;">
+      <input id="newPosition" class="input-ui" type="number" value="1" style="width:90px;">
+      <input id="newTitle" class="input-ui" placeholder="{{ T.module_title }}" style="flex:1;">
+      <input id="newTopic" class="input-ui" placeholder="{{ T.module_topic }}" style="flex:1;">
+      <button id="createBtn" class="btn" type="button">{{ T.create }}</button>
+    </div>
+    <div id="modulesList"></div>
+  </div>
+
+  <div class="card">
+    <div id="editor" style="display:none;">
+      <div class="row">
+        <input id="title" class="input-ui" placeholder="{{ T.module_title }}" style="flex:1;">
+        <input id="position" class="input-ui" type="number" style="width:90px;">
+      </div>
+
+      <div class="muted" style="margin-top:10px;">{{ T.module_topic }}</div>
+      <input id="topic" class="input-ui" style="width:100%;">
+
+      <div class="muted" style="margin-top:10px;">{{ T.ai_prompt }}</div>
+      <textarea id="aiPrompt" class="textarea-ui" style="width:100%;height:90px;"></textarea>
+
+      <div class="row" style="margin-top:10px;">
+        <button id="saveModuleBtn" class="btn" type="button">{{ T.save }}</button>
+        <button id="deleteModuleBtn" class="btn" type="button">{{ T.delete }}</button>
+        <button id="generateBtn" class="btn" type="button">{{ T.generate_module }}</button>
+      </div>
+
+      <hr style="border:none;border-top:1px solid #e5e7eb;margin:14px 0;">
+
+      <div class="row">
+        <select id="blockType" class="select-ui">
+          <option value="heading">heading</option>
+          <option value="text">text</option>
+          <option value="code">code</option>
+        </select>
+        <select id="headingLevel" class="select-ui">
+          <option value="h1">h1</option>
+          <option value="h2">h2</option>
+        </select>
+        <input id="blockOrdinal" class="input-ui" type="number" value="1" style="width:90px;">
+        <button id="addBlockBtn" class="btn" type="button">{{ T.add_block }}</button>
+      </div>
+
+      <textarea id="blockContent" class="textarea-ui code-like" style="width:100%;height:120px;margin-top:10px;"></textarea>
+
+      <div id="blocksList" style="margin-top:12px;"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+  let selectedSessionId = null;
+  let selectedModuleId = null;
+
+  function qs(id){ return document.getElementById(id); }
+
+  async function api(url, method="GET", body=null){
+    const opts = { method, credentials:"include", headers:{ "Accept":"application/json" } };
+    if (body){
+      opts.headers["Content-Type"] = "application/json";
+      opts.body = JSON.stringify(body);
+    }
+    const r = await fetch(url, opts);
+    const ct = r.headers.get("content-type") || "";
+    if (!ct.includes("application/json")){
+      const text = await r.text();
+      return { status:r.status, data:{ok:false, error:`Non-JSON (${r.status}): ${text.slice(0,150)}`} };
+    }
+    return { status:r.status, data: await r.json() };
+  }
+
+  function setMsg(text){ qs("msg").textContent = text || ""; }
+
+  async function loadSessions(){
+    const res = await api("/api/teacher/sessions/");
+    if (!res.data.ok) return setMsg(res.data.error || "Failed to load sessions");
+    const select = qs("sessionSelect");
+    select.innerHTML = '<option value="">Select session</option>';
+    (res.data.sessions || []).forEach(s => {
+      const opt = document.createElement("option");
+      opt.value = s.id;
+      opt.textContent = `${s.title} (#${s.id})`;
+      select.appendChild(opt);
+    });
+  }
+
+  async function loadModules(){
+    if (!selectedSessionId) return;
+    const res = await api(`/api/teacher/sessions/${selectedSessionId}/theory-modules/`);
+    if (!res.data.ok) return setMsg(res.data.error || "Failed to load modules");
+
+    const box = qs("modulesList");
+    box.innerHTML = "";
+
+    (res.data.modules || []).forEach(m => {
+      const div = document.createElement("div");
+      div.className = "module-item" + (m.id === selectedModuleId ? " active" : "");
+      div.textContent = `${m.position}. ${m.title}`;
+      div.onclick = () => openModule(m.id);
+      box.appendChild(div);
+    });
+  }
+
+  async function openModule(moduleId){
+    selectedModuleId = moduleId;
+    const res = await api(`/api/teacher/theory-modules/${moduleId}/`);
+    if (!res.data.ok) return setMsg(res.data.error || "Failed to load module");
+
+    const m = res.data.module;
+    qs("editor").style.display = "block";
+    qs("title").value = m.title || "";
+    qs("position").value = m.position || 1;
+    qs("topic").value = m.topic || "";
+    qs("aiPrompt").value = m.ai_prompt || "";
+
+    const list = qs("blocksList");
+    list.innerHTML = "";
+    (m.blocks || []).forEach(b => {
+      const div = document.createElement("div");
+      div.className = "block-item";
+      div.innerHTML = `
+        <div><b>#${b.ordinal}</b> ${b.block_type} ${b.heading_level ? "(" + b.heading_level + ")" : ""}</div>
+        <pre class="code-like" style="white-space:pre-wrap;">${String(b.content || "").replaceAll("<","&lt;").replaceAll(">","&gt;")}</pre>
+        <div class="row">
+          <button type="button" onclick="deleteBlock(${b.id})">Delete block</button>
+        </div>
+      `;
+      list.appendChild(div);
+    });
+
+    loadModules();
+  }
+
+  async function createModule(){
+    if (!selectedSessionId) return setMsg("Select session first");
+
+    const res = await api(`/api/teacher/sessions/${selectedSessionId}/theory-modules/`, "POST", {
+      title: qs("newTitle").value,
+      topic: qs("newTopic").value,
+      position: qs("newPosition").value
+    });
+
+    if (!res.data.ok) return setMsg(res.data.error || "Create failed");
+    setMsg("Created");
+    qs("newTitle").value = "";
+    qs("newTopic").value = "";
+    await loadModules();
+    await openModule(res.data.module.id);
+  }
+
+  async function saveModule(){
+    if (!selectedModuleId) return;
+    const res = await api(`/api/teacher/theory-modules/${selectedModuleId}/`, "PATCH", {
+      title: qs("title").value,
+      position: qs("position").value,
+      topic: qs("topic").value,
+      ai_prompt: qs("aiPrompt").value
+    });
+    if (!res.data.ok) return setMsg(res.data.error || "Save failed");
+    setMsg("Saved");
+    await openModule(selectedModuleId);
+  }
+
+  async function deleteModule(){
+    if (!selectedModuleId) return;
+    const res = await api(`/api/teacher/theory-modules/${selectedModuleId}/`, "DELETE");
+    if (!res.data.ok) return setMsg(res.data.error || "Delete failed");
+    setMsg("Deleted");
+    selectedModuleId = null;
+    qs("editor").style.display = "none";
+    await loadModules();
+  }
+
+  async function addBlock(){
+    if (!selectedModuleId) return;
+
+    const res = await api(`/api/teacher/theory-modules/${selectedModuleId}/blocks/`, "POST", {
+      ordinal: qs("blockOrdinal").value,
+      block_type: qs("blockType").value,
+      heading_level: qs("headingLevel").value,
+      content: qs("blockContent").value
+    });
+
+    if (!res.data.ok) return setMsg(res.data.error || "Add block failed");
+    setMsg("Block added");
+    qs("blockContent").value = "";
+    await openModule(selectedModuleId);
+  }
+
+  async function deleteBlock(blockId){
+    const res = await api(`/api/teacher/theory-blocks/${blockId}/`, "DELETE");
+    if (!res.data.ok) return setMsg(res.data.error || "Delete block failed");
+    setMsg("Block deleted");
+    await openModule(selectedModuleId);
+  }
+
+  async function generateModule(){
+    if (!selectedModuleId) return;
+    const res = await api(`/api/teacher/theory-modules/${selectedModuleId}/generate/`, "POST", {
+      prompt: qs("aiPrompt").value
+    });
+    if (!res.data.ok) return setMsg(res.data.error || "Generate failed");
+    setMsg("Generated");
+    await openModule(selectedModuleId);
+  }
+
+  qs("loadBtn").addEventListener("click", async () => {
+    selectedSessionId = qs("sessionSelect").value;
+    selectedModuleId = null;
+    qs("editor").style.display = "none";
+    await loadModules();
+  });
+
+  qs("createBtn").addEventListener("click", createModule);
+  qs("saveModuleBtn").addEventListener("click", saveModule);
+  qs("deleteModuleBtn").addEventListener("click", deleteModule);
+  qs("addBlockBtn").addEventListener("click", addBlock);
+  qs("generateBtn").addEventListener("click", generateModule);
+
+  loadSessions();
+</script>
+{% endblock %}

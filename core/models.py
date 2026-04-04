@@ -126,6 +126,66 @@ class SessionTask(models.Model):
     def __str__(self):
         return f"[{self.session_id}] {self.position}. {self.title}"
 
+class TheoryMaterialModule(models.Model):
+    session = models.ForeignKey(Session, on_delete=models.CASCADE, related_name="theory_material_modules")
+    position = models.PositiveIntegerField()
+    title = models.CharField(max_length=200)
+    topic = models.CharField(max_length=255, blank=True, default="")
+    ai_prompt = models.TextField(blank=True, default="")
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Theory material module"
+        verbose_name_plural = "Theory material modules"
+        ordering = ["session", "position", "id"]
+        indexes = [
+            models.Index(fields=["session", "position", "is_active"]),
+        ]
+
+    def __str__(self):
+        return f"[{self.session_id}] {self.position}. {self.title}"
+
+
+class TheoryMaterialBlock(models.Model):
+    class BlockType(models.TextChoices):
+        HEADING = "heading", "Heading"
+        TEXT = "text", "Text"
+        CODE = "code", "Code"
+
+    class HeadingLevel(models.TextChoices):
+        H1 = "h1", "H1"
+        H2 = "h2", "H2"
+
+    module = models.ForeignKey(
+        TheoryMaterialModule,
+        on_delete=models.CASCADE,
+        related_name="blocks",
+    )
+    ordinal = models.PositiveIntegerField()
+    block_type = models.CharField(max_length=16, choices=BlockType.choices)
+    heading_level = models.CharField(
+        max_length=8,
+        choices=HeadingLevel.choices,
+        blank=True,
+        default="",
+    )
+    content = models.TextField()
+
+    class Meta:
+        verbose_name = "Theory material block"
+        verbose_name_plural = "Theory material blocks"
+        ordering = ["module", "ordinal", "id"]
+        constraints = [
+            models.UniqueConstraint(fields=["module", "ordinal"], name="uniq_theory_block_ordinal_in_module")
+        ]
+        indexes = [
+            models.Index(fields=["module", "ordinal"]),
+        ]
+
+    def __str__(self):
+        return f"Module {self.module_id} block #{self.ordinal} ({self.block_type})"
 
 class TaskTestCase(models.Model):
     task = models.ForeignKey(SessionTask, on_delete=models.CASCADE, related_name="testcases")
@@ -407,3 +467,4 @@ class Teacher(models.Model):
 
     def check_pin(self, raw_pin: str) -> bool:
         return check_password(raw_pin, self.pin_hash)
+

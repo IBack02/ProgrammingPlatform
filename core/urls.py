@@ -59,6 +59,32 @@ urlpatterns = [
     # Teacher tasks API
     path("api/teacher/sessions/<int:session_id>/tasks/", views.teacher_session_tasks_api, name="teacher_session_tasks_api"),
     path("api/teacher/tasks/<int:task_id>/", views.teacher_task_detail_api, name="teacher_task_detail_api"),
+path(
+    "api/teacher/sessions/<int:session_id>/theory-modules/",
+    views.teacher_theory_modules_api,
+    name="teacher_theory_modules_api",
+),
+path(
+    "api/teacher/theory-modules/<int:module_id>/",
+    views.teacher_theory_module_detail_api,
+    name="teacher_theory_module_detail_api",
+),
+path(
+    "api/teacher/theory-modules/<int:module_id>/blocks/",
+    views.teacher_theory_blocks_api,
+    name="teacher_theory_blocks_api",
+),
+path(
+    "api/teacher/theory-blocks/<int:block_id>/",
+    views.teacher_theory_block_detail_api,
+    name="teacher_theory_block_detail_api",
+),
+path(
+    "api/teacher/theory-modules/<int:module_id>/generate/",
+    views.teacher_generate_theory_module_api,
+    name="teacher_generate_theory_module_api",
+),
+
 
     # Testcases API
     path("api/teacher/tasks/<int:task_id>/tests/", views.teacher_task_tests_api, name="teacher_task_tests_api"),
@@ -70,6 +96,12 @@ urlpatterns = [
 
     # UI language
     path("set-ui-language/", views.set_ui_language, name="set_ui_language"),
+    path("teacher/modules/", views.teacher_modules_page, name="teacher_modules_page"),
+path(
+    "api/student/theory-module/<int:module_id>",
+    views.student_theory_module_detail,
+    name="student_theory_module_detail",
+),
 
     # Health
     path("healthz/", views.healthz, name="healthz"),

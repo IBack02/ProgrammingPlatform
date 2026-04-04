@@ -377,7 +377,7 @@
 
       <div id="taskList"></div>
 
-      <div class="card">
+      <div class="card" id="hintsPanel">
         <div class="hintPanelTitle">{{ T.hints }}</div>
         <div class="tiny">{{ T.hints_unlock_note }}</div>
 
@@ -435,6 +435,8 @@
           <div style="margin-top:12px;"></div>
           <div class="small"><b>{{ T.visible_tests }}</b></div>
           <div id="visibleTests"></div>
+
+          <div id="moduleBlocks" style="margin-top:12px;"></div>
         </div>
       </div>
 
@@ -533,6 +535,7 @@
   };
 
   let currentTaskId = null;
+  let currentModuleType = "coding_task";
   const CODE_CACHE_PREFIX = "pp_code_task_";
   let lastSubmittedHashByTask = {};
   let submitCooldownUntil = 0;
@@ -612,6 +615,27 @@
       .replaceAll("&","&amp;")
       .replaceAll("<","&lt;")
       .replaceAll(">","&gt;");
+  }
+
+  function renderTheoryBlocks(blocks){
+    const box = qs("moduleBlocks");
+    box.innerHTML = "";
+
+    (blocks || []).forEach(block => {
+      const wrap = document.createElement("div");
+      wrap.className = "card";
+
+      if (block.block_type === "heading"){
+        const tag = block.heading_level === "h1" ? "h2" : "h3";
+        wrap.innerHTML = `<${tag}>${escapeHtml(block.content)}</${tag}>`;
+      } else if (block.block_type === "code"){
+        wrap.innerHTML = `<pre>${escapeHtml(block.content)}</pre>`;
+      } else {
+        wrap.innerHTML = `<div style="white-space:pre-wrap;">${escapeHtml(block.content)}</div>`;
+      }
+
+      box.appendChild(wrap);
+    });
   }
 
   function makeResizer(resizerEl, leftEl, opts){
@@ -714,7 +738,7 @@
   }
 
   async function updateSubmitAvailability(){
-    if (!currentTaskId) return;
+    if (!currentTaskId || currentModuleType !== "coding_task") return;
 
     const left = getSubmitCooldownLeft();
     if (left > 0){
@@ -812,7 +836,7 @@
   }
 
   async function fetchHint(level){
-    if (!currentTaskId) return false;
+    if (!currentTaskId || currentModuleType !== "coding_task") return false;
 
     if (!hintUnlocked(level)){
       return false;
@@ -861,7 +885,7 @@
 
   async function onHintCardClick(level){
     const { card, back } = getHintElements(level);
-    if (!card) return;
+    if (!card || currentModuleType !== "coding_task") return;
 
     if (!hintUnlocked(level)){
       return;
@@ -893,32 +917,60 @@
       const btn = document.createElement("button");
       btn.className = "taskbtn";
       btn.dataset.id = t.id;
+      btn.dataset.moduleType = t.module_type || "coding_task";
 
       const st = t.progress?.status || "not_started";
       const badge = document.createElement("span");
       badge.className = "badge";
-      badge.textContent = statusLabel(st);
+      badge.textContent = t.module_type === "theory_material" ? "theory" : statusLabel(st);
 
       btn.textContent = `${t.position}. ${t.title}`;
       btn.appendChild(badge);
 
-      btn.onclick = () => openTask(t.id, btn);
+      btn.onclick = () => openTask(t.id, t.module_type || "coding_task", btn);
       list.appendChild(btn);
     });
   }
 
-  async function openTask(taskId, btn){
-    if (currentTaskId){
+  async function openTask(taskId, moduleType, btn){
+    if (currentTaskId && currentModuleType === "coding_task"){
       saveCachedCode(currentTaskId, qs("codeArea").value || "");
     }
 
     currentTaskId = taskId;
+    currentModuleType = moduleType || "coding_task";
 
     document.querySelectorAll(".taskbtn").forEach(b => b.classList.remove("active"));
     if (btn) btn.classList.add("active");
 
     hideStatus();
     showStatus(UI.loadingTask);
+
+    if (currentModuleType === "theory_material"){
+      const res = await apiGet(`/api/student/theory-module/${taskId}`);
+      if (!res.data.ok){
+        showStatus(res.data.error || UI.failedLoadTask);
+        return;
+      }
+
+      qs("taskCard").style.display = "block";
+      qs("editorCard").style.display = "none";
+      qs("hintsPanel").style.display = "none";
+      qs("resultCard").style.display = "none";
+
+      qs("taskTitle").textContent = res.data.module.title;
+      qs("taskMeta").textContent = `Theory module #${res.data.module.position} (id=${res.data.module.id})`;
+      qs("taskStatement").textContent = res.data.module.topic || "";
+      qs("taskConstraints").textContent = "";
+      qs("visibleTests").innerHTML = "";
+      renderTheoryBlocks(res.data.module.blocks || []);
+
+      lastProgress = null;
+      hideStatus();
+      return;
+    }
+
+    qs("hintsPanel").style.display = "block";
 
     const res = await apiGet(`/api/student/task/${taskId}`);
     if (!res.data.ok){
@@ -935,6 +987,7 @@
 
     qs("taskCard").style.display = "block";
     qs("editorCard").style.display = "block";
+    qs("moduleBlocks").innerHTML = "";
 
     qs("taskTitle").textContent = res.data.task.title;
     qs("taskMeta").textContent = `Task #${res.data.task.position} (id=${res.data.task.id})`;
@@ -1000,6 +1053,10 @@
 
   async function submit(){
     if (!currentTaskId){
+      return;
+    }
+
+    if (currentModuleType !== "coding_task"){
       return;
     }
 
@@ -1094,14 +1151,14 @@
     if (res.data.tasks && res.data.tasks.length > 0){
       const first = res.data.tasks[0];
       const firstBtn = document.querySelector(`.taskbtn[data-id="${first.id}"]`);
-      await openTask(first.id, firstBtn);
+      await openTask(first.id, first.module_type || "coding_task", firstBtn);
     } else {
       hideStatus();
     }
 
     qs("submitBtn").addEventListener("click", submit);
     qs("codeArea").addEventListener("input", () => {
-      if (!currentTaskId) return;
+      if (!currentTaskId || currentModuleType !== "coding_task") return;
       saveCachedCode(currentTaskId, qs("codeArea").value || "");
       updateSubmitAvailability();
     });

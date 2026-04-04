@@ -1,6 +1,6 @@
 import os
 import re
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Literal
 
 from openai import OpenAI
 from pydantic import BaseModel
@@ -175,7 +175,38 @@ class HintTextLevel2(BaseModel):
 
 class FullSolutionLevel3(BaseModel):
     code: str
+class TheoryMaterialBlockSchema(BaseModel):
+    ordinal: int
+    block_type: Literal["heading", "text", "code"]
+    heading_level: Optional[Literal["h1", "h2"]] = None
+    content: str
 
+
+class TheoryMaterialSchema(BaseModel):
+    title: str
+    blocks: List[TheoryMaterialBlockSchema]
+
+def build_theory_material_prompt_snapshot(
+    *,
+    session_title: str,
+    session_description: str,
+    module_title: str,
+    topic: str,
+    teacher_prompt: str,
+) -> str:
+    parts: List[str] = []
+
+    parts.append("SESSION_TITLE:\n" + (session_title or ""))
+    if session_description:
+        parts.append("SESSION_DESCRIPTION:\n" + session_description)
+
+    parts.append("MODULE_TITLE:\n" + (module_title or ""))
+    parts.append("MODULE_TOPIC:\n" + (topic or ""))
+
+    if teacher_prompt:
+        parts.append("TEACHER_PROMPT:\n" + teacher_prompt)
+
+    return "\n\n".join(parts)
 
 def _get_openai_client() -> OpenAI:
     api_key = os.getenv("OPENAI_API_KEY", "").strip()
@@ -312,6 +343,63 @@ def call_openai_solution(prompt_snapshot: str) -> dict:
 
     return {
         "data": {"code": code},
+        "tokens_in": tokens_in,
+        "tokens_out": tokens_out,
+        "model": "gpt-4o-mini",
+    }
+def call_openai_theory_material(prompt_snapshot: str) -> dict:
+    client = _get_openai_client()
+
+    system_rules = (
+        "You are a Python teacher creating a theory learning module for students.\n"
+        "Return a structured lesson using blocks only.\n"
+        "Allowed block types: heading, text, code.\n"
+        "For heading blocks, heading_level must be h1 or h2.\n"
+        "For text and code blocks, heading_level must be null or omitted.\n"
+        "The lesson must be simple, clear, beginner-friendly, and aligned with the session theme.\n"
+        "Code examples must be valid Python.\n"
+        "Do not include markdown fences.\n"
+        "Do not include explanations outside the schema.\n"
+        "Output must match schema: {title: string, blocks: TheoryMaterialBlockSchema[] }."
+    )
+
+    resp = client.responses.parse(
+        model="gpt-4o-mini",
+        input=[
+            {"role": "system", "content": system_rules},
+            {"role": "user", "content": prompt_snapshot},
+        ],
+        text_format=TheoryMaterialSchema,
+        max_output_tokens=2200,
+    )
+
+    parsed = resp.output_parsed
+    if parsed is None:
+        raise RuntimeError("OpenAI returned no parsed output for theory material")
+
+    blocks = []
+    for block in parsed.blocks:
+        content = (block.content or "").strip()
+        if not content:
+            continue
+
+        blocks.append({
+            "ordinal": int(block.ordinal),
+            "block_type": block.block_type,
+            "heading_level": (block.heading_level or ""),
+            "content": content,
+        })
+
+    if not blocks:
+        raise RuntimeError("OpenAI returned empty theory material blocks")
+
+    tokens_in, tokens_out = _extract_usage(resp)
+
+    return {
+        "data": {
+            "title": (parsed.title or "").strip(),
+            "blocks": blocks,
+        },
         "tokens_in": tokens_in,
         "tokens_out": tokens_out,
         "model": "gpt-4o-mini",

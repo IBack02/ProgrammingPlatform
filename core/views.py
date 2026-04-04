@@ -30,6 +30,9 @@ from .models import (
     TaskCodeFragment,
     TaskTestCase,
     Teacher,
+    TheoryMaterialBlock,
+    TheoryMaterialModule,
+
 )
 from .ui_translations import SUPPORTED_UI_LANGS
 
@@ -296,6 +299,28 @@ def _serialize_fragment(frag: TaskCodeFragment):
         "created_at": frag.created_at.isoformat() if getattr(frag, "created_at", None) else None,
     }
 
+def _serialize_theory_block(block: TheoryMaterialBlock):
+    return {
+        "id": block.id,
+        "ordinal": block.ordinal,
+        "block_type": block.block_type,
+        "heading_level": block.heading_level or "",
+        "content": block.content,
+    }
+
+
+def _serialize_theory_module(module: TheoryMaterialModule):
+    return {
+        "id": module.id,
+        "session_id": module.session_id,
+        "position": module.position,
+        "title": module.title,
+        "topic": module.topic,
+        "ai_prompt": module.ai_prompt,
+        "is_active": module.is_active,
+        "blocks": [_serialize_theory_block(b) for b in module.blocks.all().order_by("ordinal", "id")],
+    }
+
 
 # -------------------------
 # Student auth API
@@ -386,29 +411,63 @@ def student_active_session(request: HttpRequest):
 
     session = _get_active_session_for_class(class_id)
     if not session:
-        return JsonResponse({"ok": True, "active": False, "message": "Current session is inactive"}, status=200)
+        return JsonResponse(
+            {"ok": True, "active": False, "message": "Current session is inactive"},
+            status=200,
+        )
 
     ss, _ = _get_or_create_student_session(student_id, session)
 
-    tasks = list(
-        SessionTask.objects.filter(session=session).order_by("position").values("id", "position", "title")
+    coding_tasks = list(
+        SessionTask.objects.filter(session=session)
+        .order_by("position", "id")
+        .values("id", "position", "title")
     )
+    theory_modules = list(
+        TheoryMaterialModule.objects.filter(session=session, is_active=True)
+        .order_by("position", "id")
+        .values("id", "position", "title")
+    )
+
     progress_qs = StudentTaskProgress.objects.filter(student_session=ss).values(
         "task_id", "status", "attempts_total", "attempts_failed"
     )
     progress_map = {p["task_id"]: p for p in progress_qs}
 
     tasks_out = []
-    for t in tasks:
+
+    for t in coding_tasks:
         p = progress_map.get(t["id"])
         tasks_out.append(
             {
                 "id": t["id"],
                 "position": t["position"],
                 "title": t["title"],
-                "progress": p or {"status": "not_started", "attempts_total": 0, "attempts_failed": 0},
+                "module_type": "coding_task",
+                "progress": p or {
+                    "status": "not_started",
+                    "attempts_total": 0,
+                    "attempts_failed": 0,
+                },
             }
         )
+
+    for m in theory_modules:
+        tasks_out.append(
+            {
+                "id": m["id"],
+                "position": m["position"],
+                "title": m["title"],
+                "module_type": "theory_material",
+                "progress": {
+                    "status": "not_started",
+                    "attempts_total": 0,
+                    "attempts_failed": 0,
+                },
+            }
+        )
+
+    tasks_out.sort(key=lambda x: (x["position"], x["module_type"], x["id"]))
 
     return JsonResponse(
         {
@@ -424,6 +483,7 @@ def student_active_session(request: HttpRequest):
             "tasks": tasks_out,
         }
     )
+
 
 
 @require_GET
@@ -479,6 +539,34 @@ def student_task_detail(request: HttpRequest, task_id: int):
             },
         }
     )
+@require_GET
+def student_theory_module_detail(request: HttpRequest, module_id: int):
+    student_id, class_id = _get_student_from_session(request)
+    if not student_id:
+        return JsonResponse({"ok": False, "error": "not authenticated"}, status=401)
+
+    session = _get_active_session_for_class(class_id)
+    if not session:
+        return JsonResponse({"ok": True, "active": False, "message": "Current session is inactive"}, status=200)
+
+    module = get_object_or_404(
+        TheoryMaterialModule.objects.prefetch_related("blocks"),
+        id=module_id,
+        session=session,
+        is_active=True,
+    )
+
+    return JsonResponse({
+        "ok": True,
+        "module": {
+            "id": module.id,
+            "position": module.position,
+            "title": module.title,
+            "topic": module.topic,
+            "module_type": "theory_material",
+            "blocks": [_serialize_theory_block(b) for b in module.blocks.all().order_by("ordinal", "id")],
+        },
+    })
 
 
 
@@ -679,7 +767,10 @@ from .ai_assist import (
     sanitize_no_code,
     build_solution_prompt_snapshot,
     call_openai_solution,
+    build_theory_material_prompt_snapshot,
+    call_openai_theory_material,
 )
+
 @require_GET
 def student_hint_level(request: HttpRequest, task_id: int, level: int):
     student_id, class_id = _get_student_from_session(request)
@@ -1154,6 +1245,9 @@ def teacher_students_page(request: HttpRequest):
 @teacher_required
 def teacher_tasks_page(request: HttpRequest):
     return render(request, "core/teacher/tasks.html", {"active": "tasks"})
+@teacher_required
+def teacher_modules_page(request: HttpRequest):
+    return render(request, "core/teacher/modules.html", {"active": "modules"})
 
 
 def healthz(request: HttpRequest):
@@ -1684,6 +1778,347 @@ def teacher_task_fragments_api(request: HttpRequest, task_id: int):
     )
     return JsonResponse({"ok": True, "fragment": _serialize_fragment(frag)}, status=201)
 
+@csrf_exempt
+@require_http_methods(["GET", "POST"])
+def teacher_theory_modules_api(request: HttpRequest, session_id: int):
+    if not _get_logged_in_teacher(request):
+        return _teacher_api_unauthorized()
+
+    session = get_object_or_404(Session, id=session_id)
+
+    try:
+        if request.method == "GET":
+            modules = (
+                TheoryMaterialModule.objects
+                .filter(session=session)
+                .prefetch_related("blocks")
+                .order_by("position", "id")
+            )
+            return JsonResponse({
+                "ok": True,
+                "modules": [_serialize_theory_module(m) for m in modules],
+            })
+
+        data = _json_body(request)
+
+        title = (data.get("title") or "").strip()
+        topic = (data.get("topic") or "").strip()
+        ai_prompt = (data.get("ai_prompt") or "").strip()
+
+        if not title:
+            return JsonResponse({"ok": False, "error": "title is required"}, status=400)
+
+        try:
+            position = int(data.get("position") or 1)
+        except (TypeError, ValueError):
+            return JsonResponse({"ok": False, "error": "position must be integer"}, status=400)
+
+        if position < 1:
+            return JsonResponse({"ok": False, "error": "position must be >= 1"}, status=400)
+
+        if SessionTask.objects.filter(session=session, position=position).exists():
+            return JsonResponse(
+                {"ok": False, "error": "position is already used by a coding task"},
+                status=409,
+            )
+
+        if TheoryMaterialModule.objects.filter(session=session, position=position).exists():
+            return JsonResponse(
+                {"ok": False, "error": "position is already used by a theory module"},
+                status=409,
+            )
+
+        module = TheoryMaterialModule.objects.create(
+            session=session,
+            position=position,
+            title=title,
+            topic=topic,
+            ai_prompt=ai_prompt,
+        )
+
+        return JsonResponse({"ok": True, "module": _serialize_theory_module(module)}, status=201)
+
+    except Exception as e:
+        return JsonResponse({"ok": False, "error": f"{type(e).__name__}: {e}"}, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["GET", "PATCH", "DELETE"])
+def teacher_theory_module_detail_api(request: HttpRequest, module_id: int):
+    if not _get_logged_in_teacher(request):
+        return _teacher_api_unauthorized()
+
+    module = get_object_or_404(TheoryMaterialModule.objects.prefetch_related("blocks"), id=module_id)
+
+    try:
+        if request.method == "GET":
+            return JsonResponse({"ok": True, "module": _serialize_theory_module(module)})
+
+        if request.method == "DELETE":
+            module.delete()
+            return JsonResponse({"ok": True})
+
+        data = _json_body(request)
+
+        if "title" in data:
+            title = (data.get("title") or "").strip()
+            if not title:
+                return JsonResponse({"ok": False, "error": "title cannot be empty"}, status=400)
+            module.title = title
+
+        if "topic" in data:
+            module.topic = (data.get("topic") or "").strip()
+
+        if "ai_prompt" in data:
+            module.ai_prompt = data.get("ai_prompt") or ""
+
+        if "is_active" in data:
+            module.is_active = bool(data.get("is_active"))
+
+        if "position" in data:
+            try:
+                position = int(data.get("position"))
+            except (TypeError, ValueError):
+                return JsonResponse({"ok": False, "error": "position must be integer"}, status=400)
+
+            if position < 1:
+                return JsonResponse({"ok": False, "error": "position must be >= 1"}, status=400)
+
+            if SessionTask.objects.filter(session=module.session, position=position).exists():
+                return JsonResponse(
+                    {"ok": False, "error": "position is already used by a coding task"},
+                    status=409,
+                )
+
+            conflict = TheoryMaterialModule.objects.filter(
+                session=module.session,
+                position=position,
+            ).exclude(id=module.id).exists()
+
+            if conflict:
+                return JsonResponse(
+                    {"ok": False, "error": "position is already used by another theory module"},
+                    status=409,
+                )
+
+            module.position = position
+
+        module.save()
+        return JsonResponse({"ok": True, "module": _serialize_theory_module(module)})
+
+    except Exception as e:
+        return JsonResponse({"ok": False, "error": f"{type(e).__name__}: {e}"}, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["GET", "POST"])
+def teacher_theory_blocks_api(request: HttpRequest, module_id: int):
+    if not _get_logged_in_teacher(request):
+        return _teacher_api_unauthorized()
+
+    module = get_object_or_404(TheoryMaterialModule, id=module_id)
+
+    try:
+        if request.method == "GET":
+            blocks = TheoryMaterialBlock.objects.filter(module=module).order_by("ordinal", "id")
+            return JsonResponse({
+                "ok": True,
+                "blocks": [_serialize_theory_block(b) for b in blocks],
+            })
+
+        data = _json_body(request)
+
+        block_type = (data.get("block_type") or "").strip()
+        heading_level = (data.get("heading_level") or "").strip()
+        content = (data.get("content") or "").rstrip()
+
+        try:
+            ordinal = int(data.get("ordinal") or 1)
+        except (TypeError, ValueError):
+            return JsonResponse({"ok": False, "error": "ordinal must be integer"}, status=400)
+
+        if ordinal < 1:
+            return JsonResponse({"ok": False, "error": "ordinal must be >= 1"}, status=400)
+
+        if block_type not in {
+            TheoryMaterialBlock.BlockType.HEADING,
+            TheoryMaterialBlock.BlockType.TEXT,
+            TheoryMaterialBlock.BlockType.CODE,
+        }:
+            return JsonResponse({"ok": False, "error": "invalid block_type"}, status=400)
+
+        if not content.strip():
+            return JsonResponse({"ok": False, "error": "content is required"}, status=400)
+
+        if block_type == TheoryMaterialBlock.BlockType.HEADING:
+            if heading_level not in {TheoryMaterialBlock.HeadingLevel.H1, TheoryMaterialBlock.HeadingLevel.H2}:
+                return JsonResponse({"ok": False, "error": "heading_level must be h1 or h2"}, status=400)
+        else:
+            heading_level = ""
+
+        if TheoryMaterialBlock.objects.filter(module=module, ordinal=ordinal).exists():
+            return JsonResponse({"ok": False, "error": "ordinal is already used"}, status=409)
+
+        block = TheoryMaterialBlock.objects.create(
+            module=module,
+            ordinal=ordinal,
+            block_type=block_type,
+            heading_level=heading_level,
+            content=content,
+        )
+
+        return JsonResponse({"ok": True, "block": _serialize_theory_block(block)}, status=201)
+
+    except Exception as e:
+        return JsonResponse({"ok": False, "error": f"{type(e).__name__}: {e}"}, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["PATCH", "DELETE"])
+def teacher_theory_block_detail_api(request: HttpRequest, block_id: int):
+    if not _get_logged_in_teacher(request):
+        return _teacher_api_unauthorized()
+
+    block = get_object_or_404(TheoryMaterialBlock, id=block_id)
+
+    try:
+        if request.method == "DELETE":
+            block.delete()
+            return JsonResponse({"ok": True})
+
+        data = _json_body(request)
+
+        if "ordinal" in data:
+            try:
+                ordinal = int(data.get("ordinal"))
+            except (TypeError, ValueError):
+                return JsonResponse({"ok": False, "error": "ordinal must be integer"}, status=400)
+
+            if ordinal < 1:
+                return JsonResponse({"ok": False, "error": "ordinal must be >= 1"}, status=400)
+
+            conflict = TheoryMaterialBlock.objects.filter(
+                module=block.module,
+                ordinal=ordinal,
+            ).exclude(id=block.id).exists()
+
+            if conflict:
+                return JsonResponse({"ok": False, "error": "ordinal is already used"}, status=409)
+
+            block.ordinal = ordinal
+
+        if "block_type" in data:
+            block_type = (data.get("block_type") or "").strip()
+            if block_type not in {
+                TheoryMaterialBlock.BlockType.HEADING,
+                TheoryMaterialBlock.BlockType.TEXT,
+                TheoryMaterialBlock.BlockType.CODE,
+            }:
+                return JsonResponse({"ok": False, "error": "invalid block_type"}, status=400)
+            block.block_type = block_type
+
+        if "heading_level" in data:
+            heading_level = (data.get("heading_level") or "").strip()
+            if block.block_type == TheoryMaterialBlock.BlockType.HEADING:
+                if heading_level not in {TheoryMaterialBlock.HeadingLevel.H1, TheoryMaterialBlock.HeadingLevel.H2}:
+                    return JsonResponse({"ok": False, "error": "heading_level must be h1 or h2"}, status=400)
+                block.heading_level = heading_level
+            else:
+                block.heading_level = ""
+
+        if "content" in data:
+            content = (data.get("content") or "").rstrip()
+            if not content.strip():
+                return JsonResponse({"ok": False, "error": "content cannot be empty"}, status=400)
+            block.content = content
+
+        if block.block_type != TheoryMaterialBlock.BlockType.HEADING:
+            block.heading_level = ""
+
+        block.save()
+        return JsonResponse({"ok": True, "block": _serialize_theory_block(block)})
+
+    except Exception as e:
+        return JsonResponse({"ok": False, "error": f"{type(e).__name__}: {e}"}, status=500)
+
+
+@csrf_exempt
+@require_POST
+def teacher_generate_theory_module_api(request: HttpRequest, module_id: int):
+    if not _get_logged_in_teacher(request):
+        return _teacher_api_unauthorized()
+
+    module = get_object_or_404(TheoryMaterialModule.objects.select_related("session"), id=module_id)
+
+    try:
+        data = _json_body(request)
+        prompt = (data.get("prompt") or module.ai_prompt or "").strip()
+
+        if not prompt:
+            return JsonResponse({"ok": False, "error": "prompt is required"}, status=400)
+
+        prompt_snapshot = build_theory_material_prompt_snapshot(
+            session_title=module.session.title,
+            session_description=module.session.description,
+            module_title=module.title,
+            topic=module.topic,
+            teacher_prompt=prompt,
+        )
+
+        out = call_openai_theory_material(prompt_snapshot)
+        payload = out.get("data") or {}
+        title = (payload.get("title") or "").strip()
+        blocks = payload.get("blocks") or []
+
+        with transaction.atomic():
+            if title:
+                module.title = title
+            module.ai_prompt = prompt
+            module.save(update_fields=["title", "ai_prompt", "updated_at"])
+
+            TheoryMaterialBlock.objects.filter(module=module).delete()
+
+            clean_blocks = []
+            used_ordinals = set()
+
+            for raw in blocks:
+                ordinal = int(raw.get("ordinal") or 0)
+                block_type = (raw.get("block_type") or "").strip()
+                heading_level = (raw.get("heading_level") or "").strip()
+                content = (raw.get("content") or "").rstrip()
+
+                if ordinal < 1 or ordinal in used_ordinals or not content:
+                    continue
+
+                if block_type not in {"heading", "text", "code"}:
+                    continue
+
+                if block_type == "heading" and heading_level not in {"h1", "h2"}:
+                    heading_level = "h2"
+                if block_type != "heading":
+                    heading_level = ""
+
+                used_ordinals.add(ordinal)
+                clean_blocks.append(
+                    TheoryMaterialBlock(
+                        module=module,
+                        ordinal=ordinal,
+                        block_type=block_type,
+                        heading_level=heading_level,
+                        content=content,
+                    )
+                )
+
+            if not clean_blocks:
+                return JsonResponse({"ok": False, "error": "AI returned no valid blocks"}, status=502)
+
+            TheoryMaterialBlock.objects.bulk_create(clean_blocks)
+
+        module = TheoryMaterialModule.objects.prefetch_related("blocks").get(id=module.id)
+        return JsonResponse({"ok": True, "module": _serialize_theory_module(module)})
+
+    except Exception as e:
+        return JsonResponse({"ok": False, "error": f"{type(e).__name__}: {e}"}, status=500)
 
 @csrf_exempt
 @require_http_methods(["PATCH", "DELETE"])

@@ -825,6 +825,14 @@ UI_TRANSLATIONS = {
 "in_progress": "in progress",
 "solved": "solved",
 "locked_status": "locked",
+"modules": "Modules",
+"modules_subtitle": "Create and edit theory modules for sessions.",
+"module_title": "Module title",
+"module_topic": "Module topic",
+"ai_prompt": "AI prompt",
+"generate_module": "Generate module",
+"add_block": "Add block",
+
     },
 }
 
