@@ -11,6 +11,11 @@
   .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
   .muted{color:#6b7280;font-size:12px}
   .code-like{font-family:Consolas,"Courier New",monospace}
+  .module-head{display:flex;justify-content:space-between;align-items:center;gap:10px}
+  .module-meta{display:flex;gap:6px;flex-wrap:wrap}
+  .module-pill{font-size:11px;padding:2px 8px;border-radius:999px;border:1px solid #dbeafe;background:#eff6ff;color:#075985}
+  .module-pill.gray{border-color:#e5e7eb;background:#f9fafb;color:#6b7280}
+  .legacy-box{border:1px dashed #cbd5e1;border-radius:12px;padding:12px;background:#f8fafc}
 </style>
 
 <div class="card" style="margin-bottom:12px;">
@@ -77,6 +82,18 @@
 <script>
   let selectedSessionId = null;
   let selectedModuleId = null;
+  let selectedModuleType = null;
+
+  const UI = {
+    selectSessionFirst: "{{ T.select_session|escapejs }}",
+    failedLoadSessions: "{{ T.failed_load_sessions|escapejs }}",
+    failedLoadTasks: "{{ T.failed_load_tasks|escapejs }}",
+    failedLoadModules: "{{ T.failed_load_tasks|escapejs }}",
+    codingBadge: "{{ T.coding_module_badge|escapejs }}",
+    theoryBadge: "{{ T.theory_module_badge|escapejs }}",
+    openInTasks: "{{ T.open_in_tasks|escapejs }}",
+    codingNote: "{{ T.coding_module_note|escapejs }}"
+  };
 
   function qs(id){ return document.getElementById(id); }
 
@@ -97,9 +114,14 @@
 
   function setMsg(text){ qs("msg").textContent = text || ""; }
 
+  function currentTheoryItem(){
+    if (!selectedModuleId) return null;
+    return { id: selectedModuleId, module_type: "theory_material" };
+  }
+
   async function loadSessions(){
     const res = await api("/api/teacher/sessions/");
-    if (!res.data.ok) return setMsg(res.data.error || "Failed to load sessions");
+    if (!res.data.ok) return setMsg(res.data.error || UI.failedLoadSessions);
     const select = qs("sessionSelect");
     select.innerHTML = '<option value="">Select session</option>';
     (res.data.sessions || []).forEach(s => {
@@ -112,25 +134,86 @@
 
   async function loadModules(){
     if (!selectedSessionId) return;
-    const res = await api(`/api/teacher/sessions/${selectedSessionId}/theory-modules/`);
-    if (!res.data.ok) return setMsg(res.data.error || "Failed to load modules");
+    const [tasksRes, theoryRes] = await Promise.all([
+      api(`/api/teacher/sessions/${selectedSessionId}/tasks/`),
+      api(`/api/teacher/sessions/${selectedSessionId}/theory-modules/`)
+    ]);
+
+    if (!tasksRes.data.ok) return setMsg(tasksRes.data.error || UI.failedLoadTasks);
+    if (!theoryRes.data.ok) return setMsg(theoryRes.data.error || UI.failedLoadModules);
 
     const box = qs("modulesList");
     box.innerHTML = "";
 
-    (res.data.modules || []).forEach(m => {
+    const items = [];
+
+    (tasksRes.data.tasks || []).forEach(t => {
+      items.push({
+        id: t.id,
+        position: t.position,
+        title: t.title,
+        module_type: "coding_task"
+      });
+    });
+
+    (theoryRes.data.modules || []).forEach(m => {
+      items.push({
+        id: m.id,
+        position: m.position,
+        title: m.title,
+        module_type: "theory_material"
+      });
+    });
+
+    items.sort((a, b) => {
+      if (a.position !== b.position) return a.position - b.position;
+      if (a.module_type !== b.module_type) return a.module_type.localeCompare(b.module_type);
+      return a.id - b.id;
+    });
+
+    items.forEach(m => {
       const div = document.createElement("div");
-      div.className = "module-item" + (m.id === selectedModuleId ? " active" : "");
-      div.textContent = `${m.position}. ${m.title}`;
-      div.onclick = () => openModule(m.id);
+      const isActive = m.id === selectedModuleId && m.module_type === selectedModuleType;
+      const badgeText = m.module_type === "coding_task" ? UI.codingBadge : UI.theoryBadge;
+      const badgeClass = m.module_type === "coding_task" ? "module-pill gray" : "module-pill";
+
+      div.className = "module-item" + (isActive ? " active" : "");
+      div.innerHTML = `
+        <div class="module-head">
+          <div><b>${m.position}. ${m.title}</b></div>
+          <div class="module-meta">
+            <span class="${badgeClass}">${badgeText}</span>
+          </div>
+        </div>
+      `;
+      div.onclick = () => openModule(m);
       box.appendChild(div);
     });
   }
 
-  async function openModule(moduleId){
-    selectedModuleId = moduleId;
-    const res = await api(`/api/teacher/theory-modules/${moduleId}/`);
-    if (!res.data.ok) return setMsg(res.data.error || "Failed to load module");
+  async function openModule(item){
+    selectedModuleId = item.id;
+    selectedModuleType = item.module_type;
+
+    if (item.module_type === "coding_task"){
+      qs("editor").style.display = "block";
+      qs("title").value = item.title || "";
+      qs("position").value = item.position || 1;
+      qs("topic").value = "";
+      qs("aiPrompt").value = "";
+      qs("blocksList").innerHTML = `
+        <div class="legacy-box">
+          <div style="font-weight:700;margin-bottom:6px;">${UI.codingBadge}</div>
+          <div class="muted" style="margin-bottom:10px;">${UI.codingNote}</div>
+          <a class="btn" href="/teacher/tasks/">${UI.openInTasks}</a>
+        </div>
+      `;
+      loadModules();
+      return;
+    }
+
+    const res = await api(`/api/teacher/theory-modules/${item.id}/`);
+    if (!res.data.ok) return setMsg(res.data.error || UI.failedLoadModules);
 
     const m = res.data.module;
     qs("editor").style.display = "block";
@@ -158,7 +241,7 @@
   }
 
   async function createModule(){
-    if (!selectedSessionId) return setMsg("Select session first");
+    if (!selectedSessionId) return setMsg(UI.selectSessionFirst);
 
     const res = await api(`/api/teacher/sessions/${selectedSessionId}/theory-modules/`, "POST", {
       title: qs("newTitle").value,
@@ -171,7 +254,12 @@
     qs("newTitle").value = "";
     qs("newTopic").value = "";
     await loadModules();
-    await openModule(res.data.module.id);
+    await openModule({
+      id: res.data.module.id,
+      position: res.data.module.position,
+      title: res.data.module.title,
+      module_type: "theory_material"
+    });
   }
 
   async function saveModule(){
@@ -184,7 +272,7 @@
     });
     if (!res.data.ok) return setMsg(res.data.error || "Save failed");
     setMsg("Saved");
-    await openModule(selectedModuleId);
+    await openModule(currentTheoryItem());
   }
 
   async function deleteModule(){
@@ -210,14 +298,14 @@
     if (!res.data.ok) return setMsg(res.data.error || "Add block failed");
     setMsg("Block added");
     qs("blockContent").value = "";
-    await openModule(selectedModuleId);
+    await openModule(currentTheoryItem());
   }
 
   async function deleteBlock(blockId){
     const res = await api(`/api/teacher/theory-blocks/${blockId}/`, "DELETE");
     if (!res.data.ok) return setMsg(res.data.error || "Delete block failed");
     setMsg("Block deleted");
-    await openModule(selectedModuleId);
+    await openModule(currentTheoryItem());
   }
 
   async function generateModule(){
@@ -227,12 +315,13 @@
     });
     if (!res.data.ok) return setMsg(res.data.error || "Generate failed");
     setMsg("Generated");
-    await openModule(selectedModuleId);
+    await openModule(currentTheoryItem());
   }
 
   qs("loadBtn").addEventListener("click", async () => {
     selectedSessionId = qs("sessionSelect").value;
     selectedModuleId = null;
+    selectedModuleType = null;
     qs("editor").style.display = "none";
     await loadModules();
   });

@@ -338,6 +338,39 @@
     a { color:var(--primary); text-decoration:none; }
     hr { border:none; border-top:1px solid var(--border); margin:12px 0; }
     .tiny { font-size:11px; color:var(--muted); }
+    .theoryContent{
+      margin-top:12px;
+      white-space:normal;
+    }
+    .theoryBlock{
+      margin:0 0 14px 0;
+      line-height:1.65;
+      color:#111827;
+      white-space:pre-wrap;
+    }
+    .theoryBlock.h1{
+      font-size:24px;
+      font-weight:800;
+      line-height:1.25;
+      margin-top:8px;
+    }
+    .theoryBlock.h2{
+      font-size:18px;
+      font-weight:700;
+      line-height:1.35;
+      margin-top:18px;
+    }
+    .theoryBlock.code{
+      margin:16px 0;
+    }
+    .theoryBlock.code pre{
+      margin:0;
+      background:#0b1020;
+      color:#d1d5db;
+      border-radius:12px;
+      padding:14px;
+      overflow:auto;
+    }
   </style>
 </head>
 <body>
@@ -436,7 +469,7 @@
           <div class="small"><b>{{ T.visible_tests }}</b></div>
           <div id="visibleTests"></div>
 
-          <div id="moduleBlocks" style="margin-top:12px;"></div>
+          <div id="moduleBlocks" class="theoryContent"></div>
         </div>
       </div>
 
@@ -623,15 +656,16 @@
 
     (blocks || []).forEach(block => {
       const wrap = document.createElement("div");
-      wrap.className = "card";
 
       if (block.block_type === "heading"){
-        const tag = block.heading_level === "h1" ? "h2" : "h3";
-        wrap.innerHTML = `<${tag}>${escapeHtml(block.content)}</${tag}>`;
+        wrap.className = `theoryBlock ${block.heading_level === "h1" ? "h1" : "h2"}`;
+        wrap.textContent = block.content || "";
       } else if (block.block_type === "code"){
+        wrap.className = "theoryBlock code";
         wrap.innerHTML = `<pre>${escapeHtml(block.content)}</pre>`;
       } else {
-        wrap.innerHTML = `<div style="white-space:pre-wrap;">${escapeHtml(block.content)}</div>`;
+        wrap.className = "theoryBlock";
+        wrap.textContent = block.content || "";
       }
 
       box.appendChild(wrap);
