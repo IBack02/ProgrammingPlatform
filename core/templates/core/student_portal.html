@@ -371,6 +371,26 @@
       padding:14px;
       overflow:auto;
     }
+    .quizQuestion{
+      border:1px solid var(--border);
+      border-radius:12px;
+      padding:12px;
+      margin:0 0 12px 0;
+      background:#fff;
+    }
+    .quizOption{
+      display:flex;
+      gap:8px;
+      align-items:flex-start;
+      margin:8px 0;
+    }
+    .quizMatchRow{
+      display:flex;
+      gap:10px;
+      align-items:center;
+      margin:8px 0;
+      flex-wrap:wrap;
+    }
   </style>
 </head>
 <body>
@@ -417,7 +437,7 @@
         <div class="hintGrid" style="margin-top:10px;">
           <div class="flipCard disabled" id="hintCard1" data-level="1">
             <div class="flipCardHeader">
-              <div class="flipCardTitle">{{ T.hint_1 }}</div>
+              <div class="flipCardTitle">{{ T.hint_1|default:"Hint 1" }}</div>
               <div class="pill gray" id="hintPill1">{{ T.locked }}</div>
             </div>
             <div class="flipBody muted" id="hintFront1">{{ T.hint_locked_after_2 }}</div>
@@ -426,7 +446,7 @@
 
           <div class="flipCard disabled" id="hintCard2" data-level="2">
             <div class="flipCardHeader">
-              <div class="flipCardTitle">{{ T.hint_2 }}</div>
+              <div class="flipCardTitle">{{ T.hint_2|default:"Hint 2" }}</div>
               <div class="pill gray" id="hintPill2">{{ T.locked }}</div>
             </div>
             <div class="flipBody muted" id="hintFront2">{{ T.hint_locked_after_3 }}</div>
@@ -435,7 +455,7 @@
 
           <div class="flipCard disabled" id="hintCard3" data-level="3">
             <div class="flipCardHeader">
-              <div class="flipCardTitle">{{ T.hint_3 }}</div>
+              <div class="flipCardTitle">{{ T.hint_3|default:"Hint 3" }}</div>
               <div class="pill gray" id="hintPill3">{{ T.locked }}</div>
             </div>
             <div class="flipBody muted" id="hintFront3">{{ T.hint_locked_after_3_solution }}</div>
@@ -500,7 +520,7 @@
 
           <div class="editorFooter">
             <div class="tiny" id="submitState">{{ T.ready }}</div>
-            <button class="primary" id="submitBtn">{{ T.submit_solution }}</button>
+            <button class="primary" id="submitBtn">{{ T.submit_solution|default:"Submit solution" }}</button>
           </div>
 
           <div style="margin-top:12px;"></div>
@@ -513,6 +533,31 @@
             <div id="stdoutBox" class="ok" style="margin-top:10px;white-space:pre-wrap;"></div>
           </div>
         </div>
+
+        <div class="card" id="quizCard" style="display:none;">
+          <div class="row" style="justify-content:space-between;">
+            <div>
+              <div class="title">{{ T.theory_quiz_module|default:"Theory quiz" }}</div>
+              <div class="small muted" id="quizInstructions"></div>
+            </div>
+          </div>
+
+          <div id="quizQuestions" style="margin-top:12px;"></div>
+
+          <div class="editorFooter">
+            <div class="tiny" id="quizState">{{ T.ready|default:"Ready" }}</div>
+            <button class="primary" id="quizSubmitBtn">{{ T.submit_quiz|default:"Submit quiz" }}</button>
+          </div>
+
+          <div style="margin-top:12px;"></div>
+          <div class="card" id="quizResultCard" style="display:none;">
+            <div class="row">
+              <div><b>{{ T.quiz_score|default:"Score" }}:</b> <span id="quizScore"></span></div>
+              <div class="muted" id="quizAttemptInfo"></div>
+            </div>
+            <div id="quizResultsList" style="margin-top:10px;"></div>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -523,13 +568,13 @@
     classLabel: "{{ T.class_label|escapejs }}",
     session: "{{ T.session|escapejs }}",
     hints: "{{ T.hints|escapejs }}",
-    hint1: "{{ T.hint_1|escapejs }}",
-    hint2: "{{ T.hint_2|escapejs }}",
-    hint3: "{{ T.hint_3|escapejs }}",
+    hint1: "{{ T.hint_1|default:'Hint 1'|escapejs }}",
+    hint2: "{{ T.hint_2|default:'Hint 2'|escapejs }}",
+    hint3: "{{ T.hint_3|default:'Hint 3'|escapejs }}",
     locked: "{{ T.locked|escapejs }}",
     available: "{{ T.available|escapejs }}",
     cooldown: "{{ T.cooldown|escapejs }}",
-    submitSolution: "{{ T.submit_solution|escapejs }}",
+    submitSolution: "{{ T.submit_solution|default:'Submit solution'|escapejs }}",
     yourCode: "{{ T.your_code|escapejs }}",
     taskStatement: "{{ T.task_statement|escapejs }}",
     constraints: "{{ T.constraints|escapejs }}",
@@ -564,7 +609,19 @@
     notStarted: "{{ T.not_started|escapejs }}",
     inProgress: "{{ T.in_progress|escapejs }}",
     solved: "{{ T.solved|escapejs }}",
-    lockedStatus: "{{ T.locked_status|escapejs }}"
+    lockedStatus: "{{ T.locked_status|escapejs }}",
+    theoryBadge: "{{ T.theory_module_badge|default:'theory'|escapejs }}",
+    quizBadge: "{{ T.quiz_module_badge|default:'quiz'|escapejs }}",
+    quizInstructions: "{{ T.instructions_label|default:'Instructions'|escapejs }}",
+    submitQuiz: "{{ T.submit_quiz|default:'Submit quiz'|escapejs }}",
+    quizScore: "{{ T.quiz_score|default:'Score'|escapejs }}",
+    quizQuestion: "{{ T.quiz_question|default:'Question'|escapejs }}",
+    quizCorrect: "{{ T.quiz_correct|default:'Correct'|escapejs }}",
+    quizIncorrect: "{{ T.quiz_incorrect|default:'Incorrect'|escapejs }}",
+    quizSubmitFailed: "{{ T.quiz_submit_failed|default:'Failed to submit quiz'|escapejs }}",
+    quizTypeSingle: "{{ T.single_choice|default:'Single choice'|escapejs }}",
+    quizTypeOpen: "{{ T.open_answer|default:'Open answer'|escapejs }}",
+    quizTypeMatching: "{{ T.matching|default:'Matching'|escapejs }}"
   };
 
   let currentTaskId = null;
@@ -669,6 +726,86 @@
       }
 
       box.appendChild(wrap);
+    });
+  }
+
+  function renderQuizQuestionsStudent(questions){
+    const box = qs("quizQuestions");
+    box.innerHTML = "";
+
+    (questions || []).forEach(question => {
+      const wrap = document.createElement("div");
+      wrap.className = "quizQuestion";
+
+      let inner = `
+        <div><b>${escapeHtml(UI.quizQuestion)} ${question.ordinal}</b></div>
+        <div style="margin-top:6px;white-space:pre-wrap;">${escapeHtml(question.prompt)}</div>
+      `;
+
+      if (question.question_type === "single_choice"){
+        inner += `<div style="margin-top:10px;">`;
+        (question.choices || []).forEach(choice => {
+          inner += `
+            <label class="quizOption">
+              <input type="radio" name="quiz_q_${question.id}" value="${choice.id}">
+              <span>${escapeHtml(choice.text)}</span>
+            </label>
+          `;
+        });
+        inner += `</div>`;
+      } else if (question.question_type === "open_answer"){
+        inner += `<textarea id="quiz_open_${question.id}" style="margin-top:10px;height:110px;"></textarea>`;
+      } else if (question.question_type === "matching"){
+        inner += `<div style="margin-top:10px;">`;
+        (question.left_items || []).forEach(left => {
+          inner += `
+            <div class="quizMatchRow">
+              <div style="min-width:180px;">${escapeHtml(left.text)}</div>
+              <select id="quiz_match_${question.id}_${left.id}" class="langSelect">
+                <option value=""></option>
+                ${(question.right_items || []).map(right => `<option value="${right.id}">${escapeHtml(right.text)}</option>`).join("")}
+              </select>
+            </div>
+          `;
+        });
+        inner += `</div>`;
+      }
+
+      wrap.innerHTML = inner;
+      box.appendChild(wrap);
+    });
+  }
+
+  function collectQuizAnswers(questions){
+    const answers = {};
+    (questions || []).forEach(question => {
+      if (question.question_type === "single_choice"){
+        const checked = document.querySelector(`input[name="quiz_q_${question.id}"]:checked`);
+        answers[String(question.id)] = checked ? checked.value : "";
+      } else if (question.question_type === "open_answer"){
+        answers[String(question.id)] = qs(`quiz_open_${question.id}`)?.value || "";
+      } else if (question.question_type === "matching"){
+        const map = {};
+        (question.left_items || []).forEach(left => {
+          map[String(left.id)] = qs(`quiz_match_${question.id}_${left.id}`)?.value || "";
+        });
+        answers[String(question.id)] = map;
+      }
+    });
+    return answers;
+  }
+
+  function renderQuizResults(results){
+    const box = qs("quizResultsList");
+    box.innerHTML = "";
+    (results || []).forEach(row => {
+      const item = document.createElement("div");
+      item.className = "card";
+      item.innerHTML = `
+        <div><b>${escapeHtml(UI.quizQuestion)} ${row.ordinal}</b> - ${escapeHtml(row.is_correct ? UI.quizCorrect : UI.quizIncorrect)}</div>
+        ${row.feedback ? `<div class="small muted" style="margin-top:6px;white-space:pre-wrap;">${escapeHtml(row.feedback)}</div>` : ""}
+      `;
+      box.appendChild(item);
     });
   }
 
@@ -956,7 +1093,13 @@
       const st = t.progress?.status || "not_started";
       const badge = document.createElement("span");
       badge.className = "badge";
-      badge.textContent = t.module_type === "theory_material" ? "theory" : statusLabel(st);
+      if (t.module_type === "theory_material"){
+        badge.textContent = UI.theoryBadge;
+      } else if (t.module_type === "theory_quiz"){
+        badge.textContent = UI.quizBadge;
+      } else {
+        badge.textContent = statusLabel(st);
+      }
 
       btn.textContent = `${t.position}. ${t.title}`;
       btn.appendChild(badge);
@@ -989,6 +1132,7 @@
 
       qs("taskCard").style.display = "block";
       qs("editorCard").style.display = "none";
+      qs("quizCard").style.display = "none";
       qs("hintsPanel").style.display = "none";
       qs("resultCard").style.display = "none";
 
@@ -1004,7 +1148,48 @@
       return;
     }
 
+    if (currentModuleType === "theory_quiz"){
+      const res = await apiGet(`/api/student/theory-quiz/${taskId}`);
+      if (!res.data.ok){
+        showStatus(res.data.error || UI.failedLoadTask);
+        return;
+      }
+
+      qs("taskCard").style.display = "block";
+      qs("editorCard").style.display = "none";
+      qs("quizCard").style.display = "block";
+      qs("hintsPanel").style.display = "none";
+      qs("resultCard").style.display = "none";
+
+      qs("taskTitle").textContent = res.data.module.title;
+      qs("taskMeta").textContent = `Quiz module #${res.data.module.position} (id=${res.data.module.id})`;
+      qs("taskStatement").textContent = res.data.module.topic || "";
+      qs("taskConstraints").textContent = "";
+      qs("visibleTests").innerHTML = "";
+      qs("moduleBlocks").innerHTML = "";
+      qs("quizInstructions").textContent = res.data.module.instructions || "";
+      renderQuizQuestionsStudent(res.data.module.questions || []);
+      qs("quizCard").dataset.questions = JSON.stringify(res.data.module.questions || []);
+
+      if (res.data.last_attempt){
+        qs("quizResultCard").style.display = "block";
+        qs("quizScore").textContent = `${res.data.last_attempt.score_percent}%`;
+        qs("quizAttemptInfo").textContent = `${res.data.last_attempt.correct_answers}/${res.data.last_attempt.total_questions}`;
+        renderQuizResults((res.data.last_attempt.result_json || {}).results || []);
+      } else {
+        qs("quizResultCard").style.display = "none";
+        qs("quizScore").textContent = "";
+        qs("quizAttemptInfo").textContent = "";
+        qs("quizResultsList").innerHTML = "";
+      }
+
+      lastProgress = null;
+      hideStatus();
+      return;
+    }
+
     qs("hintsPanel").style.display = "block";
+    qs("quizCard").style.display = "none";
 
     const res = await apiGet(`/api/student/task/${taskId}`);
     if (!res.data.ok){
@@ -1147,6 +1332,38 @@
     updateSubmitAvailability();
   }
 
+  async function submitQuiz(){
+    if (!currentTaskId || currentModuleType !== "theory_quiz"){
+      return;
+    }
+
+    const questions = JSON.parse(qs("quizCard").dataset.questions || "[]");
+    const answers = collectQuizAnswers(questions);
+
+    qs("quizSubmitBtn").disabled = true;
+    qs("quizSubmitBtn").textContent = UI.submitting;
+    qs("quizState").textContent = UI.submitting;
+
+    const res = await apiPost(`/api/student/theory-quiz/${currentTaskId}/submit`, { answers });
+
+    qs("quizSubmitBtn").disabled = false;
+    qs("quizSubmitBtn").textContent = UI.submitQuiz;
+
+    if (!res.data.ok){
+      showStatus(res.data.error || UI.quizSubmitFailed);
+      qs("quizState").textContent = UI.ready;
+      return;
+    }
+
+    const attempt = res.data.attempt;
+    qs("quizResultCard").style.display = "block";
+    qs("quizScore").textContent = `${attempt.score_percent}%`;
+    qs("quizAttemptInfo").textContent = `${attempt.correct_answers}/${attempt.total_questions}`;
+    renderQuizResults(attempt.results || []);
+    qs("quizState").textContent = UI.ready;
+    hideStatus();
+  }
+
   async function init(){
     makeResizer(qs("sidebarResizer"), qs("sidebar"), {min:240, max:520});
     makeContentSplitResizer(qs("contentResizer"), qs("taskPane"));
@@ -1191,6 +1408,7 @@
     }
 
     qs("submitBtn").addEventListener("click", submit);
+    qs("quizSubmitBtn").addEventListener("click", submitQuiz);
     qs("codeArea").addEventListener("input", () => {
       if (!currentTaskId || currentModuleType !== "coding_task") return;
       saveCachedCode(currentTaskId, qs("codeArea").value || "");

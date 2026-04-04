@@ -186,6 +186,12 @@ class TheoryMaterialSchema(BaseModel):
     title: str
     blocks: List[TheoryMaterialBlockSchema]
 
+
+class TheoryOpenAnswerEvaluation(BaseModel):
+    is_correct: bool
+    score: int
+    feedback: str
+
 def build_theory_material_prompt_snapshot(
     *,
     session_title: str,
@@ -205,6 +211,32 @@ def build_theory_material_prompt_snapshot(
 
     if teacher_prompt:
         parts.append("TEACHER_PROMPT:\n" + teacher_prompt)
+
+    return "\n\n".join(parts)
+
+
+def build_theory_open_answer_prompt_snapshot(
+    *,
+    session_title: str,
+    session_description: str,
+    module_title: str,
+    question_prompt: str,
+    model_answer: str,
+    student_answer: str,
+    accept_suitable_answer: bool,
+) -> str:
+    parts: List[str] = []
+
+    parts.append("SESSION_TITLE:\n" + (session_title or ""))
+    if session_description:
+        parts.append("SESSION_DESCRIPTION:\n" + session_description)
+    if module_title:
+        parts.append("MODULE_TITLE:\n" + module_title)
+
+    parts.append("QUESTION:\n" + (question_prompt or ""))
+    parts.append("MODEL_ANSWER:\n" + (model_answer or ""))
+    parts.append("STUDENT_ANSWER:\n" + (student_answer or ""))
+    parts.append(f"ACCEPT_SUITABLE_ANSWER={'yes' if accept_suitable_answer else 'no'}")
 
     return "\n\n".join(parts)
 
@@ -399,6 +431,47 @@ def call_openai_theory_material(prompt_snapshot: str) -> dict:
         "data": {
             "title": (parsed.title or "").strip(),
             "blocks": blocks,
+        },
+        "tokens_in": tokens_in,
+        "tokens_out": tokens_out,
+        "model": "gpt-4o-mini",
+    }
+
+
+def call_openai_theory_open_answer(prompt_snapshot: str) -> dict:
+    client = _get_openai_client()
+
+    system_rules = (
+        "You are a fair teacher grading a student's answer to a theory question in a Python learning platform.\n"
+        "Compare the student's answer with the model answer.\n"
+        "If ACCEPT_SUITABLE_ANSWER=yes, accept meaningfully correct paraphrases or equivalent correct explanations.\n"
+        "If ACCEPT_SUITABLE_ANSWER=no, be stricter and require close alignment with the model answer.\n"
+        "Return concise feedback for the student in 1-2 sentences.\n"
+        "Output must match schema: {is_correct: boolean, score: integer, feedback: string}.\n"
+        "score must be 0 to 100."
+    )
+
+    resp = client.responses.parse(
+        model="gpt-4o-mini",
+        input=[
+            {"role": "system", "content": system_rules},
+            {"role": "user", "content": prompt_snapshot},
+        ],
+        text_format=TheoryOpenAnswerEvaluation,
+        max_output_tokens=250,
+    )
+
+    parsed = resp.output_parsed
+    if parsed is None:
+        raise RuntimeError("OpenAI returned no parsed output for theory open answer")
+
+    tokens_in, tokens_out = _extract_usage(resp)
+
+    return {
+        "data": {
+            "is_correct": bool(parsed.is_correct),
+            "score": max(0, min(100, int(parsed.score))),
+            "feedback": (parsed.feedback or "").strip(),
         },
         "tokens_in": tokens_in,
         "tokens_out": tokens_out,

@@ -1,5 +1,6 @@
 import hashlib
 import json
+import random
 import re
 from functools import wraps
 
@@ -30,8 +31,13 @@ from .models import (
     TaskCodeFragment,
     TaskTestCase,
     Teacher,
+    TheoryQuizChoice,
+    TheoryQuizMatchPair,
+    TheoryQuizModule,
+    TheoryQuizQuestion,
     TheoryMaterialBlock,
     TheoryMaterialModule,
+    StudentTheoryQuizAttempt,
 
 )
 from .ui_translations import SUPPORTED_UI_LANGS
@@ -313,6 +319,7 @@ def _serialize_theory_module(module: TheoryMaterialModule):
     return {
         "id": module.id,
         "session_id": module.session_id,
+        "module_type": "theory_material",
         "position": module.position,
         "title": module.title,
         "topic": module.topic,
@@ -320,6 +327,150 @@ def _serialize_theory_module(module: TheoryMaterialModule):
         "is_active": module.is_active,
         "blocks": [_serialize_theory_block(b) for b in module.blocks.all().order_by("ordinal", "id")],
     }
+
+
+def _serialize_theory_quiz_choice(choice: TheoryQuizChoice):
+    return {
+        "id": choice.id,
+        "ordinal": choice.ordinal,
+        "text": choice.text,
+        "is_correct": choice.is_correct,
+    }
+
+
+def _serialize_theory_quiz_pair(pair: TheoryQuizMatchPair):
+    return {
+        "id": pair.id,
+        "ordinal": pair.ordinal,
+        "left_text": pair.left_text,
+        "right_text": pair.right_text,
+    }
+
+
+def _serialize_theory_quiz_question(question: TheoryQuizQuestion):
+    return {
+        "id": question.id,
+        "ordinal": question.ordinal,
+        "question_type": question.question_type,
+        "prompt": question.prompt,
+        "model_answer": question.model_answer,
+        "accept_suitable_answer": question.accept_suitable_answer,
+        "choices": [_serialize_theory_quiz_choice(x) for x in question.choices.all().order_by("ordinal", "id")],
+        "pairs": [_serialize_theory_quiz_pair(x) for x in question.pairs.all().order_by("ordinal", "id")],
+    }
+
+
+def _serialize_theory_quiz_module(module: TheoryQuizModule):
+    return {
+        "id": module.id,
+        "session_id": module.session_id,
+        "module_type": "theory_quiz",
+        "position": module.position,
+        "title": module.title,
+        "topic": module.topic,
+        "instructions": module.instructions,
+        "is_active": module.is_active,
+        "questions": [
+            _serialize_theory_quiz_question(q)
+            for q in module.questions.all().order_by("ordinal", "id")
+        ],
+    }
+
+
+def _is_module_position_taken(session: Session, position: int, *, skip_type: str = "", skip_id: int | None = None) -> bool:
+    if SessionTask.objects.filter(session=session, position=position).exclude(
+        id=skip_id if skip_type == "coding_task" else None
+    ).exists():
+        return True
+
+    if TheoryMaterialModule.objects.filter(session=session, position=position).exclude(
+        id=skip_id if skip_type == "theory_material" else None
+    ).exists():
+        return True
+
+    if TheoryQuizModule.objects.filter(session=session, position=position).exclude(
+        id=skip_id if skip_type == "theory_quiz" else None
+    ).exists():
+        return True
+
+    return False
+
+
+def _normalize_open_answer_text(value: str) -> str:
+    return " ".join((value or "").strip().lower().split())
+
+
+def _get_persisted_dashboard_class_id(request: HttpRequest) -> str:
+    class_id = (request.GET.get("class_id") or "").strip()
+    if class_id:
+        request.session["dashboard_class_id"] = class_id
+        request.session.modified = True
+        return class_id
+    return str(request.session.get("dashboard_class_id") or "")
+
+
+def _parse_theory_quiz_question_payload(data: dict):
+    question_type = (data.get("question_type") or "").strip()
+    prompt = (data.get("prompt") or "").strip()
+    model_answer = (data.get("model_answer") or "").strip()
+    accept_suitable_answer = bool(data.get("accept_suitable_answer"))
+    choices = data.get("choices") or []
+    pairs = data.get("pairs") or []
+
+    if question_type not in {
+        TheoryQuizQuestion.QuestionType.SINGLE_CHOICE,
+        TheoryQuizQuestion.QuestionType.OPEN_ANSWER,
+        TheoryQuizQuestion.QuestionType.MATCHING,
+    }:
+        return None, JsonResponse({"ok": False, "error": "invalid question_type"}, status=400)
+
+    if not prompt:
+        return None, JsonResponse({"ok": False, "error": "prompt is required"}, status=400)
+
+    parsed = {
+        "question_type": question_type,
+        "prompt": prompt,
+        "model_answer": model_answer,
+        "accept_suitable_answer": accept_suitable_answer,
+        "choices": [],
+        "pairs": [],
+    }
+
+    if question_type == TheoryQuizQuestion.QuestionType.SINGLE_CHOICE:
+        if not isinstance(choices, list) or len(choices) < 2:
+            return None, JsonResponse({"ok": False, "error": "single_choice requires at least 2 choices"}, status=400)
+
+        correct_found = False
+        for idx, item in enumerate(choices, start=1):
+            text = (item.get("text") or "").strip() if isinstance(item, dict) else ""
+            is_correct = bool(item.get("is_correct")) if isinstance(item, dict) else False
+            if not text:
+                return None, JsonResponse({"ok": False, "error": "each choice must have text"}, status=400)
+            if is_correct:
+                correct_found = True
+            parsed["choices"].append({"ordinal": idx, "text": text, "is_correct": is_correct})
+
+        if not correct_found:
+            return None, JsonResponse({"ok": False, "error": "single_choice requires one correct choice"}, status=400)
+
+    elif question_type == TheoryQuizQuestion.QuestionType.OPEN_ANSWER:
+        if not model_answer:
+            return None, JsonResponse({"ok": False, "error": "open_answer requires model_answer"}, status=400)
+
+    elif question_type == TheoryQuizQuestion.QuestionType.MATCHING:
+        if not isinstance(pairs, list) or len(pairs) < 2:
+            return None, JsonResponse({"ok": False, "error": "matching requires at least 2 pairs"}, status=400)
+
+        for idx, item in enumerate(pairs, start=1):
+            if not isinstance(item, dict):
+                return None, JsonResponse({"ok": False, "error": "invalid matching pair payload"}, status=400)
+            left_text = (item.get("left_text") or "").strip()
+            right_text = (item.get("right_text") or "").strip()
+            if not left_text or not right_text:
+                return None, JsonResponse({"ok": False, "error": "matching pairs require left_text and right_text"}, status=400)
+            parsed["pairs"].append({"ordinal": idx, "left_text": left_text, "right_text": right_text})
+
+    return parsed, None
 
 
 # -------------------------
@@ -428,6 +579,11 @@ def student_active_session(request: HttpRequest):
         .order_by("position", "id")
         .values("id", "position", "title")
     )
+    theory_quizzes = list(
+        TheoryQuizModule.objects.filter(session=session, is_active=True)
+        .order_by("position", "id")
+        .values("id", "position", "title")
+    )
 
     progress_qs = StudentTaskProgress.objects.filter(student_session=ss).values(
         "task_id", "status", "attempts_total", "attempts_failed"
@@ -459,6 +615,21 @@ def student_active_session(request: HttpRequest):
                 "position": m["position"],
                 "title": m["title"],
                 "module_type": "theory_material",
+                "progress": {
+                    "status": "not_started",
+                    "attempts_total": 0,
+                    "attempts_failed": 0,
+                },
+            }
+        )
+
+    for q in theory_quizzes:
+        tasks_out.append(
+            {
+                "id": q["id"],
+                "position": q["position"],
+                "title": q["title"],
+                "module_type": "theory_quiz",
                 "progress": {
                     "status": "not_started",
                     "attempts_total": 0,
@@ -565,6 +736,207 @@ def student_theory_module_detail(request: HttpRequest, module_id: int):
             "topic": module.topic,
             "module_type": "theory_material",
             "blocks": [_serialize_theory_block(b) for b in module.blocks.all().order_by("ordinal", "id")],
+        },
+    })
+
+
+@require_GET
+def student_theory_quiz_detail(request: HttpRequest, module_id: int):
+    student_id, class_id = _get_student_from_session(request)
+    if not student_id:
+        return JsonResponse({"ok": False, "error": "not authenticated"}, status=401)
+
+    session = _get_active_session_for_class(class_id)
+    if not session:
+        return JsonResponse({"ok": True, "active": False, "message": "Current session is inactive"}, status=200)
+
+    module = get_object_or_404(
+        TheoryQuizModule.objects.prefetch_related("questions__choices", "questions__pairs"),
+        id=module_id,
+        session=session,
+        is_active=True,
+    )
+
+    ss, _ = _get_or_create_student_session(student_id, session)
+    last_attempt = (
+        StudentTheoryQuizAttempt.objects.filter(student_session=ss, module=module)
+        .order_by("-attempt_no")
+        .first()
+    )
+
+    questions_out = []
+    for question in module.questions.all().order_by("ordinal", "id"):
+        row = {
+            "id": question.id,
+            "ordinal": question.ordinal,
+            "question_type": question.question_type,
+            "prompt": question.prompt,
+        }
+
+        if question.question_type == TheoryQuizQuestion.QuestionType.SINGLE_CHOICE:
+            row["choices"] = [
+                {
+                    "id": choice.id,
+                    "ordinal": choice.ordinal,
+                    "text": choice.text,
+                }
+                for choice in question.choices.all().order_by("ordinal", "id")
+            ]
+        elif question.question_type == TheoryQuizQuestion.QuestionType.MATCHING:
+            left_items = []
+            right_items = []
+            for pair in question.pairs.all().order_by("ordinal", "id"):
+                left_items.append({"id": pair.id, "text": pair.left_text})
+                right_items.append({"id": pair.id, "text": pair.right_text})
+            random.shuffle(right_items)
+            row["left_items"] = left_items
+            row["right_items"] = right_items
+
+        questions_out.append(row)
+
+    return JsonResponse({
+        "ok": True,
+        "module": {
+            "id": module.id,
+            "position": module.position,
+            "title": module.title,
+            "topic": module.topic,
+            "instructions": module.instructions,
+            "module_type": "theory_quiz",
+            "questions": questions_out,
+        },
+        "last_attempt": {
+            "attempt_no": last_attempt.attempt_no,
+            "score_percent": float(last_attempt.score_percent),
+            "correct_answers": last_attempt.correct_answers,
+            "total_questions": last_attempt.total_questions,
+            "result_json": last_attempt.result_json,
+        } if last_attempt else None,
+    })
+
+
+@csrf_exempt
+@require_POST
+def student_theory_quiz_submit(request: HttpRequest, module_id: int):
+    student_id, class_id = _get_student_from_session(request)
+    if not student_id:
+        return JsonResponse({"ok": False, "error": "not authenticated"}, status=401)
+
+    session = _get_active_session_for_class(class_id)
+    if not session:
+        return JsonResponse({"ok": True, "active": False, "message": "Current session is inactive"}, status=200)
+
+    module = get_object_or_404(
+        TheoryQuizModule.objects.prefetch_related("questions__choices", "questions__pairs"),
+        id=module_id,
+        session=session,
+        is_active=True,
+    )
+
+    data = _json_body(request)
+    answers = data.get("answers") or {}
+    if not isinstance(answers, dict):
+        return JsonResponse({"ok": False, "error": "answers must be an object"}, status=400)
+
+    ss, _ = _get_or_create_student_session(student_id, session)
+    next_attempt_no = (
+        StudentTheoryQuizAttempt.objects.filter(student_session=ss, module=module).count() + 1
+    )
+
+    results = []
+    correct_answers = 0
+    total_questions = 0
+
+    for question in module.questions.all().order_by("ordinal", "id"):
+        total_questions += 1
+        answer_key = str(question.id)
+        student_value = answers.get(answer_key)
+        is_correct = False
+        feedback = ""
+
+        if question.question_type == TheoryQuizQuestion.QuestionType.SINGLE_CHOICE:
+            try:
+                selected_id = int(student_value)
+            except (TypeError, ValueError):
+                selected_id = None
+            correct_choice = question.choices.filter(is_correct=True).order_by("ordinal", "id").first()
+            is_correct = bool(correct_choice and selected_id == correct_choice.id)
+            feedback = "" if is_correct else "Incorrect choice."
+
+        elif question.question_type == TheoryQuizQuestion.QuestionType.MATCHING:
+            submitted_map = student_value if isinstance(student_value, dict) else {}
+            is_correct = True
+            for pair in question.pairs.all().order_by("ordinal", "id"):
+                selected_right = submitted_map.get(str(pair.id))
+                try:
+                    selected_right = int(selected_right)
+                except (TypeError, ValueError):
+                    selected_right = None
+                if selected_right != pair.id:
+                    is_correct = False
+                    break
+            feedback = "" if is_correct else "Some matches are incorrect."
+
+        elif question.question_type == TheoryQuizQuestion.QuestionType.OPEN_ANSWER:
+            student_answer = (student_value or "").strip()
+            model_answer = (question.model_answer or "").strip()
+            if student_answer and _normalize_open_answer_text(student_answer) == _normalize_open_answer_text(model_answer):
+                is_correct = True
+                feedback = ""
+            elif student_answer and model_answer:
+                try:
+                    prompt_snapshot = build_theory_open_answer_prompt_snapshot(
+                        session_title=session.title,
+                        session_description=session.description,
+                        module_title=module.title,
+                        question_prompt=question.prompt,
+                        model_answer=model_answer,
+                        student_answer=student_answer,
+                        accept_suitable_answer=question.accept_suitable_answer,
+                    )
+                    ai_result = call_openai_theory_open_answer(prompt_snapshot).get("data") or {}
+                    is_correct = bool(ai_result.get("is_correct"))
+                    feedback = (ai_result.get("feedback") or "").strip()
+                except Exception:
+                    is_correct = False
+                    feedback = "Answer could not be verified automatically."
+            else:
+                is_correct = False
+                feedback = "Answer is required."
+
+        if is_correct:
+            correct_answers += 1
+
+        results.append({
+            "question_id": question.id,
+            "ordinal": question.ordinal,
+            "question_type": question.question_type,
+            "is_correct": is_correct,
+            "feedback": feedback,
+        })
+
+    score_percent = round((correct_answers * 100.0 / total_questions), 2) if total_questions > 0 else 0.0
+
+    attempt = StudentTheoryQuizAttempt.objects.create(
+        student_session=ss,
+        module=module,
+        attempt_no=next_attempt_no,
+        score_percent=score_percent,
+        correct_answers=correct_answers,
+        total_questions=total_questions,
+        answers_json=answers,
+        result_json={"results": results},
+    )
+
+    return JsonResponse({
+        "ok": True,
+        "attempt": {
+            "id": attempt.id,
+            "attempt_no": attempt.attempt_no,
+            "score_percent": float(attempt.score_percent),
+            "correct_answers": attempt.correct_answers,
+            "total_questions": attempt.total_questions,
+            "results": results,
         },
     })
 
@@ -767,7 +1139,9 @@ from .ai_assist import (
     sanitize_no_code,
     build_solution_prompt_snapshot,
     call_openai_solution,
+    build_theory_open_answer_prompt_snapshot,
     build_theory_material_prompt_snapshot,
+    call_openai_theory_open_answer,
     call_openai_theory_material,
 )
 
@@ -1816,15 +2190,9 @@ def teacher_theory_modules_api(request: HttpRequest, session_id: int):
         if position < 1:
             return JsonResponse({"ok": False, "error": "position must be >= 1"}, status=400)
 
-        if SessionTask.objects.filter(session=session, position=position).exists():
+        if _is_module_position_taken(session, position):
             return JsonResponse(
-                {"ok": False, "error": "position is already used by a coding task"},
-                status=409,
-            )
-
-        if TheoryMaterialModule.objects.filter(session=session, position=position).exists():
-            return JsonResponse(
-                {"ok": False, "error": "position is already used by a theory module"},
+                {"ok": False, "error": "position is already used by another module"},
                 status=409,
             )
 
@@ -1884,20 +2252,9 @@ def teacher_theory_module_detail_api(request: HttpRequest, module_id: int):
             if position < 1:
                 return JsonResponse({"ok": False, "error": "position must be >= 1"}, status=400)
 
-            if SessionTask.objects.filter(session=module.session, position=position).exists():
+            if _is_module_position_taken(module.session, position, skip_type="theory_material", skip_id=module.id):
                 return JsonResponse(
-                    {"ok": False, "error": "position is already used by a coding task"},
-                    status=409,
-                )
-
-            conflict = TheoryMaterialModule.objects.filter(
-                session=module.session,
-                position=position,
-            ).exclude(id=module.id).exists()
-
-            if conflict:
-                return JsonResponse(
-                    {"ok": False, "error": "position is already used by another theory module"},
+                    {"ok": False, "error": "position is already used by another module"},
                     status=409,
                 )
 
@@ -2120,6 +2477,235 @@ def teacher_generate_theory_module_api(request: HttpRequest, module_id: int):
     except Exception as e:
         return JsonResponse({"ok": False, "error": f"{type(e).__name__}: {e}"}, status=500)
 
+
+@csrf_exempt
+@require_http_methods(["GET", "POST"])
+def teacher_theory_quizzes_api(request: HttpRequest, session_id: int):
+    if not _get_logged_in_teacher(request):
+        return _teacher_api_unauthorized()
+
+    session = get_object_or_404(Session, id=session_id)
+
+    try:
+        if request.method == "GET":
+            modules = (
+                TheoryQuizModule.objects
+                .filter(session=session)
+                .prefetch_related("questions__choices", "questions__pairs")
+                .order_by("position", "id")
+            )
+            return JsonResponse({"ok": True, "modules": [_serialize_theory_quiz_module(m) for m in modules]})
+
+        data = _json_body(request)
+        title = (data.get("title") or "").strip()
+        topic = (data.get("topic") or "").strip()
+        instructions = (data.get("instructions") or "").strip()
+
+        if not title:
+            return JsonResponse({"ok": False, "error": "title is required"}, status=400)
+
+        try:
+            position = int(data.get("position") or 1)
+        except (TypeError, ValueError):
+            return JsonResponse({"ok": False, "error": "position must be integer"}, status=400)
+
+        if position < 1:
+            return JsonResponse({"ok": False, "error": "position must be >= 1"}, status=400)
+
+        if _is_module_position_taken(session, position):
+            return JsonResponse({"ok": False, "error": "position is already used by another module"}, status=409)
+
+        module = TheoryQuizModule.objects.create(
+            session=session,
+            position=position,
+            title=title,
+            topic=topic,
+            instructions=instructions,
+        )
+        return JsonResponse({"ok": True, "module": _serialize_theory_quiz_module(module)}, status=201)
+
+    except Exception as e:
+        return JsonResponse({"ok": False, "error": f"{type(e).__name__}: {e}"}, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["GET", "PATCH", "DELETE"])
+def teacher_theory_quiz_detail_api(request: HttpRequest, module_id: int):
+    if not _get_logged_in_teacher(request):
+        return _teacher_api_unauthorized()
+
+    module = get_object_or_404(
+        TheoryQuizModule.objects.prefetch_related("questions__choices", "questions__pairs"),
+        id=module_id,
+    )
+
+    try:
+        if request.method == "GET":
+            return JsonResponse({"ok": True, "module": _serialize_theory_quiz_module(module)})
+
+        if request.method == "DELETE":
+            module.delete()
+            return JsonResponse({"ok": True})
+
+        data = _json_body(request)
+        if "title" in data:
+            title = (data.get("title") or "").strip()
+            if not title:
+                return JsonResponse({"ok": False, "error": "title cannot be empty"}, status=400)
+            module.title = title
+        if "topic" in data:
+            module.topic = (data.get("topic") or "").strip()
+        if "instructions" in data:
+            module.instructions = data.get("instructions") or ""
+        if "is_active" in data:
+            module.is_active = bool(data.get("is_active"))
+        if "position" in data:
+            try:
+                position = int(data.get("position"))
+            except (TypeError, ValueError):
+                return JsonResponse({"ok": False, "error": "position must be integer"}, status=400)
+            if position < 1:
+                return JsonResponse({"ok": False, "error": "position must be >= 1"}, status=400)
+            if _is_module_position_taken(module.session, position, skip_type="theory_quiz", skip_id=module.id):
+                return JsonResponse({"ok": False, "error": "position is already used by another module"}, status=409)
+            module.position = position
+
+        module.save()
+        module = TheoryQuizModule.objects.prefetch_related("questions__choices", "questions__pairs").get(id=module.id)
+        return JsonResponse({"ok": True, "module": _serialize_theory_quiz_module(module)})
+
+    except Exception as e:
+        return JsonResponse({"ok": False, "error": f"{type(e).__name__}: {e}"}, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["GET", "POST"])
+def teacher_theory_quiz_questions_api(request: HttpRequest, module_id: int):
+    if not _get_logged_in_teacher(request):
+        return _teacher_api_unauthorized()
+
+    module = get_object_or_404(TheoryQuizModule, id=module_id)
+
+    try:
+        if request.method == "GET":
+            questions = (
+                TheoryQuizQuestion.objects.filter(module=module)
+                .prefetch_related("choices", "pairs")
+                .order_by("ordinal", "id")
+            )
+            return JsonResponse({"ok": True, "questions": [_serialize_theory_quiz_question(q) for q in questions]})
+
+        data = _json_body(request)
+        try:
+            ordinal = int(data.get("ordinal") or 1)
+        except (TypeError, ValueError):
+            return JsonResponse({"ok": False, "error": "ordinal must be integer"}, status=400)
+        if ordinal < 1:
+            return JsonResponse({"ok": False, "error": "ordinal must be >= 1"}, status=400)
+        if TheoryQuizQuestion.objects.filter(module=module, ordinal=ordinal).exists():
+            return JsonResponse({"ok": False, "error": "ordinal is already used"}, status=409)
+
+        parsed, error = _parse_theory_quiz_question_payload(data)
+        if error:
+            return error
+
+        with transaction.atomic():
+            question = TheoryQuizQuestion.objects.create(
+                module=module,
+                ordinal=ordinal,
+                question_type=parsed["question_type"],
+                prompt=parsed["prompt"],
+                model_answer=parsed["model_answer"],
+                accept_suitable_answer=parsed["accept_suitable_answer"],
+            )
+
+            if parsed["choices"]:
+                TheoryQuizChoice.objects.bulk_create([
+                    TheoryQuizChoice(question=question, **row) for row in parsed["choices"]
+                ])
+            if parsed["pairs"]:
+                TheoryQuizMatchPair.objects.bulk_create([
+                    TheoryQuizMatchPair(question=question, **row) for row in parsed["pairs"]
+                ])
+
+        question = TheoryQuizQuestion.objects.prefetch_related("choices", "pairs").get(id=question.id)
+        return JsonResponse({"ok": True, "question": _serialize_theory_quiz_question(question)}, status=201)
+
+    except Exception as e:
+        return JsonResponse({"ok": False, "error": f"{type(e).__name__}: {e}"}, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["PATCH", "DELETE"])
+def teacher_theory_quiz_question_detail_api(request: HttpRequest, question_id: int):
+    if not _get_logged_in_teacher(request):
+        return _teacher_api_unauthorized()
+
+    question = get_object_or_404(
+        TheoryQuizQuestion.objects.select_related("module").prefetch_related("choices", "pairs"),
+        id=question_id,
+    )
+
+    try:
+        if request.method == "DELETE":
+            question.delete()
+            return JsonResponse({"ok": True})
+
+        data = _json_body(request)
+        if "ordinal" in data:
+            try:
+                ordinal = int(data.get("ordinal"))
+            except (TypeError, ValueError):
+                return JsonResponse({"ok": False, "error": "ordinal must be integer"}, status=400)
+            if ordinal < 1:
+                return JsonResponse({"ok": False, "error": "ordinal must be >= 1"}, status=400)
+            conflict = TheoryQuizQuestion.objects.filter(module=question.module, ordinal=ordinal).exclude(id=question.id).exists()
+            if conflict:
+                return JsonResponse({"ok": False, "error": "ordinal is already used"}, status=409)
+            question.ordinal = ordinal
+
+        merged = {
+            "question_type": data.get("question_type", question.question_type),
+            "prompt": data.get("prompt", question.prompt),
+            "model_answer": data.get("model_answer", question.model_answer),
+            "accept_suitable_answer": data.get("accept_suitable_answer", question.accept_suitable_answer),
+            "choices": data.get("choices", [
+                {"text": x.text, "is_correct": x.is_correct} for x in question.choices.all().order_by("ordinal", "id")
+            ]),
+            "pairs": data.get("pairs", [
+                {"left_text": x.left_text, "right_text": x.right_text} for x in question.pairs.all().order_by("ordinal", "id")
+            ]),
+        }
+
+        parsed, error = _parse_theory_quiz_question_payload(merged)
+        if error:
+            return error
+
+        with transaction.atomic():
+            question.question_type = parsed["question_type"]
+            question.prompt = parsed["prompt"]
+            question.model_answer = parsed["model_answer"]
+            question.accept_suitable_answer = parsed["accept_suitable_answer"]
+            question.save()
+
+            TheoryQuizChoice.objects.filter(question=question).delete()
+            TheoryQuizMatchPair.objects.filter(question=question).delete()
+
+            if parsed["choices"]:
+                TheoryQuizChoice.objects.bulk_create([
+                    TheoryQuizChoice(question=question, **row) for row in parsed["choices"]
+                ])
+            if parsed["pairs"]:
+                TheoryQuizMatchPair.objects.bulk_create([
+                    TheoryQuizMatchPair(question=question, **row) for row in parsed["pairs"]
+                ])
+
+        question = TheoryQuizQuestion.objects.prefetch_related("choices", "pairs").get(id=question.id)
+        return JsonResponse({"ok": True, "question": _serialize_theory_quiz_question(question)})
+
+    except Exception as e:
+        return JsonResponse({"ok": False, "error": f"{type(e).__name__}: {e}"}, status=500)
+
 @csrf_exempt
 @require_http_methods(["PATCH", "DELETE"])
 def teacher_fragment_detail_api(request: HttpRequest, frag_id: int):
@@ -2172,9 +2758,9 @@ def set_ui_language(request):
     return response
 
 def _build_dashboard_analytics_context(request: HttpRequest) -> dict:
-    class_id = request.GET.get("class_id") or ""
-    show_success = request.GET.get("show_success") == "1"
-    show_hints = request.GET.get("show_hints") == "1"
+    class_id = _get_persisted_dashboard_class_id(request)
+    show_success = True
+    show_hints = True
 
     classes = ClassGroup.objects.all().order_by("name")
     students_qs = Student.objects.filter(is_active=True).select_related("class_group").order_by("class_group__name", "full_name")
@@ -2203,10 +2789,18 @@ def _build_dashboard_analytics_context(request: HttpRequest) -> dict:
 
     per_session_hints = (
         agg_qs.values("progress__student_session__session_id")
-        .annotate(hint1_sum=Sum("hint1_requests"), hint2_sum=Sum("hint2_requests"))
+        .annotate(
+            hint1_sum=Sum("hint1_requests"),
+            hint2_sum=Sum("hint2_requests"),
+            hint3_sum=Sum("hint3_requests"),
+        )
     )
     hints_map = {
-        x["progress__student_session__session_id"]: (x.get("hint1_sum") or 0) + (x.get("hint2_sum") or 0)
+        x["progress__student_session__session_id"]: (
+            (x.get("hint1_sum") or 0)
+            + (x.get("hint2_sum") or 0)
+            + (x.get("hint3_sum") or 0)
+        )
         for x in per_session_hints
     }
 
@@ -2251,10 +2845,18 @@ def _build_dashboard_analytics_context(request: HttpRequest) -> dict:
 
     hints_per_student = (
         agg_qs.values("progress__student_session__student_id")
-        .annotate(hint1_sum=Sum("hint1_requests"), hint2_sum=Sum("hint2_requests"))
+        .annotate(
+            hint1_sum=Sum("hint1_requests"),
+            hint2_sum=Sum("hint2_requests"),
+            hint3_sum=Sum("hint3_requests"),
+        )
     )
     hints_student_map = {
-        x["progress__student_session__student_id"]: (x.get("hint1_sum") or 0) + (x.get("hint2_sum") or 0)
+        x["progress__student_session__student_id"]: (
+            (x.get("hint1_sum") or 0)
+            + (x.get("hint2_sum") or 0)
+            + (x.get("hint3_sum") or 0)
+        )
         for x in hints_per_student
     }
 

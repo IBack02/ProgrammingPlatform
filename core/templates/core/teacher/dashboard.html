@@ -8,7 +8,7 @@
 <style>
   .dash-grid {
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 12px;
   }
   @media (max-width: 1100px) {
@@ -68,12 +68,9 @@
 
   .analytics-grid {
     display: grid;
-    grid-template-columns: minmax(0, 1.2fr) minmax(0, .8fr);
+    grid-template-columns: 1fr;
     gap: 12px;
     margin-top: 12px;
-  }
-  @media (max-width: 980px) {
-    .analytics-grid { grid-template-columns: 1fr; }
   }
 
   .student-grid {
@@ -163,15 +160,6 @@
     <div class="stat-value">{{ classes|length }}</div>
   </div>
 
-  <div class="stat-card">
-    <div class="stat-label">{{ T.accepted_series }}</div>
-    <div class="stat-value">{% if show_success %}{{ T.on }}{% else %}{{ T.off }}{% endif %}</div>
-  </div>
-
-  <div class="stat-card">
-    <div class="stat-label">{{ T.assistant_requests_series }}</div>
-    <div class="stat-value">{% if show_hints %}{{ T.on }}{% else %}{{ T.off }}{% endif %}</div>
-  </div>
 </div>
 
 <div class="card" style="margin-bottom:12px;">
@@ -186,16 +174,6 @@
         {% endfor %}
       </select>
     </div>
-
-    <label class="filter-row" style="gap:6px;">
-      <input type="checkbox" name="show_success" value="1" {% if show_success %}checked{% endif %}>
-      <span class="small-muted">{{ T.show_accepted_submissions }}</span>
-    </label>
-
-    <label class="filter-row" style="gap:6px;">
-      <input type="checkbox" name="show_hints" value="1" {% if show_hints %}checked{% endif %}>
-      <span class="small-muted">{{ T.show_ai_requests }}</span>
-    </label>
 
     <button class="btn" type="submit">{{ T.apply }}</button>
   </form>
@@ -214,34 +192,6 @@
     </div>
   </div>
 
-  <div class="card">
-    <div class="section-title">{{ T.quick_notes }}</div>
-    <div class="small-muted" style="margin-bottom:10px;">
-      {{ T.use_filters_note }}
-    </div>
-
-    <div class="bars">
-      <div class="bar-row">
-        <div class="bar-label">{{ T.accepted_series_short }}</div>
-        <div class="bar-track">
-          <div class="bar-fill" id="acceptedToggleFill" data-val="{% if show_success %}1{% else %}0{% endif %}"></div>
-        </div>
-        <div class="small-muted">{% if show_success %}{{ T.on }}{% else %}{{ T.off }}{% endif %}</div>
-      </div>
-
-      <div class="bar-row">
-        <div class="bar-label">{{ T.ai_requests_short }}</div>
-        <div class="bar-track">
-          <div class="bar-fill" id="hintsToggleFill" data-val="{% if show_hints %}1{% else %}0{% endif %}"></div>
-        </div>
-        <div class="small-muted">{% if show_hints %}{{ T.on }}{% else %}{{ T.off }}{% endif %}</div>
-      </div>
-    </div>
-
-    <div class="small-muted" style="margin-top:14px;">
-      {{ T.click_student_card_note }}
-    </div>
-  </div>
 </div>
 
 <div class="card" style="margin-top:12px;">
@@ -302,9 +252,6 @@
     };
   {% endif %}
 
-  const showSuccess = {{ show_success|yesno:"true,false" }};
-  const showHints = {{ show_hints|yesno:"true,false" }};
-
   const scaleNote = document.getElementById("scaleNote");
   if (chartData.scale_factor && chartData.scale_factor !== 1) {
     scaleNote.textContent = UI.chartNoteScaled.replace("{scale}", chartData.scale_factor);
@@ -322,21 +269,17 @@
     }
   ];
 
-  if (showSuccess) {
-    datasets.push({
-      label: UI.acceptedSubmissions,
-      data: chartData.datasets.accepted || [],
-      borderWidth: 1,
-    });
-  }
+  datasets.push({
+    label: UI.acceptedSubmissions,
+    data: chartData.datasets.accepted || [],
+    borderWidth: 1,
+  });
 
-  if (showHints) {
-    datasets.push({
-      label: UI.assistantRequests,
-      data: chartData.datasets.hints || [],
-      borderWidth: 1,
-    });
-  }
+  datasets.push({
+    label: UI.assistantRequests,
+    data: chartData.datasets.hints || [],
+    borderWidth: 1,
+  });
 
   const ctx = document.getElementById("sessionChart");
   if (ctx) {

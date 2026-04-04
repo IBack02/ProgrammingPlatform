@@ -84,6 +84,26 @@ path(
     views.teacher_generate_theory_module_api,
     name="teacher_generate_theory_module_api",
 ),
+path(
+    "api/teacher/sessions/<int:session_id>/theory-quizzes/",
+    views.teacher_theory_quizzes_api,
+    name="teacher_theory_quizzes_api",
+),
+path(
+    "api/teacher/theory-quizzes/<int:module_id>/",
+    views.teacher_theory_quiz_detail_api,
+    name="teacher_theory_quiz_detail_api",
+),
+path(
+    "api/teacher/theory-quizzes/<int:module_id>/questions/",
+    views.teacher_theory_quiz_questions_api,
+    name="teacher_theory_quiz_questions_api",
+),
+path(
+    "api/teacher/theory-quiz-questions/<int:question_id>/",
+    views.teacher_theory_quiz_question_detail_api,
+    name="teacher_theory_quiz_question_detail_api",
+),
 
 
     # Testcases API
@@ -101,6 +121,16 @@ path(
     "api/student/theory-module/<int:module_id>",
     views.student_theory_module_detail,
     name="student_theory_module_detail",
+),
+path(
+    "api/student/theory-quiz/<int:module_id>",
+    views.student_theory_quiz_detail,
+    name="student_theory_quiz_detail",
+),
+path(
+    "api/student/theory-quiz/<int:module_id>/submit",
+    views.student_theory_quiz_submit,
+    name="student_theory_quiz_submit",
 ),
 
     # Health

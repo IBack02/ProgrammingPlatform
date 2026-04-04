@@ -187,6 +187,150 @@ class TheoryMaterialBlock(models.Model):
     def __str__(self):
         return f"Module {self.module_id} block #{self.ordinal} ({self.block_type})"
 
+
+class TheoryQuizModule(models.Model):
+    session = models.ForeignKey(Session, on_delete=models.CASCADE, related_name="theory_quiz_modules")
+    position = models.PositiveIntegerField()
+    title = models.CharField(max_length=200)
+    topic = models.CharField(max_length=255, blank=True, default="")
+    instructions = models.TextField(blank=True, default="")
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Theory quiz module"
+        verbose_name_plural = "Theory quiz modules"
+        ordering = ["session", "position", "id"]
+        indexes = [
+            models.Index(fields=["session", "position", "is_active"]),
+        ]
+
+    def __str__(self):
+        return f"[{self.session_id}] {self.position}. {self.title}"
+
+
+class TheoryQuizQuestion(models.Model):
+    class QuestionType(models.TextChoices):
+        SINGLE_CHOICE = "single_choice", "Single choice"
+        OPEN_ANSWER = "open_answer", "Open answer"
+        MATCHING = "matching", "Matching"
+
+    module = models.ForeignKey(
+        TheoryQuizModule,
+        on_delete=models.CASCADE,
+        related_name="questions",
+    )
+    ordinal = models.PositiveIntegerField()
+    question_type = models.CharField(max_length=24, choices=QuestionType.choices)
+    prompt = models.TextField()
+    model_answer = models.TextField(blank=True, default="")
+    accept_suitable_answer = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Theory quiz question"
+        verbose_name_plural = "Theory quiz questions"
+        ordering = ["module", "ordinal", "id"]
+        constraints = [
+            models.UniqueConstraint(fields=["module", "ordinal"], name="uniq_theory_quiz_question_ordinal")
+        ]
+        indexes = [
+            models.Index(fields=["module", "ordinal"]),
+        ]
+
+    def __str__(self):
+        return f"Quiz {self.module_id} question #{self.ordinal}"
+
+
+class TheoryQuizChoice(models.Model):
+    question = models.ForeignKey(
+        TheoryQuizQuestion,
+        on_delete=models.CASCADE,
+        related_name="choices",
+    )
+    ordinal = models.PositiveIntegerField()
+    text = models.TextField()
+    is_correct = models.BooleanField(default=False)
+
+    class Meta:
+        verbose_name = "Theory quiz choice"
+        verbose_name_plural = "Theory quiz choices"
+        ordering = ["question", "ordinal", "id"]
+        constraints = [
+            models.UniqueConstraint(fields=["question", "ordinal"], name="uniq_theory_quiz_choice_ordinal")
+        ]
+        indexes = [
+            models.Index(fields=["question", "ordinal"]),
+        ]
+
+    def __str__(self):
+        return f"Choice {self.question_id} #{self.ordinal}"
+
+
+class TheoryQuizMatchPair(models.Model):
+    question = models.ForeignKey(
+        TheoryQuizQuestion,
+        on_delete=models.CASCADE,
+        related_name="pairs",
+    )
+    ordinal = models.PositiveIntegerField()
+    left_text = models.TextField()
+    right_text = models.TextField()
+
+    class Meta:
+        verbose_name = "Theory quiz match pair"
+        verbose_name_plural = "Theory quiz match pairs"
+        ordering = ["question", "ordinal", "id"]
+        constraints = [
+            models.UniqueConstraint(fields=["question", "ordinal"], name="uniq_theory_quiz_pair_ordinal")
+        ]
+        indexes = [
+            models.Index(fields=["question", "ordinal"]),
+        ]
+
+    def __str__(self):
+        return f"Pair {self.question_id} #{self.ordinal}"
+
+
+class StudentTheoryQuizAttempt(models.Model):
+    student_session = models.ForeignKey(
+        "StudentSession",
+        on_delete=models.CASCADE,
+        related_name="theory_quiz_attempts",
+    )
+    module = models.ForeignKey(
+        TheoryQuizModule,
+        on_delete=models.CASCADE,
+        related_name="attempts",
+    )
+    attempt_no = models.PositiveIntegerField()
+    submitted_at = models.DateTimeField(auto_now_add=True)
+    score_percent = models.DecimalField(max_digits=5, decimal_places=2, default=0)
+    correct_answers = models.PositiveIntegerField(default=0)
+    total_questions = models.PositiveIntegerField(default=0)
+    answers_json = models.JSONField(default=dict, blank=True)
+    result_json = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        verbose_name = "Student theory quiz attempt"
+        verbose_name_plural = "Student theory quiz attempts"
+        ordering = ["-submitted_at"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["student_session", "module", "attempt_no"],
+                name="uniq_theory_quiz_attempt_no",
+            )
+        ]
+        indexes = [
+            models.Index(fields=["student_session", "module"]),
+            models.Index(fields=["submitted_at"]),
+        ]
+
+    def __str__(self):
+        return f"Quiz attempt {self.id} ({self.correct_answers}/{self.total_questions})"
+
 class TaskTestCase(models.Model):
     task = models.ForeignKey(SessionTask, on_delete=models.CASCADE, related_name="testcases")
     ordinal = models.PositiveIntegerField()
