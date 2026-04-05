@@ -24,6 +24,9 @@
       --ui-font-default: Arial, "Segoe UI", sans-serif;
       --ui-font-kk: "Noto Sans", "DejaVu Sans", "Segoe UI", Arial, sans-serif;
       --code-font: Consolas, "Courier New", monospace;
+      --module-bg-theory: url("https://drive.google.com/thumbnail?id=17G440sCJAx5DlOhOzi6IRx2UvxJyf1nZ&sz=w2200");
+      --module-bg-quiz: url("https://drive.google.com/thumbnail?id=17G440sCJAx5DlOhOzi6IRx2UvxJyf1nZ&sz=w2200");
+      --module-bg-coding: url("https://drive.google.com/thumbnail?id=17G440sCJAx5DlOhOzi6IRx2UvxJyf1nZ&sz=w2200");
     }
 
     body {
@@ -67,6 +70,28 @@
       padding: 18px;
       overflow:auto;
       min-width: 360px;
+      background-repeat:no-repeat;
+      background-position:center center;
+      background-size:cover;
+      transition: background-image .25s ease, background-position .25s ease;
+    }
+
+    body.module-bg-theory .content{
+      background-image:
+        linear-gradient(rgba(246,247,251,.82), rgba(246,247,251,.9)),
+        var(--module-bg-theory);
+    }
+
+    body.module-bg-quiz .content{
+      background-image:
+        linear-gradient(rgba(246,247,251,.82), rgba(246,247,251,.9)),
+        var(--module-bg-quiz);
+    }
+
+    body.module-bg-coding .content{
+      background-image:
+        linear-gradient(rgba(246,247,251,.82), rgba(246,247,251,.9)),
+        var(--module-bg-coding);
     }
 
     .top {
@@ -391,9 +416,16 @@
       margin:8px 0;
       flex-wrap:wrap;
     }
+
+    @media (max-width: 900px){
+      .content{
+        padding:14px;
+        background-position:center top;
+      }
+    }
   </style>
 </head>
-<body>
+<body class="module-bg-coding">
 <div class="layout">
 
   <div class="sidebarWrap">
@@ -727,6 +759,17 @@
 
       box.appendChild(wrap);
     });
+  }
+
+  function setModuleBackground(moduleType){
+    document.body.classList.remove("module-bg-coding", "module-bg-theory", "module-bg-quiz");
+    if (moduleType === "theory_material"){
+      document.body.classList.add("module-bg-theory");
+    } else if (moduleType === "theory_quiz"){
+      document.body.classList.add("module-bg-quiz");
+    } else {
+      document.body.classList.add("module-bg-coding");
+    }
   }
 
   function renderQuizQuestionsStudent(questions){
@@ -1116,6 +1159,7 @@
 
     currentTaskId = taskId;
     currentModuleType = moduleType || "coding_task";
+    setModuleBackground(currentModuleType);
 
     document.querySelectorAll(".taskbtn").forEach(b => b.classList.remove("active"));
     if (btn) btn.classList.add("active");
