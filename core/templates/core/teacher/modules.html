@@ -18,6 +18,9 @@
   .module-pill.gold{border-color:#fde68a;background:#fffbeb;color:#92400e}
   .legacy-box{border:1px dashed #cbd5e1;border-radius:12px;padding:12px;background:#f8fafc}
   .panel{margin-top:14px;padding-top:14px;border-top:1px solid #e5e7eb}
+  .q-section{margin-top:10px}
+  .pair-row{display:flex;gap:8px;align-items:center;margin-top:8px}
+  .pair-row input{flex:1}
 </style>
 
 <div class="card" style="margin-bottom:12px;">
@@ -32,6 +35,7 @@
   <div class="card">
     <div class="row" style="margin-bottom:10px;">
       <select id="newModuleType" class="select-ui" style="min-width:180px;">
+        <option value="coding_task">{{ T.coding_module_badge }}</option>
         <option value="theory_material">{{ T.theory_material_module }}</option>
         <option value="theory_quiz">{{ T.theory_quiz_module }}</option>
       </select>
@@ -83,7 +87,6 @@
           <input id="blockOrdinal" class="input-ui" type="number" value="1" style="width:90px;">
           <button id="addBlockBtn" class="btn" type="button">{{ T.add_block }}</button>
         </div>
-
         <textarea id="blockContent" class="textarea-ui code-like" style="width:100%;height:120px;margin-top:10px;"></textarea>
         <div id="blocksList" style="margin-top:12px;"></div>
       </div>
@@ -99,22 +102,30 @@
           <button id="addQuestionBtn" class="btn" type="button">{{ T.add_question }}</button>
         </div>
 
-        <div class="muted" style="margin-top:10px;">{{ T.question_prompt }}</div>
-        <textarea id="questionPrompt" class="textarea-ui" style="width:100%;height:90px;"></textarea>
+        <div class="q-section">
+          <div class="muted">{{ T.question_prompt }}</div>
+          <textarea id="questionPrompt" class="textarea-ui" style="width:100%;height:90px;"></textarea>
+        </div>
 
-        <div class="muted" style="margin-top:10px;">{{ T.model_answer }}</div>
-        <textarea id="questionModelAnswer" class="textarea-ui" style="width:100%;height:70px;"></textarea>
+        <div id="singleChoiceFields" class="q-section" style="display:none;">
+          <div class="muted">{{ T.choices_input_help }}</div>
+          <textarea id="questionChoices" class="textarea-ui" style="width:100%;height:90px;"></textarea>
+        </div>
 
-        <label class="row muted" style="margin-top:10px;">
-          <input id="acceptSuitableAnswer" type="checkbox">
-          <span>{{ T.accept_suitable_answer }}</span>
-        </label>
+        <div id="openAnswerFields" class="q-section" style="display:none;">
+          <div class="muted">{{ T.model_answer }}</div>
+          <textarea id="questionModelAnswer" class="textarea-ui" style="width:100%;height:80px;"></textarea>
+          <label class="row muted" style="margin-top:10px;">
+            <input id="acceptSuitableAnswer" type="checkbox">
+            <span>{{ T.accept_suitable_answer }}</span>
+          </label>
+        </div>
 
-        <div class="muted" style="margin-top:10px;">{{ T.choices_input_help }}</div>
-        <textarea id="questionChoices" class="textarea-ui" style="width:100%;height:90px;"></textarea>
-
-        <div class="muted" style="margin-top:10px;">{{ T.pairs_input_help }}</div>
-        <textarea id="questionPairs" class="textarea-ui" style="width:100%;height:90px;"></textarea>
+        <div id="matchingFields" class="q-section" style="display:none;">
+          <div class="muted">{{ T.pairs_input_help }}</div>
+          <div id="matchingPairsBox"></div>
+          <button id="addPairBtn" class="btn" type="button" style="margin-top:10px;">{{ T.add_pair|default:"Add pair" }}</button>
+        </div>
 
         <div id="questionsList" style="margin-top:12px;"></div>
       </div>
@@ -128,6 +139,7 @@
   let selectedSessionId = null;
   let selectedModuleId = null;
   let selectedModuleType = null;
+  let modulesCache = [];
 
   const UI = {
     selectSessionFirst: "{{ T.select_session|escapejs }}",
@@ -143,10 +155,19 @@
     saveFailed: "{{ T.save_failed|escapejs }}",
     deleteFailed: "{{ T.delete_failed|escapejs }}",
     questionAdded: "{{ T.question_added|escapejs }}",
-    questionDeleted: "{{ T.question_deleted|escapejs }}"
+    questionDeleted: "{{ T.question_deleted|escapejs }}",
+    pairLeft: "{{ T.matching|default:'Match'|escapejs }}",
+    pairRight: "{{ T.matching|default:'Match'|escapejs }}"
   };
 
   function qs(id){ return document.getElementById(id); }
+
+  function setMsg(text){ qs("msg").textContent = text || ""; }
+
+  function currentSelectedItem(){
+    if (!selectedModuleId || !selectedModuleType) return null;
+    return { id: selectedModuleId, module_type: selectedModuleType };
+  }
 
   function setEditorMode(mode){
     qs("materialFields").style.display = mode === "theory_material" ? "block" : "none";
@@ -157,9 +178,51 @@
     qs("legacyEditor").style.display = mode === "coding_task" ? "block" : "none";
   }
 
-  function currentSelectedItem(){
-    if (!selectedModuleId || !selectedModuleType) return null;
-    return { id: selectedModuleId, module_type: selectedModuleType };
+  function syncQuestionTypeFields(){
+    const qt = qs("questionType").value;
+    qs("singleChoiceFields").style.display = qt === "single_choice" ? "block" : "none";
+    qs("openAnswerFields").style.display = qt === "open_answer" ? "block" : "none";
+    qs("matchingFields").style.display = qt === "matching" ? "block" : "none";
+  }
+
+  function addMatchingPairRow(left="", right=""){
+    const box = qs("matchingPairsBox");
+    const row = document.createElement("div");
+    row.className = "pair-row";
+    row.innerHTML = `
+      <input class="input-ui pair-left" placeholder="${UI.pairLeft}" value="${left.replaceAll('"','&quot;')}">
+      <input class="input-ui pair-right" placeholder="${UI.pairRight}" value="${right.replaceAll('"','&quot;')}">
+      <button type="button" class="btn pair-remove">{{ T.delete }}</button>
+    `;
+    row.querySelector(".pair-remove").addEventListener("click", () => row.remove());
+    box.appendChild(row);
+  }
+
+  function resetMatchingPairs(){
+    qs("matchingPairsBox").innerHTML = "";
+    addMatchingPairRow("", "");
+    addMatchingPairRow("", "");
+  }
+
+  function parseChoicesInput(){
+    return String(qs("questionChoices").value || "")
+      .split(/\r?\n/)
+      .map(line => line.trim())
+      .filter(Boolean)
+      .map(line => {
+        const isCorrect = line.startsWith("*");
+        return { text: isCorrect ? line.slice(1).trim() : line, is_correct: isCorrect };
+      });
+  }
+
+  function parsePairsInput(){
+    const rows = Array.from(document.querySelectorAll("#matchingPairsBox .pair-row"));
+    return rows
+      .map(row => ({
+        left_text: (row.querySelector(".pair-left")?.value || "").trim(),
+        right_text: (row.querySelector(".pair-right")?.value || "").trim()
+      }))
+      .filter(x => x.left_text && x.right_text);
   }
 
   async function api(url, method="GET", body=null){
@@ -177,32 +240,15 @@
     return { status:r.status, data: await r.json() };
   }
 
-  function setMsg(text){ qs("msg").textContent = text || ""; }
-
-  function parseChoicesInput(){
-    return String(qs("questionChoices").value || "")
-      .split(/\r?\n/)
-      .map(line => line.trim())
-      .filter(Boolean)
-      .map(line => {
-        const isCorrect = line.startsWith("*");
-        return { text: isCorrect ? line.slice(1).trim() : line, is_correct: isCorrect };
-      });
+  function calculateFirstFreePosition(items){
+    const used = new Set((items || []).map(x => Number(x.position) || 0).filter(x => x > 0));
+    let pos = 1;
+    while (used.has(pos)) pos += 1;
+    return pos;
   }
 
-  function parsePairsInput(){
-    return String(qs("questionPairs").value || "")
-      .split(/\r?\n/)
-      .map(line => line.trim())
-      .filter(Boolean)
-      .map(line => {
-        const parts = line.split("=>");
-        return {
-          left_text: (parts[0] || "").trim(),
-          right_text: (parts.slice(1).join("=>") || "").trim()
-        };
-      })
-      .filter(x => x.left_text && x.right_text);
+  function updateSuggestedPosition(){
+    qs("newPosition").value = String(calculateFirstFreePosition(modulesCache));
   }
 
   async function loadSessions(){
@@ -240,6 +286,8 @@
       if (a.module_type !== b.module_type) return a.module_type.localeCompare(b.module_type);
       return a.id - b.id;
     });
+    modulesCache = items;
+    updateSuggestedPosition();
 
     const box = qs("modulesList");
     box.innerHTML = "";
@@ -369,9 +417,15 @@
       position: qs("newPosition").value
     };
 
-    const url = type === "theory_quiz"
-      ? `/api/teacher/sessions/${selectedSessionId}/theory-quizzes/`
-      : `/api/teacher/sessions/${selectedSessionId}/theory-modules/`;
+    let url = `/api/teacher/sessions/${selectedSessionId}/theory-modules/`;
+    if (type === "theory_quiz"){
+      url = `/api/teacher/sessions/${selectedSessionId}/theory-quizzes/`;
+      body.instructions = "";
+    } else if (type === "coding_task"){
+      url = `/api/teacher/sessions/${selectedSessionId}/tasks/`;
+      body.statement = "";
+      body.constraints = "";
+    }
 
     const res = await api(url, "POST", body);
     if (!res.data.ok) return setMsg(res.data.error || UI.createFailed);
@@ -379,10 +433,12 @@
     qs("newTitle").value = "";
     qs("newTopic").value = "";
     await loadModules();
+
+    const entity = type === "coding_task" ? res.data.task : res.data.module;
     await openModule({
-      id: res.data.module.id,
-      position: res.data.module.position,
-      title: res.data.module.title,
+      id: entity.id,
+      position: entity.position,
+      title: entity.title,
       module_type: type
     });
   }
@@ -438,7 +494,6 @@
       heading_level: qs("headingLevel").value,
       content: qs("blockContent").value
     });
-
     if (!res.data.ok) return setMsg(res.data.error || "Add block failed");
     setMsg("Block added");
     qs("blockContent").value = "";
@@ -478,8 +533,8 @@
     qs("questionPrompt").value = "";
     qs("questionModelAnswer").value = "";
     qs("questionChoices").value = "";
-    qs("questionPairs").value = "";
     qs("acceptSuitableAnswer").checked = false;
+    resetMatchingPairs();
     await openModule(currentSelectedItem());
   }
 
@@ -497,7 +552,8 @@
     qs("editor").style.display = "none";
     await loadModules();
   });
-
+  qs("questionType").addEventListener("change", syncQuestionTypeFields);
+  qs("addPairBtn").addEventListener("click", () => addMatchingPairRow("", ""));
   qs("createBtn").addEventListener("click", createModule);
   qs("saveModuleBtn").addEventListener("click", saveModule);
   qs("deleteModuleBtn").addEventListener("click", deleteModule);
@@ -505,6 +561,8 @@
   qs("generateBtn").addEventListener("click", generateModule);
   qs("addQuestionBtn").addEventListener("click", addQuestion);
 
+  syncQuestionTypeFields();
+  resetMatchingPairs();
   loadSessions();
 </script>
 {% endblock %}

@@ -659,6 +659,7 @@
   let currentTaskId = null;
   let currentModuleType = "coding_task";
   const CODE_CACHE_PREFIX = "pp_code_task_";
+  const QUIZ_CACHE_PREFIX = "pp_quiz_answers_";
   let lastSubmittedHashByTask = {};
   let submitCooldownUntil = 0;
   let hintCooldownUntil = {1:0, 2:0, 3:0};
@@ -772,13 +773,16 @@
     }
   }
 
-  function renderQuizQuestionsStudent(questions){
+  function renderQuizQuestionsStudent(questions, initialAnswers){
     const box = qs("quizQuestions");
     box.innerHTML = "";
+    const seed = initialAnswers || {};
 
     (questions || []).forEach(question => {
       const wrap = document.createElement("div");
       wrap.className = "quizQuestion";
+      const answerKey = String(question.id);
+      const initialValue = seed[answerKey];
 
       let inner = `
         <div><b>${escapeHtml(UI.quizQuestion)} ${question.ordinal}</b></div>
@@ -788,25 +792,30 @@
       if (question.question_type === "single_choice"){
         inner += `<div style="margin-top:10px;">`;
         (question.choices || []).forEach(choice => {
+          const checked = String(initialValue || "") === String(choice.id) ? "checked" : "";
           inner += `
             <label class="quizOption">
-              <input type="radio" name="quiz_q_${question.id}" value="${choice.id}">
+              <input type="radio" name="quiz_q_${question.id}" value="${choice.id}" ${checked}>
               <span>${escapeHtml(choice.text)}</span>
             </label>
           `;
         });
         inner += `</div>`;
       } else if (question.question_type === "open_answer"){
-        inner += `<textarea id="quiz_open_${question.id}" style="margin-top:10px;height:110px;"></textarea>`;
+        inner += `<textarea id="quiz_open_${question.id}" style="margin-top:10px;height:110px;">${escapeHtml(initialValue || "")}</textarea>`;
       } else if (question.question_type === "matching"){
         inner += `<div style="margin-top:10px;">`;
         (question.left_items || []).forEach(left => {
+          const preselected = typeof initialValue === "object" ? String(initialValue[String(left.id)] || "") : "";
           inner += `
             <div class="quizMatchRow">
               <div style="min-width:180px;">${escapeHtml(left.text)}</div>
               <select id="quiz_match_${question.id}_${left.id}" class="langSelect">
                 <option value=""></option>
-                ${(question.right_items || []).map(right => `<option value="${right.id}">${escapeHtml(right.text)}</option>`).join("")}
+                ${(question.right_items || []).map(right => {
+                  const selected = preselected === String(right.id) ? "selected" : "";
+                  return `<option value="${right.id}" ${selected}>${escapeHtml(right.text)}</option>`;
+                }).join("")}
               </select>
             </div>
           `;
@@ -816,6 +825,15 @@
 
       wrap.innerHTML = inner;
       box.appendChild(wrap);
+    });
+
+    box.querySelectorAll("input, textarea, select").forEach(el => {
+      const persist = () => {
+        if (!currentTaskId || currentModuleType !== "theory_quiz") return;
+        saveCachedQuizAnswers(currentTaskId, collectQuizAnswers(questions));
+      };
+      el.addEventListener("input", persist);
+      el.addEventListener("change", persist);
     });
   }
 
@@ -922,6 +940,23 @@
   function saveCachedCode(taskId, code){
     try{
       localStorage.setItem(CODE_CACHE_PREFIX + taskId, code);
+    }catch(e){}
+  }
+
+  function loadCachedQuizAnswers(taskId){
+    try{
+      const raw = localStorage.getItem(QUIZ_CACHE_PREFIX + taskId);
+      if (!raw) return {};
+      const parsed = JSON.parse(raw);
+      return parsed && typeof parsed === "object" ? parsed : {};
+    }catch(e){
+      return {};
+    }
+  }
+
+  function saveCachedQuizAnswers(taskId, answers){
+    try{
+      localStorage.setItem(QUIZ_CACHE_PREFIX + taskId, JSON.stringify(answers || {}));
     }catch(e){}
   }
 
@@ -1212,8 +1247,10 @@
       qs("visibleTests").innerHTML = "";
       qs("moduleBlocks").innerHTML = "";
       qs("quizInstructions").textContent = res.data.module.instructions || "";
-      renderQuizQuestionsStudent(res.data.module.questions || []);
-      qs("quizCard").dataset.questions = JSON.stringify(res.data.module.questions || []);
+      const quizQuestions = res.data.module.questions || [];
+      const quizCachedAnswers = loadCachedQuizAnswers(taskId);
+      renderQuizQuestionsStudent(quizQuestions, quizCachedAnswers);
+      qs("quizCard").dataset.questions = JSON.stringify(quizQuestions);
 
       if (res.data.last_attempt){
         qs("quizResultCard").style.display = "block";
@@ -1383,6 +1420,7 @@
 
     const questions = JSON.parse(qs("quizCard").dataset.questions || "[]");
     const answers = collectQuizAnswers(questions);
+    saveCachedQuizAnswers(currentTaskId, answers);
 
     qs("quizSubmitBtn").disabled = true;
     qs("quizSubmitBtn").textContent = UI.submitting;
@@ -1400,6 +1438,7 @@
     }
 
     const attempt = res.data.attempt;
+    saveCachedQuizAnswers(currentTaskId, {});
     qs("quizResultCard").style.display = "block";
     qs("quizScore").textContent = `${attempt.score_percent}%`;
     qs("quizAttemptInfo").textContent = `${attempt.correct_answers}/${attempt.total_questions}`;
