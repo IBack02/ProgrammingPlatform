@@ -40,7 +40,7 @@ from .models import (
     StudentTheoryQuizAttempt,
 
 )
-from .ui_translations import SUPPORTED_UI_LANGS
+from .ui_translations import SUPPORTED_UI_LANGS, UI_TRANSLATIONS, get_ui_lang
 
 PIN_RE = re.compile(r"^\d{6}$")
 TEACHER_PIN_RE = re.compile(r"^\d{6}$")
@@ -1361,6 +1361,9 @@ def student_hint_level(request: HttpRequest, task_id: int, level: int):
 
 @require_http_methods(["GET", "POST"])
 def student_login_page(request: HttpRequest):
+    lang = get_ui_lang(request)
+    T = UI_TRANSLATIONS.get(lang, UI_TRANSLATIONS["en"])
+
     if request.method == "GET":
         return render(request, "core/student_login.html")
 
@@ -1368,7 +1371,11 @@ def student_login_page(request: HttpRequest):
     pin = (request.POST.get("pin") or "").strip()
 
     if not full_name or not pin or not PIN_RE.match(pin):
-        return render(request, "core/student_login.html", {"error": "Enter name and PIN (6 digits)."})
+        return render(
+            request,
+            "core/student_login.html",
+            {"error": T.get("student_login_error_required", "Enter name and PIN (6 digits).")},
+        )
 
     student = (
         Student.objects.select_related("class_group")
@@ -1376,7 +1383,11 @@ def student_login_page(request: HttpRequest):
         .first()
     )
     if not student or not student.check_pin(pin):
-        return render(request, "core/student_login.html", {"error": "Invalid name or PIN."})
+        return render(
+            request,
+            "core/student_login.html",
+            {"error": T.get("student_login_error_invalid", "Invalid name or PIN.")},
+        )
 
     request.session["student_id"] = student.id
     request.session["student_name"] = student.full_name

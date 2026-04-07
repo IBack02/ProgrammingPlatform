@@ -1,37 +1,93 @@
 <!doctype html>
-<html lang="ru">
+<html lang="{{ ui_lang|default:'en' }}">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Student Login</title>
+  <title>{{ T.student_login_title|default:"Student Login" }}</title>
   <style>
-    body { font-family: Arial, sans-serif; margin: 0; background:#f6f7fb; }
-    .wrap { max-width: 420px; margin: 80px auto; background:#fff; padding: 24px; border-radius: 12px; box-shadow: 0 6px 18px rgba(0,0,0,.08); }
-    h1 { margin: 0 0 16px; font-size: 20px; }
-    label { display:block; margin: 12px 0 6px; font-size: 14px; }
-    input { width:100%; padding: 10px; border: 1px solid #ccc; border-radius: 10px; font-size: 14px; }
-    button { width:100%; margin-top: 16px; padding: 10px; border:0; border-radius: 10px; background:#0ea5e9; color:#fff; font-size: 15px; cursor:pointer; }
-    .err { margin-top: 12px; color:#b91c1c; font-size: 14px; }
-    .hint { margin-top: 12px; color:#555; font-size: 12px; }
+    :root{
+      --ui-font-default: Arial, "Segoe UI", sans-serif;
+      --ui-font-kk: "Noto Sans", "DejaVu Sans", "Segoe UI", Arial, sans-serif;
+    }
+    body{
+      font-family: {% if ui_lang == 'kk' %}var(--ui-font-kk){% else %}var(--ui-font-default){% endif %};
+      margin:0;
+      background:#f6f7fb;
+    }
+    .wrap{
+      max-width:440px;
+      margin:72px auto;
+      background:#fff;
+      padding:24px;
+      border-radius:14px;
+      box-shadow: 0 10px 24px rgba(17,24,39,.08);
+    }
+    h1{margin:0 0 16px;font-size:22px}
+    label{display:block;margin:12px 0 6px;font-size:14px}
+    input{
+      width:100%;
+      padding:10px;
+      border:1px solid #cbd5e1;
+      border-radius:10px;
+      font-size:14px;
+      box-sizing:border-box;
+    }
+    button{
+      width:100%;
+      margin-top:16px;
+      padding:10px;
+      border:0;
+      border-radius:10px;
+      background:#0ea5e9;
+      color:#fff;
+      font-size:15px;
+      cursor:pointer;
+    }
+    .err{margin-top:12px;color:#b91c1c;font-size:14px}
+    .hint{margin-top:12px;color:#4b5563;font-size:12px}
+    .lang-form{
+      display:flex;
+      gap:8px;
+      justify-content:flex-end;
+      margin-bottom:12px;
+    }
+    .lang-select{
+      padding:7px 10px;
+      border-radius:10px;
+      border:1px solid #e5e7eb;
+      background:#fff;
+    }
   </style>
 </head>
 <body>
   <div class="wrap">
-    <h1>Вход ученика</h1>
+    <form method="post" action="/set-ui-language/" class="lang-form">
+      {% csrf_token %}
+      <input type="hidden" name="next" value="{{ request.get_full_path }}">
+      <select name="lang" class="lang-select" onchange="this.form.submit()">
+        <option value="ru" {% if ui_lang == 'ru' %}selected{% endif %}>{{ T.russian }}</option>
+        <option value="kk" {% if ui_lang == 'kk' %}selected{% endif %}>{{ T.kazakh }}</option>
+        <option value="en" {% if ui_lang == 'en' %}selected{% endif %}>{{ T.english }}</option>
+      </select>
+    </form>
+
+    <h1>{{ T.student_login_title|default:"Student Login" }}</h1>
+
     <form method="post" action="/student/login/">
       {% csrf_token %}
-      <label>Имя (например: SayanIshankhanov)</label>
+      <label>{{ T.student_login_name_label|default:"Full name" }}</label>
       <input name="full_name" autocomplete="off" required />
 
-      <label>PIN (6 цифр)</label>
+      <label>{{ T.student_login_pin_label|default:"PIN (6 digits)" }}</label>
       <input name="pin" inputmode="numeric" pattern="\d{6}" maxlength="6" required />
 
-      <button type="submit">Войти</button>
+      <button type="submit">{{ T.student_login_submit|default:"Login" }}</button>
 
       {% if error %}
         <div class="err">{{ error }}</div>
       {% endif %}
-      <div class="hint">После входа откроется страница сессии. Если сессия не запущена — увидите сообщение.</div>
+
+      <div class="hint">{{ T.student_login_hint|default:"After login, your session page will open." }}</div>
     </form>
   </div>
 </body>
