@@ -9,7 +9,8 @@ import requests
 
 # Лучше потом подтянуть /languages и выбрать python3 по имени,
 # но для MVP оставим один ID. Если не сработает — быстро поменяем.
-PYTHON_LANGUAGE_ID = 71
+PYTHON_LANGUAGE_ID = int(os.getenv("JUDGE0_PYTHON_LANGUAGE_ID", "71"))
+CPP_LANGUAGE_ID = int(os.getenv("JUDGE0_CPP_LANGUAGE_ID", "54"))
 
 
 @dataclass
@@ -48,7 +49,18 @@ def _base_url() -> str:
     return os.getenv("JUDGE0_BASE_URL", "https://judge0-ce.p.rapidapi.com").rstrip("/")
 
 
-def create_batch_submissions(code: str, testcases: List[Dict[str, str]]) -> List[str]:
+def _resolve_language_id(programming_language: str) -> int:
+    lang = (programming_language or "python").strip().lower()
+    if lang == "cpp":
+        return CPP_LANGUAGE_ID
+    return PYTHON_LANGUAGE_ID
+
+
+def create_batch_submissions(
+    code: str,
+    testcases: List[Dict[str, str]],
+    programming_language: str = "python",
+) -> List[str]:
     """
     testcases: [{"stdin": "...", "expected_stdout": "..."}, ...]
     Возвращает список tokens.
@@ -56,10 +68,11 @@ def create_batch_submissions(code: str, testcases: List[Dict[str, str]]) -> List
     """
     url = f"{_base_url()}/submissions/batch?base64_encoded=true"
 
+    language_id = _resolve_language_id(programming_language)
     submissions = []
     for tc in testcases:
         submissions.append({
-            "language_id": PYTHON_LANGUAGE_ID,
+            "language_id": language_id,
             "source_code": _b64(code),
             "stdin": _b64(tc.get("stdin", "")),
             # Важно: Judge0 умеет сравнивать expected_output и ставить статус Wrong Answer. :contentReference[oaicite:3]{index=3}

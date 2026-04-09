@@ -13,7 +13,7 @@ PY_LINE_RE = re.compile(
     r"^\s*(def |class |for |while |if |elif |else:|print\(|import |from )",
     re.MULTILINE,
 )
-FENCED_CODE_STRIP_RE = re.compile(r"^```(?:python)?\s*|\s*```$", re.IGNORECASE | re.DOTALL)
+FENCED_CODE_STRIP_RE = re.compile(r"^```(?:[a-zA-Z0-9_+\-#]*)?\s*|\s*```$", re.IGNORECASE | re.DOTALL)
 
 
 def sanitize_no_code(text: str) -> str:
@@ -40,6 +40,8 @@ def strip_code_fences(text: str) -> str:
 def build_prompt_snapshot(
     *,
     level: int,
+    programming_language: str,
+    interface_language: str,
     statement: str,
     constraints: str,
     visible_tests: List[Dict[str, str]],
@@ -48,6 +50,8 @@ def build_prompt_snapshot(
 ) -> str:
     parts: List[str] = []
     parts.append(f"LEVEL={level}")
+    parts.append(f"PROGRAMMING_LANGUAGE={programming_language}")
+    parts.append(f"INTERFACE_LANGUAGE={interface_language}")
     parts.append("TASK_STATEMENT:\n" + (statement or ""))
 
     if constraints:
@@ -89,6 +93,8 @@ def build_solution_prompt_snapshot(
     *,
     session_title: str,
     session_description: str,
+    programming_language: str,
+    interface_language: str,
     statement: str,
     constraints: str,
     visible_tests: List[Dict[str, str]],
@@ -102,6 +108,8 @@ def build_solution_prompt_snapshot(
     parts.append("SESSION_THEME_TITLE:\n" + (session_title or ""))
     if session_description:
         parts.append("SESSION_THEME_DESCRIPTION:\n" + session_description)
+    parts.append(f"PROGRAMMING_LANGUAGE={programming_language}")
+    parts.append(f"INTERFACE_LANGUAGE={interface_language}")
 
     parts.append("TASK_STATEMENT:\n" + (statement or ""))
 
@@ -262,22 +270,15 @@ def call_openai_hint(level: int, prompt_snapshot: str) -> dict:
 
     if level == 1:
         system_rules = (
-            "You are a programming teacher inside a Python learning platform.\n"
-            "Return a FULL correct Python solution for the task.\n"
-            "Main priority: simplicity and readability of the code.\n"
-            "The solution must be easy for a student to understand.\n"
-            "Do NOT use comments.\n"
-            "Do NOT include explanations before or after the code.\n"
-            "The solution must follow the teaching theme of the session.\n"
-            "For example, if the session theme is about functions, the solution must use a function.\n"
-            "If the session theme is about loops, strings, lists, dictionaries, classes, recursion, or similar topics,\n"
-            "prefer a solution naturally aligned with that topic.\n"
-            "Do not over-engineer the solution.\n"
-            "If mandatory code fragments are provided, treat them as required code that will already exist.\n"
-            "Your returned code must complement those fragments, work together with them, and must not duplicate their logic.\n"
-            "Do not rewrite the required fragment inside your answer.\n"
-            "Return only the student's writable code part.\n"
-            "Output must match schema: {code: string}."
+            "You are a precise programming tutor.\n"
+            "Read INTERFACE_LANGUAGE from user context and answer strictly in that language.\n"
+            "Read PROGRAMMING_LANGUAGE from user context and reason only about that language.\n"
+            "Level 1 objective: identify the exact place of the main error and explain the root cause.\n"
+            "Reference a concrete code area from LAST_SUBMISSION (function, loop, condition, variable, expression, or output formatting).\n"
+            "Do not provide a full solution and do not provide code.\n"
+            "Do not output pseudocode.\n"
+            "Use 2-4 concise sentences.\n"
+            "Output schema: {text: string, no_code_confirmed: boolean}."
         )
         resp = client.responses.parse(
             model="gpt-4o-mini",
@@ -286,7 +287,7 @@ def call_openai_hint(level: int, prompt_snapshot: str) -> dict:
                 {"role": "user", "content": prompt_snapshot},
             ],
             text_format=HintTextLevel1,
-            max_output_tokens=380,
+            max_output_tokens=460,
         )
         parsed = resp.output_parsed
         if parsed is None:
@@ -299,13 +300,15 @@ def call_openai_hint(level: int, prompt_snapshot: str) -> dict:
 
     else:
         system_rules = (
-            "You are a programming teacher.\n"
+            "You are a precise programming tutor.\n"
             "Write a SHORT guidance: exactly 2–3 sentences, no bullets, no lists.\n"
-            "Goal: give brief next steps (what to do), without giving code.\n"
-            "You MAY mention very short method/command names like split, sort, set, dict, two pointers, binary search.\n"
-            "Do NOT provide code, pseudocode, or near-code.\n"
-            "Output must match schema: {text: string, no_code_confirmed: boolean}.\n"
-            "Set no_code_confirmed=true only if you did not output any code-like content."
+            "Read PROGRAMMING_LANGUAGE from user context and reason only about that language.\n"
+            "Level 2 objective: give concrete next actions to make the solution pass.\n"
+            "State exactly what should be added or changed and where (input parsing, data structure, loop logic, condition, function, output format).\n"
+            "Do not provide code and do not provide pseudocode.\n"
+            "Use 2-5 concise sentences, no bullets.\n"
+            "Output schema: {text: string, no_code_confirmed: boolean}.\n"
+            "Set no_code_confirmed=true only if no code-like fragments were produced."
         )
         resp = client.responses.parse(
             model="gpt-4o-mini",
@@ -339,18 +342,14 @@ def call_openai_solution(prompt_snapshot: str) -> dict:
     client = _get_openai_client()
 
     system_rules = (
-        "You are a programming teacher inside a Python learning platform.\n"
-        "Return a FULL correct Python solution for the task.\n"
-        "Main priority: simplicity and readability of the code.\n"
-        "The solution must be easy for a student to understand.\n"
-        "Do NOT use comments.\n"
-        "Do NOT include explanations before or after the code.\n"
-        "The solution must follow the teaching theme of the session.\n"
-        "For example, if the session theme is about functions, the solution must use a function.\n"
-        "If the session theme is about loops, strings, lists, dictionaries, classes, recursion, or similar topics,\n"
-        "prefer a solution naturally aligned with that topic.\n"
-        "Do not over-engineer the solution.\n"
-        "Output must match schema: {code: string}."
+        "You are a programming teacher.\n"
+        "Read PROGRAMMING_LANGUAGE from user context and return solution code only in that language.\n"
+        "Read INTERFACE_LANGUAGE from user context, but still return only code without explanations.\n"
+        "Main priority: simplicity and readability for students.\n"
+        "Do not use comments.\n"
+        "If mandatory code fragments are provided, treat them as required and complement them without duplicating their logic.\n"
+        "Return only the student's writable code.\n"
+        "Output schema: {code: string}."
     )
 
     resp = client.responses.parse(

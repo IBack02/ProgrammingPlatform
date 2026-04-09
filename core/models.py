@@ -103,12 +103,21 @@ class SessionClass(models.Model):
 
 
 class SessionTask(models.Model):
+    class ProgrammingLanguage(models.TextChoices):
+        PYTHON = "python", "Python"
+        CPP = "cpp", "C++"
+
     session = models.ForeignKey(Session, on_delete=models.CASCADE, related_name="tasks")
     position = models.PositiveIntegerField()
 
     title = models.CharField(max_length=200)
     statement = models.TextField()
     constraints = models.TextField(blank=True)
+    programming_language = models.CharField(
+        max_length=16,
+        choices=ProgrammingLanguage.choices,
+        default=ProgrammingLanguage.PYTHON,
+    )
 
     created_at = models.DateTimeField(auto_now_add=True)
 

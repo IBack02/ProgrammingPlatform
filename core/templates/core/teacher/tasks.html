@@ -88,6 +88,10 @@
 
     <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px;">
       <input id="newPos" class="input-ui" type="number" value="1" style="width:90px;"/>
+      <select id="newProgrammingLanguage" class="select-ui" style="min-width:150px;">
+        <option value="python">{{ T.language_python|default:"Python" }}</option>
+        <option value="cpp">{{ T.language_cpp|default:"C++" }}</option>
+      </select>
       <input id="newTitle" class="input-ui" placeholder="{{ T.task_title_placeholder }}"
              style="flex:1;min-width:180px;"/>
       <button class="btn" id="createTaskBtn" type="button">{{ T.create_task }}</button>
@@ -103,6 +107,10 @@
     <div id="editor" class="editor-panel" style="display:none;">
       <div style="display:flex;gap:10px;flex-wrap:wrap;">
         <input id="pos" class="input-ui" type="number" style="width:110px;"/>
+        <select id="programmingLanguage" class="select-ui" style="min-width:150px;">
+          <option value="python">{{ T.language_python|default:"Python" }}</option>
+          <option value="cpp">{{ T.language_cpp|default:"C++" }}</option>
+        </select>
         <input id="title" class="input-ui" placeholder="{{ T.task_title }}" style="flex:1;min-width:220px;"/>
       </div>
 
@@ -354,6 +362,7 @@
     requestAnimationFrame(() => qs("editor").classList.add("show"));
 
     qs("pos").value = t.position;
+    qs("programmingLanguage").value = t.programming_language || "python";
     qs("title").value = t.title;
     qs("statement").value = t.statement || "";
     qs("constraints").value = t.constraints || "";
@@ -379,7 +388,11 @@
     setBusy(true);
     setMsg(UI.loading, "info");
     const res = await api(`/api/teacher/sessions/${selectedSessionId}/tasks/`, "POST", {
-      position, title, statement:"", constraints:""
+      position,
+      title,
+      statement:"",
+      constraints:"",
+      programming_language: qs("newProgrammingLanguage").value || "python"
     });
     setBusy(false);
 
@@ -404,6 +417,7 @@
       title: (qs("title").value || "").trim(),
       statement: qs("statement").value || "",
       constraints: qs("constraints").value || "",
+      programming_language: qs("programmingLanguage").value || "python",
     };
 
     setBusy(true);

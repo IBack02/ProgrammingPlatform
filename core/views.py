@@ -280,6 +280,7 @@ def _serialize_task(task: SessionTask):
         "title": task.title,
         "statement": task.statement or "",
         "constraints": task.constraints or "",
+        "programming_language": task.programming_language,
         "created_at": task.created_at.isoformat() if getattr(task, "created_at", None) else None,
     }
 
@@ -694,6 +695,7 @@ def student_task_detail(request: HttpRequest, task_id: int):
                 "title": task.title,
                 "statement": task.statement,
                 "constraints": task.constraints,
+                "programming_language": task.programming_language,
             },
             "progress": {
                 "status": progress.status,
@@ -994,7 +996,11 @@ def student_submit(request: HttpRequest, task_id: int):
     final_code = _join_code(top_frag, user_code, bottom_frag)
 
     try:
-        tokens = create_batch_submissions(final_code, testcases)
+        tokens = create_batch_submissions(
+            final_code,
+            testcases,
+            programming_language=task.programming_language,
+        )
         results = wait_batch(tokens, timeout_sec=30, poll_interval=0.9)
     except Exception as e:
         progress.last_submit_at = now
@@ -1246,6 +1252,8 @@ def student_hint_level(request: HttpRequest, task_id: int, level: int):
     last_sub = Submission.objects.filter(progress=progress).order_by("-attempt_no").first()
     last_subs = list(Submission.objects.filter(progress=progress).order_by("attempt_no")[:50])
 
+    ui_lang = get_ui_lang(request)
+
     if level in (1, 2):
         prompt_snapshot = build_prompt_snapshot(
             level=level,
@@ -1254,6 +1262,8 @@ def student_hint_level(request: HttpRequest, task_id: int, level: int):
             visible_tests=visible_tests,
             last_submission=last_sub,
             last_submissions=last_subs,
+            programming_language=task.programming_language,
+            interface_language=ui_lang,
         )
     else:
         top_frag, bottom_frag = _get_task_fragments(task)
@@ -1267,6 +1277,8 @@ def student_hint_level(request: HttpRequest, task_id: int, level: int):
             last_submissions=last_subs,
             top_fragment=top_frag,
             bottom_fragment=bottom_frag,
+            programming_language=task.programming_language,
+            interface_language=ui_lang,
         )
 
 
@@ -1887,6 +1899,14 @@ def teacher_session_tasks_api(request: HttpRequest, session_id: int):
 
         statement = data.get("statement") or ""
         constraints = data.get("constraints") or ""
+        programming_language = str(
+            data.get("programming_language") or SessionTask.ProgrammingLanguage.PYTHON
+        ).strip()
+        if programming_language not in {
+            SessionTask.ProgrammingLanguage.PYTHON,
+            SessionTask.ProgrammingLanguage.CPP,
+        }:
+            return JsonResponse({"ok": False, "error": "invalid programming_language"}, status=400)
 
         task = SessionTask.objects.create(
             session=session,
@@ -1894,6 +1914,7 @@ def teacher_session_tasks_api(request: HttpRequest, session_id: int):
             title=title,
             statement=statement,
             constraints=constraints,
+            programming_language=programming_language,
         )
 
         return JsonResponse({
@@ -2072,6 +2093,14 @@ def teacher_task_detail_api(request: HttpRequest, task_id: int):
         task.statement = data.get("statement") or ""
     if "constraints" in data:
         task.constraints = data.get("constraints") or ""
+    if "programming_language" in data:
+        programming_language = str(data.get("programming_language") or "").strip()
+        if programming_language not in {
+            SessionTask.ProgrammingLanguage.PYTHON,
+            SessionTask.ProgrammingLanguage.CPP,
+        }:
+            return JsonResponse({"ok": False, "error": "invalid programming_language"}, status=400)
+        task.programming_language = programming_language
 
     task.save()
     return JsonResponse({"ok": True, "task": _serialize_task(task)})

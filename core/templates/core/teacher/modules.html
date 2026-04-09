@@ -39,6 +39,10 @@
         <option value="theory_material">{{ T.theory_material_module }}</option>
         <option value="theory_quiz">{{ T.theory_quiz_module }}</option>
       </select>
+      <select id="newCodingLanguage" class="select-ui" style="min-width:150px;">
+        <option value="python">{{ T.language_python|default:"Python" }}</option>
+        <option value="cpp">{{ T.language_cpp|default:"C++" }}</option>
+      </select>
       <input id="newPosition" class="input-ui" type="number" value="1" style="width:90px;">
       <input id="newTitle" class="input-ui" placeholder="{{ T.module_title }}" style="flex:1;">
       <input id="newTopic" class="input-ui" placeholder="{{ T.module_topic }}" style="flex:1;">
@@ -176,6 +180,11 @@
     qs("quizEditor").style.display = mode === "theory_quiz" ? "block" : "none";
     qs("generateBtn").style.display = mode === "theory_material" ? "inline-block" : "none";
     qs("legacyEditor").style.display = mode === "coding_task" ? "block" : "none";
+  }
+
+  function syncCreateTypeFields(){
+    const type = qs("newModuleType").value;
+    qs("newCodingLanguage").style.display = type === "coding_task" ? "inline-block" : "none";
   }
 
   function syncQuestionTypeFields(){
@@ -425,6 +434,7 @@
       url = `/api/teacher/sessions/${selectedSessionId}/tasks/`;
       body.statement = "";
       body.constraints = "";
+      body.programming_language = qs("newCodingLanguage").value || "python";
     }
 
     const res = await api(url, "POST", body);
@@ -553,6 +563,7 @@
     await loadModules();
   });
   qs("questionType").addEventListener("change", syncQuestionTypeFields);
+  qs("newModuleType").addEventListener("change", syncCreateTypeFields);
   qs("addPairBtn").addEventListener("click", () => addMatchingPairRow("", ""));
   qs("createBtn").addEventListener("click", createModule);
   qs("saveModuleBtn").addEventListener("click", saveModule);
@@ -562,6 +573,7 @@
   qs("addQuestionBtn").addEventListener("click", addQuestion);
 
   syncQuestionTypeFields();
+  syncCreateTypeFields();
   resetMatchingPairs();
   loadSessions();
 </script>
