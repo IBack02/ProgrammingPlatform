@@ -47,7 +47,7 @@ TEACHER_PIN_RE = re.compile(r"^\d{6}$")
 SUBMIT_COOLDOWN_SECONDS = 15
 SESSION_STATUS_DRAFT = "draft"
 SESSION_STATUS_RUNNING = "running"
-SESSION_STATUS_STOPPED = "stopped"
+SESSION_STATUS_STOPPED = "closed"
 SESSION_STATUSES = {
     SESSION_STATUS_DRAFT,
     SESSION_STATUS_RUNNING,
@@ -60,6 +60,20 @@ def _json_body(request: HttpRequest) -> dict:
         return json.loads(raw or "{}")
     except (UnicodeDecodeError, json.JSONDecodeError):
         return {}
+
+
+def _normalize_session_status_in(value: str) -> str:
+    raw = (value or "").strip().lower()
+    if raw == "stopped":
+        return SESSION_STATUS_STOPPED
+    return raw
+
+
+def _normalize_session_status_out(value: str) -> str:
+    raw = (value or "").strip().lower()
+    if raw == SESSION_STATUS_STOPPED:
+        return "stopped"
+    return raw
 
 
 def _student_id(request: HttpRequest):
@@ -260,7 +274,7 @@ def _serialize_session(session: Session):
         "id": session.id,
         "title": session.title,
         "description": session.description or "",
-        "status": session.status,
+        "status": _normalize_session_status_out(session.status),
         "starts_at": session.starts_at.isoformat() if session.starts_at else None,
         "ends_at": session.ends_at.isoformat() if session.ends_at else None,
         "created_at": session.created_at.isoformat() if getattr(session, "created_at", None) else None,
@@ -1819,7 +1833,7 @@ def teacher_sessions_api(request: HttpRequest):
         if not title:
             return JsonResponse({"ok": False, "error": "title is required"}, status=400)
 
-        status = (data.get("status") or SESSION_STATUS_DRAFT).strip()
+        status = _normalize_session_status_in(data.get("status") or SESSION_STATUS_DRAFT)
         if status not in SESSION_STATUSES:
             return JsonResponse({"ok": False, "error": "invalid status"}, status=400)
 
@@ -1966,7 +1980,7 @@ def teacher_session_detail_api(request: HttpRequest, session_id: int):
             s.ends_at = _parse_dt_or_none(data.get("ends_at") or "")
 
         if "status" in data:
-            status = (data.get("status") or "").strip()
+            status = _normalize_session_status_in(data.get("status") or "")
             if status not in SESSION_STATUSES:
                 return JsonResponse({"ok": False, "error": "invalid status"}, status=400)
             s.status = status

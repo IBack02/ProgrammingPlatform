@@ -665,6 +665,8 @@
   let currentModuleType = "coding_task";
   const CODE_CACHE_PREFIX = "pp_code_task_";
   const QUIZ_CACHE_PREFIX = "pp_quiz_answers_";
+  let currentStudentId = null;
+  let currentSessionId = null;
   let lastSubmittedHashByTask = {};
   let submitCooldownUntil = 0;
   let hintCooldownUntil = {1:0, 2:0, 3:0};
@@ -835,7 +837,7 @@
     box.querySelectorAll("input, textarea, select").forEach(el => {
       const persist = () => {
         if (!currentTaskId || currentModuleType !== "theory_quiz") return;
-        saveCachedQuizAnswers(currentTaskId, collectQuizAnswers(questions));
+        saveCachedQuizAnswers(currentTaskId, collectQuizAnswers(questions), currentModuleType);
       };
       el.addEventListener("input", persist);
       el.addEventListener("change", persist);
@@ -933,24 +935,31 @@
     });
   }
 
-  function loadCachedCode(taskId){
+  function scopedCacheKey(prefix, taskId, moduleType){
+    const sid = currentStudentId || "anon";
+    const ssid = currentSessionId || "no_session";
+    const mtype = moduleType || currentModuleType || "coding_task";
+    return `${prefix}${sid}_${ssid}_${mtype}_${taskId}`;
+  }
+
+  function loadCachedCode(taskId, moduleType="coding_task"){
     try{
-      const v = localStorage.getItem(CODE_CACHE_PREFIX + taskId);
+      const v = localStorage.getItem(scopedCacheKey(CODE_CACHE_PREFIX, taskId, moduleType));
       return v ?? "";
     }catch(e){
       return "";
     }
   }
 
-  function saveCachedCode(taskId, code){
+  function saveCachedCode(taskId, code, moduleType="coding_task"){
     try{
-      localStorage.setItem(CODE_CACHE_PREFIX + taskId, code);
+      localStorage.setItem(scopedCacheKey(CODE_CACHE_PREFIX, taskId, moduleType), code);
     }catch(e){}
   }
 
-  function loadCachedQuizAnswers(taskId){
+  function loadCachedQuizAnswers(taskId, moduleType="theory_quiz"){
     try{
-      const raw = localStorage.getItem(QUIZ_CACHE_PREFIX + taskId);
+      const raw = localStorage.getItem(scopedCacheKey(QUIZ_CACHE_PREFIX, taskId, moduleType));
       if (!raw) return {};
       const parsed = JSON.parse(raw);
       return parsed && typeof parsed === "object" ? parsed : {};
@@ -959,9 +968,12 @@
     }
   }
 
-  function saveCachedQuizAnswers(taskId, answers){
+  function saveCachedQuizAnswers(taskId, answers, moduleType="theory_quiz"){
     try{
-      localStorage.setItem(QUIZ_CACHE_PREFIX + taskId, JSON.stringify(answers || {}));
+      localStorage.setItem(
+        scopedCacheKey(QUIZ_CACHE_PREFIX, taskId, moduleType),
+        JSON.stringify(answers || {})
+      );
     }catch(e){}
   }
 
@@ -974,7 +986,7 @@
     editor.dispatchEvent(new Event("change", { bubbles: true }));
 
     if (currentTaskId){
-      saveCachedCode(currentTaskId, editor.value);
+      saveCachedCode(currentTaskId, editor.value, currentModuleType);
     }
     return true;
   }
@@ -1194,7 +1206,7 @@
 
   async function openTask(taskId, moduleType, btn){
     if (currentTaskId && currentModuleType === "coding_task"){
-      saveCachedCode(currentTaskId, qs("codeArea").value || "");
+      saveCachedCode(currentTaskId, qs("codeArea").value || "", currentModuleType);
     }
 
     currentTaskId = taskId;
@@ -1253,7 +1265,7 @@
       qs("moduleBlocks").innerHTML = "";
       qs("quizInstructions").textContent = res.data.module.instructions || "";
       const quizQuestions = res.data.module.questions || [];
-      const quizCachedAnswers = loadCachedQuizAnswers(taskId);
+      const quizCachedAnswers = loadCachedQuizAnswers(taskId, "theory_quiz");
       renderQuizQuestionsStudent(quizQuestions, quizCachedAnswers);
       qs("quizCard").dataset.questions = JSON.stringify(quizQuestions);
 
@@ -1340,7 +1352,7 @@
       }
     }
 
-    const cached = loadCachedCode(taskId);
+    const cached = loadCachedCode(taskId, "coding_task");
     qs("codeArea").value = cached || 'print("Hello")';
 
     qs("hintBack1").textContent = "";
@@ -1394,7 +1406,7 @@
       return;
     }
 
-    saveCachedCode(currentTaskId, code);
+    saveCachedCode(currentTaskId, code, currentModuleType);
     lastSubmittedHashByTask[currentTaskId] = h;
 
     submitCooldownUntil = Date.now() + 15000;
@@ -1425,7 +1437,7 @@
 
     const questions = JSON.parse(qs("quizCard").dataset.questions || "[]");
     const answers = collectQuizAnswers(questions);
-    saveCachedQuizAnswers(currentTaskId, answers);
+    saveCachedQuizAnswers(currentTaskId, answers, currentModuleType);
 
     qs("quizSubmitBtn").disabled = true;
     qs("quizSubmitBtn").textContent = UI.submitting;
@@ -1443,7 +1455,7 @@
     }
 
     const attempt = res.data.attempt;
-    saveCachedQuizAnswers(currentTaskId, {});
+    saveCachedQuizAnswers(currentTaskId, {}, currentModuleType);
     qs("quizResultCard").style.display = "block";
     qs("quizScore").textContent = `${attempt.score_percent}%`;
     qs("quizAttemptInfo").textContent = `${attempt.correct_answers}/${attempt.total_questions}`;
@@ -1464,6 +1476,7 @@
 
     qs("studentName").textContent = me.data.student.full_name;
     qs("studentClass").textContent = `${UI.classLabel}: ${me.data.student.class.name}`;
+    currentStudentId = me.data.student.id || null;
 
     showStatus(UI.loadingSession);
     const res = await apiGet("/api/student/active-session");
@@ -1482,6 +1495,7 @@
 
     qs("sessionTitle").textContent = res.data.session.title;
     qs("sessionDesc").textContent = res.data.session.description || "";
+    currentSessionId = res.data.session.id || null;
     qs("sessionTime").textContent =
       `${UI.startLabel}: ${res.data.session.starts_at || "—"} | ${UI.endLabel}: ${res.data.session.ends_at || "—"}`;
 
@@ -1499,7 +1513,7 @@
     qs("quizSubmitBtn").addEventListener("click", submitQuiz);
     qs("codeArea").addEventListener("input", () => {
       if (!currentTaskId || currentModuleType !== "coding_task") return;
-      saveCachedCode(currentTaskId, qs("codeArea").value || "");
+      saveCachedCode(currentTaskId, qs("codeArea").value || "", currentModuleType);
       updateSubmitAvailability();
     });
 

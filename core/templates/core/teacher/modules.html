@@ -260,6 +260,20 @@
     qs("newPosition").value = String(calculateFirstFreePosition(modulesCache));
   }
 
+  function suggestNextBlockOrdinal(blocks){
+    const used = new Set((blocks || []).map(x => Number(x.ordinal) || 0).filter(x => x > 0));
+    let ord = 1;
+    while (used.has(ord)) ord += 1;
+    qs("blockOrdinal").value = String(ord);
+  }
+
+  function suggestNextQuestionOrdinal(questions){
+    const used = new Set((questions || []).map(x => Number(x.ordinal) || 0).filter(x => x > 0));
+    let ord = 1;
+    while (used.has(ord)) ord += 1;
+    qs("questionOrdinal").value = String(ord);
+  }
+
   async function loadSessions(){
     const res = await api("/api/teacher/sessions/");
     if (!res.data.ok) return setMsg(res.data.error || UI.failedLoadSessions);
@@ -400,6 +414,7 @@
         `;
         list.appendChild(div);
       });
+      suggestNextBlockOrdinal(m.blocks || []);
     } else if (item.module_type === "theory_quiz"){
       const res = await api(`/api/teacher/theory-quizzes/${item.id}/`);
       if (!res.data.ok) return setMsg(res.data.error || UI.failedLoadModules);
@@ -412,6 +427,7 @@
       qs("legacyEditor").innerHTML = "";
       qs("blocksList").innerHTML = "";
       renderQuizQuestions(m.questions || []);
+      suggestNextQuestionOrdinal(m.questions || []);
     }
 
     await loadModules();

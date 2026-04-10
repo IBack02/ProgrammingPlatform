@@ -274,6 +274,20 @@
     return u.searchParams.get(name);
   }
 
+  function suggestNextTaskPosition(){
+    const used = new Set((tasks || []).map(t => Number(t.position) || 0).filter(x => x > 0));
+    let pos = 1;
+    while (used.has(pos)) pos += 1;
+    qs("newPos").value = String(pos);
+  }
+
+  function suggestNextTestOrdinal(items){
+    const used = new Set((items || []).map(x => Number(x.ordinal) || 0).filter(x => x > 0));
+    let ord = 1;
+    while (used.has(ord)) ord += 1;
+    qs("newOrd").value = String(ord);
+  }
+
   async function loadSessions(){
     const res = await api("/api/teacher/sessions/");
     if (!res.data.ok){
@@ -321,6 +335,7 @@
 
     tasks = res.data.tasks || [];
     renderTaskList();
+    suggestNextTaskPosition();
     setMsg("");
   }
 
@@ -469,6 +484,7 @@
 
     if (!items.length){
       root.innerHTML = `<div class="muted">${UI.noTests}</div>`;
+      suggestNextTestOrdinal([]);
       return;
     }
 
@@ -497,6 +513,8 @@
       `;
       root.appendChild(box);
     });
+
+    suggestNextTestOrdinal(items);
 
     root.querySelectorAll("button[data-save-test]").forEach(btn => {
       btn.addEventListener("click", async () => {
