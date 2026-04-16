@@ -5,6 +5,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>{{ T.student_portal_title }} - Dashboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <style>
     :root{
       --bg:#f3f5fb;
@@ -37,12 +38,16 @@
     .item-btn:hover{border-color:#93c5fd;}
     .attempt-btn{display:block;text-decoration:none;color:inherit;border:1px solid var(--border);border-radius:10px;background:#fff;padding:10px;}
     .attempt-btn:hover{border-color:#93c5fd;}
-    .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;}
-    .pill{font-size:11px;border-radius:999px;padding:3px 8px;background:#eff6ff;color:#0c4a6e;}
     .actions{display:flex;gap:8px;align-items:center;}
     .ghost,.primary{border:1px solid var(--border);padding:9px 12px;border-radius:10px;background:#fff;cursor:pointer;text-decoration:none;color:#111827;}
     .primary{background:var(--primary);border-color:var(--primary);color:#fff;}
-    canvas{width:100%;height:320px;border:1px solid var(--border);border-radius:10px;background:#fff;}
+    #metricsChartWrap{
+      margin-top:12px;
+      border:1px solid var(--border);
+      border-radius:10px;
+      background:#fff;
+      padding:8px;
+    }
     @media (max-width:1100px){ .grid{grid-template-columns:1fr;} }
   </style>
 </head>
@@ -80,11 +85,10 @@
 
       <div class="card">
         <div class="title">{{ T.performance_by_session|default:"Performance by sessions" }}</div>
-        <div class="row muted" style="margin:8px 0;">
-          <span class="pill">Success %</span>
-          <span class="pill">Avg attempts</span>
+        <div class="muted">{{ T.performance_formula_note|default:"Blue line — task completion %. Red line — successful answers %." }}</div>
+        <div id="metricsChartWrap">
+          <canvas id="metricsChart" height="120"></canvas>
         </div>
-        <canvas id="metricsCanvas" width="900" height="360"></canvas>
       </div>
 
       <div class="card">
@@ -104,47 +108,15 @@
       return await r.json();
     }
 
-    function drawChart(labels, success, avgAttempts){
-      const c = document.getElementById("metricsCanvas");
-      const ctx = c.getContext("2d");
-      const w = c.width, h = c.height;
-      ctx.clearRect(0,0,w,h);
-      const pad = {l:50, r:20, t:20, b:50};
-      const iw = w - pad.l - pad.r;
-      const ih = h - pad.t - pad.b;
-      ctx.strokeStyle = "#e5e7eb";
-      ctx.lineWidth = 1;
-      for (let i=0;i<=5;i++){
-        const y = pad.t + (ih*i/5);
-        ctx.beginPath(); ctx.moveTo(pad.l,y); ctx.lineTo(w-pad.r,y); ctx.stroke();
-      }
-      if (!labels.length) return;
-      const maxAvg = Math.max(1, ...avgAttempts, 1);
-      const toX = i => pad.l + (labels.length === 1 ? iw/2 : (iw*i/(labels.length-1)));
-      const toYSuccess = v => pad.t + ih - (Math.max(0,Math.min(100,v))*ih/100);
-      const toYAvg = v => pad.t + ih - (Math.max(0,v)*ih/maxAvg);
-      ctx.lineWidth = 2;
-      ctx.strokeStyle = "#2563eb";
-      ctx.beginPath();
-      success.forEach((v,i)=>{ const x=toX(i), y=toYSuccess(v); if(i===0)ctx.moveTo(x,y); else ctx.lineTo(x,y);});
-      ctx.stroke();
-      ctx.strokeStyle = "#dc2626";
-      ctx.beginPath();
-      avgAttempts.forEach((v,i)=>{ const x=toX(i), y=toYAvg(v); if(i===0)ctx.moveTo(x,y); else ctx.lineTo(x,y);});
-      ctx.stroke();
-      ctx.fillStyle = "#6b7280";
-      ctx.font = "11px Arial";
-      labels.forEach((label,i)=>{ const x = toX(i); ctx.fillText(String(label).slice(0,14), x-18, h-20); });
-    }
-
     async function init(){
       const data = await apiGet("/api/student/dashboard");
       if (!data.ok){
         window.location.href = "/student/login/";
         return;
       }
+
       document.getElementById("studentName").textContent = data.student.full_name;
-      document.getElementById("studentClass").textContent = `Class: ${data.student.class.name}`;
+      document.getElementById("studentClass").textContent = `{{ T.class_label|default:'Class'|escapejs }}: ${data.student.class.name}`;
 
       const sessionsBox = document.getElementById("sessionsList");
       sessionsBox.innerHTML = "";
@@ -153,7 +125,7 @@
         btn.type = "button";
         btn.className = "item-btn";
         const st = s.is_active_now ? "active" : (s.started_by_student ? "passed" : s.status);
-        btn.innerHTML = `<div><b>${esc(s.title)}</b></div><div class="muted">#${s.id} • ${esc(st)}</div>`;
+        btn.innerHTML = `<div><b>${esc(s.title)}</b></div><div class="muted">#${s.id} | ${esc(st)}</div>`;
         btn.onclick = () => { window.location.href = `/student/?session_id=${s.id}`; };
         sessionsBox.appendChild(btn);
       });
@@ -165,17 +137,64 @@
         link.className = "attempt-btn";
         link.href = `/student/?session_id=${a.session_id}&task_id=${a.task_id}`;
         link.innerHTML = `<div><b>${a.task_position}. ${esc(a.task_title)}</b></div>
-          <div class="muted">${esc(a.session_title)} • ${esc(a.verdict)}</div>`;
+          <div class="muted">${esc(a.session_title)} | ${esc(a.verdict)}</div>`;
         attemptsBox.appendChild(link);
       });
 
-      drawChart(
-        data.chart?.labels || [],
-        data.chart?.successful_answers_percent || [],
-        data.chart?.avg_attempts || []
-      );
+      const chart = data.chart || {};
+      const ctx = document.getElementById("metricsChart");
+      new Chart(ctx, {
+        type: "line",
+        data: {
+          labels: chart.labels || [],
+          datasets: [
+            {
+              label: "{{ T.task_completion_percent|default:'Task completion (%)'|escapejs }}",
+              data: chart.task_completion_rates || [],
+              tension: 0.25,
+              borderWidth: 2,
+              pointRadius: 4,
+              borderColor: "#2563eb",
+              backgroundColor: "#2563eb",
+            },
+            {
+              label: "{{ T.successful_answers_percent|default:'Successful answers (%)'|escapejs }}",
+              data: chart.success_rates || [],
+              tension: 0.25,
+              borderWidth: 2,
+              pointRadius: 4,
+              borderColor: "#dc2626",
+              backgroundColor: "#dc2626",
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          plugins: {
+            legend: { position: "top" },
+            tooltip: {
+              callbacks: {
+                afterBody: (items) => {
+                  const i = items[0].dataIndex;
+                  return [
+                    `{{ T.tasks_solved|default:'Tasks solved'|escapejs }}: ${chart.solved_counts?.[i] ?? 0} / ${chart.total_tasks?.[i] ?? 0}`,
+                    `{{ T.accepted_answers|default:'Accepted answers'|escapejs }}: ${chart.accepted_counts?.[i] ?? 0} / ${chart.total_attempts?.[i] ?? 0}`
+                  ];
+                }
+              }
+            }
+          },
+          scales: {
+            y: {
+              beginAtZero: true,
+              max: 100
+            }
+          }
+        }
+      });
     }
     init();
   </script>
 </body>
 </html>
+

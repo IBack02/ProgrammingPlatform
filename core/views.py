@@ -1535,26 +1535,32 @@ def student_dashboard_data(request: HttpRequest):
     submissions_group = (
         Submission.objects
         .filter(progress__student_session_id__in=ss_ids)
-        .values("progress__task__session_id")
+        .values("progress__student_session_id")
         .annotate(
             total=Count("id"),
             accepted=Count("id", filter=Q(verdict=Submission.Verdict.ACCEPTED)),
         )
     )
     submissions_map = {
-        row["progress__task__session_id"]: {"total": row["total"], "accepted": row["accepted"]}
+        row["progress__student_session_id"]: {"total": row["total"], "accepted": row["accepted"]}
         for row in submissions_group
     }
-
-    avg_attempts_group = (
-        StudentTaskProgress.objects
-        .filter(student_session_id__in=ss_ids, attempts_total__gt=0)
-        .values("task__session_id")
-        .annotate(avg_attempts=Avg("attempts_total"))
-    )
-    avg_attempts_map = {
-        row["task__session_id"]: round(float(row["avg_attempts"] or 0.0), 2)
-        for row in avg_attempts_group
+    total_tasks_map = {
+        row["session_id"]: row["c"]
+        for row in SessionTask.objects.filter(session_id__in=session_ids)
+        .values("session_id")
+        .annotate(c=Count("id"))
+    }
+    solved_progress_map = {
+        row["student_session_id"]: row["c"]
+        for row in StudentTaskProgress.objects.filter(student_session_id__in=ss_ids)
+        .filter(
+            Q(status=StudentTaskProgress.Status.SOLVED)
+            | Q(status=StudentTaskProgress.Status.LOCKED)
+            | Q(solved_at__isnull=False)
+        )
+        .values("student_session_id")
+        .annotate(c=Count("task_id", distinct=True))
     }
 
     latest_sub_session = (
@@ -1567,15 +1573,26 @@ def student_dashboard_data(request: HttpRequest):
 
     sessions_out = []
     chart_labels = []
+    chart_completion = []
     chart_success = []
-    chart_avg_attempts = []
+    chart_solved_counts = []
+    chart_total_tasks = []
+    chart_accepted_counts = []
+    chart_total_attempts = []
 
     for session in sessions:
-        sub_stats = submissions_map.get(session.id, {"total": 0, "accepted": 0})
+        ss = ss_map.get(session.id)
+        ss_id = ss.id if ss else None
+
+        session_total_tasks = int(total_tasks_map.get(session.id, 0) or 0)
+        session_solved = int(solved_progress_map.get(ss_id, 0) or 0) if ss_id else 0
+
+        sub_stats = submissions_map.get(ss_id, {"total": 0, "accepted": 0}) if ss_id else {"total": 0, "accepted": 0}
         total_sub = int(sub_stats.get("total") or 0)
         accepted_sub = int(sub_stats.get("accepted") or 0)
+
+        task_completion_percent = round((session_solved * 100.0 / session_total_tasks), 2) if session_total_tasks > 0 else 0.0
         success_percent = round((accepted_sub * 100.0 / total_sub), 2) if total_sub > 0 else 0.0
-        avg_attempts = avg_attempts_map.get(session.id, 0.0)
         latest_sub_at = latest_sub_map.get(session.id)
         sessions_out.append(
             {
@@ -1586,14 +1603,22 @@ def student_dashboard_data(request: HttpRequest):
                 "ends_at": session.ends_at.isoformat() if session.ends_at else None,
                 "is_active_now": session.is_active_now(),
                 "started_by_student": session.id in ss_map,
+                "task_completion_percent": task_completion_percent,
                 "successful_answers_percent": success_percent,
-                "avg_attempts": avg_attempts,
+                "tasks_solved": session_solved,
+                "total_tasks": session_total_tasks,
+                "accepted_answers": accepted_sub,
+                "total_attempts": total_sub,
                 "latest_submission_at": latest_sub_at.isoformat() if latest_sub_at else None,
             }
         )
         chart_labels.append(session.title)
+        chart_completion.append(task_completion_percent)
         chart_success.append(success_percent)
-        chart_avg_attempts.append(avg_attempts)
+        chart_solved_counts.append(session_solved)
+        chart_total_tasks.append(session_total_tasks)
+        chart_accepted_counts.append(accepted_sub)
+        chart_total_attempts.append(total_sub)
 
     latest_attempts = (
         Submission.objects
@@ -1631,8 +1656,12 @@ def student_dashboard_data(request: HttpRequest):
             "sessions": sessions_out,
             "chart": {
                 "labels": chart_labels,
-                "successful_answers_percent": chart_success,
-                "avg_attempts": chart_avg_attempts,
+                "task_completion_rates": chart_completion,
+                "success_rates": chart_success,
+                "solved_counts": chart_solved_counts,
+                "total_tasks": chart_total_tasks,
+                "accepted_counts": chart_accepted_counts,
+                "total_attempts": chart_total_attempts,
             },
             "last_attempts": attempts_out,
         }
