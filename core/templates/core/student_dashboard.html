@@ -47,7 +47,11 @@
       border-radius:10px;
       background:#fff;
       padding:8px;
+      height: 360px;
+      box-sizing: border-box;
+      position: relative;
     }
+    #metricsChart{width:100% !important;height:100% !important;}
     @media (max-width:1100px){ .grid{grid-template-columns:1fr;} }
   </style>
 </head>
@@ -87,7 +91,7 @@
         <div class="title">{{ T.performance_by_session|default:"Performance by sessions" }}</div>
         <div class="muted">{{ T.performance_formula_note|default:"Blue line — task completion %. Red line — successful answers %." }}</div>
         <div id="metricsChartWrap">
-          <canvas id="metricsChart" height="120"></canvas>
+          <canvas id="metricsChart"></canvas>
         </div>
       </div>
 
@@ -170,6 +174,10 @@
         },
         options: {
           responsive: true,
+          maintainAspectRatio: false,
+          layout: {
+            padding: { top: 14, right: 8, bottom: 6, left: 8 }
+          },
           plugins: {
             legend: { position: "top" },
             tooltip: {
@@ -188,6 +196,17 @@
             y: {
               beginAtZero: true,
               max: 100
+            },
+            x: {
+              ticks: {
+                autoSkip: false,
+                maxRotation: 20,
+                minRotation: 20,
+                padding: 8
+              },
+              grid: {
+                drawBorder: false
+              }
             }
           }
         }
@@ -197,4 +216,3 @@
   </script>
 </body>
 </html>
-
