@@ -10,12 +10,14 @@ urlpatterns = [
 
     # Student session/tasks API
     path("api/student/active-session", views.student_active_session, name="student_active_session"),
+    path("api/student/dashboard", views.student_dashboard_data, name="student_dashboard_data"),
     path("api/student/task/<int:task_id>", views.student_task_detail, name="student_task_detail"),
     path("api/student/task/<int:task_id>/submit", views.student_submit, name="student_submit"),
     path("api/student/task/<int:task_id>/hint/<int:level>", views.student_hint_level, name="student_hint_level"),
 
     # Student pages
     path("student/login/", views.student_login_page, name="student_login_page"),
+    path("student/dashboard/", views.student_dashboard_page, name="student_dashboard_page"),
     path("student/", views.student_portal_page, name="student_portal_page"),
     path("student/logout/", views.student_logout_page, name="student_logout_page"),
 

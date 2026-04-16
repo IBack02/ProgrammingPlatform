@@ -24,9 +24,9 @@
       --ui-font-default: Arial, "Segoe UI", sans-serif;
       --ui-font-kk: "Noto Sans", "DejaVu Sans", "Segoe UI", Arial, sans-serif;
       --code-font: Consolas, "Courier New", monospace;
-      --module-bg-theory: url("https://drive.google.com/thumbnail?id=17G440sCJAx5DlOhOzi6IRx2UvxJyf1nZ&sz=w2200");
-      --module-bg-quiz: url("https://drive.google.com/thumbnail?id=17G440sCJAx5DlOhOzi6IRx2UvxJyf1nZ&sz=w2200");
-      --module-bg-coding: url("https://drive.google.com/thumbnail?id=17G440sCJAx5DlOhOzi6IRx2UvxJyf1nZ&sz=w2200");
+      --module-bg-theory: {% if bg_urls.theory %}url("{{ bg_urls.theory|escape }}"){% else %}none{% endif %};
+      --module-bg-quiz: {% if bg_urls.quiz %}url("{{ bg_urls.quiz|escape }}"){% else %}none{% endif %};
+      --module-bg-coding: {% if bg_urls.coding %}url("{{ bg_urls.coding|escape }}"){% else %}none{% endif %};
     }
 
     body {
@@ -456,6 +456,7 @@
             {% csrf_token %}
             <button class="ghost" type="submit">{{ T.logout }}</button>
           </form>
+          <a class="ghost" href="/student/dashboard/" style="text-decoration:none;">{{ T.dashboard|default:"Dashboard" }}</a>
         </div>
       </div>
 
@@ -642,6 +643,7 @@
     statusCooldown: "{{ T.status_cooldown|escapejs }}",
     statusCodeUnchanged: "{{ T.status_code_unchanged|escapejs }}",
     statusReady: "{{ T.status_ready|escapejs }}",
+    readOnlySolved: "{{ T.readonly_solved_view|default:'Solved: read-only mode'|escapejs }}",
     hintTextEmpty: "{{ T.hint_text_empty|escapejs }}",
     notStarted: "{{ T.not_started|escapejs }}",
     inProgress: "{{ T.in_progress|escapejs }}",
@@ -671,6 +673,7 @@
   let submitCooldownUntil = 0;
   let hintCooldownUntil = {1:0, 2:0, 3:0};
   let lastProgress = null;
+  let currentReadOnlyMode = false;
 
   function qs(id){ return document.getElementById(id); }
 
@@ -690,6 +693,11 @@
       result = result.replaceAll(`{${key}}`, String(values[key]));
     });
     return result;
+  }
+
+  function getQueryParam(name){
+    const u = new URL(window.location.href);
+    return u.searchParams.get(name);
   }
 
   function statusLabel(st){
@@ -777,6 +785,35 @@
       document.body.classList.add("module-bg-quiz");
     } else {
       document.body.classList.add("module-bg-coding");
+    }
+  }
+
+  function setContentMode(moduleType){
+    const taskPane = qs("taskPane");
+    const editorPane = qs("editorPane");
+    const resizer = qs("contentResizer");
+
+    taskPane.style.width = "";
+    taskPane.style.maxWidth = "";
+    taskPane.style.display = "block";
+    editorPane.style.display = "block";
+    editorPane.style.paddingLeft = "10px";
+    editorPane.style.maxWidth = "";
+    editorPane.style.margin = "";
+    resizer.style.display = "block";
+
+    if (moduleType === "theory_material"){
+      resizer.style.display = "none";
+      editorPane.style.display = "none";
+      taskPane.style.width = "100%";
+      taskPane.style.maxWidth = "100%";
+    } else if (moduleType === "theory_quiz"){
+      resizer.style.display = "none";
+      taskPane.style.display = "none";
+      editorPane.style.display = "block";
+      editorPane.style.paddingLeft = "0";
+      editorPane.style.maxWidth = "960px";
+      editorPane.style.margin = "0 auto";
     }
   }
 
@@ -1005,6 +1042,11 @@
 
   async function updateSubmitAvailability(){
     if (!currentTaskId || currentModuleType !== "coding_task") return;
+    if (currentReadOnlyMode){
+      setSubmitButtonState(false, UI.submitSolution);
+      qs("submitState").textContent = UI.readOnlySolved;
+      return;
+    }
 
     const left = getSubmitCooldownLeft();
     if (left > 0){
@@ -1211,7 +1253,9 @@
 
     currentTaskId = taskId;
     currentModuleType = moduleType || "coding_task";
+    currentReadOnlyMode = false;
     setModuleBackground(currentModuleType);
+    setContentMode(currentModuleType);
 
     document.querySelectorAll(".taskbtn").forEach(b => b.classList.remove("active"));
     if (btn) btn.classList.add("active");
@@ -1240,6 +1284,7 @@
       renderTheoryBlocks(res.data.module.blocks || []);
 
       lastProgress = null;
+      currentReadOnlyMode = false;
       hideStatus();
       return;
     }
@@ -1282,6 +1327,7 @@
       }
 
       lastProgress = null;
+      currentReadOnlyMode = false;
       hideStatus();
       return;
     }
@@ -1292,13 +1338,6 @@
     const res = await apiGet(`/api/student/task/${taskId}`);
     if (!res.data.ok){
       showStatus(res.data.error || UI.failedLoadTask);
-      return;
-    }
-
-    if (res.data.locked){
-      showStatus(res.data.message || UI.taskLocked);
-      qs("taskCard").style.display = "none";
-      qs("editorCard").style.display = "none";
       return;
     }
 
@@ -1352,8 +1391,16 @@
       }
     }
 
-    const cached = loadCachedCode(taskId, "coding_task");
-    qs("codeArea").value = cached || 'print("Hello")';
+    currentReadOnlyMode = !!res.data.read_only_mode;
+    qs("hintsPanel").style.display = currentReadOnlyMode ? "none" : "block";
+    if (currentReadOnlyMode){
+      qs("codeArea").value = (res.data.readonly_code || "").trim();
+      qs("codeArea").readOnly = true;
+    } else {
+      const cached = loadCachedCode(taskId, "coding_task");
+      qs("codeArea").value = cached || 'print("Hello")';
+      qs("codeArea").readOnly = false;
+    }
 
     qs("hintBack1").textContent = "";
     qs("hintBack2").textContent = "";
@@ -1373,7 +1420,7 @@
       return;
     }
 
-    if (currentModuleType !== "coding_task"){
+    if (currentModuleType !== "coding_task" || currentReadOnlyMode){
       return;
     }
 
@@ -1479,7 +1526,12 @@
     currentStudentId = me.data.student.id || null;
 
     showStatus(UI.loadingSession);
-    const res = await apiGet("/api/student/active-session");
+    const qSession = getQueryParam("session_id");
+    const qTask = getQueryParam("task_id");
+    const sessionUrl = qSession
+      ? `/api/student/active-session?session_id=${encodeURIComponent(qSession)}`
+      : "/api/student/active-session";
+    const res = await apiGet(sessionUrl);
 
     if (!res.data.ok){
       showStatus(res.data.error || UI.failedLoadSession);
@@ -1503,9 +1555,12 @@
     renderTasks(res.data.tasks);
 
     if (res.data.tasks && res.data.tasks.length > 0){
-      const first = res.data.tasks[0];
-      const firstBtn = document.querySelector(`.taskbtn[data-id="${first.id}"]`);
-      await openTask(first.id, first.module_type || "coding_task", firstBtn);
+      const requestedTaskId = qTask ? Number(qTask) : null;
+      const target = requestedTaskId
+        ? (res.data.tasks.find(t => Number(t.id) === requestedTaskId) || res.data.tasks[0])
+        : res.data.tasks[0];
+      const firstBtn = document.querySelector(`.taskbtn[data-id="${target.id}"]`);
+      await openTask(target.id, target.module_type || "coding_task", firstBtn);
     } else {
       hideStatus();
     }

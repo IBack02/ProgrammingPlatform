@@ -4,9 +4,10 @@ import random
 import re
 from functools import wraps
 
+from django.conf import settings
 from django.contrib.admin.views.decorators import staff_member_required
 from django.db import transaction
-from django.db.models import Count, F, Q, Sum
+from django.db.models import Avg, Count, F, Max, Q, Sum
 from django.http import HttpRequest, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
@@ -101,6 +102,65 @@ def _get_logged_in_teacher(request: HttpRequest):
 
 def _teacher_api_unauthorized():
     return JsonResponse({"ok": False, "error": "not authenticated"}, status=401)
+
+
+def _student_background_urls() -> dict:
+    default_dashboard = "https://drive.google.com/thumbnail?id=1Y6rWFq1wTLT8rqeicZE9tVOK5lHfzhN6&sz=w2200"
+    default_coding = "https://drive.google.com/thumbnail?id=1fG9zQKwkQP79ainWjq1Ihq0mLo-Kn2Ah&sz=w2200"
+    default_quiz = "https://drive.google.com/thumbnail?id=1Yd805wNkD-dWI-UhCAMK8L9ID1tWR7L4&sz=w2200"
+    default_theory = "https://drive.google.com/thumbnail?id=17G440sCJAx5DlOhOzi6IRx2UvxJyf1nZ&sz=w2200"
+    return {
+        "dashboard": getattr(settings, "STUDENT_BG_DASHBOARD_URL", default_dashboard).strip(),
+        "coding": getattr(settings, "STUDENT_BG_CODING_URL", default_coding).strip(),
+        "quiz": getattr(settings, "STUDENT_BG_QUIZ_URL", default_quiz).strip(),
+        "theory": getattr(settings, "STUDENT_BG_THEORY_URL", default_theory).strip(),
+    }
+
+
+def _student_can_access_session(session: Session, *, class_id: int, student_id: int) -> bool:
+    has_class = SessionClass.objects.filter(session=session, class_group_id=class_id).exists()
+    if not has_class:
+        return False
+    if session.status == SESSION_STATUS_DRAFT:
+        return False
+    if session.is_active_now():
+        return True
+    return StudentSession.objects.filter(student_id=student_id, session=session).exists()
+
+
+def _student_accessible_sessions(*, class_id: int, student_id: int):
+    sessions = (
+        Session.objects
+        .filter(allowed_classes__id=class_id)
+        .exclude(status=SESSION_STATUS_DRAFT)
+        .distinct()
+        .order_by("-starts_at", "-created_at")
+    )
+    return [s for s in sessions if _student_can_access_session(s, class_id=class_id, student_id=student_id)]
+
+
+def _resolve_student_portal_session(
+    request: HttpRequest,
+    *,
+    class_id: int,
+    student_id: int,
+):
+    sessions = _student_accessible_sessions(class_id=class_id, student_id=student_id)
+    if not sessions:
+        return None, []
+
+    selected_raw = request.GET.get("session_id") or request.session.get("student_selected_session_id")
+    selected = None
+    if selected_raw is not None:
+        try:
+            selected_id = int(selected_raw)
+            selected = next((s for s in sessions if s.id == selected_id), None)
+        except (TypeError, ValueError):
+            selected = None
+
+    session = selected or sessions[0]
+    request.session["student_selected_session_id"] = session.id
+    return session, sessions
 
 
 def teacher_required(view_func):
@@ -576,10 +636,14 @@ def student_active_session(request: HttpRequest):
     if not class_id:
         return JsonResponse({"ok": False, "error": "invalid session"}, status=401)
 
-    session = _get_active_session_for_class(class_id)
+    session, sessions = _resolve_student_portal_session(
+        request,
+        class_id=class_id,
+        student_id=student_id,
+    )
     if not session:
         return JsonResponse(
-            {"ok": True, "active": False, "message": "Current session is inactive"},
+            {"ok": True, "active": False, "message": "No available sessions"},
             status=200,
         )
 
@@ -667,6 +731,17 @@ def student_active_session(request: HttpRequest):
                 "starts_at": session.starts_at.isoformat() if session.starts_at else None,
                 "ends_at": session.ends_at.isoformat() if session.ends_at else None,
             },
+            "sessions": [
+                {
+                    "id": s.id,
+                    "title": s.title,
+                    "status": _normalize_session_status_out(s.status),
+                    "starts_at": s.starts_at.isoformat() if s.starts_at else None,
+                    "ends_at": s.ends_at.isoformat() if s.ends_at else None,
+                    "is_active_now": s.is_active_now(),
+                }
+                for s in sessions
+            ],
             "tasks": tasks_out,
         }
     )
@@ -679,19 +754,26 @@ def student_task_detail(request: HttpRequest, task_id: int):
     if not student_id:
         return JsonResponse({"ok": False, "error": "not authenticated"}, status=401)
 
-    session = _get_active_session_for_class(class_id)
-    if not session:
-        return JsonResponse({"ok": True, "active": False, "message": "Current session is inactive"}, status=200)
+    task = get_object_or_404(SessionTask.objects.select_related("session"), id=task_id)
+    session = task.session
+    if not _student_can_access_session(session, class_id=class_id, student_id=student_id):
+        return JsonResponse({"ok": False, "error": "session is not accessible"}, status=403)
 
-    task = get_object_or_404(SessionTask, id=task_id, session=session)
     ss, now = _get_or_create_student_session(student_id, session)
     progress = _get_or_create_progress(ss, task, now)
-
-    if progress.status == StudentTaskProgress.Status.SOLVED and progress.locked_after_solve:
-        return JsonResponse(
-            {"ok": True, "locked": True, "message": "Task already solved and locked"},
-            status=200,
+    read_only_mode = bool(
+        progress.status == StudentTaskProgress.Status.SOLVED and progress.locked_after_solve
+    )
+    readonly_code = ""
+    if read_only_mode:
+        accepted = (
+            Submission.objects
+            .filter(progress=progress, verdict=Submission.Verdict.ACCEPTED)
+            .order_by("-attempt_no")
+            .first()
         )
+        latest = accepted or Submission.objects.filter(progress=progress).order_by("-attempt_no").first()
+        readonly_code = (latest.code if latest else "") or ""
 
     visible_tests = list(
         TaskTestCase.objects.filter(task=task, is_visible=True)
@@ -704,6 +786,8 @@ def student_task_detail(request: HttpRequest, task_id: int):
         {
             "ok": True,
             "locked": False,
+            "read_only_mode": read_only_mode,
+            "readonly_code": readonly_code,
             "task": {
                 "id": task.id,
                 "position": task.position,
@@ -733,16 +817,14 @@ def student_theory_module_detail(request: HttpRequest, module_id: int):
     if not student_id:
         return JsonResponse({"ok": False, "error": "not authenticated"}, status=401)
 
-    session = _get_active_session_for_class(class_id)
-    if not session:
-        return JsonResponse({"ok": True, "active": False, "message": "Current session is inactive"}, status=200)
-
     module = get_object_or_404(
-        TheoryMaterialModule.objects.prefetch_related("blocks"),
+        TheoryMaterialModule.objects.select_related("session").prefetch_related("blocks"),
         id=module_id,
-        session=session,
         is_active=True,
     )
+    session = module.session
+    if not _student_can_access_session(session, class_id=class_id, student_id=student_id):
+        return JsonResponse({"ok": False, "error": "session is not accessible"}, status=403)
 
     return JsonResponse({
         "ok": True,
@@ -763,16 +845,14 @@ def student_theory_quiz_detail(request: HttpRequest, module_id: int):
     if not student_id:
         return JsonResponse({"ok": False, "error": "not authenticated"}, status=401)
 
-    session = _get_active_session_for_class(class_id)
-    if not session:
-        return JsonResponse({"ok": True, "active": False, "message": "Current session is inactive"}, status=200)
-
     module = get_object_or_404(
-        TheoryQuizModule.objects.prefetch_related("questions__choices", "questions__pairs"),
+        TheoryQuizModule.objects.select_related("session").prefetch_related("questions__choices", "questions__pairs"),
         id=module_id,
-        session=session,
         is_active=True,
     )
+    session = module.session
+    if not _student_can_access_session(session, class_id=class_id, student_id=student_id):
+        return JsonResponse({"ok": False, "error": "session is not accessible"}, status=403)
 
     ss, _ = _get_or_create_student_session(student_id, session)
     last_attempt = (
@@ -839,16 +919,14 @@ def student_theory_quiz_submit(request: HttpRequest, module_id: int):
     if not student_id:
         return JsonResponse({"ok": False, "error": "not authenticated"}, status=401)
 
-    session = _get_active_session_for_class(class_id)
-    if not session:
-        return JsonResponse({"ok": True, "active": False, "message": "Current session is inactive"}, status=200)
-
     module = get_object_or_404(
-        TheoryQuizModule.objects.prefetch_related("questions__choices", "questions__pairs"),
+        TheoryQuizModule.objects.select_related("session").prefetch_related("questions__choices", "questions__pairs"),
         id=module_id,
-        session=session,
         is_active=True,
     )
+    session = module.session
+    if not _student_can_access_session(session, class_id=class_id, student_id=student_id):
+        return JsonResponse({"ok": False, "error": "session is not accessible"}, status=403)
 
     data = _json_body(request)
     answers = data.get("answers") or {}
@@ -966,11 +1044,10 @@ def student_submit(request: HttpRequest, task_id: int):
     if not student_id:
         return JsonResponse({"ok": False, "error": "not authenticated"}, status=401)
 
-    session = _get_active_session_for_class(class_id)
-    if not session:
-        return JsonResponse({"ok": True, "active": False, "message": "Current session is inactive"}, status=200)
-
-    task = get_object_or_404(SessionTask, id=task_id, session=session)
+    task = get_object_or_404(SessionTask.objects.select_related("session"), id=task_id)
+    session = task.session
+    if not _student_can_access_session(session, class_id=class_id, student_id=student_id):
+        return JsonResponse({"ok": False, "error": "session is not accessible"}, status=403)
     data = _json_body(request)
     user_code = (data.get("code") or "").rstrip()
 
@@ -1175,11 +1252,10 @@ def student_hint_level(request: HttpRequest, task_id: int, level: int):
     if level not in (1, 2, 3):
         return JsonResponse({"ok": False, "error": "invalid level"}, status=400)
 
-    session = _get_active_session_for_class(class_id)
-    if not session:
-        return JsonResponse({"ok": True, "active": False, "message": "Current session is inactive"}, status=200)
-
-    task = get_object_or_404(SessionTask, id=task_id, session=session)
+    task = get_object_or_404(SessionTask.objects.select_related("session"), id=task_id)
+    session = task.session
+    if not _student_can_access_session(session, class_id=class_id, student_id=student_id):
+        return JsonResponse({"ok": False, "error": "session is not accessible"}, status=403)
 
     now = timezone.now()
     ss, _ = StudentSession.objects.get_or_create(
@@ -1420,13 +1496,147 @@ def student_login_page(request: HttpRequest):
     request.session["student_name"] = student.full_name
     request.session["student_class_id"] = student.class_group_id
     request.session["student_logged_in_at"] = timezone.now().isoformat()
-    return redirect("/student/")
+    return redirect("/student/dashboard/")
 
 
 def student_portal_page(request: HttpRequest):
     if not _student_id(request):
         return redirect("/student/login/")
-    return render(request, "core/student_portal.html")
+    return render(request, "core/student_portal.html", {"bg_urls": _student_background_urls()})
+
+
+def student_dashboard_page(request: HttpRequest):
+    if not _student_id(request):
+        return redirect("/student/login/")
+    return render(request, "core/student_dashboard.html", {"bg_urls": _student_background_urls()})
+
+
+@require_GET
+def student_dashboard_data(request: HttpRequest):
+    student_id, class_id = _get_student_from_session(request)
+    if not student_id:
+        return JsonResponse({"ok": False, "error": "not authenticated"}, status=401)
+
+    student = (
+        Student.objects.select_related("class_group")
+        .filter(id=student_id, is_active=True)
+        .first()
+    )
+    if not student:
+        return JsonResponse({"ok": False, "error": "not authenticated"}, status=401)
+
+    sessions = _student_accessible_sessions(class_id=class_id, student_id=student_id)
+    session_ids = [s.id for s in sessions]
+
+    ss_qs = StudentSession.objects.filter(student_id=student_id, session_id__in=session_ids)
+    ss_ids = list(ss_qs.values_list("id", flat=True))
+    ss_map = {x.session_id: x for x in ss_qs}
+
+    submissions_group = (
+        Submission.objects
+        .filter(progress__student_session_id__in=ss_ids)
+        .values("progress__task__session_id")
+        .annotate(
+            total=Count("id"),
+            accepted=Count("id", filter=Q(verdict=Submission.Verdict.ACCEPTED)),
+        )
+    )
+    submissions_map = {
+        row["progress__task__session_id"]: {"total": row["total"], "accepted": row["accepted"]}
+        for row in submissions_group
+    }
+
+    avg_attempts_group = (
+        StudentTaskProgress.objects
+        .filter(student_session_id__in=ss_ids, attempts_total__gt=0)
+        .values("task__session_id")
+        .annotate(avg_attempts=Avg("attempts_total"))
+    )
+    avg_attempts_map = {
+        row["task__session_id"]: round(float(row["avg_attempts"] or 0.0), 2)
+        for row in avg_attempts_group
+    }
+
+    latest_sub_session = (
+        Submission.objects
+        .filter(progress__student_session_id__in=ss_ids)
+        .values("progress__task__session_id")
+        .annotate(last_sub_at=Max("submitted_at"))
+    )
+    latest_sub_map = {row["progress__task__session_id"]: row["last_sub_at"] for row in latest_sub_session}
+
+    sessions_out = []
+    chart_labels = []
+    chart_success = []
+    chart_avg_attempts = []
+
+    for session in sessions:
+        sub_stats = submissions_map.get(session.id, {"total": 0, "accepted": 0})
+        total_sub = int(sub_stats.get("total") or 0)
+        accepted_sub = int(sub_stats.get("accepted") or 0)
+        success_percent = round((accepted_sub * 100.0 / total_sub), 2) if total_sub > 0 else 0.0
+        avg_attempts = avg_attempts_map.get(session.id, 0.0)
+        latest_sub_at = latest_sub_map.get(session.id)
+        sessions_out.append(
+            {
+                "id": session.id,
+                "title": session.title,
+                "status": _normalize_session_status_out(session.status),
+                "starts_at": session.starts_at.isoformat() if session.starts_at else None,
+                "ends_at": session.ends_at.isoformat() if session.ends_at else None,
+                "is_active_now": session.is_active_now(),
+                "started_by_student": session.id in ss_map,
+                "successful_answers_percent": success_percent,
+                "avg_attempts": avg_attempts,
+                "latest_submission_at": latest_sub_at.isoformat() if latest_sub_at else None,
+            }
+        )
+        chart_labels.append(session.title)
+        chart_success.append(success_percent)
+        chart_avg_attempts.append(avg_attempts)
+
+    latest_attempts = (
+        Submission.objects
+        .select_related("progress__task__session")
+        .filter(progress__student_session__student_id=student_id)
+        .order_by("-submitted_at")[:10]
+    )
+    attempts_out = []
+    for sub in latest_attempts:
+        task = sub.progress.task
+        session = task.session
+        if session.id not in session_ids:
+            continue
+        attempts_out.append(
+            {
+                "submission_id": sub.id,
+                "submitted_at": sub.submitted_at.isoformat() if sub.submitted_at else None,
+                "verdict": sub.verdict,
+                "session_id": session.id,
+                "session_title": session.title,
+                "task_id": task.id,
+                "task_position": task.position,
+                "task_title": task.title,
+            }
+        )
+
+    return JsonResponse(
+        {
+            "ok": True,
+            "student": {
+                "id": student.id,
+                "full_name": student.full_name,
+                "class": {"id": student.class_group_id, "name": student.class_group.name},
+            },
+            "sessions": sessions_out,
+            "chart": {
+                "labels": chart_labels,
+                "successful_answers_percent": chart_success,
+                "avg_attempts": chart_avg_attempts,
+            },
+            "last_attempts": attempts_out,
+        }
+    )
 
 
 @require_POST

@@ -1,0 +1,181 @@
+{% load static %}
+<!doctype html>
+<html lang="{{ ui_lang|default:'en' }}">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>{{ T.student_portal_title }} - Dashboard</title>
+  <style>
+    :root{
+      --bg:#f3f5fb;
+      --card:#ffffff;
+      --border:#e5e7eb;
+      --muted:#6b7280;
+      --primary:#0ea5e9;
+      --ui-font-default: Arial, "Segoe UI", sans-serif;
+      --ui-font-kk: "Noto Sans", "DejaVu Sans", "Segoe UI", Arial, sans-serif;
+    }
+    body{
+      margin:0;
+      font-family:{% if ui_lang == 'kk' %}var(--ui-font-kk){% else %}var(--ui-font-default){% endif %};
+      background:
+        linear-gradient(rgba(243,245,251,.88), rgba(243,245,251,.95)),
+        {% if bg_urls.dashboard %}url("{{ bg_urls.dashboard|escape }}"){% else %}linear-gradient(120deg,#dbeafe,#e0f2fe){% endif %};
+      background-size:cover;
+      background-position:center center;
+      min-height:100vh;
+    }
+    .wrap{max-width:1280px;margin:0 auto;padding:18px;}
+    .top{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;margin-bottom:12px;}
+    .card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:14px;box-shadow:0 10px 20px rgba(17,24,39,.06);}
+    .title{font-size:20px;font-weight:800;}
+    .muted{color:var(--muted);font-size:12px;}
+    .avatar{width:56px;height:56px;border-radius:50%;background:#e0f2fe;display:flex;align-items:center;justify-content:center;font-size:24px;}
+    .grid{display:grid;grid-template-columns:1fr 1.2fr .9fr;gap:12px;}
+    .list{display:flex;flex-direction:column;gap:8px;max-height:66vh;overflow:auto;}
+    .item-btn{border:1px solid var(--border);border-radius:10px;background:#fff;padding:10px;text-align:left;cursor:pointer;}
+    .item-btn:hover{border-color:#93c5fd;}
+    .attempt-btn{display:block;text-decoration:none;color:inherit;border:1px solid var(--border);border-radius:10px;background:#fff;padding:10px;}
+    .attempt-btn:hover{border-color:#93c5fd;}
+    .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;}
+    .pill{font-size:11px;border-radius:999px;padding:3px 8px;background:#eff6ff;color:#0c4a6e;}
+    .actions{display:flex;gap:8px;align-items:center;}
+    .ghost,.primary{border:1px solid var(--border);padding:9px 12px;border-radius:10px;background:#fff;cursor:pointer;text-decoration:none;color:#111827;}
+    .primary{background:var(--primary);border-color:var(--primary);color:#fff;}
+    canvas{width:100%;height:320px;border:1px solid var(--border);border-radius:10px;background:#fff;}
+    @media (max-width:1100px){ .grid{grid-template-columns:1fr;} }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="top">
+      <div class="card" style="display:flex;gap:12px;align-items:center;">
+        <div class="avatar">U</div>
+        <div>
+          <div class="title" id="studentName">{{ T.student_portal_title }}</div>
+          <div class="muted" id="studentClass"></div>
+        </div>
+      </div>
+      <div class="actions">
+        <form method="post" action="/set-ui-language/">
+          {% csrf_token %}
+          <input type="hidden" name="next" value="{{ request.get_full_path }}">
+          <select name="lang" onchange="this.form.submit()" style="border:1px solid var(--border);padding:9px;border-radius:10px;">
+            <option value="ru" {% if ui_lang == 'ru' %}selected{% endif %}>{{ T.russian }}</option>
+            <option value="kk" {% if ui_lang == 'kk' %}selected{% endif %}>{{ T.kazakh }}</option>
+            <option value="en" {% if ui_lang == 'en' %}selected{% endif %}>{{ T.english }}</option>
+          </select>
+        </form>
+        <a class="primary" href="/student/">{{ T.session|default:"Portal" }}</a>
+        <form method="post" action="/student/logout/">{% csrf_token %}<button class="ghost" type="submit">{{ T.logout }}</button></form>
+      </div>
+    </div>
+
+    <div class="grid">
+      <div class="card">
+        <div class="title">{{ T.sessions|default:"Sessions" }}</div>
+        <div class="muted" style="margin-top:4px;">{{ T.select_session|default:"Select a session" }}</div>
+        <div class="list" id="sessionsList" style="margin-top:10px;"></div>
+      </div>
+
+      <div class="card">
+        <div class="title">{{ T.performance_by_session|default:"Performance by sessions" }}</div>
+        <div class="row muted" style="margin:8px 0;">
+          <span class="pill">Success %</span>
+          <span class="pill">Avg attempts</span>
+        </div>
+        <canvas id="metricsCanvas" width="900" height="360"></canvas>
+      </div>
+
+      <div class="card">
+        <div class="title">{{ T.total_attempts|default:"Last attempts" }}</div>
+        <div class="muted" style="margin-top:4px;">10 latest submissions</div>
+        <div class="list" id="attemptsList" style="margin-top:10px;"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function esc(s){ return String(s||"").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;"); }
+    async function apiGet(url){
+      const r = await fetch(url, { credentials:"include", headers:{ "Accept":"application/json" } });
+      const ct = r.headers.get("content-type") || "";
+      if (!ct.includes("application/json")) return { ok:false, error:"Non-JSON response" };
+      return await r.json();
+    }
+
+    function drawChart(labels, success, avgAttempts){
+      const c = document.getElementById("metricsCanvas");
+      const ctx = c.getContext("2d");
+      const w = c.width, h = c.height;
+      ctx.clearRect(0,0,w,h);
+      const pad = {l:50, r:20, t:20, b:50};
+      const iw = w - pad.l - pad.r;
+      const ih = h - pad.t - pad.b;
+      ctx.strokeStyle = "#e5e7eb";
+      ctx.lineWidth = 1;
+      for (let i=0;i<=5;i++){
+        const y = pad.t + (ih*i/5);
+        ctx.beginPath(); ctx.moveTo(pad.l,y); ctx.lineTo(w-pad.r,y); ctx.stroke();
+      }
+      if (!labels.length) return;
+      const maxAvg = Math.max(1, ...avgAttempts, 1);
+      const toX = i => pad.l + (labels.length === 1 ? iw/2 : (iw*i/(labels.length-1)));
+      const toYSuccess = v => pad.t + ih - (Math.max(0,Math.min(100,v))*ih/100);
+      const toYAvg = v => pad.t + ih - (Math.max(0,v)*ih/maxAvg);
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = "#2563eb";
+      ctx.beginPath();
+      success.forEach((v,i)=>{ const x=toX(i), y=toYSuccess(v); if(i===0)ctx.moveTo(x,y); else ctx.lineTo(x,y);});
+      ctx.stroke();
+      ctx.strokeStyle = "#dc2626";
+      ctx.beginPath();
+      avgAttempts.forEach((v,i)=>{ const x=toX(i), y=toYAvg(v); if(i===0)ctx.moveTo(x,y); else ctx.lineTo(x,y);});
+      ctx.stroke();
+      ctx.fillStyle = "#6b7280";
+      ctx.font = "11px Arial";
+      labels.forEach((label,i)=>{ const x = toX(i); ctx.fillText(String(label).slice(0,14), x-18, h-20); });
+    }
+
+    async function init(){
+      const data = await apiGet("/api/student/dashboard");
+      if (!data.ok){
+        window.location.href = "/student/login/";
+        return;
+      }
+      document.getElementById("studentName").textContent = data.student.full_name;
+      document.getElementById("studentClass").textContent = `Class: ${data.student.class.name}`;
+
+      const sessionsBox = document.getElementById("sessionsList");
+      sessionsBox.innerHTML = "";
+      (data.sessions || []).forEach(s => {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "item-btn";
+        const st = s.is_active_now ? "active" : (s.started_by_student ? "passed" : s.status);
+        btn.innerHTML = `<div><b>${esc(s.title)}</b></div><div class="muted">#${s.id} • ${esc(st)}</div>`;
+        btn.onclick = () => { window.location.href = `/student/?session_id=${s.id}`; };
+        sessionsBox.appendChild(btn);
+      });
+
+      const attemptsBox = document.getElementById("attemptsList");
+      attemptsBox.innerHTML = "";
+      (data.last_attempts || []).forEach(a => {
+        const link = document.createElement("a");
+        link.className = "attempt-btn";
+        link.href = `/student/?session_id=${a.session_id}&task_id=${a.task_id}`;
+        link.innerHTML = `<div><b>${a.task_position}. ${esc(a.task_title)}</b></div>
+          <div class="muted">${esc(a.session_title)} • ${esc(a.verdict)}</div>`;
+        attemptsBox.appendChild(link);
+      });
+
+      drawChart(
+        data.chart?.labels || [],
+        data.chart?.successful_answers_percent || [],
+        data.chart?.avg_attempts || []
+      );
+    }
+    init();
+  </script>
+</body>
+</html>
