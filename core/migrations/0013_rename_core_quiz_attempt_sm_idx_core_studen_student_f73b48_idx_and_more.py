@@ -10,36 +10,6 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.RenameIndex(
-            model_name='studenttheoryquizattempt',
-            new_name='core_studen_student_f73b48_idx',
-            old_name='core_quiz_attempt_sm_idx',
-        ),
-        migrations.RenameIndex(
-            model_name='studenttheoryquizattempt',
-            new_name='core_studen_submitt_0880a9_idx',
-            old_name='core_quiz_attempt_sub_idx',
-        ),
-        migrations.RenameIndex(
-            model_name='theoryquizchoice',
-            new_name='core_theory_questio_445d0e_idx',
-            old_name='core_quiz_choice_ord_idx',
-        ),
-        migrations.RenameIndex(
-            model_name='theoryquizmatchpair',
-            new_name='core_theory_questio_d11016_idx',
-            old_name='core_quiz_pair_ord_idx',
-        ),
-        migrations.RenameIndex(
-            model_name='theoryquizmodule',
-            new_name='core_theory_session_0aaa5f_idx',
-            old_name='core_quiz_sess_pos_act_idx',
-        ),
-        migrations.RenameIndex(
-            model_name='theoryquizquestion',
-            new_name='core_theory_module__1034fd_idx',
-            old_name='core_quiz_question_ord_idx',
-        ),
         migrations.AlterField(
             model_name='theorymaterialblock',
             name='block_type',
