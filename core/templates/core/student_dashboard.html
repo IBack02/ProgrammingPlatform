@@ -22,8 +22,9 @@
       background:
         linear-gradient(rgba(243,245,251,.88), rgba(243,245,251,.95)),
         {% if bg_urls.dashboard %}url("{{ bg_urls.dashboard|escape }}"){% else %}linear-gradient(120deg,#dbeafe,#e0f2fe){% endif %};
-      background-size:cover;
-      background-position:center center;
+      background-repeat:no-repeat,no-repeat;
+      background-size:auto,contain;
+      background-position:center center,center center;
       min-height:100vh;
     }
     .wrap{max-width:1280px;margin:0 auto;padding:18px;}
