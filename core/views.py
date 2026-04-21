@@ -2595,6 +2595,8 @@ def teacher_theory_blocks_api(request: HttpRequest, module_id: int):
             TheoryMaterialBlock.BlockType.HEADING,
             TheoryMaterialBlock.BlockType.TEXT,
             TheoryMaterialBlock.BlockType.CODE,
+            TheoryMaterialBlock.BlockType.IMAGE,
+            TheoryMaterialBlock.BlockType.VIDEO,
         }:
             return JsonResponse({"ok": False, "error": "invalid block_type"}, status=400)
 
@@ -2664,6 +2666,8 @@ def teacher_theory_block_detail_api(request: HttpRequest, block_id: int):
                 TheoryMaterialBlock.BlockType.HEADING,
                 TheoryMaterialBlock.BlockType.TEXT,
                 TheoryMaterialBlock.BlockType.CODE,
+                TheoryMaterialBlock.BlockType.IMAGE,
+                TheoryMaterialBlock.BlockType.VIDEO,
             }:
                 return JsonResponse({"ok": False, "error": "invalid block_type"}, status=400)
             block.block_type = block_type
@@ -2741,7 +2745,7 @@ def teacher_generate_theory_module_api(request: HttpRequest, module_id: int):
                 if ordinal < 1 or ordinal in used_ordinals or not content:
                     continue
 
-                if block_type not in {"heading", "text", "code"}:
+                if block_type not in {"heading", "text", "code", "image", "video"}:
                     continue
 
                 if block_type == "heading" and heading_level not in {"h1", "h2"}:

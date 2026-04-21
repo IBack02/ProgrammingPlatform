@@ -162,6 +162,8 @@ class TheoryMaterialBlock(models.Model):
         HEADING = "heading", "Heading"
         TEXT = "text", "Text"
         CODE = "code", "Code"
+        IMAGE = "image", "Image"
+        VIDEO = "video", "Video"
 
     class HeadingLevel(models.TextChoices):
         H1 = "h1", "H1"

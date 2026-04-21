@@ -185,7 +185,7 @@ class FullSolutionLevel3(BaseModel):
     code: str
 class TheoryMaterialBlockSchema(BaseModel):
     ordinal: int
-    block_type: Literal["heading", "text", "code"]
+    block_type: Literal["heading", "text", "code", "image", "video"]
     heading_level: Optional[Literal["h1", "h2"]] = None
     content: str
 
@@ -384,9 +384,11 @@ def call_openai_theory_material(prompt_snapshot: str) -> dict:
     system_rules = (
         "You are a Python teacher creating a theory learning module for students.\n"
         "Return a structured lesson using blocks only.\n"
-        "Allowed block types: heading, text, code.\n"
+        "Allowed block types: heading, text, code, image, video.\n"
         "For heading blocks, heading_level must be h1 or h2.\n"
-        "For text and code blocks, heading_level must be null or omitted.\n"
+        "For text, code, image and video blocks, heading_level must be null or omitted.\n"
+        "For image blocks, content must be a direct image URL.\n"
+        "For video blocks, content must be a YouTube URL.\n"
         "The lesson must be simple, clear, beginner-friendly, and aligned with the session theme.\n"
         "Code examples must be valid Python.\n"
         "Do not include markdown fences.\n"

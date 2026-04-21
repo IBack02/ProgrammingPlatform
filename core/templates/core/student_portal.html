@@ -72,7 +72,7 @@
       min-width: 360px;
       background-repeat:no-repeat;
       background-position:center center;
-      background-size:cover;
+      background-size:auto;
       transition: background-image .25s ease, background-position .25s ease;
     }
 
@@ -80,18 +80,27 @@
       background-image:
         linear-gradient(rgba(246,247,251,.82), rgba(246,247,251,.9)),
         var(--module-bg-theory);
+      background-repeat:no-repeat,no-repeat;
+      background-position:center center,center center;
+      background-size:auto,contain;
     }
 
     body.module-bg-quiz .content{
       background-image:
         linear-gradient(rgba(246,247,251,.82), rgba(246,247,251,.9)),
         var(--module-bg-quiz);
+      background-repeat:no-repeat,no-repeat;
+      background-position:center center,center center;
+      background-size:auto,contain;
     }
 
     body.module-bg-coding .content{
       background-image:
         linear-gradient(rgba(246,247,251,.82), rgba(246,247,251,.9)),
         var(--module-bg-coding);
+      background-repeat:no-repeat,no-repeat;
+      background-position:center center,center center;
+      background-size:auto,contain;
     }
 
     .top {
@@ -396,6 +405,77 @@
       padding:14px;
       overflow:auto;
     }
+    .theoryBlock.media{
+      margin:16px 0;
+      border:1px solid var(--border);
+      border-radius:12px;
+      background:#fff;
+      padding:10px;
+    }
+    .theoryMediaFrame{
+      height:340px;
+      max-height:58vh;
+      display:flex;
+      justify-content:center;
+      align-items:center;
+      border-radius:10px;
+      overflow:hidden;
+      background:#111827;
+    }
+    .theoryImage{
+      max-height:100%;
+      max-width:100%;
+      width:auto;
+      object-fit:contain;
+      cursor:zoom-in;
+      display:block;
+    }
+    .theoryVideo{
+      width:100%;
+      height:100%;
+      border:0;
+      border-radius:10px;
+      background:#000;
+    }
+    .imageViewerOverlay{
+      position:fixed;
+      inset:0;
+      z-index:1200;
+      display:none;
+      align-items:center;
+      justify-content:center;
+      background:rgba(3, 7, 18, .8);
+      cursor:default;
+    }
+    .imageViewerOverlay.open{
+      display:flex;
+    }
+    .imageViewerStage{
+      width:100%;
+      height:100%;
+      position:relative;
+      overflow:hidden;
+    }
+    .imageViewerContent{
+      position:absolute;
+      left:50%;
+      top:50%;
+      transform-origin:center center;
+      cursor:grab;
+      user-select:none;
+      touch-action:none;
+    }
+    .imageViewerContent.dragging{
+      cursor:grabbing;
+    }
+    .imageViewerContent img{
+      display:block;
+      max-height:72vh;
+      max-width:min(92vw, 1600px);
+      border-radius:12px;
+      box-shadow:0 14px 40px rgba(0,0,0,.45);
+      pointer-events:none;
+    }
     #taskStatement,
     #taskConstraints{
       white-space: pre-wrap;
@@ -426,6 +506,9 @@
       .content{
         padding:14px;
         background-position:center top;
+      }
+      .theoryMediaFrame{
+        height:240px;
       }
     }
   </style>
@@ -601,6 +684,14 @@
   </div>
 </div>
 
+<div id="imageViewerOverlay" class="imageViewerOverlay" aria-hidden="true">
+  <div id="imageViewerStage" class="imageViewerStage">
+    <div id="imageViewerContent" class="imageViewerContent">
+      <img id="imageViewerImg" alt="Expanded image">
+    </div>
+  </div>
+</div>
+
 <script>
   const UI = {
     classLabel: "{{ T.class_label|escapejs }}",
@@ -755,6 +846,143 @@
       .replaceAll(">","&gt;");
   }
 
+  function sanitizeHttpUrl(rawUrl){
+    const v = String(rawUrl || "").trim();
+    if (!v) return "";
+    try{
+      const u = new URL(v);
+      if (u.protocol !== "http:" && u.protocol !== "https:"){
+        return "";
+      }
+      return u.toString();
+    }catch(e){
+      return "";
+    }
+  }
+
+  function toYouTubeEmbedUrl(rawUrl){
+    const v = String(rawUrl || "").trim();
+    if (!v) return "";
+    try{
+      const u = new URL(v);
+      const host = u.hostname.replace(/^www\./, "");
+      let videoId = "";
+      if (host === "youtu.be"){
+        videoId = u.pathname.replace("/", "").trim();
+      } else if (host === "youtube.com" || host === "m.youtube.com"){
+        if (u.pathname === "/watch"){
+          videoId = (u.searchParams.get("v") || "").trim();
+        } else if (u.pathname.startsWith("/shorts/")){
+          videoId = u.pathname.split("/")[2] || "";
+        } else if (u.pathname.startsWith("/embed/")){
+          videoId = u.pathname.split("/")[2] || "";
+        }
+      }
+      if (!videoId) return "";
+      return `https://www.youtube.com/embed/${encodeURIComponent(videoId)}`;
+    }catch(e){
+      return "";
+    }
+  }
+
+  const imageViewer = {
+    open: false,
+    scale: 1.5,
+    x: 0,
+    y: 0,
+    minScale: 0.6,
+    maxScale: 5,
+    dragging: false,
+    dragStartX: 0,
+    dragStartY: 0,
+    startX: 0,
+    startY: 0
+  };
+
+  function applyImageViewerTransform(){
+    const content = qs("imageViewerContent");
+    if (!content) return;
+    content.style.transform = `translate(calc(-50% + ${imageViewer.x}px), calc(-50% + ${imageViewer.y}px)) scale(${imageViewer.scale})`;
+  }
+
+  function closeImageViewer(){
+    const overlay = qs("imageViewerOverlay");
+    const content = qs("imageViewerContent");
+    if (!overlay || !content) return;
+    imageViewer.open = false;
+    imageViewer.dragging = false;
+    overlay.classList.remove("open");
+    content.classList.remove("dragging");
+    document.body.style.overflow = "";
+  }
+
+  function openImageViewer(url){
+    const safeUrl = sanitizeHttpUrl(url);
+    if (!safeUrl) return;
+    const overlay = qs("imageViewerOverlay");
+    const image = qs("imageViewerImg");
+    if (!overlay || !image) return;
+    image.src = safeUrl;
+    imageViewer.open = true;
+    imageViewer.scale = 1.5;
+    imageViewer.x = 0;
+    imageViewer.y = 0;
+    applyImageViewerTransform();
+    overlay.classList.add("open");
+    document.body.style.overflow = "hidden";
+  }
+
+  function initImageViewer(){
+    const overlay = qs("imageViewerOverlay");
+    const stage = qs("imageViewerStage");
+    const content = qs("imageViewerContent");
+    if (!overlay || !stage || !content) return;
+
+    overlay.addEventListener("click", (e) => {
+      if (e.target === overlay || e.target === stage){
+        closeImageViewer();
+      }
+    });
+
+    content.addEventListener("mousedown", (e) => {
+      imageViewer.dragging = true;
+      imageViewer.dragStartX = e.clientX;
+      imageViewer.dragStartY = e.clientY;
+      imageViewer.startX = imageViewer.x;
+      imageViewer.startY = imageViewer.y;
+      content.classList.add("dragging");
+      e.preventDefault();
+    });
+
+    window.addEventListener("mousemove", (e) => {
+      if (!imageViewer.dragging || !imageViewer.open) return;
+      imageViewer.x = imageViewer.startX + (e.clientX - imageViewer.dragStartX);
+      imageViewer.y = imageViewer.startY + (e.clientY - imageViewer.dragStartY);
+      applyImageViewerTransform();
+    });
+
+    window.addEventListener("mouseup", () => {
+      if (!imageViewer.dragging) return;
+      imageViewer.dragging = false;
+      content.classList.remove("dragging");
+    });
+
+    overlay.addEventListener("wheel", (e) => {
+      if (!imageViewer.open) return;
+      e.preventDefault();
+      const direction = e.deltaY > 0 ? -1 : 1;
+      const next = imageViewer.scale + (direction * 0.12);
+      imageViewer.scale = Math.max(imageViewer.minScale, Math.min(imageViewer.maxScale, next));
+      applyImageViewerTransform();
+    }, { passive: false });
+
+    window.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && imageViewer.open){
+        closeImageViewer();
+      }
+    });
+  }
+
   function renderTheoryBlocks(blocks){
     const box = qs("moduleBlocks");
     box.innerHTML = "";
@@ -768,6 +996,32 @@
       } else if (block.block_type === "code"){
         wrap.className = "theoryBlock code";
         wrap.innerHTML = `<pre>${escapeHtml(block.content)}</pre>`;
+      } else if (block.block_type === "image"){
+        const imageUrl = sanitizeHttpUrl(block.content);
+        wrap.className = "theoryBlock media";
+        if (!imageUrl){
+          wrap.innerHTML = `<div class="small muted">Invalid image URL</div>`;
+        } else {
+          wrap.innerHTML = `
+            <div class="theoryMediaFrame">
+              <img class="theoryImage" src="${escapeHtml(imageUrl)}" alt="theory image" loading="lazy">
+            </div>
+          `;
+          const img = wrap.querySelector(".theoryImage");
+          img?.addEventListener("click", () => openImageViewer(imageUrl));
+        }
+      } else if (block.block_type === "video"){
+        const embedUrl = toYouTubeEmbedUrl(block.content);
+        wrap.className = "theoryBlock media";
+        if (!embedUrl){
+          wrap.innerHTML = `<div class="small muted">Invalid YouTube URL</div>`;
+        } else {
+          wrap.innerHTML = `
+            <div class="theoryMediaFrame">
+              <iframe class="theoryVideo" src="${escapeHtml(embedUrl)}" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe>
+            </div>
+          `;
+        }
       } else {
         wrap.className = "theoryBlock";
         wrap.textContent = block.content || "";
@@ -1514,6 +1768,7 @@
   async function init(){
     makeResizer(qs("sidebarResizer"), qs("sidebar"), {min:240, max:520});
     makeContentSplitResizer(qs("contentResizer"), qs("taskPane"));
+    initImageViewer();
 
     const me = await apiGet("/api/auth/student-me");
     if (me.status === 401){

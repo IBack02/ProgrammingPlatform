@@ -21,6 +21,9 @@
   .q-section{margin-top:10px}
   .pair-row{display:flex;gap:8px;align-items:center;margin-top:8px}
   .pair-row input{flex:1}
+  .media-preview{margin-top:8px;border:1px solid #e5e7eb;border-radius:10px;padding:8px;background:#f8fafc}
+  .media-preview img{max-height:180px;max-width:100%;display:block;border-radius:8px}
+  .media-preview iframe{width:100%;height:220px;border:0;border-radius:8px}
 </style>
 
 <div class="card" style="margin-bottom:12px;">
@@ -83,6 +86,8 @@
             <option value="heading">heading</option>
             <option value="text">text</option>
             <option value="code">code</option>
+            <option value="image">image</option>
+            <option value="video">video</option>
           </select>
           <select id="headingLevel" class="select-ui">
             <option value="h1">h1</option>
@@ -168,6 +173,39 @@
 
   function setMsg(text){ qs("msg").textContent = text || ""; }
 
+  function escapeHtml(s){
+    return String(s || "")
+      .replaceAll("&","&amp;")
+      .replaceAll("<","&lt;")
+      .replaceAll(">","&gt;")
+      .replaceAll('"',"&quot;");
+  }
+
+  function toYouTubeEmbedUrl(rawUrl){
+    const v = String(rawUrl || "").trim();
+    if (!v) return "";
+    try{
+      const u = new URL(v);
+      const host = u.hostname.replace(/^www\./, "");
+      let videoId = "";
+      if (host === "youtu.be"){
+        videoId = u.pathname.replace("/", "").trim();
+      } else if (host === "youtube.com" || host === "m.youtube.com"){
+        if (u.pathname === "/watch"){
+          videoId = (u.searchParams.get("v") || "").trim();
+        } else if (u.pathname.startsWith("/shorts/")){
+          videoId = u.pathname.split("/")[2] || "";
+        } else if (u.pathname.startsWith("/embed/")){
+          videoId = u.pathname.split("/")[2] || "";
+        }
+      }
+      if (!videoId) return "";
+      return `https://www.youtube.com/embed/${encodeURIComponent(videoId)}`;
+    }catch(e){
+      return "";
+    }
+  }
+
   function currentSelectedItem(){
     if (!selectedModuleId || !selectedModuleType) return null;
     return { id: selectedModuleId, module_type: selectedModuleType };
@@ -185,6 +223,11 @@
   function syncCreateTypeFields(){
     const type = qs("newModuleType").value;
     qs("newCodingLanguage").style.display = type === "coding_task" ? "inline-block" : "none";
+  }
+
+  function syncBlockTypeFields(){
+    const type = qs("blockType").value;
+    qs("headingLevel").style.display = type === "heading" ? "inline-block" : "none";
   }
 
   function syncQuestionTypeFields(){
@@ -406,9 +449,33 @@
       (m.blocks || []).forEach(b => {
         const div = document.createElement("div");
         div.className = "block-item";
+        let contentHtml = `<pre class="code-like" style="white-space:pre-wrap;">${escapeHtml(b.content || "")}</pre>`;
+        if (b.block_type === "image"){
+          const imageUrl = String(b.content || "").trim();
+          contentHtml = `
+            <div class="media-preview">
+              <div class="muted" style="margin-bottom:6px;">Image URL</div>
+              <div class="small" style="word-break:break-all;margin-bottom:8px;">${escapeHtml(imageUrl)}</div>
+              <img src="${escapeHtml(imageUrl)}" alt="image preview" loading="lazy" onerror="this.parentElement.insertAdjacentHTML('beforeend','<div class=&quot;muted&quot;>Image preview failed</div>'); this.remove();">
+            </div>
+          `;
+        } else if (b.block_type === "video"){
+          const embed = toYouTubeEmbedUrl(b.content || "");
+          if (embed){
+            contentHtml = `
+              <div class="media-preview">
+                <div class="muted" style="margin-bottom:6px;">YouTube URL</div>
+                <div class="small" style="word-break:break-all;margin-bottom:8px;">${escapeHtml(b.content || "")}</div>
+                <iframe src="${escapeHtml(embed)}" allowfullscreen></iframe>
+              </div>
+            `;
+          } else {
+            contentHtml = `<pre class="code-like" style="white-space:pre-wrap;">${escapeHtml(b.content || "")}</pre>`;
+          }
+        }
         div.innerHTML = `
           <div><b>#${b.ordinal}</b> ${b.block_type} ${b.heading_level ? "(" + b.heading_level + ")" : ""}</div>
-          <pre class="code-like" style="white-space:pre-wrap;">${String(b.content || "").replaceAll("<","&lt;").replaceAll(">","&gt;")}</pre>
+          ${contentHtml}
           <div class="row">
             <button type="button" onclick="deleteBlock(${b.id})">{{ T.delete }}</button>
           </div>
@@ -515,10 +582,11 @@
 
   async function addBlock(){
     if (selectedModuleType !== "theory_material" || !selectedModuleId) return;
+    const blockType = qs("blockType").value;
     const res = await api(`/api/teacher/theory-modules/${selectedModuleId}/blocks/`, "POST", {
       ordinal: qs("blockOrdinal").value,
-      block_type: qs("blockType").value,
-      heading_level: qs("headingLevel").value,
+      block_type: blockType,
+      heading_level: blockType === "heading" ? qs("headingLevel").value : "",
       content: qs("blockContent").value
     });
     if (!res.data.ok) return setMsg(res.data.error || "Add block failed");
@@ -581,6 +649,7 @@
   });
   qs("questionType").addEventListener("change", syncQuestionTypeFields);
   qs("newModuleType").addEventListener("change", syncCreateTypeFields);
+  qs("blockType").addEventListener("change", syncBlockTypeFields);
   qs("addPairBtn").addEventListener("click", () => addMatchingPairRow("", ""));
   qs("createBtn").addEventListener("click", createModule);
   qs("saveModuleBtn").addEventListener("click", saveModule);
@@ -591,6 +660,7 @@
 
   syncQuestionTypeFields();
   syncCreateTypeFields();
+  syncBlockTypeFields();
   resetMatchingPairs();
   loadSessions();
 </script>
