@@ -92,9 +92,26 @@
         <option value="python">{{ T.language_python|default:"Python" }}</option>
         <option value="cpp">{{ T.language_cpp|default:"C++" }}</option>
       </select>
+      <label class="muted" style="display:flex;align-items:center;gap:8px;">
+        <input id="newHintsEnabled" type="checkbox"> {{ T.hints_enabled|default:"Enable hints" }}
+      </label>
       <input id="newTitle" class="input-ui" placeholder="{{ T.task_title_placeholder }}"
              style="flex:1;min-width:180px;"/>
       <button class="btn" id="createTaskBtn" type="button">{{ T.create_task }}</button>
+    </div>
+    <div id="newHintsConfig" class="panel-card" style="display:none;">
+      <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;">
+        <label class="muted"><input id="newHint1Enabled" type="checkbox" checked> {{ T.hint_1 }}</label>
+        <label class="muted">{{ T.unlock_after_attempts|default:"Unlock after attempts" }} <input id="newHint1Attempts" class="input-ui" type="number" value="2" style="width:70px;"></label>
+      </div>
+      <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin-top:8px;">
+        <label class="muted"><input id="newHint2Enabled" type="checkbox" checked> {{ T.hint_2 }}</label>
+        <label class="muted">{{ T.unlock_after_attempts|default:"Unlock after attempts" }} <input id="newHint2Attempts" class="input-ui" type="number" value="3" style="width:70px;"></label>
+      </div>
+      <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin-top:8px;">
+        <label class="muted"><input id="newHint3Enabled" type="checkbox" checked> {{ T.hint_3 }}</label>
+        <label class="muted">{{ T.unlock_after_attempts|default:"Unlock after attempts" }} <input id="newHint3Attempts" class="input-ui" type="number" value="3" style="width:70px;"></label>
+      </div>
     </div>
 
     <div id="taskList"></div>
@@ -119,6 +136,25 @@
 
       <div class="muted" style="margin:10px 0 6px;">{{ T.constraints }}</div>
       <textarea id="constraints" class="textarea-ui" style="width:100%;height:80px;"></textarea>
+      <div class="panel-card">
+        <label class="muted" style="display:flex;align-items:center;gap:8px;">
+          <input id="hintsEnabled" type="checkbox"> {{ T.hints_enabled|default:"Enable hints" }}
+        </label>
+        <div id="hintsConfig" style="display:none;margin-top:10px;">
+          <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;">
+            <label class="muted"><input id="hint1Enabled" type="checkbox" checked> {{ T.hint_1 }}</label>
+            <label class="muted">{{ T.unlock_after_attempts|default:"Unlock after attempts" }} <input id="hint1Attempts" class="input-ui" type="number" value="2" style="width:70px;"></label>
+          </div>
+          <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin-top:8px;">
+            <label class="muted"><input id="hint2Enabled" type="checkbox" checked> {{ T.hint_2 }}</label>
+            <label class="muted">{{ T.unlock_after_attempts|default:"Unlock after attempts" }} <input id="hint2Attempts" class="input-ui" type="number" value="3" style="width:70px;"></label>
+          </div>
+          <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin-top:8px;">
+            <label class="muted"><input id="hint3Enabled" type="checkbox" checked> {{ T.hint_3 }}</label>
+            <label class="muted">{{ T.unlock_after_attempts|default:"Unlock after attempts" }} <input id="hint3Attempts" class="input-ui" type="number" value="3" style="width:70px;"></label>
+          </div>
+        </div>
+      </div>
 
       <div style="margin-top:12px;display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;">
         <button class="btn" id="saveTaskBtn" type="button">{{ T.save_task }}</button>
@@ -260,6 +296,16 @@
     el.className = "muted message" + (text ? ` ${type}` : "");
   }
 
+  function syncNewHintsUi(){
+    const enabled = qs("newHintsEnabled").checked;
+    qs("newHintsConfig").style.display = enabled ? "block" : "none";
+  }
+
+  function syncEditHintsUi(){
+    const enabled = qs("hintsEnabled").checked;
+    qs("hintsConfig").style.display = enabled ? "block" : "none";
+  }
+
   function escapeHtml(s){
     return String(s || "")
       .replaceAll("&","&amp;")
@@ -381,6 +427,14 @@
     qs("title").value = t.title;
     qs("statement").value = t.statement || "";
     qs("constraints").value = t.constraints || "";
+    qs("hintsEnabled").checked = !!t.hints_enabled;
+    qs("hint1Enabled").checked = !!t.hint1_enabled;
+    qs("hint2Enabled").checked = !!t.hint2_enabled;
+    qs("hint3Enabled").checked = !!t.hint3_enabled;
+    qs("hint1Attempts").value = t.hint1_unlock_attempts || 2;
+    qs("hint2Attempts").value = t.hint2_unlock_attempts || 3;
+    qs("hint3Attempts").value = t.hint3_unlock_attempts || 3;
+    syncEditHintsUi();
 
     await loadTests();
     await loadFrags();
@@ -407,7 +461,14 @@
       title,
       statement:"",
       constraints:"",
-      programming_language: qs("newProgrammingLanguage").value || "python"
+      programming_language: qs("newProgrammingLanguage").value || "python",
+      hints_enabled: qs("newHintsEnabled").checked,
+      hint1_enabled: qs("newHint1Enabled").checked,
+      hint2_enabled: qs("newHint2Enabled").checked,
+      hint3_enabled: qs("newHint3Enabled").checked,
+      hint1_unlock_attempts: parseInt(qs("newHint1Attempts").value || "2"),
+      hint2_unlock_attempts: parseInt(qs("newHint2Attempts").value || "3"),
+      hint3_unlock_attempts: parseInt(qs("newHint3Attempts").value || "3"),
     });
     setBusy(false);
 
@@ -433,6 +494,13 @@
       statement: qs("statement").value || "",
       constraints: qs("constraints").value || "",
       programming_language: qs("programmingLanguage").value || "python",
+      hints_enabled: qs("hintsEnabled").checked,
+      hint1_enabled: qs("hint1Enabled").checked,
+      hint2_enabled: qs("hint2Enabled").checked,
+      hint3_enabled: qs("hint3Enabled").checked,
+      hint1_unlock_attempts: parseInt(qs("hint1Attempts").value || "2"),
+      hint2_unlock_attempts: parseInt(qs("hint2Attempts").value || "3"),
+      hint3_unlock_attempts: parseInt(qs("hint3Attempts").value || "3"),
     };
 
     setBusy(true);
@@ -713,6 +781,8 @@
 
   qs("tabTests").addEventListener("click", showTests);
   qs("tabFrags").addEventListener("click", showFrags);
+  qs("newHintsEnabled").addEventListener("change", syncNewHintsUi);
+  qs("hintsEnabled").addEventListener("change", syncEditHintsUi);
 
   qs("loadBtn").addEventListener("click", loadTasks);
   qs("createTaskBtn").addEventListener("click", createTask);
@@ -722,6 +792,8 @@
   qs("addFragBtn").addEventListener("click", addFrag);
 
   (async function init(){
+    syncNewHintsUi();
+    syncEditHintsUi();
     setMsg(UI.loading, "info");
     await loadSessions();
     if (qs("sessionSelect").value){

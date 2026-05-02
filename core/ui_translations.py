@@ -970,3 +970,37 @@ def get_ui_lang(request):
     if lang not in SUPPORTED_UI_LANGS:
         lang = DEFAULT_UI_LANG
     return lang
+
+
+_EXTRA_I18N_KEYS = {
+    "ru": {
+        "shared_sessions_list": "Общедоступные сессии",
+        "shared_template": "Сделать сессию общедоступным шаблоном",
+        "copy_session": "Создать мою копию",
+        "copy_created": "Копия сессии создана.",
+        "copy_failed": "Не удалось создать копию сессии",
+        "hints_enabled": "Включить подсказки",
+        "unlock_after_attempts": "Разблокировать после попыток",
+    },
+    "kk": {
+        "shared_sessions_list": "Ортақ қолжетімді сессиялар",
+        "shared_template": "Сессияны ортақ шаблон ету",
+        "copy_session": "Менің көшірмемді жасау",
+        "copy_created": "Сессия көшірмесі жасалды.",
+        "copy_failed": "Сессия көшірмесін жасау мүмкін болмады",
+        "hints_enabled": "Көмектерді қосу",
+        "unlock_after_attempts": "Әрекет санынан кейін ашу",
+    },
+    "en": {
+        "shared_sessions_list": "Shared sessions",
+        "shared_template": "Make session a shared template",
+        "copy_session": "Create my copy",
+        "copy_created": "Session copy created.",
+        "copy_failed": "Failed to clone session",
+        "hints_enabled": "Enable hints",
+        "unlock_after_attempts": "Unlock after attempts",
+    },
+}
+
+for _lang_code, _extra in _EXTRA_I18N_KEYS.items():
+    UI_TRANSLATIONS.setdefault(_lang_code, {}).update(_extra)

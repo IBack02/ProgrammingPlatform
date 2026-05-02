@@ -5,6 +5,13 @@ from django.db import models
 
 class ClassGroup(models.Model):
     name = models.CharField(max_length=32, unique=True)
+    owner = models.ForeignKey(
+        "Teacher",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="owned_classes",
+    )
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -52,6 +59,21 @@ class Session(models.Model):
 
     title = models.CharField(max_length=200)
     description = models.TextField(blank=True)
+    author = models.ForeignKey(
+        "Teacher",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="owned_sessions",
+    )
+    is_shared_template = models.BooleanField(default=False)
+    source_session = models.ForeignKey(
+        "self",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="cloned_sessions",
+    )
 
     status = models.CharField(max_length=16, choices=Status.choices, default=Status.DRAFT)
 
@@ -118,6 +140,13 @@ class SessionTask(models.Model):
         choices=ProgrammingLanguage.choices,
         default=ProgrammingLanguage.PYTHON,
     )
+    hints_enabled = models.BooleanField(default=False)
+    hint1_enabled = models.BooleanField(default=True)
+    hint2_enabled = models.BooleanField(default=True)
+    hint3_enabled = models.BooleanField(default=True)
+    hint1_unlock_attempts = models.PositiveIntegerField(default=2)
+    hint2_unlock_attempts = models.PositiveIntegerField(default=3)
+    hint3_unlock_attempts = models.PositiveIntegerField(default=3)
 
     created_at = models.DateTimeField(auto_now_add=True)
 

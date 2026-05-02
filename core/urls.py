@@ -55,6 +55,7 @@ urlpatterns = [
     # Teacher sessions API
     path("api/teacher/sessions/", views.teacher_sessions_api, name="teacher_sessions_api"),
     path("api/teacher/sessions/<int:session_id>/", views.teacher_session_detail_api, name="teacher_session_detail_api"),
+    path("api/teacher/sessions/<int:session_id>/clone/", views.teacher_session_clone_api, name="teacher_session_clone_api"),
     path("api/teacher/sessions/<int:session_id>/classes/", views.teacher_session_classes_api, name="teacher_session_classes_api"),
     path("api/teacher/sessions/<int:session_id>/assign-classes/", views.teacher_session_assign_classes_api, name="teacher_session_assign_classes_api"),
 

@@ -104,6 +104,40 @@ def _teacher_api_unauthorized():
     return JsonResponse({"ok": False, "error": "not authenticated"}, status=401)
 
 
+def _teacher_owned_class_ids(teacher: Teacher):
+    return list(
+        ClassGroup.objects.filter(owner=teacher).values_list("id", flat=True)
+    )
+
+
+def _require_class_owner_or_404(class_id: int, teacher: Teacher):
+    return get_object_or_404(ClassGroup, id=class_id, owner=teacher)
+
+
+def _require_session_owner_or_404(session_id: int, teacher: Teacher):
+    return get_object_or_404(Session, id=session_id, author=teacher)
+
+
+def _require_task_owner_or_404(task_id: int, teacher: Teacher):
+    return get_object_or_404(SessionTask.objects.select_related("session"), id=task_id, session__author=teacher)
+
+
+def _require_theory_module_owner_or_404(module_id: int, teacher: Teacher):
+    return get_object_or_404(
+        TheoryMaterialModule.objects.select_related("session"),
+        id=module_id,
+        session__author=teacher,
+    )
+
+
+def _require_theory_quiz_owner_or_404(module_id: int, teacher: Teacher):
+    return get_object_or_404(
+        TheoryQuizModule.objects.select_related("session"),
+        id=module_id,
+        session__author=teacher,
+    )
+
+
 def _student_background_urls() -> dict:
     default_dashboard = "https://drive.google.com/thumbnail?id=1Y6rWFq1wTLT8rqeicZE9tVOK5lHfzhN6&sz=w2200"
     default_coding = "https://drive.google.com/thumbnail?id=1fG9zQKwkQP79ainWjq1Ihq0mLo-Kn2Ah&sz=w2200"
@@ -232,18 +266,16 @@ def _get_or_create_progress(ss: StudentSession, task: SessionTask, now=None):
     return progress
 
 
-def _unlock_hints_if_needed(progress: StudentTaskProgress, now):
+def _unlock_hints_if_needed(progress: StudentTaskProgress, task: SessionTask, now):
     changed = []
 
-    if progress.attempts_failed >= 2 and not progress.hint1_unlocked_at:
+    if task.hints_enabled and task.hint1_enabled and progress.attempts_failed >= max(1, int(task.hint1_unlock_attempts or 1)) and not progress.hint1_unlocked_at:
         progress.hint1_unlocked_at = now
         changed.append("hint1_unlocked_at")
-
-    if progress.attempts_failed >= 3 and not progress.hint2_unlocked_at:
+    if task.hints_enabled and task.hint2_enabled and progress.attempts_failed >= max(1, int(task.hint2_unlock_attempts or 1)) and not progress.hint2_unlocked_at:
         progress.hint2_unlocked_at = now
         changed.append("hint2_unlocked_at")
-
-    if progress.attempts_failed >= 3 and not progress.hint3_unlocked_at:
+    if task.hints_enabled and task.hint3_enabled and progress.attempts_failed >= max(1, int(task.hint3_unlock_attempts or 1)) and not progress.hint3_unlocked_at:
         progress.hint3_unlocked_at = now
         changed.append("hint3_unlocked_at")
 
@@ -343,6 +375,10 @@ def _serialize_session(session: Session):
         "tasks_count": SessionTask.objects.filter(session=session).count(),
         "student_sessions_count": StudentSession.objects.filter(session=session).count(),
         "is_active_now": session.is_active_now(),
+        "author_id": session.author_id,
+        "author_name": session.author.full_name if session.author_id else "",
+        "is_shared_template": bool(session.is_shared_template),
+        "source_session_id": session.source_session_id,
     }
 
 
@@ -355,6 +391,13 @@ def _serialize_task(task: SessionTask):
         "statement": task.statement or "",
         "constraints": task.constraints or "",
         "programming_language": task.programming_language,
+        "hints_enabled": bool(task.hints_enabled),
+        "hint1_enabled": bool(task.hint1_enabled),
+        "hint2_enabled": bool(task.hint2_enabled),
+        "hint3_enabled": bool(task.hint3_enabled),
+        "hint1_unlock_attempts": int(task.hint1_unlock_attempts or 0),
+        "hint2_unlock_attempts": int(task.hint2_unlock_attempts or 0),
+        "hint3_unlock_attempts": int(task.hint3_unlock_attempts or 0),
         "created_at": task.created_at.isoformat() if getattr(task, "created_at", None) else None,
     }
 
@@ -546,6 +589,45 @@ def _parse_theory_quiz_question_payload(data: dict):
             parsed["pairs"].append({"ordinal": idx, "left_text": left_text, "right_text": right_text})
 
     return parsed, None
+
+
+def _to_positive_int(value, default):
+    try:
+        n = int(value)
+    except (TypeError, ValueError):
+        return default
+    return n if n > 0 else default
+
+
+def _task_hints_from_payload(data: dict, defaults: SessionTask | None = None) -> dict:
+    src = defaults
+    hints_enabled = bool(data.get("hints_enabled")) if "hints_enabled" in data else (src.hints_enabled if src else False)
+    hint1_enabled = bool(data.get("hint1_enabled")) if "hint1_enabled" in data else (src.hint1_enabled if src else True)
+    hint2_enabled = bool(data.get("hint2_enabled")) if "hint2_enabled" in data else (src.hint2_enabled if src else True)
+    hint3_enabled = bool(data.get("hint3_enabled")) if "hint3_enabled" in data else (src.hint3_enabled if src else True)
+
+    hint1_unlock_attempts = _to_positive_int(
+        data.get("hint1_unlock_attempts"),
+        src.hint1_unlock_attempts if src else 2,
+    )
+    hint2_unlock_attempts = _to_positive_int(
+        data.get("hint2_unlock_attempts"),
+        src.hint2_unlock_attempts if src else 3,
+    )
+    hint3_unlock_attempts = _to_positive_int(
+        data.get("hint3_unlock_attempts"),
+        src.hint3_unlock_attempts if src else 3,
+    )
+
+    return {
+        "hints_enabled": hints_enabled,
+        "hint1_enabled": hint1_enabled,
+        "hint2_enabled": hint2_enabled,
+        "hint3_enabled": hint3_enabled,
+        "hint1_unlock_attempts": hint1_unlock_attempts,
+        "hint2_unlock_attempts": hint2_unlock_attempts,
+        "hint3_unlock_attempts": hint3_unlock_attempts,
+    }
 
 
 
@@ -800,9 +882,9 @@ def student_task_detail(request: HttpRequest, task_id: int):
                 "status": progress.status,
                 "attempts_total": progress.attempts_total,
                 "attempts_failed": progress.attempts_failed,
-                "hint1_available": bool(progress.hint1_unlocked_at),
-                "hint2_available": bool(progress.hint2_unlocked_at),
-                "hint3_available": bool(progress.hint3_unlocked_at),
+                "hint1_available": bool(task.hints_enabled and task.hint1_enabled and progress.hint1_unlocked_at),
+                "hint2_available": bool(task.hints_enabled and task.hint2_enabled and progress.hint2_unlocked_at),
+                "hint3_available": bool(task.hints_enabled and task.hint3_enabled and progress.hint3_unlocked_at),
             },
             "visible_testcases": visible_tests,
             "code_fragments": {
@@ -1105,7 +1187,7 @@ def student_submit(request: HttpRequest, task_id: int):
             "last_submit_at",
             "last_code_hash",
         ]
-        changed += _unlock_hints_if_needed(progress, now)
+        changed += _unlock_hints_if_needed(progress, task, now)
         progress.save(update_fields=changed)
 
         sub = Submission.objects.create(
@@ -1135,9 +1217,9 @@ def student_submit(request: HttpRequest, task_id: int):
                     "status": progress.status,
                     "attempts_total": progress.attempts_total,
                     "attempts_failed": progress.attempts_failed,
-                    "hint1_available": bool(progress.hint1_unlocked_at),
-                    "hint2_available": bool(progress.hint2_unlocked_at),
-                    "hint3_available": bool(progress.hint3_unlocked_at),
+                    "hint1_available": bool(task.hints_enabled and task.hint1_enabled and progress.hint1_unlocked_at),
+                    "hint2_available": bool(task.hints_enabled and task.hint2_enabled and progress.hint2_unlocked_at),
+                    "hint3_available": bool(task.hints_enabled and task.hint3_enabled and progress.hint3_unlocked_at),
                 },
             }
         )
@@ -1191,7 +1273,7 @@ def student_submit(request: HttpRequest, task_id: int):
     else:
         progress.attempts_failed += 1
         changed.append("attempts_failed")
-        changed += _unlock_hints_if_needed(progress, now)
+        changed += _unlock_hints_if_needed(progress, task, now)
 
     progress.save(update_fields=changed)
 
@@ -1222,9 +1304,9 @@ def student_submit(request: HttpRequest, task_id: int):
                 "status": progress.status,
                 "attempts_total": progress.attempts_total,
                 "attempts_failed": progress.attempts_failed,
-                "hint1_available": bool(progress.hint1_unlocked_at),
-                "hint2_available": bool(progress.hint2_unlocked_at),
-                "hint3_available": bool(progress.hint3_unlocked_at),
+                "hint1_available": bool(task.hints_enabled and task.hint1_enabled and progress.hint1_unlocked_at),
+                "hint2_available": bool(task.hints_enabled and task.hint2_enabled and progress.hint2_unlocked_at),
+                "hint3_available": bool(task.hints_enabled and task.hint3_enabled and progress.hint3_unlocked_at),
             },
         }
     )
@@ -1271,11 +1353,20 @@ def student_hint_level(request: HttpRequest, task_id: int, level: int):
         defaults={"status": StudentTaskProgress.Status.IN_PROGRESS, "opened_at": now},
     )
 
-    if level == 1 and progress.attempts_failed < 2:
+    if not task.hints_enabled:
+        return JsonResponse({"ok": False, "error": "hints are disabled for this task"}, status=403)
+    if level == 1 and not task.hint1_enabled:
+        return JsonResponse({"ok": False, "error": "hint level 1 is disabled for this task"}, status=403)
+    if level == 2 and not task.hint2_enabled:
+        return JsonResponse({"ok": False, "error": "hint level 2 is disabled for this task"}, status=403)
+    if level == 3 and not task.hint3_enabled:
+        return JsonResponse({"ok": False, "error": "hint level 3 is disabled for this task"}, status=403)
+
+    if level == 1 and progress.attempts_failed < max(1, int(task.hint1_unlock_attempts or 1)):
         return JsonResponse({"ok": False, "error": "hint level 1 not available yet"}, status=403)
-    if level == 2 and progress.attempts_failed < 3:
+    if level == 2 and progress.attempts_failed < max(1, int(task.hint2_unlock_attempts or 1)):
         return JsonResponse({"ok": False, "error": "hint level 2 not available yet"}, status=403)
-    if level == 3 and progress.attempts_failed < 3:
+    if level == 3 and progress.attempts_failed < max(1, int(task.hint3_unlock_attempts or 1)):
         return JsonResponse({"ok": False, "error": "hint level 3 not available yet"}, status=403)
 
     if level == 1 and progress.hint1_text:
@@ -1912,38 +2003,40 @@ def healthz(request: HttpRequest):
 @csrf_exempt
 @require_http_methods(["GET", "POST"])
 def teacher_classes_api(request: HttpRequest):
-    if not _get_logged_in_teacher(request):
+    teacher = _get_logged_in_teacher(request)
+    if not teacher:
         return _teacher_api_unauthorized()
 
     if request.method == "GET":
-        classes = ClassGroup.objects.all().order_by("name")
+        classes = ClassGroup.objects.filter(owner=teacher).order_by("name")
         return JsonResponse({"ok": True, "classes": [_serialize_class_group(c) for c in classes]})
 
     data = _json_body(request)
     name = (data.get("name") or "").strip()
     if not name:
         return JsonResponse({"ok": False, "error": "name is required"}, status=400)
-    if ClassGroup.objects.filter(name__iexact=name).exists():
+    if ClassGroup.objects.filter(owner=teacher, name__iexact=name).exists():
         return JsonResponse({"ok": False, "error": "class with this name already exists"}, status=409)
 
-    obj = ClassGroup.objects.create(name=name)
+    obj = ClassGroup.objects.create(name=name, owner=teacher)
     return JsonResponse({"ok": True, "class": _serialize_class_group(obj)}, status=201)
 
 
 @csrf_exempt
 @require_http_methods(["PATCH", "DELETE"])
 def teacher_class_detail_api(request: HttpRequest, class_id: int):
-    if not _get_logged_in_teacher(request):
+    teacher = _get_logged_in_teacher(request)
+    if not teacher:
         return _teacher_api_unauthorized()
 
-    obj = get_object_or_404(ClassGroup, id=class_id)
+    obj = _require_class_owner_or_404(class_id, teacher)
 
     if request.method == "PATCH":
         data = _json_body(request)
         name = (data.get("name") or "").strip()
         if not name:
             return JsonResponse({"ok": False, "error": "name is required"}, status=400)
-        if ClassGroup.objects.exclude(id=obj.id).filter(name__iexact=name).exists():
+        if ClassGroup.objects.exclude(id=obj.id).filter(owner=teacher, name__iexact=name).exists():
             return JsonResponse({"ok": False, "error": "class with this name already exists"}, status=409)
         obj.name = name
         obj.save(update_fields=["name"])
@@ -1963,14 +2056,15 @@ def teacher_class_detail_api(request: HttpRequest, class_id: int):
 @csrf_exempt
 @require_http_methods(["GET", "POST"])
 def teacher_students_api(request: HttpRequest):
-    if not _get_logged_in_teacher(request):
+    teacher = _get_logged_in_teacher(request)
+    if not teacher:
         return _teacher_api_unauthorized()
 
     if request.method == "GET":
         class_id = request.GET.get("class_id") or ""
-        qs = Student.objects.select_related("class_group").order_by("class_group__name", "full_name")
+        qs = Student.objects.select_related("class_group").filter(class_group__owner=teacher).order_by("class_group__name", "full_name")
         if class_id.isdigit():
-            qs = qs.filter(class_group_id=int(class_id))
+            qs = qs.filter(class_group_id=int(class_id), class_group__owner=teacher)
         return JsonResponse({"ok": True, "students": [_serialize_student(s) for s in qs]})
 
     data = _json_body(request)
@@ -1984,10 +2078,10 @@ def teacher_students_api(request: HttpRequest):
         return JsonResponse({"ok": False, "error": "pin must be 6 digits"}, status=400)
     if not (isinstance(class_id, int) or (isinstance(class_id, str) and str(class_id).isdigit())):
         return JsonResponse({"ok": False, "error": "class_id is required"}, status=400)
-    if Student.objects.filter(full_name__iexact=full_name).exists():
+    if Student.objects.filter(class_group__owner=teacher, full_name__iexact=full_name).exists():
         return JsonResponse({"ok": False, "error": "student with this name already exists"}, status=409)
 
-    cg = get_object_or_404(ClassGroup, id=int(class_id))
+    cg = get_object_or_404(ClassGroup, id=int(class_id), owner=teacher)
     st = Student(full_name=full_name, class_group=cg, is_active=True)
     st.set_pin(pin)
     st.save()
@@ -1997,10 +2091,11 @@ def teacher_students_api(request: HttpRequest):
 @csrf_exempt
 @require_http_methods(["PATCH", "DELETE"])
 def teacher_student_detail_api(request: HttpRequest, student_id: int):
-    if not _get_logged_in_teacher(request):
+    teacher = _get_logged_in_teacher(request)
+    if not teacher:
         return _teacher_api_unauthorized()
 
-    st = get_object_or_404(Student.objects.select_related("class_group"), id=student_id)
+    st = get_object_or_404(Student.objects.select_related("class_group"), id=student_id, class_group__owner=teacher)
 
     if request.method == "DELETE":
         st.delete()
@@ -2012,7 +2107,7 @@ def teacher_student_detail_api(request: HttpRequest, student_id: int):
         name = (data.get("full_name") or "").strip()
         if not name:
             return JsonResponse({"ok": False, "error": "full_name cannot be empty"}, status=400)
-        if Student.objects.exclude(id=st.id).filter(full_name__iexact=name).exists():
+        if Student.objects.exclude(id=st.id).filter(class_group__owner=teacher, full_name__iexact=name).exists():
             return JsonResponse({"ok": False, "error": "student with this name already exists"}, status=409)
         st.full_name = name
 
@@ -2020,7 +2115,7 @@ def teacher_student_detail_api(request: HttpRequest, student_id: int):
         cid = data.get("class_id")
         if not (isinstance(cid, int) or (isinstance(cid, str) and str(cid).isdigit())):
             return JsonResponse({"ok": False, "error": "invalid class_id"}, status=400)
-        st.class_group = get_object_or_404(ClassGroup, id=int(cid))
+        st.class_group = get_object_or_404(ClassGroup, id=int(cid), owner=teacher)
 
     if "is_active" in data:
         st.is_active = bool(data.get("is_active"))
@@ -2032,10 +2127,11 @@ def teacher_student_detail_api(request: HttpRequest, student_id: int):
 @csrf_exempt
 @require_POST
 def teacher_student_reset_pin_api(request: HttpRequest, student_id: int):
-    if not _get_logged_in_teacher(request):
+    teacher = _get_logged_in_teacher(request)
+    if not teacher:
         return _teacher_api_unauthorized()
 
-    st = get_object_or_404(Student, id=student_id)
+    st = get_object_or_404(Student, id=student_id, class_group__owner=teacher)
     data = _json_body(request)
     pin = str(data.get("pin") or "").strip()
     if not PIN_RE.match(pin):
@@ -2052,18 +2148,21 @@ def teacher_student_reset_pin_api(request: HttpRequest, student_id: int):
 @csrf_exempt
 @require_http_methods(["GET", "POST"])
 def teacher_sessions_api(request: HttpRequest):
-    if not _get_logged_in_teacher(request):
+    teacher = _get_logged_in_teacher(request)
+    if not teacher:
         return _teacher_api_unauthorized()
 
     try:
         if request.method == "GET":
-            sessions = Session.objects.all().order_by("-created_at")
+            sessions = Session.objects.filter(author=teacher).order_by("-created_at")
+            public_sessions = Session.objects.filter(is_shared_template=True).exclude(author=teacher).order_by("-created_at")
             available_classes = list(
-                ClassGroup.objects.order_by("name").values("id", "name")
+                ClassGroup.objects.filter(owner=teacher).order_by("name").values("id", "name")
             )
             return JsonResponse({
                 "ok": True,
                 "sessions": [_serialize_session(s) for s in sessions],
+                "public_sessions": [_serialize_session(s) for s in public_sessions],
                 "available_classes": available_classes,
             })
 
@@ -2093,6 +2192,7 @@ def teacher_sessions_api(request: HttpRequest):
                 status=status,
                 starts_at=starts_at,
                 ends_at=ends_at,
+                author=teacher,
             )
 
             clean_ids = []
@@ -2104,7 +2204,7 @@ def teacher_sessions_api(request: HttpRequest):
 
             if clean_ids:
                 existing_ids = set(
-                    ClassGroup.objects.filter(id__in=clean_ids).values_list("id", flat=True)
+                    ClassGroup.objects.filter(owner=teacher, id__in=clean_ids).values_list("id", flat=True)
                 )
                 missing = [cid for cid in clean_ids if cid not in existing_ids]
                 if missing:
@@ -2121,13 +2221,153 @@ def teacher_sessions_api(request: HttpRequest):
 
     except Exception as e:
         return JsonResponse({"ok": False, "error": f"{type(e).__name__}: {e}"}, status=500)
+
+
+@csrf_exempt
+@require_POST
+def teacher_session_clone_api(request: HttpRequest, session_id: int):
+    teacher = _get_logged_in_teacher(request)
+    if not teacher:
+        return _teacher_api_unauthorized()
+
+    source = get_object_or_404(Session, id=session_id, is_shared_template=True)
+    if source.author_id == teacher.id:
+        return JsonResponse({"ok": False, "error": "cannot clone your own session as public template"}, status=400)
+
+    try:
+        with transaction.atomic():
+            clone = Session.objects.create(
+                title=f"{source.title} (Copy)",
+                description=source.description,
+                status=SESSION_STATUS_DRAFT,
+                starts_at=source.starts_at,
+                ends_at=source.ends_at,
+                author=teacher,
+                is_shared_template=False,
+                source_session=source,
+            )
+
+            source_classes = SessionClass.objects.filter(session=source, class_group__owner=teacher)
+            SessionClass.objects.bulk_create(
+                [SessionClass(session=clone, class_group_id=sc.class_group_id) for sc in source_classes]
+            )
+
+            task_map = {}
+            source_tasks = list(SessionTask.objects.filter(session=source).order_by("position", "id"))
+            for t in source_tasks:
+                new_task = SessionTask.objects.create(
+                    session=clone,
+                    position=t.position,
+                    title=t.title,
+                    statement=t.statement,
+                    constraints=t.constraints,
+                    programming_language=t.programming_language,
+                    hints_enabled=t.hints_enabled,
+                    hint1_enabled=t.hint1_enabled,
+                    hint2_enabled=t.hint2_enabled,
+                    hint3_enabled=t.hint3_enabled,
+                    hint1_unlock_attempts=t.hint1_unlock_attempts,
+                    hint2_unlock_attempts=t.hint2_unlock_attempts,
+                    hint3_unlock_attempts=t.hint3_unlock_attempts,
+                )
+                task_map[t.id] = new_task
+
+            for t in source_tasks:
+                new_task = task_map[t.id]
+                tests = TaskTestCase.objects.filter(task=t).order_by("ordinal", "id")
+                TaskTestCase.objects.bulk_create([
+                    TaskTestCase(
+                        task=new_task,
+                        ordinal=tc.ordinal,
+                        stdin=tc.stdin,
+                        expected_stdout=tc.expected_stdout,
+                        is_visible=tc.is_visible,
+                    )
+                    for tc in tests
+                ])
+                frags = TaskCodeFragment.objects.filter(task=t).order_by("position", "id")
+                TaskCodeFragment.objects.bulk_create([
+                    TaskCodeFragment(
+                        task=new_task,
+                        position=f.position,
+                        title=f.title,
+                        code=f.code,
+                        is_active=f.is_active,
+                    )
+                    for f in frags
+                ])
+
+            source_theory = list(TheoryMaterialModule.objects.filter(session=source).order_by("position", "id"))
+            for module in source_theory:
+                module_clone = TheoryMaterialModule.objects.create(
+                    session=clone,
+                    position=module.position,
+                    title=module.title,
+                    topic=module.topic,
+                    ai_prompt=module.ai_prompt,
+                    is_active=module.is_active,
+                )
+                blocks = TheoryMaterialBlock.objects.filter(module=module).order_by("ordinal", "id")
+                TheoryMaterialBlock.objects.bulk_create([
+                    TheoryMaterialBlock(
+                        module=module_clone,
+                        ordinal=b.ordinal,
+                        block_type=b.block_type,
+                        heading_level=b.heading_level,
+                        content=b.content,
+                    )
+                    for b in blocks
+                ])
+
+            source_quizzes = list(TheoryQuizModule.objects.filter(session=source).prefetch_related("questions__choices", "questions__pairs").order_by("position", "id"))
+            for quiz in source_quizzes:
+                quiz_clone = TheoryQuizModule.objects.create(
+                    session=clone,
+                    position=quiz.position,
+                    title=quiz.title,
+                    topic=quiz.topic,
+                    instructions=quiz.instructions,
+                    is_active=quiz.is_active,
+                )
+                for q in quiz.questions.all().order_by("ordinal", "id"):
+                    q_clone = TheoryQuizQuestion.objects.create(
+                        module=quiz_clone,
+                        ordinal=q.ordinal,
+                        question_type=q.question_type,
+                        prompt=q.prompt,
+                        model_answer=q.model_answer,
+                        accept_suitable_answer=q.accept_suitable_answer,
+                    )
+                    TheoryQuizChoice.objects.bulk_create([
+                        TheoryQuizChoice(
+                            question=q_clone,
+                            ordinal=ch.ordinal,
+                            text=ch.text,
+                            is_correct=ch.is_correct,
+                        )
+                        for ch in q.choices.all().order_by("ordinal", "id")
+                    ])
+                    TheoryQuizMatchPair.objects.bulk_create([
+                        TheoryQuizMatchPair(
+                            question=q_clone,
+                            ordinal=p.ordinal,
+                            left_text=p.left_text,
+                            right_text=p.right_text,
+                        )
+                        for p in q.pairs.all().order_by("ordinal", "id")
+                    ])
+
+        return JsonResponse({"ok": True, "session": _serialize_session(clone)}, status=201)
+    except Exception as e:
+        return JsonResponse({"ok": False, "error": f"{type(e).__name__}: {e}"}, status=500)
 @csrf_exempt
 @require_http_methods(["GET", "POST"])
 def teacher_session_tasks_api(request: HttpRequest, session_id: int):
-    if not _get_logged_in_teacher(request):
+    teacher = _get_logged_in_teacher(request)
+    if not teacher:
         return _teacher_api_unauthorized()
 
-    session = get_object_or_404(Session, id=session_id)
+    session = _require_session_owner_or_404(session_id, teacher)
 
     try:
         if request.method == "GET":
@@ -2169,6 +2409,7 @@ def teacher_session_tasks_api(request: HttpRequest, session_id: int):
             statement=statement,
             constraints=constraints,
             programming_language=programming_language,
+            **_task_hints_from_payload(data),
         )
 
         return JsonResponse({
@@ -2188,10 +2429,11 @@ def teacher_session_tasks_api(request: HttpRequest, session_id: int):
 @csrf_exempt
 @require_http_methods(["PATCH", "DELETE"])
 def teacher_session_detail_api(request: HttpRequest, session_id: int):
-    if not _get_logged_in_teacher(request):
+    teacher = _get_logged_in_teacher(request)
+    if not teacher:
         return _teacher_api_unauthorized()
 
-    s = get_object_or_404(Session, id=session_id)
+    s = _require_session_owner_or_404(session_id, teacher)
 
     try:
         if request.method == "DELETE":
@@ -2225,6 +2467,9 @@ def teacher_session_detail_api(request: HttpRequest, session_id: int):
                 return JsonResponse({"ok": False, "error": "invalid status"}, status=400)
             s.status = status
 
+        if "is_shared_template" in data:
+            s.is_shared_template = bool(data.get("is_shared_template"))
+
         if s.starts_at and s.ends_at and s.ends_at <= s.starts_at:
             return JsonResponse({"ok": False, "error": "ends_at must be after starts_at"}, status=400)
 
@@ -2240,7 +2485,7 @@ def teacher_session_detail_api(request: HttpRequest, session_id: int):
                 except (TypeError, ValueError):
                     return JsonResponse({"ok": False, "error": "class_group_ids must contain integers"}, status=400)
 
-            existing_ids = set(ClassGroup.objects.filter(id__in=clean_ids).values_list("id", flat=True))
+            existing_ids = set(ClassGroup.objects.filter(owner=teacher, id__in=clean_ids).values_list("id", flat=True))
             missing = [cid for cid in clean_ids if cid not in existing_ids]
             if missing:
                 return JsonResponse({"ok": False, "error": f"Some classes do not exist: {missing}"}, status=400)
@@ -2263,9 +2508,10 @@ def teacher_session_detail_api(request: HttpRequest, session_id: int):
 
 @require_GET
 def teacher_session_classes_api(request: HttpRequest, session_id: int):
-    if not _get_logged_in_teacher(request):
+    teacher = _get_logged_in_teacher(request)
+    if not teacher:
         return _teacher_api_unauthorized()
-    session = get_object_or_404(Session, id=session_id)
+    session = _require_session_owner_or_404(session_id, teacher)
     class_ids = list(SessionClass.objects.filter(session=session).values_list("class_group_id", flat=True))
     return JsonResponse({"ok": True, "class_ids": class_ids})
 
@@ -2275,10 +2521,11 @@ def teacher_session_classes_api(request: HttpRequest, session_id: int):
 @csrf_exempt
 @require_POST
 def teacher_session_assign_classes_api(request: HttpRequest, session_id: int):
-    if not _get_logged_in_teacher(request):
+    teacher = _get_logged_in_teacher(request)
+    if not teacher:
         return _teacher_api_unauthorized()
 
-    session = get_object_or_404(Session, id=session_id)
+    session = _require_session_owner_or_404(session_id, teacher)
 
     try:
         data = _json_body(request)
@@ -2294,7 +2541,7 @@ def teacher_session_assign_classes_api(request: HttpRequest, session_id: int):
             except (TypeError, ValueError):
                 return JsonResponse({"ok": False, "error": "class_ids must contain integers"}, status=400)
 
-        existing_ids = set(ClassGroup.objects.filter(id__in=clean_ids).values_list("id", flat=True))
+        existing_ids = set(ClassGroup.objects.filter(owner=teacher, id__in=clean_ids).values_list("id", flat=True))
         missing = [cid for cid in clean_ids if cid not in existing_ids]
         if missing:
             return JsonResponse({"ok": False, "error": f"Some classes do not exist: {missing}"}, status=400)
@@ -2320,10 +2567,11 @@ def teacher_session_assign_classes_api(request: HttpRequest, session_id: int):
 @csrf_exempt
 @require_http_methods(["GET", "PATCH", "DELETE"])
 def teacher_task_detail_api(request: HttpRequest, task_id: int):
-    if not _get_logged_in_teacher(request):
+    teacher = _get_logged_in_teacher(request)
+    if not teacher:
         return _teacher_api_unauthorized()
 
-    task = get_object_or_404(SessionTask, id=task_id)
+    task = _require_task_owner_or_404(task_id, teacher)
 
     if request.method == "GET":
         return JsonResponse({"ok": True, "task": _serialize_task(task)})
@@ -2356,6 +2604,24 @@ def teacher_task_detail_api(request: HttpRequest, task_id: int):
             return JsonResponse({"ok": False, "error": "invalid programming_language"}, status=400)
         task.programming_language = programming_language
 
+    if any(k in data for k in {
+        "hints_enabled",
+        "hint1_enabled",
+        "hint2_enabled",
+        "hint3_enabled",
+        "hint1_unlock_attempts",
+        "hint2_unlock_attempts",
+        "hint3_unlock_attempts",
+    }):
+        hints_cfg = _task_hints_from_payload(data, task)
+        task.hints_enabled = hints_cfg["hints_enabled"]
+        task.hint1_enabled = hints_cfg["hint1_enabled"]
+        task.hint2_enabled = hints_cfg["hint2_enabled"]
+        task.hint3_enabled = hints_cfg["hint3_enabled"]
+        task.hint1_unlock_attempts = hints_cfg["hint1_unlock_attempts"]
+        task.hint2_unlock_attempts = hints_cfg["hint2_unlock_attempts"]
+        task.hint3_unlock_attempts = hints_cfg["hint3_unlock_attempts"]
+
     task.save()
     return JsonResponse({"ok": True, "task": _serialize_task(task)})
 
@@ -2363,10 +2629,11 @@ def teacher_task_detail_api(request: HttpRequest, task_id: int):
 @csrf_exempt
 @require_http_methods(["GET", "POST"])
 def teacher_task_tests_api(request: HttpRequest, task_id: int):
-    if not _get_logged_in_teacher(request):
+    teacher = _get_logged_in_teacher(request)
+    if not teacher:
         return _teacher_api_unauthorized()
 
-    task = get_object_or_404(SessionTask, id=task_id)
+    task = _require_task_owner_or_404(task_id, teacher)
 
     if request.method == "GET":
         tests = TaskTestCase.objects.filter(task=task).order_by("ordinal", "id")
@@ -2391,10 +2658,11 @@ def teacher_task_tests_api(request: HttpRequest, task_id: int):
 @csrf_exempt
 @require_http_methods(["PATCH", "DELETE"])
 def teacher_test_detail_api(request: HttpRequest, test_id: int):
-    if not _get_logged_in_teacher(request):
+    teacher = _get_logged_in_teacher(request)
+    if not teacher:
         return _teacher_api_unauthorized()
 
-    tc = get_object_or_404(TaskTestCase, id=test_id)
+    tc = get_object_or_404(TaskTestCase.objects.select_related("task__session"), id=test_id, task__session__author=teacher)
 
     if request.method == "DELETE":
         tc.delete()
@@ -2420,10 +2688,11 @@ def teacher_test_detail_api(request: HttpRequest, test_id: int):
 @csrf_exempt
 @require_http_methods(["GET", "POST"])
 def teacher_task_fragments_api(request: HttpRequest, task_id: int):
-    if not _get_logged_in_teacher(request):
+    teacher = _get_logged_in_teacher(request)
+    if not teacher:
         return _teacher_api_unauthorized()
 
-    task = get_object_or_404(SessionTask, id=task_id)
+    task = _require_task_owner_or_404(task_id, teacher)
 
     if request.method == "GET":
         frags = TaskCodeFragment.objects.filter(task=task).order_by("position", "id")
@@ -2449,10 +2718,11 @@ def teacher_task_fragments_api(request: HttpRequest, task_id: int):
 @csrf_exempt
 @require_http_methods(["GET", "POST"])
 def teacher_theory_modules_api(request: HttpRequest, session_id: int):
-    if not _get_logged_in_teacher(request):
+    teacher = _get_logged_in_teacher(request)
+    if not teacher:
         return _teacher_api_unauthorized()
 
-    session = get_object_or_404(Session, id=session_id)
+    session = _require_session_owner_or_404(session_id, teacher)
 
     try:
         if request.method == "GET":
@@ -2507,10 +2777,11 @@ def teacher_theory_modules_api(request: HttpRequest, session_id: int):
 @csrf_exempt
 @require_http_methods(["GET", "PATCH", "DELETE"])
 def teacher_theory_module_detail_api(request: HttpRequest, module_id: int):
-    if not _get_logged_in_teacher(request):
+    teacher = _get_logged_in_teacher(request)
+    if not teacher:
         return _teacher_api_unauthorized()
 
-    module = get_object_or_404(TheoryMaterialModule.objects.prefetch_related("blocks"), id=module_id)
+    module = get_object_or_404(TheoryMaterialModule.objects.prefetch_related("blocks").select_related("session"), id=module_id, session__author=teacher)
 
     try:
         if request.method == "GET":
@@ -2564,10 +2835,11 @@ def teacher_theory_module_detail_api(request: HttpRequest, module_id: int):
 @csrf_exempt
 @require_http_methods(["GET", "POST"])
 def teacher_theory_blocks_api(request: HttpRequest, module_id: int):
-    if not _get_logged_in_teacher(request):
+    teacher = _get_logged_in_teacher(request)
+    if not teacher:
         return _teacher_api_unauthorized()
 
-    module = get_object_or_404(TheoryMaterialModule, id=module_id)
+    module = get_object_or_404(TheoryMaterialModule.objects.select_related("session"), id=module_id, session__author=teacher)
 
     try:
         if request.method == "GET":
@@ -2629,10 +2901,15 @@ def teacher_theory_blocks_api(request: HttpRequest, module_id: int):
 @csrf_exempt
 @require_http_methods(["PATCH", "DELETE"])
 def teacher_theory_block_detail_api(request: HttpRequest, block_id: int):
-    if not _get_logged_in_teacher(request):
+    teacher = _get_logged_in_teacher(request)
+    if not teacher:
         return _teacher_api_unauthorized()
 
-    block = get_object_or_404(TheoryMaterialBlock, id=block_id)
+    block = get_object_or_404(
+        TheoryMaterialBlock.objects.select_related("module__session"),
+        id=block_id,
+        module__session__author=teacher,
+    )
 
     try:
         if request.method == "DELETE":
@@ -2700,10 +2977,11 @@ def teacher_theory_block_detail_api(request: HttpRequest, block_id: int):
 @csrf_exempt
 @require_POST
 def teacher_generate_theory_module_api(request: HttpRequest, module_id: int):
-    if not _get_logged_in_teacher(request):
+    teacher = _get_logged_in_teacher(request)
+    if not teacher:
         return _teacher_api_unauthorized()
 
-    module = get_object_or_404(TheoryMaterialModule.objects.select_related("session"), id=module_id)
+    module = get_object_or_404(TheoryMaterialModule.objects.select_related("session"), id=module_id, session__author=teacher)
 
     try:
         data = _json_body(request)
@@ -2779,10 +3057,11 @@ def teacher_generate_theory_module_api(request: HttpRequest, module_id: int):
 @csrf_exempt
 @require_http_methods(["GET", "POST"])
 def teacher_theory_quizzes_api(request: HttpRequest, session_id: int):
-    if not _get_logged_in_teacher(request):
+    teacher = _get_logged_in_teacher(request)
+    if not teacher:
         return _teacher_api_unauthorized()
 
-    session = get_object_or_404(Session, id=session_id)
+    session = _require_session_owner_or_404(session_id, teacher)
 
     try:
         if request.method == "GET":
@@ -2829,12 +3108,14 @@ def teacher_theory_quizzes_api(request: HttpRequest, session_id: int):
 @csrf_exempt
 @require_http_methods(["GET", "PATCH", "DELETE"])
 def teacher_theory_quiz_detail_api(request: HttpRequest, module_id: int):
-    if not _get_logged_in_teacher(request):
+    teacher = _get_logged_in_teacher(request)
+    if not teacher:
         return _teacher_api_unauthorized()
 
     module = get_object_or_404(
         TheoryQuizModule.objects.prefetch_related("questions__choices", "questions__pairs"),
         id=module_id,
+        session__author=teacher,
     )
 
     try:
@@ -2879,10 +3160,11 @@ def teacher_theory_quiz_detail_api(request: HttpRequest, module_id: int):
 @csrf_exempt
 @require_http_methods(["GET", "POST"])
 def teacher_theory_quiz_questions_api(request: HttpRequest, module_id: int):
-    if not _get_logged_in_teacher(request):
+    teacher = _get_logged_in_teacher(request)
+    if not teacher:
         return _teacher_api_unauthorized()
 
-    module = get_object_or_404(TheoryQuizModule, id=module_id)
+    module = get_object_or_404(TheoryQuizModule, id=module_id, session__author=teacher)
 
     try:
         if request.method == "GET":
@@ -2936,12 +3218,14 @@ def teacher_theory_quiz_questions_api(request: HttpRequest, module_id: int):
 @csrf_exempt
 @require_http_methods(["PATCH", "DELETE"])
 def teacher_theory_quiz_question_detail_api(request: HttpRequest, question_id: int):
-    if not _get_logged_in_teacher(request):
+    teacher = _get_logged_in_teacher(request)
+    if not teacher:
         return _teacher_api_unauthorized()
 
     question = get_object_or_404(
         TheoryQuizQuestion.objects.select_related("module").prefetch_related("choices", "pairs"),
         id=question_id,
+        module__session__author=teacher,
     )
 
     try:
@@ -3007,10 +3291,15 @@ def teacher_theory_quiz_question_detail_api(request: HttpRequest, question_id: i
 @csrf_exempt
 @require_http_methods(["PATCH", "DELETE"])
 def teacher_fragment_detail_api(request: HttpRequest, frag_id: int):
-    if not _get_logged_in_teacher(request):
+    teacher = _get_logged_in_teacher(request)
+    if not teacher:
         return _teacher_api_unauthorized()
 
-    frag = get_object_or_404(TaskCodeFragment, id=frag_id)
+    frag = get_object_or_404(
+        TaskCodeFragment.objects.select_related("task__session"),
+        id=frag_id,
+        task__session__author=teacher,
+    )
 
     if request.method == "DELETE":
         frag.delete()
@@ -3056,16 +3345,22 @@ def set_ui_language(request):
     return response
 
 def _build_dashboard_analytics_context(request: HttpRequest) -> dict:
+    teacher = _get_logged_in_teacher(request)
+    owned_class_ids = _teacher_owned_class_ids(teacher) if teacher else []
     class_id = _get_persisted_dashboard_class_id(request)
     show_success = True
     show_hints = True
 
-    classes = ClassGroup.objects.all().order_by("name")
+    classes = (ClassGroup.objects.filter(owner=teacher) if teacher else ClassGroup.objects.all()).order_by("name")
     students_qs = Student.objects.filter(is_active=True).select_related("class_group").order_by("class_group__name", "full_name")
+    if teacher:
+        students_qs = students_qs.filter(class_group_id__in=owned_class_ids)
     if class_id.isdigit():
         students_qs = students_qs.filter(class_group_id=int(class_id))
 
     sub_qs = Submission.objects.select_related("progress__student_session__session", "progress__student_session__student")
+    if teacher:
+        sub_qs = sub_qs.filter(progress__student_session__student__class_group_id__in=owned_class_ids)
     if class_id.isdigit():
         sub_qs = sub_qs.filter(progress__student_session__student__class_group_id=int(class_id))
 
@@ -3082,6 +3377,8 @@ def _build_dashboard_analytics_context(request: HttpRequest) -> dict:
         "progress__student_session__session",
         "progress__student_session__student",
     )
+    if teacher:
+        agg_qs = agg_qs.filter(progress__student_session__student__class_group_id__in=owned_class_ids)
     if class_id.isdigit():
         agg_qs = agg_qs.filter(progress__student_session__student__class_group_id=int(class_id))
 
@@ -3121,6 +3418,8 @@ def _build_dashboard_analytics_context(request: HttpRequest) -> dict:
     }
 
     ss_qs = StudentSession.objects.select_related("student", "session")
+    if teacher:
+        ss_qs = ss_qs.filter(student__class_group_id__in=owned_class_ids)
     if class_id.isdigit():
         ss_qs = ss_qs.filter(student__class_group_id=int(class_id))
 

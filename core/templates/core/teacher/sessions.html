@@ -117,6 +117,8 @@
   <div class="card">
     <div style="font-weight:900;margin-bottom:8px;">{{ T.sessions_list }}</div>
     <div id="sessionList"></div>
+    <div style="font-weight:900;margin:16px 0 8px;">{{ T.shared_sessions_list|default:"Shared sessions" }}</div>
+    <div id="publicSessionList"></div>
   </div>
 
   <div class="card">
@@ -152,6 +154,10 @@
         <button class="btn" id="startBtn" type="button" style="margin-left:10px;">{{ T.start }}</button>
         <button class="btn" id="stopBtn" type="button" style="margin-left:6px;border-color:#fca5a5;">{{ T.stop }}</button>
       </div>
+      <label class="class-pill" style="margin-top:10px;">
+        <input id="isSharedTemplate" type="checkbox">
+        <span>{{ T.shared_template|default:"Shared template session" }}</span>
+      </label>
 
       <div style="margin-top:12px;">
         <div style="font-weight:800;margin-bottom:6px;">{{ T.allowed_classes }}</div>
@@ -186,6 +192,11 @@
     failedToStop: "{{ T.failed_to_stop|escapejs }}",
     noSessions: "{{ T.no_sessions|escapejs }}",
     noClasses: "{{ T.no_classes|escapejs }}",
+    sharedSessionsList: "{{ T.shared_sessions_list|default:'Shared sessions'|escapejs }}",
+    copySession: "{{ T.copy_session|default:'Create my copy'|escapejs }}",
+    copyCreated: "{{ T.copy_created|default:'Session copy created.'|escapejs }}",
+    copyFailed: "{{ T.copy_failed|default:'Failed to clone session'|escapejs }}",
+    sharedTemplate: "{{ T.shared_template|default:'Shared template session'|escapejs }}",
     draft: "{{ T.draft|escapejs }}",
     running: "{{ T.running|escapejs }}",
     stopped: "{{ T.stopped|escapejs }}",
@@ -195,6 +206,7 @@
   let selectedId = null;
   let allClasses = [];
   let sessionsCache = [];
+  let publicSessionsCache = [];
   let busy = false;
 
   function setBusy(state){
@@ -267,7 +279,9 @@
       return;
     }
     sessionsCache = res.data.sessions || [];
+    publicSessionsCache = res.data.public_sessions || [];
     renderSessionList(sessionsCache);
+    renderPublicSessionList(publicSessionsCache);
 
     if (keepSelection && oldSelected && sessionsCache.some(x => x.id === oldSelected)){
       await selectSession(oldSelected, false);
@@ -301,6 +315,42 @@
       `;
       btn.onclick = () => selectSession(s.id);
       root.appendChild(btn);
+    });
+  }
+
+  function renderPublicSessionList(items){
+    const root = document.getElementById("publicSessionList");
+    root.innerHTML = "";
+    if (!items.length){
+      root.innerHTML = `<div class="muted">—</div>`;
+      return;
+    }
+    items.forEach(s => {
+      const box = document.createElement("div");
+      box.className = "session-item";
+      box.innerHTML = `
+        <div class="session-item-title">${s.title}</div>
+        <div class="session-item-meta">id=${s.id} • ${s.author_name || ""}</div>
+        <div style="margin-top:8px;">
+          <button class="btn" type="button" data-clone-id="${s.id}">${UI.copySession}</button>
+        </div>
+      `;
+      root.appendChild(box);
+    });
+    root.querySelectorAll("button[data-clone-id]").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        const id = Number(btn.getAttribute("data-clone-id"));
+        setBusy(true);
+        setMsg(UI.loading, "info");
+        const res = await api(`/api/teacher/sessions/${id}/clone/`, "POST", {});
+        setBusy(false);
+        if (!res.data.ok){
+          setMsg(res.data.error || UI.copyFailed, "err");
+          return;
+        }
+        setMsg(UI.copyCreated, "ok");
+        await loadSessions(false);
+      });
     });
   }
 
@@ -342,6 +392,7 @@
     document.getElementById("startsAt").value = isoToLocalInput(s.starts_at);
     document.getElementById("endsAt").value = isoToLocalInput(s.ends_at);
     document.getElementById("status").value = s.status || "draft";
+    document.getElementById("isSharedTemplate").checked = !!s.is_shared_template;
     document.getElementById("tasksLink").href = `/teacher/tasks/?session_id=${selectedId}`;
 
     const res = await api(`/api/teacher/sessions/${selectedId}/classes/`);
@@ -388,6 +439,7 @@
       starts_at: localInputToIso((document.getElementById("startsAt").value || "").trim()),
       ends_at: localInputToIso((document.getElementById("endsAt").value || "").trim()),
       status: document.getElementById("status").value
+      ,is_shared_template: document.getElementById("isSharedTemplate").checked
     };
 
     setBusy(true);
