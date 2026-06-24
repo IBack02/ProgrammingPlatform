@@ -275,8 +275,8 @@ def call_openai_hint(level: int, prompt_snapshot: str) -> dict:
             "Read PROGRAMMING_LANGUAGE from user context and reason only about that language.\n"
             "Level 1 objective: identify the exact place of the main error and explain the root cause.\n"
             "Reference a concrete code area from LAST_SUBMISSION (function, loop, condition, variable, expression, or output formatting).\n"
-            "Do not provide a full solution and do not provide code.\n"
-            "Do not output pseudocode.\n"
+            "Do not provide a full solution\n"
+            "Provide the main code piece(s) that causes the problem\n"
             "Use 2-4 concise sentences.\n"
             "Output schema: {text: string, no_code_confirmed: boolean}."
         )
@@ -301,11 +301,11 @@ def call_openai_hint(level: int, prompt_snapshot: str) -> dict:
     else:
         system_rules = (
             "You are a precise programming tutor.\n"
-            "Write a SHORT guidance: exactly 2–3 sentences, no bullets, no lists.\n"
+            "Write a SHORT guidance: exactly 2–5 sentences, no bullets, no lists.\n"
             "Read PROGRAMMING_LANGUAGE from user context and reason only about that language.\n"
             "Level 2 objective: give concrete next actions to make the solution pass.\n"
-            "State exactly what should be added or changed and where (input parsing, data structure, loop logic, condition, function, output format).\n"
-            "Do not provide code and do not provide pseudocode.\n"
+            "State exactly what steps should be taken to solve the problem. You may provide short code piece, but not all solution\n"
+            "Provide short code lines that are most important in given context. Wrap it using {} symbols\n"
             "Use 2-5 concise sentences, no bullets.\n"
             "Output schema: {text: string, no_code_confirmed: boolean}.\n"
             "Set no_code_confirmed=true only if no code-like fragments were produced."
