@@ -214,12 +214,35 @@
     document.querySelectorAll("button").forEach(btn => btn.disabled = state);
   }
 
+  function getCookie(name){
+    const value = `; ${document.cookie}`;
+    const parts = value.split(`; ${name}=`);
+    if (parts.length === 2) return decodeURIComponent(parts.pop().split(";").shift());
+    return "";
+  }
+
+  function addCsrfHeader(opts){
+    const method = String(opts.method || "GET").toUpperCase();
+    if (!["GET", "HEAD", "OPTIONS", "TRACE"].includes(method)){
+      const token = getCookie("csrftoken");
+      if (token) opts.headers["X-CSRFToken"] = token;
+    }
+  }
+  function escapeHtml(s){
+    return String(s || "")
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;")
+      .replaceAll("'", "&#039;");
+  }
   async function api(url, method="GET", body=null){
     const opts = { method, credentials:"include", headers:{ "Accept":"application/json" } };
     if (body){
       opts.headers["Content-Type"] = "application/json";
       opts.body = JSON.stringify(body);
     }
+    addCsrfHeader(opts);
     const r = await fetch(url, opts);
     const ct = r.headers.get("content-type") || "";
     if (!ct.includes("application/json")){
@@ -306,7 +329,7 @@
       btn.type = "button";
       btn.innerHTML = `
         <div class="session-item-title">
-          ${s.title}
+          ${escapeHtml(s.title)}
           <span class="status-chip ${statusClass(s.status)}">${statusLabel(s.status)}</span>
         </div>
         <div class="session-item-meta">
@@ -329,8 +352,8 @@
       const box = document.createElement("div");
       box.className = "session-item";
       box.innerHTML = `
-        <div class="session-item-title">${s.title}</div>
-        <div class="session-item-meta">id=${s.id} • ${s.author_name || ""}</div>
+        <div class="session-item-title">${escapeHtml(s.title)}</div>
+        <div class="session-item-meta">id=${s.id} • ${escapeHtml(s.author_name || "")}</div>
         <div style="margin-top:8px;">
           <button class="btn" type="button" data-clone-id="${s.id}">${UI.copySession}</button>
         </div>
@@ -370,7 +393,7 @@
       wrap.setAttribute("for", id);
       wrap.innerHTML = `
         <input type="checkbox" id="${id}" ${set.has(c.id) ? "checked" : ""}/>
-        <span>${c.name}</span>
+        <span>${escapeHtml(c.name)}</span>
       `;
       box.appendChild(wrap);
     });

@@ -5,6 +5,7 @@ import re
 from functools import wraps
 
 from django.conf import settings
+from django.core.cache import cache
 from django.contrib.admin.views.decorators import staff_member_required
 from django.db import transaction
 from django.db.models import Avg, Count, F, Max, Q, Sum
@@ -13,7 +14,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.utils import timezone as dj_tz
 from django.utils.dateparse import parse_datetime
-from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views.decorators.http import require_GET, require_http_methods, require_POST
 
 
@@ -54,6 +55,47 @@ SESSION_STATUSES = {
     SESSION_STATUS_RUNNING,
     SESSION_STATUS_STOPPED,
 }
+LOGIN_RATE_LIMIT_MAX_ATTEMPTS = int(getattr(settings, "LOGIN_RATE_LIMIT_MAX_ATTEMPTS", 8))
+LOGIN_RATE_LIMIT_WINDOW_SECONDS = int(getattr(settings, "LOGIN_RATE_LIMIT_WINDOW_SECONDS", 15 * 60))
+LOGIN_RATE_LIMIT_LOCK_SECONDS = int(getattr(settings, "LOGIN_RATE_LIMIT_LOCK_SECONDS", 15 * 60))
+GENERIC_LOGIN_ERROR = "invalid credentials"
+
+
+def _client_ip(request: HttpRequest) -> str:
+    forwarded = request.META.get("HTTP_X_FORWARDED_FOR", "")
+    if forwarded:
+        return forwarded.split(",")[0].strip()
+    return request.META.get("REMOTE_ADDR", "unknown")
+
+
+def _login_rate_cache_key(kind: str, request: HttpRequest, identity: str, suffix: str) -> str:
+    identity_key = (identity or "").strip().lower()
+    digest = hashlib.sha256(f"{kind}|{_client_ip(request)}|{identity_key}".encode("utf-8")).hexdigest()
+    return f"login:{kind}:{suffix}:{digest}"
+
+
+def _login_rate_limited(kind: str, request: HttpRequest, identity: str) -> bool:
+    return bool(cache.get(_login_rate_cache_key(kind, request, identity, "lock")))
+
+
+def _record_login_failure(kind: str, request: HttpRequest, identity: str) -> None:
+    attempts_key = _login_rate_cache_key(kind, request, identity, "attempts")
+    attempts = int(cache.get(attempts_key, 0)) + 1
+    if attempts >= LOGIN_RATE_LIMIT_MAX_ATTEMPTS:
+        cache.set(_login_rate_cache_key(kind, request, identity, "lock"), True, LOGIN_RATE_LIMIT_LOCK_SECONDS)
+        cache.delete(attempts_key)
+        return
+    cache.set(attempts_key, attempts, LOGIN_RATE_LIMIT_WINDOW_SECONDS)
+
+
+def _clear_login_failures(kind: str, request: HttpRequest, identity: str) -> None:
+    cache.delete(_login_rate_cache_key(kind, request, identity, "attempts"))
+    cache.delete(_login_rate_cache_key(kind, request, identity, "lock"))
+
+
+def _login_rate_limit_json() -> JsonResponse:
+    return JsonResponse({"ok": False, "error": "too many login attempts"}, status=429)
+
 
 def _json_body(request: HttpRequest) -> dict:
     try:
@@ -635,7 +677,6 @@ def _task_hints_from_payload(data: dict, defaults: SessionTask | None = None) ->
 # Student auth API
 # -------------------------
 
-@csrf_exempt
 @require_POST
 def student_login(request: HttpRequest):
     data = _json_body(request)
@@ -646,17 +687,20 @@ def student_login(request: HttpRequest):
         return JsonResponse({"ok": False, "error": "full_name and pin are required"}, status=400)
     if not PIN_RE.match(pin):
         return JsonResponse({"ok": False, "error": "pin must be 6 digits"}, status=400)
+    if _login_rate_limited("student", request, full_name):
+        return _login_rate_limit_json()
 
     student = (
         Student.objects.select_related("class_group")
         .filter(full_name__iexact=full_name, is_active=True)
         .first()
     )
-    if not student:
-        return JsonResponse({"ok": False, "error": "student not found"}, status=404)
-    if not student.check_pin(pin):
-        return JsonResponse({"ok": False, "error": "invalid credentials"}, status=401)
+    if not student or not student.check_pin(pin):
+        _record_login_failure("student", request, full_name)
+        return JsonResponse({"ok": False, "error": GENERIC_LOGIN_ERROR}, status=401)
 
+    _clear_login_failures("student", request, full_name)
+    request.session.cycle_key()
     request.session["student_id"] = student.id
     request.session["student_name"] = student.full_name
     request.session["student_class_id"] = student.class_group_id
@@ -672,7 +716,6 @@ def student_login(request: HttpRequest):
     })
 
 
-@csrf_exempt
 @require_POST
 def student_logout(request: HttpRequest):
     request.session.flush()
@@ -994,7 +1037,6 @@ def student_theory_quiz_detail(request: HttpRequest, module_id: int):
     })
 
 
-@csrf_exempt
 @require_POST
 def student_theory_quiz_submit(request: HttpRequest, module_id: int):
     student_id, class_id = _get_student_from_session(request)
@@ -1119,7 +1161,6 @@ def student_theory_quiz_submit(request: HttpRequest, module_id: int):
 
 
 
-@csrf_exempt
 @require_POST
 def student_submit(request: HttpRequest, task_id: int):
     student_id, class_id = _get_student_from_session(request)
@@ -1553,6 +1594,7 @@ def student_hint_level(request: HttpRequest, task_id: int, level: int):
 # Student pages
 # -------------------------
 
+@ensure_csrf_cookie
 @require_http_methods(["GET", "POST"])
 def student_login_page(request: HttpRequest):
     lang = get_ui_lang(request)
@@ -1570,6 +1612,13 @@ def student_login_page(request: HttpRequest):
             "core/student_login.html",
             {"error": T.get("student_login_error_required", "Enter name and PIN (6 digits).")},
         )
+    if _login_rate_limited("student", request, full_name):
+        return render(
+            request,
+            "core/student_login.html",
+            {"error": T.get("login_error_too_many_attempts", "Too many attempts. Try again later.")},
+            status=429,
+        )
 
     student = (
         Student.objects.select_related("class_group")
@@ -1577,12 +1626,15 @@ def student_login_page(request: HttpRequest):
         .first()
     )
     if not student or not student.check_pin(pin):
+        _record_login_failure("student", request, full_name)
         return render(
             request,
             "core/student_login.html",
             {"error": T.get("student_login_error_invalid", "Invalid name or PIN.")},
         )
 
+    _clear_login_failures("student", request, full_name)
+    request.session.cycle_key()
     request.session["student_id"] = student.id
     request.session["student_name"] = student.full_name
     request.session["student_class_id"] = student.class_group_id
@@ -1590,12 +1642,14 @@ def student_login_page(request: HttpRequest):
     return redirect("/student/dashboard/")
 
 
+@ensure_csrf_cookie
 def student_portal_page(request: HttpRequest):
     if not _student_id(request):
         return redirect("/student/login/")
     return render(request, "core/student_portal.html", {"bg_urls": _student_background_urls()})
 
 
+@ensure_csrf_cookie
 def student_dashboard_page(request: HttpRequest):
     if not _student_id(request):
         return redirect("/student/login/")
@@ -1893,7 +1947,6 @@ def admin_student_profile(request: HttpRequest, student_id: int) -> HttpResponse
 # Teacher auth/pages
 # -------------------------
 
-@csrf_exempt
 @require_POST
 def teacher_login(request: HttpRequest):
     data = _json_body(request)
@@ -1904,13 +1957,16 @@ def teacher_login(request: HttpRequest):
         return JsonResponse({"ok": False, "error": "full_name and pin are required"}, status=400)
     if not TEACHER_PIN_RE.match(pin):
         return JsonResponse({"ok": False, "error": "pin must be 6 digits"}, status=400)
+    if _login_rate_limited("teacher", request, full_name):
+        return _login_rate_limit_json()
 
     teacher = Teacher.objects.filter(full_name__iexact=full_name, is_active=True).first()
-    if not teacher:
-        return JsonResponse({"ok": False, "error": "teacher not found"}, status=404)
-    if not teacher.check_pin(pin):
-        return JsonResponse({"ok": False, "error": "invalid credentials"}, status=401)
+    if not teacher or not teacher.check_pin(pin):
+        _record_login_failure("teacher", request, full_name)
+        return JsonResponse({"ok": False, "error": GENERIC_LOGIN_ERROR}, status=401)
 
+    _clear_login_failures("teacher", request, full_name)
+    request.session.cycle_key()
     request.session["teacher_id"] = teacher.id
     request.session["teacher_name"] = teacher.full_name
     request.session["teacher_logged_in_at"] = timezone.now().isoformat()
@@ -1918,7 +1974,6 @@ def teacher_login(request: HttpRequest):
     return JsonResponse({"ok": True, "teacher": {"id": teacher.id, "full_name": teacher.full_name}})
 
 
-@csrf_exempt
 @require_POST
 def teacher_logout(request: HttpRequest):
     for key in ["teacher_id", "teacher_name", "teacher_logged_in_at"]:
@@ -1941,6 +1996,7 @@ def teacher_me(request: HttpRequest):
     return JsonResponse({"ok": True, "teacher": {"id": teacher.id, "full_name": teacher.full_name}})
 
 
+@ensure_csrf_cookie
 @require_http_methods(["GET", "POST"])
 def teacher_login_page(request: HttpRequest):
     if request.method == "GET":
@@ -1951,11 +2007,21 @@ def teacher_login_page(request: HttpRequest):
 
     if not full_name or not pin or not TEACHER_PIN_RE.match(pin):
         return render(request, "core/teacher_login.html", {"error": "Enter name and PIN (6 digits)."})
+    if _login_rate_limited("teacher", request, full_name):
+        return render(
+            request,
+            "core/teacher_login.html",
+            {"error": "Too many attempts. Try again later."},
+            status=429,
+        )
 
     teacher = Teacher.objects.filter(full_name__iexact=full_name, is_active=True).first()
     if not teacher or not teacher.check_pin(pin):
+        _record_login_failure("teacher", request, full_name)
         return render(request, "core/teacher_login.html", {"error": "Invalid name or PIN."})
 
+    _clear_login_failures("teacher", request, full_name)
+    request.session.cycle_key()
     request.session["teacher_id"] = teacher.id
     request.session["teacher_name"] = teacher.full_name
     request.session["teacher_logged_in_at"] = timezone.now().isoformat()
@@ -1963,6 +2029,7 @@ def teacher_login_page(request: HttpRequest):
 
 
 @teacher_required
+@ensure_csrf_cookie
 def teacher_dashboard_page(request: HttpRequest):
     context = _build_dashboard_analytics_context(request)
     context["active"] = "dashboard"
@@ -1970,24 +2037,29 @@ def teacher_dashboard_page(request: HttpRequest):
 
 
 @teacher_required
+@ensure_csrf_cookie
 def teacher_sessions_page(request: HttpRequest):
     return render(request, "core/teacher/sessions.html", {"active": "sessions"})
 
 
 @teacher_required
+@ensure_csrf_cookie
 def teacher_classes_page(request: HttpRequest):
     return render(request, "core/teacher/classes.html", {"active": "classes"})
 
 
 @teacher_required
+@ensure_csrf_cookie
 def teacher_students_page(request: HttpRequest):
     return render(request, "core/teacher/students.html", {"active": "students"})
 
 
 @teacher_required
+@ensure_csrf_cookie
 def teacher_tasks_page(request: HttpRequest):
     return render(request, "core/teacher/tasks.html", {"active": "tasks"})
 @teacher_required
+@ensure_csrf_cookie
 def teacher_modules_page(request: HttpRequest):
     return render(request, "core/teacher/modules.html", {"active": "modules"})
 
@@ -2000,7 +2072,6 @@ def healthz(request: HttpRequest):
 # Teacher classes API
 # -------------------------
 
-@csrf_exempt
 @require_http_methods(["GET", "POST"])
 def teacher_classes_api(request: HttpRequest):
     teacher = _get_logged_in_teacher(request)
@@ -2022,7 +2093,6 @@ def teacher_classes_api(request: HttpRequest):
     return JsonResponse({"ok": True, "class": _serialize_class_group(obj)}, status=201)
 
 
-@csrf_exempt
 @require_http_methods(["PATCH", "DELETE"])
 def teacher_class_detail_api(request: HttpRequest, class_id: int):
     teacher = _get_logged_in_teacher(request)
@@ -2053,7 +2123,6 @@ def teacher_class_detail_api(request: HttpRequest, class_id: int):
 # Teacher students API
 # -------------------------
 
-@csrf_exempt
 @require_http_methods(["GET", "POST"])
 def teacher_students_api(request: HttpRequest):
     teacher = _get_logged_in_teacher(request)
@@ -2088,7 +2157,6 @@ def teacher_students_api(request: HttpRequest):
     return JsonResponse({"ok": True, "student": _serialize_student(st)}, status=201)
 
 
-@csrf_exempt
 @require_http_methods(["PATCH", "DELETE"])
 def teacher_student_detail_api(request: HttpRequest, student_id: int):
     teacher = _get_logged_in_teacher(request)
@@ -2124,7 +2192,6 @@ def teacher_student_detail_api(request: HttpRequest, student_id: int):
     return JsonResponse({"ok": True, "student": _serialize_student(st)})
 
 
-@csrf_exempt
 @require_POST
 def teacher_student_reset_pin_api(request: HttpRequest, student_id: int):
     teacher = _get_logged_in_teacher(request)
@@ -2145,7 +2212,6 @@ def teacher_student_reset_pin_api(request: HttpRequest, student_id: int):
 # -------------------------
 # Teacher sessions API
 # -------------------------
-@csrf_exempt
 @require_http_methods(["GET", "POST"])
 def teacher_sessions_api(request: HttpRequest):
     teacher = _get_logged_in_teacher(request)
@@ -2223,7 +2289,6 @@ def teacher_sessions_api(request: HttpRequest):
         return JsonResponse({"ok": False, "error": f"{type(e).__name__}: {e}"}, status=500)
 
 
-@csrf_exempt
 @require_POST
 def teacher_session_clone_api(request: HttpRequest, session_id: int):
     teacher = _get_logged_in_teacher(request)
@@ -2360,7 +2425,6 @@ def teacher_session_clone_api(request: HttpRequest, session_id: int):
         return JsonResponse({"ok": True, "session": _serialize_session(clone)}, status=201)
     except Exception as e:
         return JsonResponse({"ok": False, "error": f"{type(e).__name__}: {e}"}, status=500)
-@csrf_exempt
 @require_http_methods(["GET", "POST"])
 def teacher_session_tasks_api(request: HttpRequest, session_id: int):
     teacher = _get_logged_in_teacher(request)
@@ -2424,9 +2488,6 @@ def teacher_session_tasks_api(request: HttpRequest, session_id: int):
         )
 
 
-@csrf_exempt
-@require_http_methods(["PATCH", "DELETE"])
-@csrf_exempt
 @require_http_methods(["PATCH", "DELETE"])
 def teacher_session_detail_api(request: HttpRequest, session_id: int):
     teacher = _get_logged_in_teacher(request)
@@ -2516,9 +2577,6 @@ def teacher_session_classes_api(request: HttpRequest, session_id: int):
     return JsonResponse({"ok": True, "class_ids": class_ids})
 
 
-@csrf_exempt
-@require_POST
-@csrf_exempt
 @require_POST
 def teacher_session_assign_classes_api(request: HttpRequest, session_id: int):
     teacher = _get_logged_in_teacher(request)
@@ -2564,7 +2622,6 @@ def teacher_session_assign_classes_api(request: HttpRequest, session_id: int):
 
 
 
-@csrf_exempt
 @require_http_methods(["GET", "PATCH", "DELETE"])
 def teacher_task_detail_api(request: HttpRequest, task_id: int):
     teacher = _get_logged_in_teacher(request)
@@ -2626,7 +2683,6 @@ def teacher_task_detail_api(request: HttpRequest, task_id: int):
     return JsonResponse({"ok": True, "task": _serialize_task(task)})
 
 
-@csrf_exempt
 @require_http_methods(["GET", "POST"])
 def teacher_task_tests_api(request: HttpRequest, task_id: int):
     teacher = _get_logged_in_teacher(request)
@@ -2655,7 +2711,6 @@ def teacher_task_tests_api(request: HttpRequest, task_id: int):
     return JsonResponse({"ok": True, "test": _serialize_testcase(tc)}, status=201)
 
 
-@csrf_exempt
 @require_http_methods(["PATCH", "DELETE"])
 def teacher_test_detail_api(request: HttpRequest, test_id: int):
     teacher = _get_logged_in_teacher(request)
@@ -2685,7 +2740,6 @@ def teacher_test_detail_api(request: HttpRequest, test_id: int):
     return JsonResponse({"ok": True, "test": _serialize_testcase(tc)})
 
 
-@csrf_exempt
 @require_http_methods(["GET", "POST"])
 def teacher_task_fragments_api(request: HttpRequest, task_id: int):
     teacher = _get_logged_in_teacher(request)
@@ -2715,7 +2769,6 @@ def teacher_task_fragments_api(request: HttpRequest, task_id: int):
     )
     return JsonResponse({"ok": True, "fragment": _serialize_fragment(frag)}, status=201)
 
-@csrf_exempt
 @require_http_methods(["GET", "POST"])
 def teacher_theory_modules_api(request: HttpRequest, session_id: int):
     teacher = _get_logged_in_teacher(request)
@@ -2774,7 +2827,6 @@ def teacher_theory_modules_api(request: HttpRequest, session_id: int):
         return JsonResponse({"ok": False, "error": f"{type(e).__name__}: {e}"}, status=500)
 
 
-@csrf_exempt
 @require_http_methods(["GET", "PATCH", "DELETE"])
 def teacher_theory_module_detail_api(request: HttpRequest, module_id: int):
     teacher = _get_logged_in_teacher(request)
@@ -2832,7 +2884,6 @@ def teacher_theory_module_detail_api(request: HttpRequest, module_id: int):
         return JsonResponse({"ok": False, "error": f"{type(e).__name__}: {e}"}, status=500)
 
 
-@csrf_exempt
 @require_http_methods(["GET", "POST"])
 def teacher_theory_blocks_api(request: HttpRequest, module_id: int):
     teacher = _get_logged_in_teacher(request)
@@ -2898,7 +2949,6 @@ def teacher_theory_blocks_api(request: HttpRequest, module_id: int):
         return JsonResponse({"ok": False, "error": f"{type(e).__name__}: {e}"}, status=500)
 
 
-@csrf_exempt
 @require_http_methods(["PATCH", "DELETE"])
 def teacher_theory_block_detail_api(request: HttpRequest, block_id: int):
     teacher = _get_logged_in_teacher(request)
@@ -2974,7 +3024,6 @@ def teacher_theory_block_detail_api(request: HttpRequest, block_id: int):
         return JsonResponse({"ok": False, "error": f"{type(e).__name__}: {e}"}, status=500)
 
 
-@csrf_exempt
 @require_POST
 def teacher_generate_theory_module_api(request: HttpRequest, module_id: int):
     teacher = _get_logged_in_teacher(request)
@@ -3054,7 +3103,6 @@ def teacher_generate_theory_module_api(request: HttpRequest, module_id: int):
         return JsonResponse({"ok": False, "error": f"{type(e).__name__}: {e}"}, status=500)
 
 
-@csrf_exempt
 @require_http_methods(["GET", "POST"])
 def teacher_theory_quizzes_api(request: HttpRequest, session_id: int):
     teacher = _get_logged_in_teacher(request)
@@ -3105,7 +3153,6 @@ def teacher_theory_quizzes_api(request: HttpRequest, session_id: int):
         return JsonResponse({"ok": False, "error": f"{type(e).__name__}: {e}"}, status=500)
 
 
-@csrf_exempt
 @require_http_methods(["GET", "PATCH", "DELETE"])
 def teacher_theory_quiz_detail_api(request: HttpRequest, module_id: int):
     teacher = _get_logged_in_teacher(request)
@@ -3157,7 +3204,6 @@ def teacher_theory_quiz_detail_api(request: HttpRequest, module_id: int):
         return JsonResponse({"ok": False, "error": f"{type(e).__name__}: {e}"}, status=500)
 
 
-@csrf_exempt
 @require_http_methods(["GET", "POST"])
 def teacher_theory_quiz_questions_api(request: HttpRequest, module_id: int):
     teacher = _get_logged_in_teacher(request)
@@ -3215,7 +3261,6 @@ def teacher_theory_quiz_questions_api(request: HttpRequest, module_id: int):
         return JsonResponse({"ok": False, "error": f"{type(e).__name__}: {e}"}, status=500)
 
 
-@csrf_exempt
 @require_http_methods(["PATCH", "DELETE"])
 def teacher_theory_quiz_question_detail_api(request: HttpRequest, question_id: int):
     teacher = _get_logged_in_teacher(request)
@@ -3288,7 +3333,6 @@ def teacher_theory_quiz_question_detail_api(request: HttpRequest, question_id: i
     except Exception as e:
         return JsonResponse({"ok": False, "error": f"{type(e).__name__}: {e}"}, status=500)
 
-@csrf_exempt
 @require_http_methods(["PATCH", "DELETE"])
 def teacher_fragment_detail_api(request: HttpRequest, frag_id: int):
     teacher = _get_logged_in_teacher(request)

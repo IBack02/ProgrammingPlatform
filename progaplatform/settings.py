@@ -18,17 +18,54 @@ import dj_database_url
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 
-# SECURITY WARNING: keep the secret key used in production secret!
-# In production (Render) set SECRET_KEY as an environment variable.
-SECRET_KEY = os.environ.get("SECRET_KEY", "dev-secret-key")
-
 # SECURITY WARNING: don't run with debug turned on in production!
 # In production (Render) set DEBUG=False in environment variables.
 DEBUG = os.environ.get("DEBUG", "False").lower() == "true"
 
-#ALLOWED_HOSTS = ["localhost", "127.0.0.1", ".onrender.com"]
-ALLOWED_HOSTS = ["*"]
+# SECURITY WARNING: keep the secret key used in production secret.
+SECRET_KEY = os.environ.get("SECRET_KEY")
+if not SECRET_KEY:
+    if DEBUG:
+        SECRET_KEY = "dev-secret-key"
+    else:
+        raise RuntimeError("SECRET_KEY environment variable is required when DEBUG=False")
 
+
+def _csv_env(name, default):
+    raw = os.environ.get(name)
+    if raw is None:
+        return default
+    return [item.strip() for item in raw.split(",") if item.strip()]
+
+
+ALLOWED_HOSTS = _csv_env(
+    "ALLOWED_HOSTS",
+    ["localhost", "127.0.0.1"] if DEBUG else [".onrender.com"],
+)
+
+CSRF_TRUSTED_ORIGINS = _csv_env(
+    "CSRF_TRUSTED_ORIGINS",
+    [] if DEBUG else ["https://*.onrender.com"],
+)
+
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+SECURE_SSL_REDIRECT = os.environ.get("SECURE_SSL_REDIRECT", "false" if DEBUG else "true").lower() == "true"
+SESSION_COOKIE_SECURE = not DEBUG
+CSRF_COOKIE_SECURE = not DEBUG
+SESSION_COOKIE_HTTPONLY = True
+CSRF_COOKIE_HTTPONLY = False
+SESSION_COOKIE_SAMESITE = "Lax"
+CSRF_COOKIE_SAMESITE = "Lax"
+SECURE_HSTS_SECONDS = int(os.environ.get("SECURE_HSTS_SECONDS", "0" if DEBUG else "31536000"))
+SECURE_HSTS_INCLUDE_SUBDOMAINS = not DEBUG
+SECURE_HSTS_PRELOAD = os.environ.get("SECURE_HSTS_PRELOAD", "false").lower() == "true"
+SECURE_CONTENT_TYPE_NOSNIFF = True
+REFERRER_POLICY = "strict-origin-when-cross-origin"
+X_FRAME_OPTIONS = "DENY"
+
+LOGIN_RATE_LIMIT_MAX_ATTEMPTS = int(os.environ.get("LOGIN_RATE_LIMIT_MAX_ATTEMPTS", "8"))
+LOGIN_RATE_LIMIT_WINDOW_SECONDS = int(os.environ.get("LOGIN_RATE_LIMIT_WINDOW_SECONDS", "900"))
+LOGIN_RATE_LIMIT_LOCK_SECONDS = int(os.environ.get("LOGIN_RATE_LIMIT_LOCK_SECONDS", "900"))
 
 # Application definition
 

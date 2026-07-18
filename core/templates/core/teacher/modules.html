@@ -242,8 +242,8 @@
     const row = document.createElement("div");
     row.className = "pair-row";
     row.innerHTML = `
-      <input class="input-ui pair-left" placeholder="${UI.pairLeft}" value="${left.replaceAll('"','&quot;')}">
-      <input class="input-ui pair-right" placeholder="${UI.pairRight}" value="${right.replaceAll('"','&quot;')}">
+      <input class="input-ui pair-left" placeholder="${escapeHtml(UI.pairLeft)}" value="${escapeHtml(left)}">
+      <input class="input-ui pair-right" placeholder="${escapeHtml(UI.pairRight)}" value="${escapeHtml(right)}">
       <button type="button" class="btn pair-remove">{{ T.delete }}</button>
     `;
     row.querySelector(".pair-remove").addEventListener("click", () => row.remove());
@@ -277,12 +277,27 @@
       .filter(x => x.left_text && x.right_text);
   }
 
+  function getCookie(name){
+    const value = `; ${document.cookie}`;
+    const parts = value.split(`; ${name}=`);
+    if (parts.length === 2) return decodeURIComponent(parts.pop().split(";").shift());
+    return "";
+  }
+
+  function addCsrfHeader(opts){
+    const method = String(opts.method || "GET").toUpperCase();
+    if (!["GET", "HEAD", "OPTIONS", "TRACE"].includes(method)){
+      const token = getCookie("csrftoken");
+      if (token) opts.headers["X-CSRFToken"] = token;
+    }
+  }
   async function api(url, method="GET", body=null){
     const opts = { method, credentials:"include", headers:{ "Accept":"application/json" } };
     if (body){
       opts.headers["Content-Type"] = "application/json";
       opts.body = JSON.stringify(body);
     }
+    addCsrfHeader(opts);
     const r = await fetch(url, opts);
     const ct = r.headers.get("content-type") || "";
     if (!ct.includes("application/json")){
@@ -372,7 +387,7 @@
       div.className = "module-item" + (isActive ? " active" : "");
       div.innerHTML = `
         <div class="module-head">
-          <div><b>${item.position}. ${item.title}</b></div>
+          <div><b>${escapeHtml(item.position)}. ${escapeHtml(item.title)}</b></div>
           <div class="module-meta"><span class="${badgeClass}">${badgeText}</span></div>
         </div>
       `;
@@ -389,15 +404,15 @@
       div.className = "question-item";
       let extra = "";
       if (q.question_type === "single_choice"){
-        extra = `<div class="muted">${(q.choices || []).map(x => `${x.is_correct ? "[+]" : "[ ]"} ${x.text}`).join("<br>")}</div>`;
+        extra = `<div class="muted">${(q.choices || []).map(x => `${x.is_correct ? "[+]" : "[ ]"} ${escapeHtml(x.text)}`).join("<br>")}</div>`;
       } else if (q.question_type === "matching"){
-        extra = `<div class="muted">${(q.pairs || []).map(x => `${x.left_text} => ${x.right_text}`).join("<br>")}</div>`;
+        extra = `<div class="muted">${(q.pairs || []).map(x => `${escapeHtml(x.left_text)} =&gt; ${escapeHtml(x.right_text)}`).join("<br>")}</div>`;
       } else {
-        extra = `<div class="muted">${q.model_answer || ""}</div>`;
+        extra = `<div class="muted">${escapeHtml(q.model_answer || "")}</div>`;
       }
       div.innerHTML = `
-        <div><b>#${q.ordinal}</b> ${q.question_type}</div>
-        <div style="margin:6px 0;">${q.prompt}</div>
+        <div><b>#${escapeHtml(q.ordinal)}</b> ${escapeHtml(q.question_type)}</div>
+        <div style="margin:6px 0;">${escapeHtml(q.prompt)}</div>
         ${extra}
         <div class="row" style="margin-top:8px;">
           <button type="button" onclick="deleteQuestion(${q.id})">{{ T.delete }}</button>
@@ -474,7 +489,7 @@
           }
         }
         div.innerHTML = `
-          <div><b>#${b.ordinal}</b> ${b.block_type} ${b.heading_level ? "(" + b.heading_level + ")" : ""}</div>
+          <div><b>#${escapeHtml(b.ordinal)}</b> ${escapeHtml(b.block_type)} ${b.heading_level ? "(" + escapeHtml(b.heading_level) + ")" : ""}</div>
           ${contentHtml}
           <div class="row">
             <button type="button" onclick="deleteBlock(${b.id})">{{ T.delete }}</button>
