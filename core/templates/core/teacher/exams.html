@@ -1,0 +1,256 @@
+{% extends "core/teacher/_base.html" %}
+{% block title %}{{ T.exams }}{% endblock %}
+{% block subtitle %}{{ T.exams_subtitle }}{% endblock %}
+
+{% block content %}
+<style>
+  .exam-shell{display:grid;grid-template-columns:290px minmax(0,1fr);gap:14px;align-items:start}
+  .stack{display:flex;flex-direction:column;gap:10px}.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+  .field{display:flex;flex-direction:column;gap:5px;flex:1;min-width:180px}.field>span{font-size:12px;color:#64748b;font-weight:700}
+  .input,.select,.area{width:100%;box-sizing:border-box;border:1px solid #dbe2ea;border-radius:10px;padding:10px 11px;background:#fff;font:inherit}
+  .area{min-height:92px;resize:vertical}.input:focus,.select:focus,.area:focus{outline:0;border-color:#0ea5e9;box-shadow:0 0 0 3px rgba(14,165,233,.12)}
+  .exam-list{display:flex;flex-direction:column;gap:7px;max-height:70vh;overflow:auto}
+  .exam-item{width:100%;text-align:left;border:1px solid #e2e8f0;border-radius:12px;background:#fff;padding:11px;cursor:pointer}
+  .exam-item.active{border-color:#0ea5e9;background:#f0f9ff}.exam-item strong{display:block}.meta{font-size:12px;color:#64748b;margin-top:4px}
+  .pill{display:inline-flex;padding:3px 8px;border-radius:999px;font-size:11px;font-weight:800;background:#e2e8f0}
+  .pill.running{background:#dcfce7;color:#166534}.pill.stopped{background:#fee2e2;color:#991b1b}
+  .section{border-top:1px solid #e2e8f0;margin-top:16px;padding-top:16px}.section-title{font-size:17px;font-weight:900;margin-bottom:10px}
+  .classes{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:7px}.check{display:flex;gap:8px;align-items:center;border:1px solid #e2e8f0;border-radius:10px;padding:9px}
+  .question-card{border:1px solid #e2e8f0;border-radius:13px;padding:12px;background:#fbfdff}.question-card+.question-card{margin-top:9px}
+  .question-head{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}.question-text{white-space:pre-wrap;margin-top:8px}
+  .pair-row{display:grid;grid-template-columns:1fr 34px 1fr 38px;gap:7px;align-items:center;margin-top:7px}
+  .notice{min-height:20px;border-radius:9px;padding:6px 9px;font-size:13px}.notice.ok{background:#ecfdf5;color:#065f46}.notice.err{background:#fef2f2;color:#991b1b}
+  .btn.primary{background:#0284c7;color:#fff;border-color:#0284c7}.btn.danger{color:#b91c1c;border-color:#fecaca}.btn.success{background:#16a34a;color:#fff;border-color:#16a34a}
+  .json-area{min-height:220px;font-family:Consolas,"Courier New",monospace;font-size:12px}
+  .attempt{border:1px solid #e2e8f0;border-radius:10px;padding:9px;cursor:pointer;background:#fff}.attempt:hover{border-color:#7dd3fc}
+  .answer-review{border:1px solid #e2e8f0;border-radius:12px;padding:11px;margin-top:9px}.answer-body{white-space:pre-wrap;background:#f8fafc;border-radius:8px;padding:9px;margin:8px 0}
+  @media(max-width:850px){.exam-shell{grid-template-columns:1fr}.exam-list{max-height:280px}.pair-row{grid-template-columns:1fr 24px 1fr 36px}}
+</style>
+
+<div class="exam-shell">
+  <aside class="stack">
+    <div class="card">
+      <div style="font-weight:900;margin-bottom:8px">{{ T.create_exam }}</div>
+      <input id="newExamTitle" class="input" placeholder="{{ T.exam_title }}">
+      <button id="createExamBtn" class="btn primary" type="button" style="margin-top:8px;width:100%">{{ T.create }}</button>
+    </div>
+    <div class="card">
+      <div style="font-weight:900;margin-bottom:8px">{{ T.exams_list }}</div>
+      <div id="examList" class="exam-list"></div>
+    </div>
+  </aside>
+
+  <main class="card">
+    <div id="emptyState" class="muted">{{ T.select_exam_left }}</div>
+    <div id="editor" hidden>
+      <div class="row">
+        <label class="field"><span>{{ T.exam_title }}</span><input id="examTitle" class="input"></label>
+        <label class="field"><span>{{ T.exam_topic }}</span><input id="examTopic" class="input"></label>
+        <label class="field" style="max-width:180px"><span>{{ T.duration_minutes }}</span><input id="examDuration" class="input" type="number" min="1" max="1440"></label>
+      </div>
+      <label class="field" style="margin-top:10px"><span>{{ T.instructions_label }}</span><textarea id="examInstructions" class="area"></textarea></label>
+      <div class="section-title" style="font-size:14px;margin:12px 0 7px">{{ T.allowed_classes }}</div>
+      <div id="classChecks" class="classes"></div>
+      <div class="row" style="margin-top:12px">
+        <button id="saveExamBtn" class="btn primary" type="button">{{ T.save }}</button>
+        <button id="startExamBtn" class="btn success" type="button">{{ T.start_exam }}</button>
+        <button id="stopExamBtn" class="btn" type="button">{{ T.stop_exam }}</button>
+        <button id="deleteExamBtn" class="btn danger" type="button">{{ T.delete }}</button>
+        <span id="examStatus" class="pill"></span>
+      </div>
+
+      <section class="section">
+        <div class="section-title">{{ T.exam_questions }}</div>
+        <div class="row">
+          <label class="field" style="max-width:140px"><span>{{ T.position }}</span><input id="qPosition" class="input" type="number" min="1"></label>
+          <label class="field"><span>{{ T.question_type }}</span>
+            <select id="qType" class="select">
+              <option value="open_text">{{ T.open_text_question }}</option>
+              <option value="matching">{{ T.matching }}</option>
+              <option value="diagram">{{ T.diagram_question }}</option>
+            </select>
+          </label>
+          <label class="field" style="max-width:150px"><span>{{ T.max_score }}</span><input id="qScore" class="input" type="number" min="0.01" step="0.01" value="1"></label>
+        </div>
+        <label class="field" style="margin-top:9px"><span>{{ T.question_prompt }}</span><textarea id="qPrompt" class="area"></textarea></label>
+        <div class="row" style="margin-top:9px">
+          <label class="field"><span>{{ T.question_image_url }}</span><input id="qImage" class="input" type="url" placeholder="https://..."></label>
+          <label class="field"><span>{{ T.model_answer }}</span><textarea id="qModelAnswer" class="area"></textarea></label>
+        </div>
+        <div id="pairsEditor" style="margin-top:10px" hidden>
+          <div style="font-weight:800">{{ T.correct_pairs }}</div>
+          <div id="pairsBox"></div>
+          <button id="addPairBtn" class="btn" type="button" style="margin-top:8px">{{ T.add_pair }}</button>
+        </div>
+        <div class="row" style="margin-top:11px">
+          <button id="saveQuestionBtn" class="btn primary" type="button">{{ T.add_question }}</button>
+          <button id="cancelQuestionBtn" class="btn" type="button" hidden>{{ T.cancel }}</button>
+        </div>
+        <div id="questionList" style="margin-top:12px"></div>
+      </section>
+
+      <section class="section">
+        <div class="section-title">{{ T.json_exam_commands }}</div>
+        <div class="muted" style="margin-bottom:8px">{{ T.json_exam_help }}</div>
+        <textarea id="jsonCommands" class="area json-area" spellcheck="false"></textarea>
+        <div class="row" style="margin-top:9px">
+          <button id="copyPromptBtn" class="btn" type="button">{{ T.copy_ai_prompt }}</button>
+          <button id="applyJsonBtn" class="btn primary" type="button">{{ T.apply_json }}</button>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="section-title">{{ T.exam_attempts }}</div>
+        <button id="refreshAttemptsBtn" class="btn" type="button">{{ T.refresh }}</button>
+        <div id="attemptList" class="stack" style="margin-top:9px"></div>
+        <div id="attemptReview"></div>
+      </section>
+    </div>
+    <div id="msg" class="notice"></div>
+  </main>
+</div>
+
+<script>
+const UI = {
+  loadFailed: "{{ T.failed_load_exams|escapejs }}",
+  saved: "{{ T.exam_saved|escapejs }}",
+  created: "{{ T.exam_created|escapejs }}",
+  deleted: "{{ T.exam_deleted|escapejs }}",
+  questionSaved: "{{ T.question_saved|escapejs }}",
+  questionDeleted: "{{ T.question_deleted|escapejs }}",
+  confirmDelete: "{{ T.confirm_delete_exam|escapejs }}",
+  confirmSubmitDelete: "{{ T.confirm_delete_question|escapejs }}",
+  noExams: "{{ T.no_exams|escapejs }}",
+  noQuestions: "{{ T.no_exam_questions|escapejs }}",
+  noAttempts: "{{ T.no_exam_attempts|escapejs }}",
+  edit: "{{ T.edit|escapejs }}",
+  deleteText: "{{ T.delete|escapejs }}",
+  save: "{{ T.save|escapejs }}",
+  openText: "{{ T.open_text_question|escapejs }}",
+  matching: "{{ T.matching|escapejs }}",
+  diagram: "{{ T.diagram_question|escapejs }}",
+  points: "{{ T.points|escapejs }}",
+  grading: "{{ T.grading|escapejs }}",
+  answer: "{{ T.student_answer|escapejs }}",
+  feedback: "{{ T.teacher_feedback|escapejs }}",
+  promptCopied: "{{ T.prompt_copied|escapejs }}",
+  jsonApplied: "{{ T.json_applied|escapejs }}",
+};
+let exams = [], classes = [], current = null, editingQuestionId = null;
+
+function cookie(name){ return document.cookie.split(";").map(v=>v.trim()).find(v=>v.startsWith(name+"="))?.slice(name.length+1) || ""; }
+function esc(value){ return String(value ?? "").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;"); }
+async function api(url, method="GET", body=null){
+  const opts={method,credentials:"include",headers:{"Accept":"application/json"}};
+  if(method!=="GET"){opts.headers["Content-Type"]="application/json";opts.headers["X-CSRFToken"]=decodeURIComponent(cookie("csrftoken"));opts.body=JSON.stringify(body||{});}
+  const response=await fetch(url,opts); const ct=response.headers.get("content-type")||"";
+  if(!ct.includes("application/json")) return {ok:false,error:`HTTP ${response.status}`};
+  return await response.json();
+}
+function message(text, ok=false){const box=document.getElementById("msg");box.textContent=text||"";box.className="notice "+(text?(ok?"ok":"err"):"");}
+function typeLabel(type){return type==="matching"?UI.matching:type==="diagram"?UI.diagram:UI.openText;}
+
+async function loadAll(){
+  const [examData,classData]=await Promise.all([api("/api/teacher/exams/"),api("/api/teacher/classes/")]);
+  if(!examData.ok||!classData.ok){message(examData.error||classData.error||UI.loadFailed);return;}
+  exams=examData.exams||[];classes=classData.classes||[];renderExamList();
+  if(current){const still=exams.find(e=>e.id===current.id);if(still)await selectExam(still.id);}
+}
+function renderExamList(){
+  const box=document.getElementById("examList");box.innerHTML="";
+  if(!exams.length){box.innerHTML=`<div class="muted">${esc(UI.noExams)}</div>`;return;}
+  exams.forEach(exam=>{
+    const button=document.createElement("button");button.type="button";button.className="exam-item"+(current?.id===exam.id?" active":"");
+    button.innerHTML=`<strong>${esc(exam.title)}</strong><div class="meta"><span class="pill ${esc(exam.status)}">${esc(exam.status)}</span> | ${exam.question_count} | ${exam.duration_minutes} min</div>`;
+    button.onclick=()=>selectExam(exam.id);box.appendChild(button);
+  });
+}
+async function selectExam(id){
+  const data=await api(`/api/teacher/exams/${id}/`);if(!data.ok){message(data.error);return;}
+  current=data.exam;editingQuestionId=null;document.getElementById("emptyState").hidden=true;document.getElementById("editor").hidden=false;
+  document.getElementById("examTitle").value=current.title;document.getElementById("examTopic").value=current.topic;
+  document.getElementById("examDuration").value=current.duration_minutes;document.getElementById("examInstructions").value=current.instructions;
+  const status=document.getElementById("examStatus");status.textContent=current.status;status.className="pill "+current.status;
+  renderClasses();renderQuestions();resetQuestionForm();renderExamList();await loadAttempts();
+}
+function renderClasses(){
+  const box=document.getElementById("classChecks");box.innerHTML="";
+  classes.forEach(c=>{const label=document.createElement("label");label.className="check";label.innerHTML=`<input type="checkbox" value="${c.id}" ${current.class_ids.includes(c.id)?"checked":""}><span>${esc(c.name)}</span>`;box.appendChild(label);});
+}
+function selectedClasses(){return [...document.querySelectorAll("#classChecks input:checked")].map(i=>Number(i.value));}
+
+function addPair(left="",right=""){
+  const row=document.createElement("div");row.className="pair-row";
+  row.innerHTML=`<input class="input pair-left" value="${esc(left)}"><span>-></span><input class="input pair-right" value="${esc(right)}"><button class="btn danger pair-remove" type="button">x</button>`;
+  row.querySelector(".pair-remove").onclick=()=>{if(document.querySelectorAll(".pair-row").length>2)row.remove();};
+  document.getElementById("pairsBox").appendChild(row);
+}
+function resetQuestionForm(){
+  editingQuestionId=null;document.getElementById("qPosition").value=current?.next_question_position||1;
+  document.getElementById("qType").value="open_text";document.getElementById("qPrompt").value="";document.getElementById("qImage").value="";
+  document.getElementById("qModelAnswer").value="";document.getElementById("qScore").value="1";
+  document.getElementById("pairsBox").innerHTML="";addPair();addPair();togglePairs();
+  document.getElementById("saveQuestionBtn").textContent="{{ T.add_question|escapejs }}";document.getElementById("cancelQuestionBtn").hidden=true;
+}
+function togglePairs(){document.getElementById("pairsEditor").hidden=document.getElementById("qType").value!=="matching";}
+function collectQuestion(){
+  const type=document.getElementById("qType").value;
+  const payload={position:Number(document.getElementById("qPosition").value),question_type:type,prompt:document.getElementById("qPrompt").value,image_url:document.getElementById("qImage").value,model_answer:document.getElementById("qModelAnswer").value,max_score:document.getElementById("qScore").value};
+  if(type==="matching")payload.pairs=[...document.querySelectorAll(".pair-row")].map((row,i)=>({position:i+1,left_text:row.querySelector(".pair-left").value,right_text:row.querySelector(".pair-right").value}));
+  return payload;
+}
+function renderQuestions(){
+  const box=document.getElementById("questionList");box.innerHTML="";
+  if(!current.questions.length){box.innerHTML=`<div class="muted">${esc(UI.noQuestions)}</div>`;return;}
+  current.questions.forEach(q=>{
+    const card=document.createElement("div");card.className="question-card";
+    card.innerHTML=`<div class="question-head"><div><b>${q.position}. ${esc(typeLabel(q.question_type))}</b> <span class="pill">${q.max_score} ${esc(UI.points)}</span></div><div class="row"><button class="btn q-edit" type="button">${esc(UI.edit)}</button><button class="btn danger q-delete" type="button">${esc(UI.deleteText)}</button></div></div><div class="question-text">${esc(q.prompt)}</div>${q.image_url?`<div class="meta">${esc(q.image_url)}</div>`:""}`;
+    card.querySelector(".q-edit").onclick=()=>editQuestion(q);card.querySelector(".q-delete").onclick=()=>deleteQuestion(q.id);box.appendChild(card);
+  });
+}
+function editQuestion(q){
+  editingQuestionId=q.id;document.getElementById("qPosition").value=q.position;document.getElementById("qType").value=q.question_type;
+  document.getElementById("qPrompt").value=q.prompt;document.getElementById("qImage").value=q.image_url;document.getElementById("qModelAnswer").value=q.model_answer;document.getElementById("qScore").value=q.max_score;
+  document.getElementById("pairsBox").innerHTML="";(q.pairs||[]).forEach(p=>addPair(p.left_text,p.right_text));if((q.pairs||[]).length<2){addPair();addPair();}
+  togglePairs();document.getElementById("saveQuestionBtn").textContent=UI.save;document.getElementById("cancelQuestionBtn").hidden=false;document.getElementById("qPrompt").scrollIntoView({behavior:"smooth",block:"center"});
+}
+async function reloadCurrent(){const data=await api(`/api/teacher/exams/${current.id}/`);if(data.ok){current=data.exam;renderQuestions();renderExamList();resetQuestionForm();}}
+
+async function loadAttempts(){
+  if(!current)return;const data=await api(`/api/teacher/exams/${current.id}/attempts/`);const box=document.getElementById("attemptList");box.innerHTML="";
+  if(!data.ok){box.innerHTML=`<div class="muted">${esc(data.error)}</div>`;return;}if(!data.attempts.length){box.innerHTML=`<div class="muted">${esc(UI.noAttempts)}</div>`;return;}
+  data.attempts.forEach(a=>{const div=document.createElement("button");div.type="button";div.className="attempt";div.innerHTML=`<b>${esc(a.student_name)}</b><div class="meta">${esc(a.class_name)} | ${esc(a.status)} | ${a.total_score}</div>`;div.onclick=()=>reviewAttempt(a.id);box.appendChild(div);});
+}
+async function reviewAttempt(id){
+  const data=await api(`/api/teacher/exam-attempts/${id}/`);if(!data.ok){message(data.error);return;}const box=document.getElementById("attemptReview");box.innerHTML=`<div class="section-title" style="margin-top:14px">${esc(data.attempt.student_name)}</div>`;
+  data.answers.forEach(row=>{const q=row.question,a=row.answer;const div=document.createElement("div");div.className="answer-review";
+    let body=q.question_type==="open_text"?esc(a.text_answer):q.question_type==="diagram"?(a.diagram_file_url?`<a href="${esc(a.diagram_file_url)}" target="_blank" rel="noopener">Google Drive</a>`:"Diagram XML saved"):(row.matching_rows||[]).map(x=>`${esc(x.left_text)}-> ${esc(x.selected_right_text||"-")}`).join("<br>");
+    div.innerHTML=`<b>${q.position}. ${esc(q.prompt)}</b><div class="meta">${q.max_score} ${esc(UI.points)}</div><div class="answer-body">${body||"-"}</div><div class="row"><label class="field" style="max-width:150px"><span>${esc(UI.grading)}</span><input class="input grade" type="number" min="0" max="${q.max_score}" step="0.01" value="${row.awarded_score??""}"></label><label class="field"><span>${esc(UI.feedback)}</span><input class="input feedback" value="${esc(row.teacher_feedback||"")}"></label><button class="btn primary save-grade" type="button" ${row.answer_id?"":"disabled"}>${esc(UI.save)}</button></div>`;
+    div.querySelector(".save-grade").onclick=async()=>{const result=await api(`/api/teacher/exam-answers/${row.answer_id}/grade/`,"PATCH",{awarded_score:div.querySelector(".grade").value,teacher_feedback:div.querySelector(".feedback").value});message(result.ok?UI.saved:result.error,result.ok);if(result.ok)loadAttempts();};box.appendChild(div);
+  });
+}
+
+document.getElementById("createExamBtn").onclick=async()=>{const title=document.getElementById("newExamTitle").value.trim();const data=await api("/api/teacher/exams/","POST",{title});if(!data.ok){message(data.error);return;}message(UI.created,true);document.getElementById("newExamTitle").value="";await loadAll();await selectExam(data.exam.id);};
+document.getElementById("saveExamBtn").onclick=async()=>{const data=await api(`/api/teacher/exams/${current.id}/`,"PATCH",{title:document.getElementById("examTitle").value,topic:document.getElementById("examTopic").value,instructions:document.getElementById("examInstructions").value,duration_minutes:Number(document.getElementById("examDuration").value),class_ids:selectedClasses()});if(!data.ok){message(data.error);return;}current=data.exam;message(UI.saved,true);await loadAll();};
+document.getElementById("startExamBtn").onclick=async()=>{const data=await api(`/api/teacher/exams/${current.id}/`,"PATCH",{status:"running"});message(data.ok?UI.saved:data.error,data.ok);if(data.ok){current=data.exam;await loadAll();}};
+document.getElementById("stopExamBtn").onclick=async()=>{const data=await api(`/api/teacher/exams/${current.id}/`,"PATCH",{status:"stopped"});message(data.ok?UI.saved:data.error,data.ok);if(data.ok){current=data.exam;await loadAll();}};
+document.getElementById("deleteExamBtn").onclick=async()=>{if(!confirm(UI.confirmDelete))return;const data=await api(`/api/teacher/exams/${current.id}/`,"DELETE");if(!data.ok){message(data.error);return;}current=null;document.getElementById("editor").hidden=true;document.getElementById("emptyState").hidden=false;message(UI.deleted,true);await loadAll();};
+document.getElementById("qType").onchange=togglePairs;document.getElementById("addPairBtn").onclick=()=>addPair();document.getElementById("cancelQuestionBtn").onclick=resetQuestionForm;
+document.getElementById("saveQuestionBtn").onclick=async()=>{const url=editingQuestionId?`/api/teacher/exam-questions/${editingQuestionId}/`:`/api/teacher/exams/${current.id}/questions/`;const data=await api(url,editingQuestionId?"PATCH":"POST",collectQuestion());if(!data.ok){message(data.error);return;}message(UI.questionSaved,true);await reloadCurrent();};
+async function deleteQuestion(id){if(!confirm(UI.confirmSubmitDelete))return;const data=await api(`/api/teacher/exam-questions/${id}/`,"DELETE");if(!data.ok){message(data.error);return;}message(UI.questionDeleted,true);await reloadCurrent();}
+document.getElementById("refreshAttemptsBtn").onclick=loadAttempts;
+
+const agentPrompt=`Create valid JSON for ProgrammingPlatform exam import. Return JSON only, no markdown.
+Schema for a new exam:
+{"action":"create_exam","exam":{"title":"...","topic":"...","instructions":"...","duration_minutes":60,"class_ids":[]},"questions":[...]}
+Schema for updating the selected exam:
+{"action":"update_exam","exam_id":${current?.id||1},"exam":{"title":"...","topic":"...","instructions":"...","duration_minutes":60,"class_ids":[]},"replace_questions":false,"questions":[...]}
+Question fields: position (positive unique integer), question_type ("open_text", "matching", or "diagram"), prompt, image_url (empty or HTTPS URL), model_answer, max_score.
+For matching questions add pairs with at least two objects: [{"left_text":"...","right_text":"..."}].
+For update_exam each question may have action "create", "update" with id, or "delete" with id. When replace_questions=true, omit per-question actions and provide the complete replacement array.
+Every question must have a non-empty model_answer. Do not include unknown fields.`;
+document.getElementById("copyPromptBtn").onclick=async()=>{await navigator.clipboard.writeText(agentPrompt.replace(/"exam_id":\d+/,`"exam_id":${current?.id||1}`));message(UI.promptCopied,true);};
+document.getElementById("applyJsonBtn").onclick=async()=>{let payload;try{payload=JSON.parse(document.getElementById("jsonCommands").value);}catch(e){message("Invalid JSON: "+e.message);return;}const data=await api("/api/teacher/exams/import-json/","POST",payload);if(!data.ok){message(data.error);return;}message(UI.jsonApplied,true);await loadAll();await selectExam(data.exam.id);};
+loadAll();
+</script>
+{% endblock %}

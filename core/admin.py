@@ -14,7 +14,8 @@ from .models import (
     ActivityEvent,
     ActivityAggregate,
     AiAssistMessage,
-    TaskCodeFragment,  # NEW
+    TaskCodeFragment,  # NEW,
+    Exam, ExamClass, ExamQuestion, ExamMatchPair, ExamAttempt, ExamAnswer
 )
 
 
@@ -134,3 +135,5 @@ class TeacherAdmin(admin.ModelAdmin):
     search_fields = ("full_name",)
     readonly_fields = ("created_at",)
     exclude = ("pin_hash",)
+
+admin.site.register([Exam, ExamClass, ExamQuestion, ExamMatchPair, ExamAttempt, ExamAnswer])

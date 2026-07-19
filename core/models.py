@@ -1,7 +1,6 @@
 from django.db import models
 from django.utils import timezone
 from django.contrib.auth.hashers import make_password, check_password
-from django.db import models
 
 class ClassGroup(models.Model):
     name = models.CharField(max_length=32, unique=True)
@@ -243,7 +242,7 @@ class TheoryQuizModule(models.Model):
         verbose_name_plural = "Theory quiz modules"
         ordering = ["session", "position", "id"]
         indexes = [
-            models.Index(fields=["session", "position", "is_active"]),
+            models.Index(fields=["session", "position", "is_active"], name="core_quiz_sess_pos_act_idx"),
         ]
 
     def __str__(self):
@@ -277,7 +276,7 @@ class TheoryQuizQuestion(models.Model):
             models.UniqueConstraint(fields=["module", "ordinal"], name="uniq_theory_quiz_question_ordinal")
         ]
         indexes = [
-            models.Index(fields=["module", "ordinal"]),
+            models.Index(fields=["module", "ordinal"], name="core_quiz_question_ord_idx"),
         ]
 
     def __str__(self):
@@ -302,7 +301,7 @@ class TheoryQuizChoice(models.Model):
             models.UniqueConstraint(fields=["question", "ordinal"], name="uniq_theory_quiz_choice_ordinal")
         ]
         indexes = [
-            models.Index(fields=["question", "ordinal"]),
+            models.Index(fields=["question", "ordinal"], name="core_quiz_choice_ord_idx"),
         ]
 
     def __str__(self):
@@ -327,7 +326,7 @@ class TheoryQuizMatchPair(models.Model):
             models.UniqueConstraint(fields=["question", "ordinal"], name="uniq_theory_quiz_pair_ordinal")
         ]
         indexes = [
-            models.Index(fields=["question", "ordinal"]),
+            models.Index(fields=["question", "ordinal"], name="core_quiz_pair_ord_idx"),
         ]
 
     def __str__(self):
@@ -364,8 +363,8 @@ class StudentTheoryQuizAttempt(models.Model):
             )
         ]
         indexes = [
-            models.Index(fields=["student_session", "module"]),
-            models.Index(fields=["submitted_at"]),
+            models.Index(fields=["student_session", "module"], name="core_quiz_attempt_sm_idx"),
+            models.Index(fields=["submitted_at"], name="core_quiz_attempt_sub_idx"),
         ]
 
     def __str__(self):
@@ -652,3 +651,124 @@ class Teacher(models.Model):
     def check_pin(self, raw_pin: str) -> bool:
         return check_password(raw_pin, self.pin_hash)
 
+
+class Exam(models.Model):
+    class Status(models.TextChoices):
+        DRAFT = "draft", "Draft"
+        RUNNING = "running", "Running"
+        STOPPED = "stopped", "Stopped"
+
+    owner = models.ForeignKey(Teacher, on_delete=models.CASCADE, related_name="exams")
+    title = models.CharField(max_length=200)
+    topic = models.CharField(max_length=255, blank=True, default="")
+    instructions = models.TextField(blank=True, default="")
+    duration_minutes = models.PositiveIntegerField(default=60)
+    status = models.CharField(max_length=16, choices=Status.choices, default=Status.DRAFT)
+    allowed_classes = models.ManyToManyField(ClassGroup, through="ExamClass", related_name="exams")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        indexes = [models.Index(fields=["owner", "status"], name="exam_owner_status_idx")]
+
+    def __str__(self):
+        return f"{self.title} [{self.status}]"
+
+
+class ExamClass(models.Model):
+    exam = models.ForeignKey(Exam, on_delete=models.CASCADE, related_name="class_links")
+    class_group = models.ForeignKey(ClassGroup, on_delete=models.PROTECT, related_name="exam_links")
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=["exam", "class_group"], name="uniq_exam_class")]
+
+    def __str__(self):
+        return f"{self.exam} -> {self.class_group}"
+
+
+class ExamQuestion(models.Model):
+    class QuestionType(models.TextChoices):
+        OPEN_TEXT = "open_text", "Open text"
+        MATCHING = "matching", "Matching"
+        DIAGRAM = "diagram", "Diagram"
+
+    exam = models.ForeignKey(Exam, on_delete=models.CASCADE, related_name="questions")
+    position = models.PositiveIntegerField()
+    question_type = models.CharField(max_length=20, choices=QuestionType.choices)
+    prompt = models.TextField()
+    image_url = models.URLField(max_length=1000, blank=True, default="")
+    model_answer = models.TextField(blank=True, default="")
+    max_score = models.DecimalField(max_digits=7, decimal_places=2, default=1)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["exam", "position", "id"]
+        constraints = [models.UniqueConstraint(fields=["exam", "position"], name="uniq_exam_question_position")]
+        indexes = [models.Index(fields=["exam", "position"], name="exam_question_pos_idx")]
+
+    def __str__(self):
+        return f"Exam {self.exam_id}, question {self.position}"
+
+
+class ExamMatchPair(models.Model):
+    question = models.ForeignKey(ExamQuestion, on_delete=models.CASCADE, related_name="matching_pairs")
+    position = models.PositiveIntegerField()
+    left_text = models.TextField()
+    right_text = models.TextField()
+
+    class Meta:
+        ordering = ["question", "position", "id"]
+        constraints = [models.UniqueConstraint(fields=["question", "position"], name="uniq_exam_pair_position")]
+
+    def __str__(self):
+        return f"Question {self.question_id}, pair {self.position}"
+
+
+class ExamAttempt(models.Model):
+    class Status(models.TextChoices):
+        IN_PROGRESS = "in_progress", "In progress"
+        SUBMITTED = "submitted", "Submitted"
+        EXPIRED = "expired", "Expired"
+
+    exam = models.ForeignKey(Exam, on_delete=models.PROTECT, related_name="attempts")
+    student = models.ForeignKey(Student, on_delete=models.PROTECT, related_name="exam_attempts")
+    status = models.CharField(max_length=16, choices=Status.choices, default=Status.IN_PROGRESS)
+    started_at = models.DateTimeField()
+    expires_at = models.DateTimeField()
+    submitted_at = models.DateTimeField(null=True, blank=True)
+    presentation_json = models.JSONField(default=dict, blank=True)
+    total_score = models.DecimalField(max_digits=9, decimal_places=2, default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-started_at"]
+        constraints = [models.UniqueConstraint(fields=["exam", "student"], name="uniq_exam_student_attempt")]
+        indexes = [
+            models.Index(fields=["exam", "status"], name="exam_attempt_status_idx"),
+            models.Index(fields=["student", "status"], name="student_exam_status_idx"),
+        ]
+
+    def __str__(self):
+        return f"{self.student} @ {self.exam}"
+
+
+class ExamAnswer(models.Model):
+    attempt = models.ForeignKey(ExamAttempt, on_delete=models.CASCADE, related_name="answers")
+    question = models.ForeignKey(ExamQuestion, on_delete=models.PROTECT, related_name="answers")
+    text_answer = models.TextField(blank=True, default="")
+    matching_answer = models.JSONField(default=dict, blank=True)
+    diagram_xml = models.TextField(blank=True, default="")
+    diagram_file_url = models.URLField(max_length=1000, blank=True, default="")
+    awarded_score = models.DecimalField(max_digits=7, decimal_places=2, null=True, blank=True)
+    teacher_feedback = models.TextField(blank=True, default="")
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=["attempt", "question"], name="uniq_exam_attempt_answer")]
+        indexes = [models.Index(fields=["attempt", "question"], name="exam_answer_lookup_idx")]
+
+    def __str__(self):
+        return f"Attempt {self.attempt_id}, question {self.question_id}"

@@ -76,6 +76,7 @@
             <option value="en" {% if ui_lang == 'en' %}selected{% endif %}>{{ T.english }}</option>
           </select>
         </form>
+        <a class="ghost" href="/student/exams/">{{ T.exams|default:"Exams" }}</a>
         <a class="primary" href="/student/">{{ T.session|default:"Portal" }}</a>
         <form method="post" action="/student/logout/">{% csrf_token %}<button class="ghost" type="submit">{{ T.logout }}</button></form>
       </div>

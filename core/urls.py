@@ -1,6 +1,6 @@
 from django.urls import path
 from django.views.generic import RedirectView
-from . import views
+from . import exam_views, views
 
 urlpatterns = [
     # Student auth API
@@ -135,6 +135,24 @@ path(
     views.student_theory_quiz_submit,
     name="student_theory_quiz_submit",
 ),
+
+    # Exams
+    path("teacher/exams/", exam_views.teacher_exams_page, name="teacher_exams_page"),
+    path("api/teacher/exams/", exam_views.teacher_exams_api, name="teacher_exams_api"),
+    path("api/teacher/exams/import-json/", exam_views.teacher_exam_import_api, name="teacher_exam_import_api"),
+    path("api/teacher/exams/<int:exam_id>/", exam_views.teacher_exam_detail_api, name="teacher_exam_detail_api"),
+    path("api/teacher/exams/<int:exam_id>/questions/", exam_views.teacher_exam_questions_api, name="teacher_exam_questions_api"),
+    path("api/teacher/exam-questions/<int:question_id>/", exam_views.teacher_exam_question_detail_api, name="teacher_exam_question_detail_api"),
+    path("api/teacher/exams/<int:exam_id>/attempts/", exam_views.teacher_exam_attempts_api, name="teacher_exam_attempts_api"),
+    path("api/teacher/exam-attempts/<int:attempt_id>/", exam_views.teacher_exam_attempt_detail_api, name="teacher_exam_attempt_detail_api"),
+    path("api/teacher/exam-answers/<int:answer_id>/grade/", exam_views.teacher_exam_answer_grade_api, name="teacher_exam_answer_grade_api"),
+
+    path("student/exams/", exam_views.student_exams_page, name="student_exams_page"),
+    path("api/student/exams/", exam_views.student_exams_api, name="student_exams_api"),
+    path("api/student/exams/<int:exam_id>/", exam_views.student_exam_detail_api, name="student_exam_detail_api"),
+    path("api/student/exams/<int:exam_id>/start/", exam_views.student_exam_start_api, name="student_exam_start_api"),
+    path("api/student/exams/<int:exam_id>/questions/<int:question_id>/answer/", exam_views.student_exam_answer_api, name="student_exam_answer_api"),
+    path("api/student/exams/<int:exam_id>/submit/", exam_views.student_exam_submit_api, name="student_exam_submit_api"),
 
     # Health
     path("healthz/", views.healthz, name="healthz"),
