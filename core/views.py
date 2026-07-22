@@ -1,12 +1,16 @@
 import hashlib
+import hmac
 import json
+import logging
 import random
 import re
 from functools import wraps
+from datetime import timedelta
+from urllib.parse import urlparse
 
 from django.conf import settings
-from django.core.cache import cache
 from django.contrib.admin.views.decorators import staff_member_required
+from django.contrib.auth.hashers import check_password, make_password
 from django.db import transaction
 from django.db.models import Avg, Count, F, Max, Q, Sum
 from django.http import HttpRequest, HttpResponse, JsonResponse
@@ -14,11 +18,23 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.utils import timezone as dj_tz
 from django.utils.dateparse import parse_datetime
+from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views.decorators.http import require_GET, require_http_methods, require_POST
 
 
 from .judge0_client import create_batch_submissions, wait_batch
+from .ai_assist import (
+    build_prompt_snapshot,
+    call_openai_hint,
+    sanitize_no_code,
+    build_solution_prompt_snapshot,
+    call_openai_solution,
+    build_theory_open_answer_prompt_snapshot,
+    build_theory_material_prompt_snapshot,
+    call_openai_theory_open_answer,
+    call_openai_theory_material,
+)
 from .models import (
     ActivityAggregate,
     AiAssistMessage,
@@ -43,6 +59,14 @@ from .models import (
 
 )
 from .ui_translations import SUPPORTED_UI_LANGS, UI_TRANSLATIONS, get_ui_lang
+from .security import (
+    auth_version,
+    clear_login_identity,
+    client_ip,
+    login_is_limited,
+    record_login_failure,
+    request_is_limited,
+)
 
 PIN_RE = re.compile(r"^\d{6}$")
 TEACHER_PIN_RE = re.compile(r"^\d{6}$")
@@ -59,48 +83,39 @@ LOGIN_RATE_LIMIT_MAX_ATTEMPTS = int(getattr(settings, "LOGIN_RATE_LIMIT_MAX_ATTE
 LOGIN_RATE_LIMIT_WINDOW_SECONDS = int(getattr(settings, "LOGIN_RATE_LIMIT_WINDOW_SECONDS", 15 * 60))
 LOGIN_RATE_LIMIT_LOCK_SECONDS = int(getattr(settings, "LOGIN_RATE_LIMIT_LOCK_SECONDS", 15 * 60))
 GENERIC_LOGIN_ERROR = "invalid credentials"
+DUMMY_PIN_HASH = make_password("not-a-valid-pin")
+MAX_STUDENT_CODE_BYTES = int(getattr(settings, "MAX_STUDENT_CODE_BYTES", 100_000))
+
+logger = logging.getLogger(__name__)
 
 
 def _client_ip(request: HttpRequest) -> str:
-    forwarded = request.META.get("HTTP_X_FORWARDED_FOR", "")
-    if forwarded:
-        return forwarded.split(",")[0].strip()
-    return request.META.get("REMOTE_ADDR", "unknown")
-
-
-def _login_rate_cache_key(kind: str, request: HttpRequest, identity: str, suffix: str) -> str:
-    identity_key = (identity or "").strip().lower()
-    digest = hashlib.sha256(f"{kind}|{_client_ip(request)}|{identity_key}".encode("utf-8")).hexdigest()
-    return f"login:{kind}:{suffix}:{digest}"
+    return client_ip(request)
 
 
 def _login_rate_limited(kind: str, request: HttpRequest, identity: str) -> bool:
-    return bool(cache.get(_login_rate_cache_key(kind, request, identity, "lock")))
+    return login_is_limited(kind, request, identity)
 
 
 def _record_login_failure(kind: str, request: HttpRequest, identity: str) -> None:
-    attempts_key = _login_rate_cache_key(kind, request, identity, "attempts")
-    attempts = int(cache.get(attempts_key, 0)) + 1
-    if attempts >= LOGIN_RATE_LIMIT_MAX_ATTEMPTS:
-        cache.set(_login_rate_cache_key(kind, request, identity, "lock"), True, LOGIN_RATE_LIMIT_LOCK_SECONDS)
-        cache.delete(attempts_key)
-        return
-    cache.set(attempts_key, attempts, LOGIN_RATE_LIMIT_WINDOW_SECONDS)
+    record_login_failure(kind, request, identity)
 
 
 def _clear_login_failures(kind: str, request: HttpRequest, identity: str) -> None:
-    cache.delete(_login_rate_cache_key(kind, request, identity, "attempts"))
-    cache.delete(_login_rate_cache_key(kind, request, identity, "lock"))
+    clear_login_identity(kind, request, identity)
 
 
 def _login_rate_limit_json() -> JsonResponse:
-    return JsonResponse({"ok": False, "error": "too many login attempts"}, status=429)
+    response = JsonResponse({"ok": False, "error": "too many login attempts"}, status=429)
+    response["Retry-After"] = str(LOGIN_RATE_LIMIT_LOCK_SECONDS)
+    return response
 
 
 def _json_body(request: HttpRequest) -> dict:
     try:
         raw = request.body.decode("utf-8") if request.body else "{}"
-        return json.loads(raw or "{}")
+        data = json.loads(raw or "{}")
+        return data if isinstance(data, dict) else {}
     except (UnicodeDecodeError, json.JSONDecodeError):
         return {}
 
@@ -119,31 +134,82 @@ def _normalize_session_status_out(value: str) -> str:
     return raw
 
 
-def _student_id(request: HttpRequest):
-    return request.session.get("student_id") or None
+def _clear_student_auth(request: HttpRequest) -> None:
+    for key in [
+        "student_id",
+        "student_name",
+        "student_class_id",
+        "student_logged_in_at",
+        "student_auth_version",
+        "student_selected_session_id",
+    ]:
+        request.session.pop(key, None)
 
 
-def _teacher_id(request: HttpRequest):
-    return request.session.get("teacher_id") or None
+def _clear_teacher_auth(request: HttpRequest) -> None:
+    for key in ["teacher_id", "teacher_name", "teacher_logged_in_at", "teacher_auth_version"]:
+        request.session.pop(key, None)
 
 
-def _get_student_from_session(request: HttpRequest):
+def _get_logged_in_student(request: HttpRequest):
     student_id = request.session.get("student_id")
     class_id = request.session.get("student_class_id")
     if not student_id or not class_id:
+        return None
+    student = (
+        Student.objects.select_related("class_group")
+        .filter(id=student_id, class_group_id=class_id, is_active=True)
+        .first()
+    )
+    session_version = request.session.get("student_auth_version")
+    if not student or not session_version or not hmac.compare_digest(
+        session_version,
+        auth_version(student.pin_hash),
+    ):
+        _clear_student_auth(request)
+        return None
+    return student
+
+
+def _student_id(request: HttpRequest):
+    student = _get_logged_in_student(request)
+    return student.id if student else None
+
+
+def _teacher_id(request: HttpRequest):
+    teacher = _get_logged_in_teacher(request)
+    return teacher.id if teacher else None
+
+
+def _get_student_from_session(request: HttpRequest):
+    student = _get_logged_in_student(request)
+    if not student:
         return None, None
-    return student_id, class_id
+    return student.id, student.class_group_id
 
 
 def _get_logged_in_teacher(request: HttpRequest):
     teacher_id = request.session.get("teacher_id")
     if not teacher_id:
         return None
-    return Teacher.objects.filter(id=teacher_id, is_active=True).first()
+    teacher = Teacher.objects.filter(id=teacher_id, is_active=True).first()
+    session_version = request.session.get("teacher_auth_version")
+    if not teacher or not session_version or not hmac.compare_digest(
+        session_version,
+        auth_version(teacher.pin_hash),
+    ):
+        _clear_teacher_auth(request)
+        return None
+    return teacher
 
 
 def _teacher_api_unauthorized():
     return JsonResponse({"ok": False, "error": "not authenticated"}, status=401)
+
+
+def _internal_api_error(message: str = "internal server error"):
+    logger.exception("API operation failed")
+    return JsonResponse({"ok": False, "error": message}, status=500)
 
 
 def _teacher_owned_class_ids(teacher: Teacher):
@@ -242,7 +308,7 @@ def _resolve_student_portal_session(
 def teacher_required(view_func):
     @wraps(view_func)
     def _wrapped(request, *args, **kwargs):
-        if not _teacher_id(request):
+        if not _get_logged_in_teacher(request):
             return redirect("/teacher/login/")
         return view_func(request, *args, **kwargs)
 
@@ -465,6 +531,33 @@ def _serialize_fragment(frag: TaskCodeFragment):
         "created_at": frag.created_at.isoformat() if getattr(frag, "created_at", None) else None,
     }
 
+def _theory_media_error(block_type: str, content: str) -> str:
+    if block_type not in {
+        TheoryMaterialBlock.BlockType.IMAGE,
+        TheoryMaterialBlock.BlockType.VIDEO,
+    }:
+        return ""
+
+    parsed = urlparse(content)
+    has_unsafe_chars = any(ord(char) < 32 or char in '"<>\\' for char in content)
+    if has_unsafe_chars or parsed.scheme != "https" or not parsed.netloc or parsed.username or parsed.password:
+        return "media content must be a valid HTTPS URL"
+
+    if block_type == TheoryMaterialBlock.BlockType.VIDEO:
+        hostname = (parsed.hostname or "").lower()
+        allowed_hosts = {
+            "youtube.com",
+            "www.youtube.com",
+            "m.youtube.com",
+            "youtu.be",
+            "www.youtube-nocookie.com",
+        }
+        if hostname not in allowed_hosts:
+            return "video content must be a YouTube HTTPS URL"
+
+    return ""
+
+
 def _serialize_theory_block(block: TheoryMaterialBlock):
     return {
         "id": block.id,
@@ -555,6 +648,14 @@ def _is_module_position_taken(session: Session, position: int, *, skip_type: str
 
     return False
 
+
+def _quiz_match_token(student_id: int, question_id: int, pair_id: int, side: str) -> str:
+    payload = f"quiz-match|{student_id}|{question_id}|{pair_id}|{side}".encode("utf-8")
+    return hmac.new(
+        settings.SECRET_KEY.encode("utf-8"),
+        payload,
+        hashlib.sha256,
+    ).hexdigest()[:32]
 
 def _normalize_open_answer_text(value: str) -> str:
     return " ".join((value or "").strip().lower().split())
@@ -673,6 +774,27 @@ def _task_hints_from_payload(data: dict, defaults: SessionTask | None = None) ->
 
 
 
+def _authenticate_student(full_name: str, pin: str):
+    candidates = list(
+        Student.objects.select_related("class_group")
+        .filter(full_name__iexact=full_name, is_active=True)
+        .order_by("id")[:21]
+    )
+    if not candidates:
+        check_password(pin, DUMMY_PIN_HASH)
+        return None
+    matches = [student for student in candidates if student.check_pin(pin)]
+    return matches[0] if len(matches) == 1 else None
+
+
+def _authenticate_teacher(full_name: str, pin: str):
+    teacher = Teacher.objects.filter(full_name__iexact=full_name, is_active=True).first()
+    if not teacher:
+        check_password(pin, DUMMY_PIN_HASH)
+        return None
+    return teacher if teacher.check_pin(pin) else None
+
+
 # -------------------------
 # Student auth API
 # -------------------------
@@ -683,19 +805,15 @@ def student_login(request: HttpRequest):
     full_name = (data.get("full_name") or "").strip()
     pin = str(data.get("pin") or "").strip()
 
-    if not full_name or not pin:
+    if not full_name or not pin or len(full_name) > 120:
         return JsonResponse({"ok": False, "error": "full_name and pin are required"}, status=400)
     if not PIN_RE.match(pin):
         return JsonResponse({"ok": False, "error": "pin must be 6 digits"}, status=400)
     if _login_rate_limited("student", request, full_name):
         return _login_rate_limit_json()
 
-    student = (
-        Student.objects.select_related("class_group")
-        .filter(full_name__iexact=full_name, is_active=True)
-        .first()
-    )
-    if not student or not student.check_pin(pin):
+    student = _authenticate_student(full_name, pin)
+    if not student:
         _record_login_failure("student", request, full_name)
         return JsonResponse({"ok": False, "error": GENERIC_LOGIN_ERROR}, status=401)
 
@@ -705,6 +823,7 @@ def student_login(request: HttpRequest):
     request.session["student_name"] = student.full_name
     request.session["student_class_id"] = student.class_group_id
     request.session["student_logged_in_at"] = timezone.now().isoformat()
+    request.session["student_auth_version"] = auth_version(student.pin_hash)
 
     return JsonResponse({
         "ok": True,
@@ -1008,8 +1127,14 @@ def student_theory_quiz_detail(request: HttpRequest, module_id: int):
             left_items = []
             right_items = []
             for pair in question.pairs.all().order_by("ordinal", "id"):
-                left_items.append({"id": pair.id, "text": pair.left_text})
-                right_items.append({"id": pair.id, "text": pair.right_text})
+                left_items.append({
+                    "id": _quiz_match_token(student_id, question.id, pair.id, "left"),
+                    "text": pair.left_text,
+                })
+                right_items.append({
+                    "id": _quiz_match_token(student_id, question.id, pair.id, "right"),
+                    "text": pair.right_text,
+                })
             random.shuffle(right_items)
             row["left_items"] = left_items
             row["right_items"] = right_items
@@ -1052,6 +1177,19 @@ def student_theory_quiz_submit(request: HttpRequest, module_id: int):
     if not _student_can_access_session(session, class_id=class_id, student_id=student_id):
         return JsonResponse({"ok": False, "error": "session is not accessible"}, status=403)
 
+    if request_is_limited(
+        "theory_quiz_submit",
+        str(student_id),
+        limit=int(getattr(settings, "STUDENT_QUIZ_HOURLY_LIMIT", 30)),
+        window_seconds=3600,
+    ):
+        response = JsonResponse(
+            {"ok": False, "error": "quiz submission limit exceeded"},
+            status=429,
+        )
+        response["Retry-After"] = "3600"
+        return response
+
     data = _json_body(request)
     answers = data.get("answers") or {}
     if not isinstance(answers, dict):
@@ -1084,16 +1222,17 @@ def student_theory_quiz_submit(request: HttpRequest, module_id: int):
 
         elif question.question_type == TheoryQuizQuestion.QuestionType.MATCHING:
             submitted_map = student_value if isinstance(student_value, dict) else {}
-            is_correct = True
-            for pair in question.pairs.all().order_by("ordinal", "id"):
-                selected_right = submitted_map.get(str(pair.id))
-                try:
-                    selected_right = int(selected_right)
-                except (TypeError, ValueError):
-                    selected_right = None
-                if selected_right != pair.id:
-                    is_correct = False
-                    break
+            expected_map = {
+                _quiz_match_token(student_id, question.id, pair.id, "left"):
+                _quiz_match_token(student_id, question.id, pair.id, "right")
+                for pair in question.pairs.all().order_by("ordinal", "id")
+            }
+            clean_submitted_map = {
+                str(left): str(right)
+                for left, right in submitted_map.items()
+                if isinstance(left, str) and isinstance(right, str)
+            }
+            is_correct = bool(expected_map) and clean_submitted_map == expected_map
             feedback = "" if is_correct else "Some matches are incorrect."
 
         elif question.question_type == TheoryQuizQuestion.QuestionType.OPEN_ANSWER:
@@ -1171,30 +1310,26 @@ def student_submit(request: HttpRequest, task_id: int):
     session = task.session
     if not _student_can_access_session(session, class_id=class_id, student_id=student_id):
         return JsonResponse({"ok": False, "error": "session is not accessible"}, status=403)
+
     data = _json_body(request)
     user_code = (data.get("code") or "").rstrip()
-
     if not user_code:
         return JsonResponse({"ok": False, "error": "code is required"}, status=400)
+    if len(user_code.encode("utf-8")) > MAX_STUDENT_CODE_BYTES:
+        return JsonResponse({"ok": False, "error": "code is too large"}, status=413)
 
-    ss, now = _get_or_create_student_session(student_id, session)
-    progress = _get_or_create_progress(ss, task, now)
-
-    if progress.status == StudentTaskProgress.Status.SOLVED and progress.locked_after_solve:
-        return JsonResponse({"ok": True, "locked": True, "message": "Task already solved"}, status=200)
-
-    if progress.last_submit_at:
-        delta = (now - progress.last_submit_at).total_seconds()
-        if delta < SUBMIT_COOLDOWN_SECONDS:
-            wait_seconds = max(1, int(SUBMIT_COOLDOWN_SECONDS - delta))
-            return JsonResponse(
-                {"ok": False, "error": f"Too frequent submits. Wait {wait_seconds}s"},
-                status=429,
-            )
-
-    code_hash = hashlib.sha256(user_code.encode("utf-8")).hexdigest()
-    if progress.last_code_hash and progress.last_code_hash == code_hash:
-        return JsonResponse({"ok": False, "error": "No changes in code since last submit"}, status=400)
+    if request_is_limited(
+        "judge0_submit",
+        str(student_id),
+        limit=int(getattr(settings, "STUDENT_SUBMIT_HOURLY_LIMIT", 120)),
+        window_seconds=3600,
+    ):
+        response = JsonResponse(
+            {"ok": False, "error": "submission limit exceeded"},
+            status=429,
+        )
+        response["Retry-After"] = "3600"
+        return response
 
     testcases = list(
         TaskTestCase.objects.filter(task=task)
@@ -1204,12 +1339,46 @@ def student_submit(request: HttpRequest, task_id: int):
     if not testcases:
         return JsonResponse({"ok": False, "error": "No testcases configured for this task"}, status=500)
 
-    progress.attempts_total += 1
-    attempt_no = progress.attempts_total
+    ss, _ = _get_or_create_student_session(student_id, session)
+    progress = _get_or_create_progress(ss, task)
+    code_hash = hashlib.sha256(user_code.encode("utf-8")).hexdigest()
+
+    with transaction.atomic():
+        progress = StudentTaskProgress.objects.select_for_update().get(id=progress.id)
+        now = timezone.now()
+
+        if progress.status == StudentTaskProgress.Status.SOLVED and progress.locked_after_solve:
+            return JsonResponse({"ok": True, "locked": True, "message": "Task already solved"}, status=200)
+
+        if progress.last_submit_at:
+            delta = (now - progress.last_submit_at).total_seconds()
+            if delta < SUBMIT_COOLDOWN_SECONDS:
+                wait_seconds = max(1, int(SUBMIT_COOLDOWN_SECONDS - delta))
+                response = JsonResponse(
+                    {"ok": False, "error": f"Too frequent submits. Wait {wait_seconds}s"},
+                    status=429,
+                )
+                response["Retry-After"] = str(wait_seconds)
+                return response
+
+        if progress.last_code_hash and progress.last_code_hash == code_hash:
+            return JsonResponse(
+                {"ok": False, "error": "No changes in code since last submit"},
+                status=400,
+            )
+
+        progress.attempts_total += 1
+        attempt_no = progress.attempts_total
+        progress.last_submit_at = now
+        progress.last_code_hash = code_hash
+        progress.save(
+            update_fields=["attempts_total", "last_submit_at", "last_code_hash"]
+        )
 
     top_frag, bottom_frag = _get_task_fragments(task)
     final_code = _join_code(top_frag, user_code, bottom_frag)
 
+    judge_failed = False
     try:
         tokens = create_batch_submissions(
             final_code,
@@ -1217,117 +1386,77 @@ def student_submit(request: HttpRequest, task_id: int):
             programming_language=task.programming_language,
         )
         results = wait_batch(tokens, timeout_sec=30, poll_interval=0.9)
-    except Exception as e:
-        progress.last_submit_at = now
-        progress.last_code_hash = code_hash
-        progress.attempts_failed += 1
+    except Exception:
+        judge_failed = True
+        results = []
 
-        changed = [
-            "attempts_total",
-            "attempts_failed",
-            "last_submit_at",
-            "last_code_hash",
-        ]
-        changed += _unlock_hints_if_needed(progress, task, now)
-        progress.save(update_fields=changed)
+    passed = 0
+    stdout_last = ""
+    stderr_last = ""
+    verdict = Submission.Verdict.RUNTIME_ERROR if judge_failed else Submission.Verdict.WRONG_ANSWER
+
+    if judge_failed:
+        stderr_last = "Code execution service is temporarily unavailable."
+    else:
+        for result in results:
+            stdout_last = getattr(result, "stdout", "") or ""
+            stderr_last = (
+                getattr(result, "stderr", "")
+                or getattr(result, "compile_output", "")
+                or getattr(result, "message", "")
+                or ""
+            )
+            status_id = getattr(result, "status_id", None)
+
+            if status_id == 3:
+                passed += 1
+                continue
+            if status_id == 4:
+                verdict = Submission.Verdict.WRONG_ANSWER
+                break
+            if status_id == 5:
+                verdict = Submission.Verdict.TIME_LIMIT
+                break
+            if status_id == 6:
+                verdict = Submission.Verdict.COMPILATION_ERROR
+                break
+            verdict = Submission.Verdict.RUNTIME_ERROR
+            break
+
+        if len(results) == len(testcases) and passed == len(testcases):
+            verdict = Submission.Verdict.ACCEPTED
+        elif len(results) != len(testcases) and not stderr_last:
+            verdict = Submission.Verdict.RUNTIME_ERROR
+            stderr_last = "Code execution returned an incomplete result."
+
+    with transaction.atomic():
+        progress = StudentTaskProgress.objects.select_for_update().get(id=progress.id)
+        changed = []
+        completed_at = timezone.now()
+
+        if verdict == Submission.Verdict.ACCEPTED:
+            progress.status = StudentTaskProgress.Status.SOLVED
+            progress.solved_at = completed_at
+            progress.locked_after_solve = True
+            changed.extend(["status", "solved_at", "locked_after_solve"])
+        else:
+            progress.attempts_failed += 1
+            changed.append("attempts_failed")
+            changed.extend(_unlock_hints_if_needed(progress, task, completed_at))
+
+        if changed:
+            progress.save(update_fields=list(dict.fromkeys(changed)))
 
         sub = Submission.objects.create(
             progress=progress,
             attempt_no=attempt_no,
             code=user_code,
-            verdict=Submission.Verdict.RUNTIME_ERROR,
-            stdout="",
-            stderr=f"Judge0 error: {type(e).__name__}: {e}",
-            passed_tests=0,
+            verdict=verdict,
+            stdout=stdout_last,
+            stderr=stderr_last,
+            passed_tests=passed,
             total_tests=len(testcases),
         )
-
-        return JsonResponse(
-            {
-                "ok": True,
-                "submission": {
-                    "id": sub.id,
-                    "attempt_no": sub.attempt_no,
-                    "verdict": sub.verdict,
-                    "stdout": sub.stdout,
-                    "stderr": sub.stderr,
-                    "passed_tests": sub.passed_tests,
-                    "total_tests": sub.total_tests,
-                },
-                "progress": {
-                    "status": progress.status,
-                    "attempts_total": progress.attempts_total,
-                    "attempts_failed": progress.attempts_failed,
-                    "hint1_available": bool(task.hints_enabled and task.hint1_enabled and progress.hint1_unlocked_at),
-                    "hint2_available": bool(task.hints_enabled and task.hint2_enabled and progress.hint2_unlocked_at),
-                    "hint3_available": bool(task.hints_enabled and task.hint3_enabled and progress.hint3_unlocked_at),
-                },
-            }
-        )
-
-    passed = 0
-    stdout_last = ""
-    stderr_last = ""
-    verdict = Submission.Verdict.WRONG_ANSWER
-
-    for r in results:
-        stdout_last = getattr(r, "stdout", "") or ""
-        stderr_last = (
-            getattr(r, "stderr", "")
-            or getattr(r, "compile_output", "")
-            or getattr(r, "message", "")
-            or ""
-        )
-        status_id = getattr(r, "status_id", None)
-
-        if status_id == 3:
-            passed += 1
-            continue
-        if status_id == 4:
-            verdict = Submission.Verdict.WRONG_ANSWER
-            break
-        if status_id == 5:
-            verdict = Submission.Verdict.TIME_LIMIT
-            break
-        if status_id == 6:
-            verdict = Submission.Verdict.COMPILATION_ERROR
-            break
-        if status_id and status_id >= 7:
-            verdict = Submission.Verdict.RUNTIME_ERROR
-            break
-
-        verdict = Submission.Verdict.RUNTIME_ERROR
-        break
-
-    if passed == len(results):
-        verdict = Submission.Verdict.ACCEPTED
-
-    progress.last_submit_at = now
-    progress.last_code_hash = code_hash
-    changed = ["attempts_total", "last_submit_at", "last_code_hash"]
-
-    if verdict == Submission.Verdict.ACCEPTED:
-        progress.status = StudentTaskProgress.Status.SOLVED
-        progress.solved_at = now
-        progress.locked_after_solve = True
-        changed += ["status", "solved_at", "locked_after_solve"]
-    else:
-        progress.attempts_failed += 1
-        changed.append("attempts_failed")
-        changed += _unlock_hints_if_needed(progress, task, now)
-
-    progress.save(update_fields=changed)
-
-    sub = Submission.objects.create(
-        progress=progress,
-        attempt_no=attempt_no,
-        code=user_code,
-        verdict=verdict,
-        stdout=stdout_last,
-        stderr=stderr_last,
-        passed_tests=passed,
-        total_tests=len(results),
-    )
 
     return JsonResponse(
         {
@@ -1345,28 +1474,22 @@ def student_submit(request: HttpRequest, task_id: int):
                 "status": progress.status,
                 "attempts_total": progress.attempts_total,
                 "attempts_failed": progress.attempts_failed,
-                "hint1_available": bool(task.hints_enabled and task.hint1_enabled and progress.hint1_unlocked_at),
-                "hint2_available": bool(task.hints_enabled and task.hint2_enabled and progress.hint2_unlocked_at),
-                "hint3_available": bool(task.hints_enabled and task.hint3_enabled and progress.hint3_unlocked_at),
+                "hint1_available": bool(
+                    task.hints_enabled and task.hint1_enabled and progress.hint1_unlocked_at
+                ),
+                "hint2_available": bool(
+                    task.hints_enabled and task.hint2_enabled and progress.hint2_unlocked_at
+                ),
+                "hint3_available": bool(
+                    task.hints_enabled and task.hint3_enabled and progress.hint3_unlocked_at
+                ),
             },
         }
     )
 
 
 
-from .ai_assist import (
-    build_prompt_snapshot,
-    call_openai_hint,
-    sanitize_no_code,
-    build_solution_prompt_snapshot,
-    call_openai_solution,
-    build_theory_open_answer_prompt_snapshot,
-    build_theory_material_prompt_snapshot,
-    call_openai_theory_open_answer,
-    call_openai_theory_material,
-)
-
-@require_GET
+@require_http_methods(["GET", "POST"])
 def student_hint_level(request: HttpRequest, task_id: int, level: int):
     student_id, class_id = _get_student_from_session(request)
     if not student_id:
@@ -1409,6 +1532,29 @@ def student_hint_level(request: HttpRequest, task_id: int, level: int):
         return JsonResponse({"ok": False, "error": "hint level 2 not available yet"}, status=403)
     if level == 3 and progress.attempts_failed < max(1, int(task.hint3_unlock_attempts or 1)):
         return JsonResponse({"ok": False, "error": "hint level 3 not available yet"}, status=403)
+
+    if request.method == "GET":
+        cached_text = {
+            1: progress.hint1_text,
+            2: progress.hint2_text,
+            3: progress.hint3_text,
+        }.get(level, "")
+        if cached_text:
+            payload = {
+                "ok": True,
+                "level": level,
+                "kind": "code" if level == 3 else "text",
+            }
+            payload["code" if level == 3 else "text"] = cached_text
+            if level == 3:
+                payload["insert_into_editor"] = True
+            return JsonResponse(payload)
+        response = JsonResponse(
+            {"ok": False, "error": "POST is required to generate a hint"},
+            status=405,
+        )
+        response["Allow"] = "POST"
+        return response
 
     if level == 1 and progress.hint1_text:
         _inc_hint_counter(progress, 1)
@@ -1505,13 +1651,40 @@ def student_hint_level(request: HttpRequest, task_id: int, level: int):
         )
 
 
-    msg = AiAssistMessage.objects.create(
-        progress=progress,
-        level=level,
-        prompt_snapshot=prompt_snapshot,
-        status=AiAssistMessage.Status.ERROR,
-        error_message="pending",
-    )
+    if request_is_limited(
+        "openai_hint",
+        str(student_id),
+        limit=int(getattr(settings, "STUDENT_HINT_HOURLY_LIMIT", 20)),
+        window_seconds=3600,
+    ):
+        response = JsonResponse(
+            {"ok": False, "error": "AI hint limit exceeded"},
+            status=429,
+        )
+        response["Retry-After"] = "3600"
+        return response
+
+    with transaction.atomic():
+        progress = StudentTaskProgress.objects.select_for_update().get(id=progress.id)
+        generation_in_progress = AiAssistMessage.objects.filter(
+            progress=progress,
+            level=level,
+            status=AiAssistMessage.Status.ERROR,
+            error_message="pending",
+            created_at__gte=now - timedelta(minutes=2),
+        ).exists()
+        if generation_in_progress:
+            return JsonResponse(
+                {"ok": False, "error": "hint generation is already in progress"},
+                status=409,
+            )
+        msg = AiAssistMessage.objects.create(
+            progress=progress,
+            level=level,
+            prompt_snapshot=prompt_snapshot,
+            status=AiAssistMessage.Status.ERROR,
+            error_message="pending",
+        )
 
     try:
         if level in (1, 2):
@@ -1606,7 +1779,7 @@ def student_login_page(request: HttpRequest):
     full_name = (request.POST.get("full_name") or "").strip()
     pin = (request.POST.get("pin") or "").strip()
 
-    if not full_name or not pin or not PIN_RE.match(pin):
+    if not full_name or len(full_name) > 120 or not pin or not PIN_RE.match(pin):
         return render(
             request,
             "core/student_login.html",
@@ -1620,12 +1793,8 @@ def student_login_page(request: HttpRequest):
             status=429,
         )
 
-    student = (
-        Student.objects.select_related("class_group")
-        .filter(full_name__iexact=full_name, is_active=True)
-        .first()
-    )
-    if not student or not student.check_pin(pin):
+    student = _authenticate_student(full_name, pin)
+    if not student:
         _record_login_failure("student", request, full_name)
         return render(
             request,
@@ -1639,19 +1808,20 @@ def student_login_page(request: HttpRequest):
     request.session["student_name"] = student.full_name
     request.session["student_class_id"] = student.class_group_id
     request.session["student_logged_in_at"] = timezone.now().isoformat()
+    request.session["student_auth_version"] = auth_version(student.pin_hash)
     return redirect("/student/dashboard/")
 
 
 @ensure_csrf_cookie
 def student_portal_page(request: HttpRequest):
-    if not _student_id(request):
+    if not _get_logged_in_student(request):
         return redirect("/student/login/")
     return render(request, "core/student_portal.html", {"bg_urls": _student_background_urls()})
 
 
 @ensure_csrf_cookie
 def student_dashboard_page(request: HttpRequest):
-    if not _student_id(request):
+    if not _get_logged_in_student(request):
         return redirect("/student/login/")
     return render(request, "core/student_dashboard.html", {"bg_urls": _student_background_urls()})
 
@@ -1836,13 +2006,11 @@ def _scale_totals_if_needed(values, other_max):
 
 
 @staff_member_required
-@staff_member_required
 def admin_stats_dashboard(request: HttpRequest) -> HttpResponse:
     context = _build_dashboard_analytics_context(request)
     return render(request, "core/admin_stats_dashboard.html", context)
 
 
-@staff_member_required
 @staff_member_required
 def admin_student_profile(request: HttpRequest, student_id: int) -> HttpResponse:
     student = get_object_or_404(
@@ -1937,7 +2105,7 @@ def admin_student_profile(request: HttpRequest, student_id: int) -> HttpResponse
         "core/admin_student_profile.html",
         {
             "student": student,
-            "chart_json": json.dumps(chart, ensure_ascii=False),
+            "chart_json": chart,
             "active": "",
         },
     )
@@ -1953,15 +2121,15 @@ def teacher_login(request: HttpRequest):
     full_name = (data.get("full_name") or "").strip()
     pin = str(data.get("pin") or "").strip()
 
-    if not full_name or not pin:
+    if not full_name or not pin or len(full_name) > 120:
         return JsonResponse({"ok": False, "error": "full_name and pin are required"}, status=400)
     if not TEACHER_PIN_RE.match(pin):
         return JsonResponse({"ok": False, "error": "pin must be 6 digits"}, status=400)
     if _login_rate_limited("teacher", request, full_name):
         return _login_rate_limit_json()
 
-    teacher = Teacher.objects.filter(full_name__iexact=full_name, is_active=True).first()
-    if not teacher or not teacher.check_pin(pin):
+    teacher = _authenticate_teacher(full_name, pin)
+    if not teacher:
         _record_login_failure("teacher", request, full_name)
         return JsonResponse({"ok": False, "error": GENERIC_LOGIN_ERROR}, status=401)
 
@@ -1970,13 +2138,14 @@ def teacher_login(request: HttpRequest):
     request.session["teacher_id"] = teacher.id
     request.session["teacher_name"] = teacher.full_name
     request.session["teacher_logged_in_at"] = timezone.now().isoformat()
+    request.session["teacher_auth_version"] = auth_version(teacher.pin_hash)
 
     return JsonResponse({"ok": True, "teacher": {"id": teacher.id, "full_name": teacher.full_name}})
 
 
 @require_POST
 def teacher_logout(request: HttpRequest):
-    for key in ["teacher_id", "teacher_name", "teacher_logged_in_at"]:
+    for key in ["teacher_id", "teacher_name", "teacher_logged_in_at", "teacher_auth_version"]:
         request.session.pop(key, None)
     return JsonResponse({"ok": True})
 
@@ -1989,7 +2158,7 @@ def teacher_me(request: HttpRequest):
 
     teacher = Teacher.objects.filter(id=teacher_id, is_active=True).first()
     if not teacher:
-        for key in ["teacher_id", "teacher_name", "teacher_logged_in_at"]:
+        for key in ["teacher_id", "teacher_name", "teacher_logged_in_at", "teacher_auth_version"]:
             request.session.pop(key, None)
         return JsonResponse({"ok": False, "error": "not authenticated"}, status=401)
 
@@ -2005,7 +2174,7 @@ def teacher_login_page(request: HttpRequest):
     full_name = (request.POST.get("full_name") or "").strip()
     pin = (request.POST.get("pin") or "").strip()
 
-    if not full_name or not pin or not TEACHER_PIN_RE.match(pin):
+    if not full_name or len(full_name) > 120 or not pin or not TEACHER_PIN_RE.match(pin):
         return render(request, "core/teacher_login.html", {"error": "Enter name and PIN (6 digits)."})
     if _login_rate_limited("teacher", request, full_name):
         return render(
@@ -2015,8 +2184,8 @@ def teacher_login_page(request: HttpRequest):
             status=429,
         )
 
-    teacher = Teacher.objects.filter(full_name__iexact=full_name, is_active=True).first()
-    if not teacher or not teacher.check_pin(pin):
+    teacher = _authenticate_teacher(full_name, pin)
+    if not teacher:
         _record_login_failure("teacher", request, full_name)
         return render(request, "core/teacher_login.html", {"error": "Invalid name or PIN."})
 
@@ -2025,6 +2194,7 @@ def teacher_login_page(request: HttpRequest):
     request.session["teacher_id"] = teacher.id
     request.session["teacher_name"] = teacher.full_name
     request.session["teacher_logged_in_at"] = timezone.now().isoformat()
+    request.session["teacher_auth_version"] = auth_version(teacher.pin_hash)
     return redirect("/teacher/")
 
 
@@ -2286,7 +2456,7 @@ def teacher_sessions_api(request: HttpRequest):
         return JsonResponse({"ok": True, "session": _serialize_session(session)}, status=201)
 
     except Exception as e:
-        return JsonResponse({"ok": False, "error": f"{type(e).__name__}: {e}"}, status=500)
+        return _internal_api_error()
 
 
 @require_POST
@@ -2424,7 +2594,7 @@ def teacher_session_clone_api(request: HttpRequest, session_id: int):
 
         return JsonResponse({"ok": True, "session": _serialize_session(clone)}, status=201)
     except Exception as e:
-        return JsonResponse({"ok": False, "error": f"{type(e).__name__}: {e}"}, status=500)
+        return _internal_api_error()
 @require_http_methods(["GET", "POST"])
 def teacher_session_tasks_api(request: HttpRequest, session_id: int):
     teacher = _get_logged_in_teacher(request)
@@ -2482,10 +2652,7 @@ def teacher_session_tasks_api(request: HttpRequest, session_id: int):
         }, status=201)
 
     except Exception as e:
-        return JsonResponse(
-            {"ok": False, "error": f"{type(e).__name__}: {e}"},
-            status=500
-        )
+        return _internal_api_error()
 
 
 @require_http_methods(["PATCH", "DELETE"])
@@ -2564,7 +2731,7 @@ def teacher_session_detail_api(request: HttpRequest, session_id: int):
         return JsonResponse({"ok": True, "session": _serialize_session(s)})
 
     except Exception as e:
-        return JsonResponse({"ok": False, "error": f"{type(e).__name__}: {e}"}, status=500)
+        return _internal_api_error()
 
 
 @require_GET
@@ -2613,7 +2780,7 @@ def teacher_session_assign_classes_api(request: HttpRequest, session_id: int):
         return JsonResponse({"ok": True, "class_ids": clean_ids})
 
     except Exception as e:
-        return JsonResponse({"ok": False, "error": f"{type(e).__name__}: {e}"}, status=500)
+        return _internal_api_error()
 
 
 # -------------------------
@@ -2824,7 +2991,7 @@ def teacher_theory_modules_api(request: HttpRequest, session_id: int):
         return JsonResponse({"ok": True, "module": _serialize_theory_module(module)}, status=201)
 
     except Exception as e:
-        return JsonResponse({"ok": False, "error": f"{type(e).__name__}: {e}"}, status=500)
+        return _internal_api_error()
 
 
 @require_http_methods(["GET", "PATCH", "DELETE"])
@@ -2881,7 +3048,7 @@ def teacher_theory_module_detail_api(request: HttpRequest, module_id: int):
         return JsonResponse({"ok": True, "module": _serialize_theory_module(module)})
 
     except Exception as e:
-        return JsonResponse({"ok": False, "error": f"{type(e).__name__}: {e}"}, status=500)
+        return _internal_api_error()
 
 
 @require_http_methods(["GET", "POST"])
@@ -2926,6 +3093,10 @@ def teacher_theory_blocks_api(request: HttpRequest, module_id: int):
         if not content.strip():
             return JsonResponse({"ok": False, "error": "content is required"}, status=400)
 
+        media_error = _theory_media_error(block_type, content)
+        if media_error:
+            return JsonResponse({"ok": False, "error": media_error}, status=400)
+
         if block_type == TheoryMaterialBlock.BlockType.HEADING:
             if heading_level not in {TheoryMaterialBlock.HeadingLevel.H1, TheoryMaterialBlock.HeadingLevel.H2}:
                 return JsonResponse({"ok": False, "error": "heading_level must be h1 or h2"}, status=400)
@@ -2946,7 +3117,7 @@ def teacher_theory_blocks_api(request: HttpRequest, module_id: int):
         return JsonResponse({"ok": True, "block": _serialize_theory_block(block)}, status=201)
 
     except Exception as e:
-        return JsonResponse({"ok": False, "error": f"{type(e).__name__}: {e}"}, status=500)
+        return _internal_api_error()
 
 
 @require_http_methods(["PATCH", "DELETE"])
@@ -3017,11 +3188,15 @@ def teacher_theory_block_detail_api(request: HttpRequest, block_id: int):
         if block.block_type != TheoryMaterialBlock.BlockType.HEADING:
             block.heading_level = ""
 
+        media_error = _theory_media_error(block.block_type, block.content)
+        if media_error:
+            return JsonResponse({"ok": False, "error": media_error}, status=400)
+
         block.save()
         return JsonResponse({"ok": True, "block": _serialize_theory_block(block)})
 
     except Exception as e:
-        return JsonResponse({"ok": False, "error": f"{type(e).__name__}: {e}"}, status=500)
+        return _internal_api_error()
 
 
 @require_POST
@@ -3035,6 +3210,19 @@ def teacher_generate_theory_module_api(request: HttpRequest, module_id: int):
     try:
         data = _json_body(request)
         prompt = (data.get("prompt") or module.ai_prompt or "").strip()
+
+        if request_is_limited(
+            "teacher_openai_generation",
+            str(teacher.id),
+            limit=int(getattr(settings, "TEACHER_AI_HOURLY_LIMIT", 30)),
+            window_seconds=3600,
+        ):
+            response = JsonResponse(
+                {"ok": False, "error": "AI generation limit exceeded"},
+                status=429,
+            )
+            response["Retry-After"] = "3600"
+            return response
 
         if not prompt:
             return JsonResponse({"ok": False, "error": "prompt is required"}, status=400)
@@ -3080,6 +3268,9 @@ def teacher_generate_theory_module_api(request: HttpRequest, module_id: int):
                 if block_type != "heading":
                     heading_level = ""
 
+                if _theory_media_error(block_type, content):
+                    continue
+
                 used_ordinals.add(ordinal)
                 clean_blocks.append(
                     TheoryMaterialBlock(
@@ -3092,6 +3283,7 @@ def teacher_generate_theory_module_api(request: HttpRequest, module_id: int):
                 )
 
             if not clean_blocks:
+                transaction.set_rollback(True)
                 return JsonResponse({"ok": False, "error": "AI returned no valid blocks"}, status=502)
 
             TheoryMaterialBlock.objects.bulk_create(clean_blocks)
@@ -3100,7 +3292,7 @@ def teacher_generate_theory_module_api(request: HttpRequest, module_id: int):
         return JsonResponse({"ok": True, "module": _serialize_theory_module(module)})
 
     except Exception as e:
-        return JsonResponse({"ok": False, "error": f"{type(e).__name__}: {e}"}, status=500)
+        return _internal_api_error()
 
 
 @require_http_methods(["GET", "POST"])
@@ -3150,7 +3342,7 @@ def teacher_theory_quizzes_api(request: HttpRequest, session_id: int):
         return JsonResponse({"ok": True, "module": _serialize_theory_quiz_module(module)}, status=201)
 
     except Exception as e:
-        return JsonResponse({"ok": False, "error": f"{type(e).__name__}: {e}"}, status=500)
+        return _internal_api_error()
 
 
 @require_http_methods(["GET", "PATCH", "DELETE"])
@@ -3201,7 +3393,7 @@ def teacher_theory_quiz_detail_api(request: HttpRequest, module_id: int):
         return JsonResponse({"ok": True, "module": _serialize_theory_quiz_module(module)})
 
     except Exception as e:
-        return JsonResponse({"ok": False, "error": f"{type(e).__name__}: {e}"}, status=500)
+        return _internal_api_error()
 
 
 @require_http_methods(["GET", "POST"])
@@ -3258,7 +3450,7 @@ def teacher_theory_quiz_questions_api(request: HttpRequest, module_id: int):
         return JsonResponse({"ok": True, "question": _serialize_theory_quiz_question(question)}, status=201)
 
     except Exception as e:
-        return JsonResponse({"ok": False, "error": f"{type(e).__name__}: {e}"}, status=500)
+        return _internal_api_error()
 
 
 @require_http_methods(["PATCH", "DELETE"])
@@ -3331,7 +3523,7 @@ def teacher_theory_quiz_question_detail_api(request: HttpRequest, question_id: i
         return JsonResponse({"ok": True, "question": _serialize_theory_quiz_question(question)})
 
     except Exception as e:
-        return JsonResponse({"ok": False, "error": f"{type(e).__name__}: {e}"}, status=500)
+        return _internal_api_error()
 
 @require_http_methods(["PATCH", "DELETE"])
 def teacher_fragment_detail_api(request: HttpRequest, frag_id: int):
@@ -3377,6 +3569,12 @@ def teacher_fragment_detail_api(request: HttpRequest, frag_id: int):
 def set_ui_language(request):
     lang = (request.POST.get("lang") or "").strip()
     next_url = request.POST.get("next") or request.META.get("HTTP_REFERER") or "/teacher/"
+    if not url_has_allowed_host_and_scheme(
+        next_url,
+        allowed_hosts={request.get_host()},
+        require_https=request.is_secure(),
+    ):
+        next_url = "/teacher/"
 
     if lang not in SUPPORTED_UI_LANGS:
         lang = "ru"
@@ -3523,6 +3721,6 @@ def _build_dashboard_analytics_context(request: HttpRequest) -> dict:
         "selected_class_id": int(class_id) if class_id.isdigit() else None,
         "show_success": show_success,
         "show_hints": show_hints,
-        "session_chart_json": json.dumps(session_chart, ensure_ascii=False),
+        "session_chart_json": session_chart,
         "student_cards": student_cards,
     }

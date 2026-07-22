@@ -234,6 +234,7 @@
   {% endif %}
 </div>
 
+{{ session_chart_json|json_script:"teacher-session-chart-data" }}
 <script>
   const UI = {
     chartNoteScaled: "{{ T.chart_note_scaled|escapejs }}",
@@ -242,15 +243,7 @@
     assistantRequests: "{{ T.assistant_requests|escapejs }}"
   };
 
-  {% if session_chart_json %}
-    const chartData = {{ session_chart_json|safe }};
-  {% else %}
-    const chartData = {
-      labels: [],
-      datasets: { totals: [], accepted: [], hints: [] },
-      scale_factor: 1
-    };
-  {% endif %}
+  const chartData = JSON.parse(document.getElementById("teacher-session-chart-data").textContent);
 
   const scaleNote = document.getElementById("scaleNote");
   if (chartData.scale_factor && chartData.scale_factor !== 1) {

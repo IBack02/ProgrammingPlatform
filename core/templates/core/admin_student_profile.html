@@ -85,6 +85,7 @@
   </div>
 </div>
 
+{{ chart_json|json_script:"student-chart-data" }}
 <script>
   const UI = {
     taskCompletionPercent: "{{ T.task_completion_percent|escapejs }}",
@@ -95,7 +96,7 @@
     totalAttempts: "{{ T.total_attempts|escapejs }}"
   };
 
-  const data = {{ chart_json|safe }};
+  const data = JSON.parse(document.getElementById("student-chart-data").textContent);
   const ctx = document.getElementById("rateChart");
 
   new Chart(ctx, {

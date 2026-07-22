@@ -858,7 +858,9 @@
     return String(s || "")
       .replaceAll("&","&amp;")
       .replaceAll("<","&lt;")
-      .replaceAll(">","&gt;");
+      .replaceAll(">","&gt;")
+      .replaceAll('"',"&quot;")
+      .replaceAll("'","&#039;");
   }
 
   function sanitizeHttpUrl(rawUrl){
@@ -1425,7 +1427,7 @@
       return false;
     }
 
-    const res = await apiGet(`/api/student/task/${currentTaskId}/hint/${level}`);
+    const res = await apiPost(`/api/student/task/${currentTaskId}/hint/${level}`, {});
     if (!res.data.ok){
       showStatus(res.data.error || UI.hintRequestFailed);
       return false;

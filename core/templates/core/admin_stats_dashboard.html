@@ -115,8 +115,9 @@
     </div>
   </div>
 
+{{ session_chart_json|json_script:"admin-session-chart-data" }}
 <script>
-  const chartData = {{ session_chart_json|safe }};
+  const chartData = JSON.parse(document.getElementById("admin-session-chart-data").textContent);
   const showSuccess = {{ show_success|yesno:"true,false" }};
   const showHints = {{ show_hints|yesno:"true,false" }};
 

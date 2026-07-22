@@ -3,6 +3,7 @@ import json
 from django.test import Client, TestCase
 
 from .models import ClassGroup, ExamAttempt, Student, Teacher
+from .security import auth_version
 
 
 class ExamFlowTests(TestCase):
@@ -25,12 +26,14 @@ class ExamFlowTests(TestCase):
         self.teacher_client = Client()
         teacher_session = self.teacher_client.session
         teacher_session["teacher_id"] = self.teacher.id
+        teacher_session["teacher_auth_version"] = auth_version(self.teacher.pin_hash)
         teacher_session.save()
 
         self.student_client = Client()
         student_session = self.student_client.session
         student_session["student_id"] = self.student.id
         student_session["student_class_id"] = self.class_group.id
+        student_session["student_auth_version"] = auth_version(self.student.pin_hash)
         student_session.save()
 
     def _json(self, method, url, payload=None, client=None):

@@ -506,11 +506,6 @@ class Submission(models.Model):
     external_run_id = models.CharField(max_length=120, blank=True)
 
     class Meta:
-        constraints = [
-            models.UniqueConstraint(fields=["progress", "attempt_no"], name="uniq_attempt_no_per_progress")
-        ]
-
-    class Meta:
         verbose_name = "Submission"
         verbose_name_plural = "Submissions"
         ordering = ["-submitted_at"]
@@ -651,6 +646,24 @@ class Teacher(models.Model):
     def check_pin(self, raw_pin: str) -> bool:
         return check_password(raw_pin, self.pin_hash)
 
+
+class SecurityThrottle(models.Model):
+    """Persistent rate-limit bucket shared by all application workers."""
+
+    key_hash = models.CharField(max_length=64, unique=True)
+    scope = models.CharField(max_length=48, db_index=True)
+    hits = models.PositiveIntegerField(default=0)
+    window_started_at = models.DateTimeField()
+    blocked_until = models.DateTimeField(null=True, blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=["scope", "updated_at"], name="security_scope_updated_idx"),
+        ]
+
+    def __str__(self):
+        return f"{self.scope}:{self.key_hash[:10]} ({self.hits})"
 
 class Exam(models.Model):
     class Status(models.TextChoices):

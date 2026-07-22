@@ -62,8 +62,20 @@ SECURE_HSTS_PRELOAD = os.environ.get("SECURE_HSTS_PRELOAD", "false").lower() == 
 SECURE_CONTENT_TYPE_NOSNIFF = True
 REFERRER_POLICY = "strict-origin-when-cross-origin"
 X_FRAME_OPTIONS = "DENY"
+SECURE_CROSS_ORIGIN_OPENER_POLICY = "same-origin"
+SIGNED_COOKIE_LEGACY_SALT_FALLBACK = False
+
+DATA_UPLOAD_MAX_MEMORY_SIZE = int(os.environ.get("DATA_UPLOAD_MAX_MEMORY_SIZE", "1572864"))
+FILE_UPLOAD_MAX_MEMORY_SIZE = int(os.environ.get("FILE_UPLOAD_MAX_MEMORY_SIZE", "2097152"))
+SESSION_COOKIE_AGE = int(os.environ.get("SESSION_COOKIE_AGE", "43200"))
+SESSION_EXPIRE_AT_BROWSER_CLOSE = True
+CSRF_FAILURE_VIEW = "core.middleware.csrf_failure"
+TRUSTED_PROXY_HOPS = int(os.environ.get("TRUSTED_PROXY_HOPS", "0" if DEBUG else "1"))
 
 LOGIN_RATE_LIMIT_MAX_ATTEMPTS = int(os.environ.get("LOGIN_RATE_LIMIT_MAX_ATTEMPTS", "8"))
+LOGIN_IDENTITY_MAX_ATTEMPTS = int(os.environ.get("LOGIN_IDENTITY_MAX_ATTEMPTS", "12"))
+LOGIN_IP_MAX_ATTEMPTS = int(os.environ.get("LOGIN_IP_MAX_ATTEMPTS", "40"))
+ADMIN_LOGIN_ATTEMPT_LIMIT = int(os.environ.get("ADMIN_LOGIN_ATTEMPT_LIMIT", "20"))
 LOGIN_RATE_LIMIT_WINDOW_SECONDS = int(os.environ.get("LOGIN_RATE_LIMIT_WINDOW_SECONDS", "900"))
 LOGIN_RATE_LIMIT_LOCK_SECONDS = int(os.environ.get("LOGIN_RATE_LIMIT_LOCK_SECONDS", "900"))
 
@@ -88,6 +100,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    "core.middleware.SecurityResponseMiddleware",
     "whitenoise.middleware.WhiteNoiseMiddleware",
 
     "django.contrib.sessions.middleware.SessionMiddleware",

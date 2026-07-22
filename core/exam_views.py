@@ -1,3 +1,4 @@
+import hmac
 import json
 import random
 import re
@@ -17,6 +18,7 @@ from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views.decorators.http import require_GET, require_http_methods, require_POST
 
 from .google_drive import upload_exam_diagram
+from .security import auth_version, request_is_limited
 from .models import (
     ClassGroup,
     Exam,
@@ -50,7 +52,14 @@ def _teacher(request: HttpRequest):
     teacher_id = request.session.get("teacher_id")
     if not teacher_id:
         return None
-    return Teacher.objects.filter(id=teacher_id, is_active=True).first()
+    teacher = Teacher.objects.filter(id=teacher_id, is_active=True).first()
+    version = request.session.get("teacher_auth_version")
+    if not teacher or not version or not hmac.compare_digest(
+        version,
+        auth_version(teacher.pin_hash),
+    ):
+        return None
+    return teacher
 
 
 def _student(request: HttpRequest):
@@ -58,11 +67,18 @@ def _student(request: HttpRequest):
     class_id = request.session.get("student_class_id")
     if not student_id or not class_id:
         return None
-    return Student.objects.select_related("class_group").filter(
+    student = Student.objects.select_related("class_group").filter(
         id=student_id,
         class_group_id=class_id,
         is_active=True,
     ).first()
+    version = request.session.get("student_auth_version")
+    if not student or not version or not hmac.compare_digest(
+        version,
+        auth_version(student.pin_hash),
+    ):
+        return None
+    return student
 
 
 def _teacher_required(view_func):
@@ -108,7 +124,8 @@ def _https_url(value, field_name: str) -> str:
     if not value:
         return ""
     parsed = urlparse(value)
-    if parsed.scheme != "https" or not parsed.netloc:
+    has_unsafe_chars = any(ord(char) < 32 or char in '"<>\\' for char in value)
+    if has_unsafe_chars or parsed.scheme != "https" or not parsed.netloc or parsed.username or parsed.password:
         raise ValueError(f"{field_name} must be a valid HTTPS URL")
     return value
 
@@ -839,17 +856,44 @@ def student_exam_answer_api(request: HttpRequest, exam_id: int, question_id: int
     student = _student(request)
     if not student:
         return _api_error("not authenticated", 401)
-    attempt = get_object_or_404(
-        ExamAttempt.objects.select_related("exam", "student"),
-        exam_id=exam_id,
-        student=student,
-    )
-    if attempt.status != ExamAttempt.Status.IN_PROGRESS or _expire_if_needed(attempt):
-        return _api_error("exam attempt is closed", 409)
-    question = get_object_or_404(ExamQuestion, id=question_id, exam_id=exam_id)
+
+    data = _json_body(request)
+    rate_scope = "exam_diagram_upload" if data.get("upload_to_drive") else "exam_answer_save"
+    rate_limit = 30 if data.get("upload_to_drive") else 600
+    if request_is_limited(
+        rate_scope,
+        str(student.id),
+        limit=rate_limit,
+        window_seconds=3600,
+    ):
+        response = _api_error("answer save limit exceeded", 429)
+        response["Retry-After"] = "3600"
+        return response
+
     try:
-        answer, warning = _save_answer(attempt, question, _json_body(request))
-        return JsonResponse({"ok": True, "answer": _answer_student(answer), "warning": warning})
+        with transaction.atomic():
+            attempt = get_object_or_404(
+                ExamAttempt.objects.select_for_update().select_related("exam", "student"),
+                exam_id=exam_id,
+                student=student,
+            )
+            if attempt.status != ExamAttempt.Status.IN_PROGRESS:
+                return _api_error("exam attempt is closed", 409)
+            if timezone.now() >= attempt.expires_at:
+                attempt.status = ExamAttempt.Status.EXPIRED
+                attempt.submitted_at = attempt.expires_at
+                attempt.save(update_fields=["status", "submitted_at", "updated_at"])
+                return _api_error("exam attempt is closed", 409)
+
+            question = get_object_or_404(
+                ExamQuestion,
+                id=question_id,
+                exam_id=exam_id,
+            )
+            answer, warning = _save_answer(attempt, question, data)
+        return JsonResponse(
+            {"ok": True, "answer": _answer_student(answer), "warning": warning}
+        )
     except ValueError as exc:
         return _api_error(str(exc))
 
@@ -886,7 +930,9 @@ def student_exam_submit_api(request: HttpRequest, exam_id: int):
                 question = questions.get(question_id)
                 if not question:
                     raise ValueError("answer contains an unknown question")
-                _save_answer(attempt, question, row)
+                final_row = dict(row)
+                final_row["upload_to_drive"] = False
+                _save_answer(attempt, question, final_row)
             attempt.status = ExamAttempt.Status.SUBMITTED
             attempt.submitted_at = timezone.now()
             attempt.save(update_fields=["status", "submitted_at", "updated_at"])
