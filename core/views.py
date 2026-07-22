@@ -1812,6 +1812,91 @@ def student_login_page(request: HttpRequest):
     return redirect("/student/dashboard/")
 
 
+def _change_pin_page(request: HttpRequest, role: str):
+    lang = get_ui_lang(request)
+    translations = UI_TRANSLATIONS.get(lang, UI_TRANSLATIONS["en"])
+    if role == "student":
+        account = _get_logged_in_student(request)
+        login_url = "/student/login/"
+        return_url = "/student/dashboard/"
+        auth_key = "student_auth_version"
+        logged_key = "student_logged_in_at"
+    else:
+        account = _get_logged_in_teacher(request)
+        login_url = "/teacher/login/"
+        return_url = "/teacher/"
+        auth_key = "teacher_auth_version"
+        logged_key = "teacher_logged_in_at"
+
+    if not account:
+        return redirect(login_url)
+    context = {
+        "role": role,
+        "account_name": account.full_name,
+        "return_url": return_url,
+    }
+    if request.method == "GET":
+        return render(request, "core/change_pin.html", context)
+
+    if request_is_limited(
+        f"change_pin_{role}",
+        str(account.id),
+        limit=10,
+        window_seconds=900,
+    ):
+        context["error"] = translations.get(
+            "pin_change_too_many",
+            "Too many attempts. Try again later.",
+        )
+        return render(request, "core/change_pin.html", context, status=429)
+
+    current_pin = (request.POST.get("current_pin") or "").strip()
+    new_pin = (request.POST.get("new_pin") or "").strip()
+    confirm_pin = (request.POST.get("confirm_pin") or "").strip()
+    if not PIN_RE.fullmatch(current_pin) or not PIN_RE.fullmatch(new_pin):
+        context["error"] = translations.get(
+            "pin_must_be_6_digits",
+            "PIN must be 6 digits.",
+        )
+    elif new_pin != confirm_pin:
+        context["error"] = translations.get(
+            "pin_confirmation_mismatch",
+            "PIN confirmation does not match.",
+        )
+    elif not account.check_pin(current_pin):
+        context["error"] = translations.get(
+            "current_pin_invalid",
+            "Current PIN is incorrect.",
+        )
+    elif account.check_pin(new_pin):
+        context["error"] = translations.get(
+            "pin_must_be_different",
+            "New PIN must be different.",
+        )
+    else:
+        account.set_pin(new_pin)
+        account.save(update_fields=["pin_hash"])
+        request.session.cycle_key()
+        request.session[auth_key] = auth_version(account.pin_hash)
+        request.session[logged_key] = timezone.now().isoformat()
+        context["success"] = translations.get(
+            "pin_changed_success",
+            "PIN changed successfully.",
+        )
+    return render(request, "core/change_pin.html", context)
+
+
+@ensure_csrf_cookie
+@require_http_methods(["GET", "POST"])
+def student_change_pin_page(request: HttpRequest):
+    return _change_pin_page(request, "student")
+
+
+@ensure_csrf_cookie
+@require_http_methods(["GET", "POST"])
+def teacher_change_pin_page(request: HttpRequest):
+    return _change_pin_page(request, "teacher")
+
 @ensure_csrf_cookie
 def student_portal_page(request: HttpRequest):
     if not _get_logged_in_student(request):

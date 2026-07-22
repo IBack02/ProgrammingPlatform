@@ -24,6 +24,7 @@
   .json-area{min-height:220px;font-family:Consolas,"Courier New",monospace;font-size:12px}
   .attempt{border:1px solid #e2e8f0;border-radius:10px;padding:9px;cursor:pointer;background:#fff}.attempt:hover{border-color:#7dd3fc}
   .answer-review{border:1px solid #e2e8f0;border-radius:12px;padding:11px;margin-top:9px}.answer-body{white-space:pre-wrap;background:#f8fafc;border-radius:8px;padding:9px;margin:8px 0}
+  .table-builder-wrap,.review-table-wrap{overflow:auto;border:1px solid #e2e8f0;border-radius:12px;margin-top:9px}.table-builder,.review-table{border-collapse:collapse;width:100%;min-width:560px}.table-builder th,.table-builder td,.review-table th,.review-table td{border:1px solid #dbe2ea;padding:7px;vertical-align:top}.table-builder th{background:#f1f5f9}.table-cell{display:grid;gap:5px;min-width:145px}.table-cell .select,.table-cell .input{padding:7px}.table-tools{display:flex;gap:7px;flex-wrap:wrap;margin:8px 0}.review-table .given{background:#f1f5f9}.review-table .correct{background:#dcfce7}.review-table .incorrect{background:#fee2e2}.integrity-badge{display:inline-flex;background:#fee2e2;color:#991b1b;border-radius:999px;padding:2px 7px;font-size:11px;font-weight:900}.integrity-panel{border:1px solid #fecaca;background:#fff7f7;border-radius:12px;padding:11px;margin-top:12px}.integrity-event{display:flex;justify-content:space-between;gap:10px;border-top:1px solid #fecaca;padding:7px 0;font-size:12px}.integrity-event:first-child{border-top:0}.integrity-empty{color:#64748b;font-size:12px}
   @media(max-width:850px){.exam-shell{grid-template-columns:1fr}.exam-list{max-height:280px}.pair-row{grid-template-columns:1fr 24px 1fr 36px}}
 </style>
 
@@ -68,6 +69,7 @@
               <option value="open_text">{{ T.open_text_question }}</option>
               <option value="matching">{{ T.matching }}</option>
               <option value="diagram">{{ T.diagram_question }}</option>
+              <option value="table">{{ T.table_question }}</option>
             </select>
           </label>
           <label class="field" style="max-width:150px"><span>{{ T.max_score }}</span><input id="qScore" class="input" type="number" min="0.01" step="0.01" value="1"></label>
@@ -75,12 +77,20 @@
         <label class="field" style="margin-top:9px"><span>{{ T.question_prompt }}</span><textarea id="qPrompt" class="area"></textarea></label>
         <div class="row" style="margin-top:9px">
           <label class="field"><span>{{ T.question_image_url }}</span><input id="qImage" class="input" type="url" placeholder="https://..."></label>
-          <label class="field"><span>{{ T.model_answer }}</span><textarea id="qModelAnswer" class="area"></textarea></label>
+          <label id="modelAnswerField" class="field"><span>{{ T.model_answer }}</span><textarea id="qModelAnswer" class="area"></textarea></label>
         </div>
         <div id="pairsEditor" style="margin-top:10px" hidden>
           <div style="font-weight:800">{{ T.correct_pairs }}</div>
           <div id="pairsBox"></div>
           <button id="addPairBtn" class="btn" type="button" style="margin-top:8px">{{ T.add_pair }}</button>
+        </div>        <div id="tableEditor" style="margin-top:10px" hidden>
+          <div style="font-weight:800">{{ T.table_constructor }}</div>
+          <div class="muted">{{ T.table_constructor_help }}</div>
+          <div class="table-tools">
+            <button id="addTableColumnBtn" class="btn" type="button">{{ T.add_column }}</button>
+            <button id="addTableRowBtn" class="btn" type="button">{{ T.add_row }}</button>
+          </div>
+          <div class="table-builder-wrap"><table id="tableBuilder" class="table-builder"></table></div>
         </div>
         <div class="row" style="margin-top:11px">
           <button id="saveQuestionBtn" class="btn primary" type="button">{{ T.add_question }}</button>
@@ -129,6 +139,15 @@ const UI = {
   openText: "{{ T.open_text_question|escapejs }}",
   matching: "{{ T.matching|escapejs }}",
   diagram: "{{ T.diagram_question|escapejs }}",
+  table: "{{ T.table_question|escapejs }}",
+  shownCell: "{{ T.table_given_cell|escapejs }}",
+  inputCell: "{{ T.table_input_cell|escapejs }}",
+  cellValue: "{{ T.table_cell_value|escapejs }}",
+  expectedAnswer: "{{ T.expected_answer|escapejs }}",
+  columnName: "{{ T.column_name|escapejs }}",
+  violations: "{{ T.exam_violations|escapejs }}",
+  noViolations: "{{ T.no_exam_violations|escapejs }}",
+  eventTypes: {tab_hidden:"{{ T.event_tab_hidden|escapejs }}",window_blur:"{{ T.event_window_blur|escapejs }}",clipboard:"{{ T.event_clipboard|escapejs }}",shortcut:"{{ T.event_shortcut|escapejs }}",context_menu:"{{ T.event_context_menu|escapejs }}",fullscreen_exit:"{{ T.event_fullscreen_exit|escapejs }}"},
   points: "{{ T.points|escapejs }}",
   grading: "{{ T.grading|escapejs }}",
   answer: "{{ T.student_answer|escapejs }}",
@@ -136,7 +155,8 @@ const UI = {
   promptCopied: "{{ T.prompt_copied|escapejs }}",
   jsonApplied: "{{ T.json_applied|escapejs }}",
 };
-let exams = [], classes = [], current = null, editingQuestionId = null;
+let exams = [], classes = [], current = null, editingQuestionId = null, selectedAttemptId = null;
+let tableDraft = {columns:[{label:""},{label:""},{label:""}],rows:[]};
 
 function cookie(name){ return document.cookie.split(";").map(v=>v.trim()).find(v=>v.startsWith(name+"="))?.slice(name.length+1) || ""; }
 function esc(value){ return String(value ?? "").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;"); }
@@ -148,7 +168,7 @@ async function api(url, method="GET", body=null){
   return await response.json();
 }
 function message(text, ok=false){const box=document.getElementById("msg");box.textContent=text||"";box.className="notice "+(text?(ok?"ok":"err"):"");}
-function typeLabel(type){return type==="matching"?UI.matching:type==="diagram"?UI.diagram:UI.openText;}
+function typeLabel(type){return type==="matching"?UI.matching:type==="diagram"?UI.diagram:type==="table"?UI.table:UI.openText;}
 
 async function loadAll(){
   const [examData,classData]=await Promise.all([api("/api/teacher/exams/"),api("/api/teacher/classes/")]);
@@ -185,18 +205,39 @@ function addPair(left="",right=""){
   row.querySelector(".pair-remove").onclick=()=>{if(document.querySelectorAll(".pair-row").length>2)row.remove();};
   document.getElementById("pairsBox").appendChild(row);
 }
+function freshTableCell(columnIndex){return columnIndex===0?{mode:"given",value:""}:{mode:"input",answer:""};}
+function resetTableDraft(){
+  tableDraft={columns:[{label:""},{label:""},{label:""}],rows:[]};
+  tableDraft.rows.push({cells:tableDraft.columns.map((_,i)=>freshTableCell(i))});
+  tableDraft.rows.push({cells:tableDraft.columns.map((_,i)=>freshTableCell(i))});
+  renderTableBuilder();
+}
+function loadTableDraft(schema){
+  tableDraft={columns:(schema?.columns||[]).map(c=>({label:c.label||""})),rows:(schema?.rows||[]).map(r=>({cells:(r.cells||[]).map(c=>c.mode==="input"?{mode:"input",answer:c.answer||""}:{mode:"given",value:c.value||""})}))};
+  if(tableDraft.columns.length<2)resetTableDraft();else renderTableBuilder();
+}
+function addTableColumn(){if(tableDraft.columns.length>=8)return;tableDraft.columns.push({label:""});tableDraft.rows.forEach(r=>r.cells.push({mode:"input",answer:""}));renderTableBuilder();}
+function removeTableColumn(index){if(tableDraft.columns.length<=2)return;tableDraft.columns.splice(index,1);tableDraft.rows.forEach(r=>r.cells.splice(index,1));renderTableBuilder();}
+function addTableRow(){if(tableDraft.rows.length>=30)return;tableDraft.rows.push({cells:tableDraft.columns.map((_,i)=>freshTableCell(i))});renderTableBuilder();}
+function renderTableBuilder(){
+  const table=document.getElementById("tableBuilder");if(!table)return;const head=document.createElement("thead"),headRow=document.createElement("tr");
+  tableDraft.columns.forEach((column,columnIndex)=>{const th=document.createElement("th");th.innerHTML=`<div class="table-cell"><input class="input table-column-label" value="${esc(column.label)}" placeholder="${esc(UI.columnName)}"><button class="btn danger remove-column" type="button" ${tableDraft.columns.length<=2?"disabled":""}>x</button></div>`;th.querySelector(".table-column-label").oninput=e=>column.label=e.target.value;th.querySelector(".remove-column").onclick=()=>removeTableColumn(columnIndex);headRow.appendChild(th);});
+  headRow.insertAdjacentHTML("beforeend","<th></th>");head.appendChild(headRow);const body=document.createElement("tbody");
+  tableDraft.rows.forEach((row,rowIndex)=>{const tr=document.createElement("tr");row.cells.forEach((cell,columnIndex)=>{const td=document.createElement("td"),value=cell.mode==="input"?(cell.answer||""):(cell.value||"");td.innerHTML=`<div class="table-cell"><select class="select table-cell-mode"><option value="given" ${cell.mode==="given"?"selected":""}>${esc(UI.shownCell)}</option><option value="input" ${cell.mode==="input"?"selected":""}>${esc(UI.inputCell)}</option></select><input class="input table-cell-value" value="${esc(value)}" placeholder="${esc(cell.mode==="input"?UI.expectedAnswer:UI.cellValue)}"></div>`;const mode=td.querySelector(".table-cell-mode"),input=td.querySelector(".table-cell-value");mode.onchange=()=>{const previous=input.value;row.cells[columnIndex]=mode.value==="input"?{mode:"input",answer:previous}:{mode:"given",value:previous};renderTableBuilder();};input.oninput=()=>{if(cell.mode==="input")cell.answer=input.value;else cell.value=input.value;};tr.appendChild(td);});const action=document.createElement("td");action.innerHTML=`<button class="btn danger" type="button" ${tableDraft.rows.length<=1?"disabled":""}>x</button>`;action.querySelector("button").onclick=()=>{if(tableDraft.rows.length>1){tableDraft.rows.splice(rowIndex,1);renderTableBuilder();}};tr.appendChild(action);body.appendChild(tr);});table.replaceChildren(head,body);
+}
 function resetQuestionForm(){
   editingQuestionId=null;document.getElementById("qPosition").value=current?.next_question_position||1;
   document.getElementById("qType").value="open_text";document.getElementById("qPrompt").value="";document.getElementById("qImage").value="";
   document.getElementById("qModelAnswer").value="";document.getElementById("qScore").value="1";
-  document.getElementById("pairsBox").innerHTML="";addPair();addPair();togglePairs();
+  document.getElementById("pairsBox").innerHTML="";addPair();addPair();resetTableDraft();toggleQuestionFields();
   document.getElementById("saveQuestionBtn").textContent="{{ T.add_question|escapejs }}";document.getElementById("cancelQuestionBtn").hidden=true;
 }
-function togglePairs(){document.getElementById("pairsEditor").hidden=document.getElementById("qType").value!=="matching";}
+function toggleQuestionFields(){const type=document.getElementById("qType").value;document.getElementById("pairsEditor").hidden=type!=="matching";document.getElementById("tableEditor").hidden=type!=="table";document.getElementById("modelAnswerField").hidden=type==="table";}
 function collectQuestion(){
   const type=document.getElementById("qType").value;
   const payload={position:Number(document.getElementById("qPosition").value),question_type:type,prompt:document.getElementById("qPrompt").value,image_url:document.getElementById("qImage").value,model_answer:document.getElementById("qModelAnswer").value,max_score:document.getElementById("qScore").value};
   if(type==="matching")payload.pairs=[...document.querySelectorAll(".pair-row")].map((row,i)=>({position:i+1,left_text:row.querySelector(".pair-left").value,right_text:row.querySelector(".pair-right").value}));
+  if(type==="table")payload.table_schema={columns:tableDraft.columns.map(c=>({label:c.label})),rows:tableDraft.rows.map(r=>({cells:r.cells.map(cell=>({...cell}))}))};
   return payload;
 }
 function renderQuestions(){
@@ -212,45 +253,93 @@ function editQuestion(q){
   editingQuestionId=q.id;document.getElementById("qPosition").value=q.position;document.getElementById("qType").value=q.question_type;
   document.getElementById("qPrompt").value=q.prompt;document.getElementById("qImage").value=q.image_url;document.getElementById("qModelAnswer").value=q.model_answer;document.getElementById("qScore").value=q.max_score;
   document.getElementById("pairsBox").innerHTML="";(q.pairs||[]).forEach(p=>addPair(p.left_text,p.right_text));if((q.pairs||[]).length<2){addPair();addPair();}
-  togglePairs();document.getElementById("saveQuestionBtn").textContent=UI.save;document.getElementById("cancelQuestionBtn").hidden=false;document.getElementById("qPrompt").scrollIntoView({behavior:"smooth",block:"center"});
+  if(q.question_type==="table")loadTableDraft(q.table_schema);else resetTableDraft();
+  toggleQuestionFields();document.getElementById("saveQuestionBtn").textContent=UI.save;document.getElementById("cancelQuestionBtn").hidden=false;document.getElementById("qPrompt").scrollIntoView({behavior:"smooth",block:"center"});
 }
 async function reloadCurrent(){const data=await api(`/api/teacher/exams/${current.id}/`);if(data.ok){current=data.exam;renderQuestions();renderExamList();resetQuestionForm();}}
 
+function normalizedCell(value){return String(value??"").trim().toLocaleLowerCase();}
+function renderTableReview(question,answer){
+  const schema=question.table_schema||{},values=answer.table_answer||{};let html='<div class="review-table-wrap"><table class="review-table"><thead><tr>';
+  (schema.columns||[]).forEach(column=>html+=`<th>${esc(column.label)}</th>`);html+='</tr></thead><tbody>';
+  (schema.rows||[]).forEach(row=>{html+='<tr>';(row.cells||[]).forEach(cell=>{if(cell.mode==="given")html+=`<td class="given">${esc(cell.value||"")}</td>`;else{const actual=values[cell.key]||"",correct=normalizedCell(actual)===normalizedCell(cell.answer);html+=`<td class="${correct?"correct":"incorrect"}"><b>${esc(actual||"-")}</b><div class="meta">${esc(UI.expectedAnswer)}: ${esc(cell.answer)}</div></td>`;}});html+='</tr>';});
+  return html+'</tbody></table></div>';
+}
+function renderIntegrity(data){
+  const box=document.getElementById("integrityPanel");if(!box)return;const events=data.integrity_events||[];
+  box.innerHTML=`<b>${esc(UI.violations)}: ${data.attempt.integrity_event_count||0}</b><div class="integrity-events"></div>`;const list=box.querySelector(".integrity-events");
+  if(!events.length){list.innerHTML=`<div class="integrity-empty">${esc(UI.noViolations)}</div>`;return;}
+  events.forEach(event=>{const row=document.createElement("div");row.className="integrity-event";const label=UI.eventTypes[event.event_type]||event.event_type;row.innerHTML=`<span><b>${esc(label)}</b>${event.detail?` | ${esc(event.detail)}`:""}</span><time>${esc(new Date(event.created_at).toLocaleTimeString())}</time>`;list.appendChild(row);});
+}
 async function loadAttempts(){
   if(!current)return;const data=await api(`/api/teacher/exams/${current.id}/attempts/`);const box=document.getElementById("attemptList");box.innerHTML="";
   if(!data.ok){box.innerHTML=`<div class="muted">${esc(data.error)}</div>`;return;}if(!data.attempts.length){box.innerHTML=`<div class="muted">${esc(UI.noAttempts)}</div>`;return;}
-  data.attempts.forEach(a=>{const div=document.createElement("button");div.type="button";div.className="attempt";div.innerHTML=`<b>${esc(a.student_name)}</b><div class="meta">${esc(a.class_name)} | ${esc(a.status)} | ${a.total_score}</div>`;div.onclick=()=>reviewAttempt(a.id);box.appendChild(div);});
+  data.attempts.forEach(a=>{const div=document.createElement("button");div.type="button";div.className="attempt";const badge=a.integrity_event_count?` <span class="integrity-badge">! ${a.integrity_event_count}</span>`:"";div.innerHTML=`<b>${esc(a.student_name)}${badge}</b><div class="meta">${esc(a.class_name)} | ${esc(a.status)} | ${a.total_score}</div>`;div.onclick=()=>reviewAttempt(a.id);box.appendChild(div);});
 }
 async function reviewAttempt(id){
-  const data=await api(`/api/teacher/exam-attempts/${id}/`);if(!data.ok){message(data.error);return;}const box=document.getElementById("attemptReview");box.innerHTML=`<div class="section-title" style="margin-top:14px">${esc(data.attempt.student_name)}</div>`;
-  data.answers.forEach(row=>{const q=row.question,a=row.answer;const div=document.createElement("div");div.className="answer-review";
-    let body=q.question_type==="open_text"?esc(a.text_answer):q.question_type==="diagram"?(a.diagram_file_url?`<a href="${esc(a.diagram_file_url)}" target="_blank" rel="noopener">Google Drive</a>`:"Diagram XML saved"):(row.matching_rows||[]).map(x=>`${esc(x.left_text)}-> ${esc(x.selected_right_text||"-")}`).join("<br>");
+  const data=await api(`/api/teacher/exam-attempts/${id}/`);if(!data.ok){message(data.error);return;}selectedAttemptId=id;const box=document.getElementById("attemptReview");box.innerHTML=`<div class="section-title" style="margin-top:14px">${esc(data.attempt.student_name)}</div><div id="integrityPanel" class="integrity-panel"></div>`;renderIntegrity(data);
+  data.answers.forEach(row=>{const q=row.question,a=row.answer;const div=document.createElement("div");div.className="answer-review";let body;
+    if(q.question_type==="open_text")body=esc(a.text_answer);else if(q.question_type==="diagram")body=a.diagram_file_url?`<a href="${esc(a.diagram_file_url)}" target="_blank" rel="noopener">Google Drive</a>`:"Diagram XML saved";else if(q.question_type==="table")body=renderTableReview(q,a);else body=(row.matching_rows||[]).map(x=>`${esc(x.left_text)} -> ${esc(x.selected_right_text||"-")}`).join("<br>");
     div.innerHTML=`<b>${q.position}. ${esc(q.prompt)}</b><div class="meta">${q.max_score} ${esc(UI.points)}</div><div class="answer-body">${body||"-"}</div><div class="row"><label class="field" style="max-width:150px"><span>${esc(UI.grading)}</span><input class="input grade" type="number" min="0" max="${q.max_score}" step="0.01" value="${row.awarded_score??""}"></label><label class="field"><span>${esc(UI.feedback)}</span><input class="input feedback" value="${esc(row.teacher_feedback||"")}"></label><button class="btn primary save-grade" type="button" ${row.answer_id?"":"disabled"}>${esc(UI.save)}</button></div>`;
     div.querySelector(".save-grade").onclick=async()=>{const result=await api(`/api/teacher/exam-answers/${row.answer_id}/grade/`,"PATCH",{awarded_score:div.querySelector(".grade").value,teacher_feedback:div.querySelector(".feedback").value});message(result.ok?UI.saved:result.error,result.ok);if(result.ok)loadAttempts();};box.appendChild(div);
   });
 }
-
+async function refreshIntegrity(){if(!selectedAttemptId)return;const data=await api(`/api/teacher/exam-attempts/${selectedAttemptId}/`);if(data.ok)renderIntegrity(data);}
 document.getElementById("createExamBtn").onclick=async()=>{const title=document.getElementById("newExamTitle").value.trim();const data=await api("/api/teacher/exams/","POST",{title});if(!data.ok){message(data.error);return;}message(UI.created,true);document.getElementById("newExamTitle").value="";await loadAll();await selectExam(data.exam.id);};
 document.getElementById("saveExamBtn").onclick=async()=>{const data=await api(`/api/teacher/exams/${current.id}/`,"PATCH",{title:document.getElementById("examTitle").value,topic:document.getElementById("examTopic").value,instructions:document.getElementById("examInstructions").value,duration_minutes:Number(document.getElementById("examDuration").value),class_ids:selectedClasses()});if(!data.ok){message(data.error);return;}current=data.exam;message(UI.saved,true);await loadAll();};
 document.getElementById("startExamBtn").onclick=async()=>{const data=await api(`/api/teacher/exams/${current.id}/`,"PATCH",{status:"running"});message(data.ok?UI.saved:data.error,data.ok);if(data.ok){current=data.exam;await loadAll();}};
 document.getElementById("stopExamBtn").onclick=async()=>{const data=await api(`/api/teacher/exams/${current.id}/`,"PATCH",{status:"stopped"});message(data.ok?UI.saved:data.error,data.ok);if(data.ok){current=data.exam;await loadAll();}};
 document.getElementById("deleteExamBtn").onclick=async()=>{if(!confirm(UI.confirmDelete))return;const data=await api(`/api/teacher/exams/${current.id}/`,"DELETE");if(!data.ok){message(data.error);return;}current=null;document.getElementById("editor").hidden=true;document.getElementById("emptyState").hidden=false;message(UI.deleted,true);await loadAll();};
-document.getElementById("qType").onchange=togglePairs;document.getElementById("addPairBtn").onclick=()=>addPair();document.getElementById("cancelQuestionBtn").onclick=resetQuestionForm;
+document.getElementById("qType").onchange=toggleQuestionFields;document.getElementById("addPairBtn").onclick=()=>addPair();document.getElementById("addTableColumnBtn").onclick=addTableColumn;document.getElementById("addTableRowBtn").onclick=addTableRow;document.getElementById("cancelQuestionBtn").onclick=resetQuestionForm;
 document.getElementById("saveQuestionBtn").onclick=async()=>{const url=editingQuestionId?`/api/teacher/exam-questions/${editingQuestionId}/`:`/api/teacher/exams/${current.id}/questions/`;const data=await api(url,editingQuestionId?"PATCH":"POST",collectQuestion());if(!data.ok){message(data.error);return;}message(UI.questionSaved,true);await reloadCurrent();};
 async function deleteQuestion(id){if(!confirm(UI.confirmSubmitDelete))return;const data=await api(`/api/teacher/exam-questions/${id}/`,"DELETE");if(!data.ok){message(data.error);return;}message(UI.questionDeleted,true);await reloadCurrent();}
 document.getElementById("refreshAttemptsBtn").onclick=loadAttempts;
 
-const agentPrompt=`Create valid JSON for ProgrammingPlatform exam import. Return JSON only, no markdown.
-Schema for a new exam:
-{"action":"create_exam","exam":{"title":"...","topic":"...","instructions":"...","duration_minutes":60,"class_ids":[]},"questions":[...]}
-Schema for updating the selected exam:
-{"action":"update_exam","exam_id":${current?.id||1},"exam":{"title":"...","topic":"...","instructions":"...","duration_minutes":60,"class_ids":[]},"replace_questions":false,"questions":[...]}
-Question fields: position (positive unique integer), question_type ("open_text", "matching", or "diagram"), prompt, image_url (empty or HTTPS URL), model_answer, max_score.
-For matching questions add pairs with at least two objects: [{"left_text":"...","right_text":"..."}].
-For update_exam each question may have action "create", "update" with id, or "delete" with id. When replace_questions=true, omit per-question actions and provide the complete replacement array.
-Every question must have a non-empty model_answer. Do not include unknown fields.`;
-document.getElementById("copyPromptBtn").onclick=async()=>{await navigator.clipboard.writeText(agentPrompt.replace(/"exam_id":\d+/,`"exam_id":${current?.id||1}`));message(UI.promptCopied,true);};
-document.getElementById("applyJsonBtn").onclick=async()=>{let payload;try{payload=JSON.parse(document.getElementById("jsonCommands").value);}catch(e){message("Invalid JSON: "+e.message);return;}const data=await api("/api/teacher/exams/import-json/","POST",payload);if(!data.ok){message(data.error);return;}message(UI.jsonApplied,true);await loadAll();await selectExam(data.exam.id);};
+function buildAgentPrompt(){
+  const snapshot=current?{
+    exam_id:current.id,
+    exam:{title:current.title,topic:current.topic,instructions:current.instructions,duration_minutes:current.duration_minutes,class_ids:current.class_ids},
+    questions:current.questions||[]
+  }:null;
+  return `Create valid JSON commands for ProgrammingPlatform exam import. Return exactly one JSON object, without markdown or explanations.
+
+CURRENT_EXAM_SNAPSHOT (use these exact exam and question IDs when editing; never invent an ID):
+${JSON.stringify(snapshot,null,2)}
+
+CREATE A NEW EXAM:
+{"action":"create_exam","exam":{"title":"...","topic":"...","instructions":"...","duration_minutes":60,"class_ids":[]},"questions":[FULL_QUESTION,...]}
+
+UPDATE THE SELECTED EXAM:
+{"action":"update_exam","exam_id":${snapshot?.exam_id||1},"exam":{},"replace_questions":false,"questions":[QUESTION_COMMAND,...]}
+The exam object may contain only fields that must change. Leave it as {} when only questions change.
+
+QUESTION COMMANDS:
+Create: {"action":"create","position":4,"question_type":"open_text","prompt":"...","image_url":"","model_answer":"...","max_score":5}
+Partial update: {"action":"update","id":QUESTION_ID_FROM_SNAPSHOT,"prompt":"New text","max_score":7}
+Delete: {"action":"delete","id":QUESTION_ID_FROM_SNAPSHOT}
+For action=update, omitted fields keep their current values. The id must belong to the selected exam.
+Use replace_questions=true only when questions must be replaced completely. In that mode provide complete questions without action or id fields.
+
+QUESTION FIELDS:
+position is a positive unique integer. question_type is "open_text", "matching", "diagram", or "table". Common fields are prompt, image_url (empty or HTTPS URL), and max_score.
+Every non-table question requires a non-empty model_answer.
+Matching questions require at least two pairs: "pairs":[{"left_text":"...","right_text":"..."},{"left_text":"...","right_text":"..."}].
+
+TABLE QUESTIONS:
+A table question does not need model_answer. It requires a complete table_schema with 2-8 columns, 1-30 rows, and at least one input cell.
+Each row must contain exactly one cell for every column and preserve the same column order.
+A given cell is shown and locked for the student: {"mode":"given","value":"Visible value"}.
+An input cell is empty for the student and must contain a hidden expected answer: {"mode":"input","answer":"Expected answer"}.
+Create table example:
+{"action":"create","position":5,"question_type":"table","prompt":"Complete the table","image_url":"","max_score":6,"table_schema":{"columns":[{"label":"Term"},{"label":"Definition"}],"rows":[{"cells":[{"mode":"given","value":"TCP"},{"mode":"input","answer":"Reliable transport"}]},{"cells":[{"mode":"input","answer":"UDP"},{"mode":"given","value":"Connectionless transport"}]}]}}
+Update table example (table_schema replaces the previous table layout, so always send the complete schema when changing any column, row, mode, visible value, or expected answer):
+{"action":"update","id":TABLE_QUESTION_ID_FROM_SNAPSHOT,"prompt":"Updated instruction","table_schema":{"columns":[{"label":"Term"},{"label":"Definition"}],"rows":[{"cells":[{"mode":"given","value":"HTTP"},{"mode":"input","answer":"Application protocol"}]}]}}
+To change only a table question prompt, score, image, or position, omit table_schema and send only the changed fields.
+
+Do not expose expected table answers in prompt text fields. Do not add unknown fields. Validate that positions remain unique.`;
+}
+document.getElementById("copyPromptBtn").onclick=async()=>{await navigator.clipboard.writeText(buildAgentPrompt());message(UI.promptCopied,true);};document.getElementById("applyJsonBtn").onclick=async()=>{let payload;try{payload=JSON.parse(document.getElementById("jsonCommands").value);}catch(e){message("Invalid JSON: "+e.message);return;}const data=await api("/api/teacher/exams/import-json/","POST",payload);if(!data.ok){message(data.error);return;}message(UI.jsonApplied,true);await loadAll();await selectExam(data.exam.id);};
 loadAll();
+setInterval(()=>{if(current){loadAttempts();refreshIntegrity();}},5000);
 </script>
 {% endblock %}

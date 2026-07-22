@@ -24,7 +24,7 @@
     <form method="post">
       {% csrf_token %}
       <input name="full_name" placeholder="Full name" autocomplete="username"/>
-      <input name="pin" placeholder="PIN (6 digits)" inputmode="numeric" autocomplete="current-password"/>
+      <input type="password" name="pin" placeholder="PIN (6 digits)" inputmode="numeric" pattern="\d{6}" maxlength="6" autocomplete="current-password"/>
       <button type="submit">Login</button>
     </form>
   </div>

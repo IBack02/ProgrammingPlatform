@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="{{ ui_lang|default:'en' }}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>{{ T.change_pin }}</title>
+  <style>
+    :root{--ink:#172033;--muted:#64748b;--line:#dbe3ec;--blue:#0284c7;--font:Arial,"Segoe UI",sans-serif;--font-kk:"Noto Sans","DejaVu Sans","Segoe UI",Arial,sans-serif}
+    *{box-sizing:border-box}
+    body{margin:0;min-height:100vh;display:grid;place-items:center;padding:18px;color:var(--ink);font-family:{% if ui_lang == 'kk' %}var(--font-kk){% else %}var(--font){% endif %};background:radial-gradient(circle at 12% 8%,#dbeafe,transparent 30%),linear-gradient(135deg,#f8fafc,#eaf2f4)}
+    .card{width:min(100%,460px);background:rgba(255,255,255,.97);border:1px solid var(--line);border-radius:18px;padding:24px;box-shadow:0 22px 55px rgba(15,23,42,.12)}
+    h1{margin:0 0 5px;font-size:24px}.account{color:var(--muted);font-size:13px;margin-bottom:20px}.field{display:grid;gap:6px;margin-top:13px}.field span{font-size:13px;font-weight:800}
+    input{width:100%;border:1px solid #cbd5e1;border-radius:11px;padding:11px 12px;font:inherit;letter-spacing:.12em}input:focus{outline:0;border-color:#38bdf8;box-shadow:0 0 0 3px rgba(56,189,248,.14)}
+    .actions{display:flex;gap:9px;margin-top:18px}.btn{flex:1;border:1px solid var(--line);border-radius:11px;padding:10px 12px;background:#fff;color:var(--ink);font:inherit;font-weight:800;text-align:center;text-decoration:none;cursor:pointer}.btn.primary{background:var(--blue);border-color:var(--blue);color:#fff}
+    .message{border-radius:10px;padding:10px 12px;margin:12px 0;font-size:13px}.message.error{background:#fef2f2;color:#991b1b}.message.success{background:#ecfdf5;color:#065f46}
+  </style>
+</head>
+<body>
+  <main class="card">
+    <h1>{{ T.change_pin }}</h1>
+    <div class="account">{{ account_name }}</div>
+    {% if error %}<div class="message error">{{ error }}</div>{% endif %}
+    {% if success %}<div class="message success">{{ success }}</div>{% endif %}
+    <form method="post">
+      {% csrf_token %}
+      <label class="field">
+        <span>{{ T.current_pin }}</span>
+        <input type="password" name="current_pin" inputmode="numeric" pattern="\d{6}" minlength="6" maxlength="6" autocomplete="current-password" required>
+      </label>
+      <label class="field">
+        <span>{{ T.new_pin }}</span>
+        <input type="password" name="new_pin" inputmode="numeric" pattern="\d{6}" minlength="6" maxlength="6" autocomplete="new-password" required>
+      </label>
+      <label class="field">
+        <span>{{ T.confirm_new_pin }}</span>
+        <input type="password" name="confirm_pin" inputmode="numeric" pattern="\d{6}" minlength="6" maxlength="6" autocomplete="new-password" required>
+      </label>
+      <div class="actions">
+        <a class="btn" href="{{ return_url }}">{{ T.back }}</a>
+        <button class="btn primary" type="submit">{{ T.change_pin }}</button>
+      </div>
+    </form>
+  </main>
+</body>
+</html>

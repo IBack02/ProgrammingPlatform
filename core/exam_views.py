@@ -10,10 +10,11 @@ from urllib.parse import urlparse
 
 from django.conf import settings
 from django.db import IntegrityError, transaction
-from django.db.models import Q, Sum
+from django.db.models import Count, Max, Q, Sum
 from django.http import Http404, HttpRequest, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
+from django.utils.dateparse import parse_datetime
 from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views.decorators.http import require_GET, require_http_methods, require_POST
 
@@ -25,6 +26,7 @@ from .models import (
     ExamAnswer,
     ExamAttempt,
     ExamClass,
+    ExamIntegrityEvent,
     ExamMatchPair,
     ExamQuestion,
     Student,
@@ -189,6 +191,7 @@ def _serialize_question_teacher(question: ExamQuestion) -> dict:
         "prompt": question.prompt,
         "image_url": question.image_url,
         "model_answer": question.model_answer,
+        "table_schema": question.table_schema,
         "max_score": float(question.max_score),
         "pairs": [_serialize_pair(pair) for pair in question.matching_pairs.all()],
     }
@@ -234,6 +237,116 @@ def _parse_pairs(raw_pairs) -> list[dict]:
     return pairs
 
 
+def _parse_table_schema(raw_schema) -> dict:
+    if not isinstance(raw_schema, dict):
+        raise ValueError("table_schema must be an object")
+
+    raw_columns = raw_schema.get("columns")
+    raw_rows = raw_schema.get("rows")
+    if not isinstance(raw_columns, list) or not 2 <= len(raw_columns) <= 8:
+        raise ValueError("table must contain between 2 and 8 columns")
+    if not isinstance(raw_rows, list) or not 1 <= len(raw_rows) <= 30:
+        raise ValueError("table must contain between 1 and 30 rows")
+
+    columns = []
+    for index, raw_column in enumerate(raw_columns, start=1):
+        label = str(
+            raw_column.get("label") if isinstance(raw_column, dict) else raw_column
+        ).strip()
+        if not label or len(label) > 120:
+            raise ValueError("every table column needs a label up to 120 characters")
+        columns.append({"key": f"c{index}", "label": label})
+
+    rows = []
+    input_count = 0
+    for row_index, raw_row in enumerate(raw_rows, start=1):
+        raw_cells = raw_row.get("cells") if isinstance(raw_row, dict) else raw_row
+        if not isinstance(raw_cells, list) or len(raw_cells) != len(columns):
+            raise ValueError("every table row must contain one cell per column")
+        cells = []
+        for column_index, raw_cell in enumerate(raw_cells, start=1):
+            if not isinstance(raw_cell, dict):
+                raise ValueError("every table cell must be an object")
+            mode = str(raw_cell.get("mode") or "given").strip()
+            if mode not in {"given", "input"}:
+                raise ValueError("table cell mode must be given or input")
+            cell = {
+                "key": f"r{row_index}c{column_index}",
+                "column_key": f"c{column_index}",
+                "mode": mode,
+            }
+            if mode == "given":
+                value = str(raw_cell.get("value") or "")
+                if len(value) > 1000:
+                    raise ValueError("table cell value is too long")
+                cell["value"] = value
+            else:
+                expected = str(raw_cell.get("answer") or "").strip()
+                if not expected or len(expected) > 1000:
+                    raise ValueError("every student table cell needs an expected answer")
+                cell["answer"] = expected
+                input_count += 1
+            cells.append(cell)
+        rows.append({"key": f"r{row_index}", "cells": cells})
+
+    if input_count == 0:
+        raise ValueError("table must contain at least one student input cell")
+    return {"columns": columns, "rows": rows}
+
+
+def _table_model_answer(schema: dict) -> str:
+    answers = {
+        cell["key"]: cell["answer"]
+        for row in schema.get("rows", [])
+        for cell in row.get("cells", [])
+        if cell.get("mode") == "input"
+    }
+    return json.dumps(answers, ensure_ascii=False, sort_keys=True)
+
+
+def _student_table_schema(schema: dict) -> dict:
+    return {
+        "columns": [
+            {"key": column["key"], "label": column["label"]}
+            for column in schema.get("columns", [])
+        ],
+        "rows": [
+            {
+                "key": row["key"],
+                "cells": [
+                    {
+                        "key": cell["key"],
+                        "column_key": cell["column_key"],
+                        "mode": cell["mode"],
+                        **({"value": cell.get("value", "")} if cell["mode"] == "given" else {}),
+                    }
+                    for cell in row.get("cells", [])
+                ],
+            }
+            for row in schema.get("rows", [])
+        ],
+    }
+
+
+def _validate_table_answer(question: ExamQuestion, value) -> dict:
+    if not isinstance(value, dict):
+        raise ValueError("table_answer must be an object")
+    allowed = {
+        cell["key"]
+        for row in question.table_schema.get("rows", [])
+        for cell in row.get("cells", [])
+        if cell.get("mode") == "input"
+    }
+    clean = {}
+    for key, raw_value in value.items():
+        if key not in allowed:
+            raise ValueError("table_answer contains an unknown cell")
+        text = str(raw_value)
+        if len(text) > 1000:
+            raise ValueError("table answer cell is too long")
+        clean[str(key)] = text
+    return clean
+
 def _parse_question_payload(data: dict, defaults: ExamQuestion | None = None) -> dict:
     question_type = str(
         data.get("question_type", defaults.question_type if defaults else "")
@@ -247,11 +360,20 @@ def _parse_question_payload(data: dict, defaults: ExamQuestion | None = None) ->
     prompt = str(data.get("prompt", defaults.prompt if defaults else "")).strip()
     if not prompt:
         raise ValueError("prompt is required")
-    model_answer = str(
-        data.get("model_answer", defaults.model_answer if defaults else "")
-    ).strip()
-    if not model_answer:
-        raise ValueError("model_answer is required")
+    if question_type == ExamQuestion.QuestionType.TABLE:
+        raw_schema = data.get(
+            "table_schema",
+            defaults.table_schema if defaults else None,
+        )
+        table_schema = _parse_table_schema(raw_schema)
+        model_answer = _table_model_answer(table_schema)
+    else:
+        table_schema = {}
+        model_answer = str(
+            data.get("model_answer", defaults.model_answer if defaults else "")
+        ).strip()
+        if not model_answer:
+            raise ValueError("model_answer is required")
     image_url = _https_url(
         data.get("image_url", defaults.image_url if defaults else ""),
         "image_url",
@@ -274,6 +396,7 @@ def _parse_question_payload(data: dict, defaults: ExamQuestion | None = None) ->
         "position": position,
         "prompt": prompt,
         "model_answer": model_answer,
+        "table_schema": table_schema,
         "image_url": image_url,
         "max_score": max_score,
         "pairs": pairs,
@@ -350,6 +473,14 @@ def _expire_if_needed(attempt: ExamAttempt) -> bool:
 
 
 def _attempt_summary(attempt: ExamAttempt) -> dict:
+    integrity_count = getattr(attempt, "integrity_event_count", None)
+    if integrity_count is None:
+        integrity_count = attempt.integrity_events.count()
+    last_integrity_at = getattr(attempt, "last_integrity_at", None)
+    if last_integrity_at is None and integrity_count:
+        last_integrity_at = attempt.integrity_events.values_list(
+            "created_at", flat=True
+        ).first()
     return {
         "id": attempt.id,
         "exam_id": attempt.exam_id,
@@ -361,6 +492,18 @@ def _attempt_summary(attempt: ExamAttempt) -> dict:
         "expires_at": attempt.expires_at.isoformat(),
         "submitted_at": attempt.submitted_at.isoformat() if attempt.submitted_at else None,
         "total_score": float(attempt.total_score),
+        "integrity_event_count": integrity_count,
+        "last_integrity_at": last_integrity_at.isoformat() if last_integrity_at else None,
+    }
+
+
+def _serialize_integrity_event(event: ExamIntegrityEvent) -> dict:
+    return {
+        "id": event.id,
+        "event_type": event.event_type,
+        "detail": event.detail,
+        "client_at": event.client_at.isoformat() if event.client_at else None,
+        "created_at": event.created_at.isoformat(),
     }
 
 
@@ -371,12 +514,14 @@ def _answer_student(answer: ExamAnswer | None) -> dict:
             "matching_answer": {},
             "diagram_xml": "",
             "diagram_file_url": "",
+            "table_answer": {},
         }
     return {
         "text_answer": answer.text_answer,
         "matching_answer": answer.matching_answer,
         "diagram_xml": answer.diagram_xml,
         "diagram_file_url": answer.diagram_file_url,
+        "table_answer": answer.table_answer,
         "updated_at": answer.updated_at.isoformat(),
     }
 
@@ -395,6 +540,8 @@ def _student_question(question: ExamQuestion, attempt: ExamAttempt, answer: Exam
         presentation = attempt.presentation_json.get(str(question.id), {})
         data["left_items"] = presentation.get("left", [])
         data["right_items"] = presentation.get("right", [])
+    elif question.question_type == ExamQuestion.QuestionType.TABLE:
+        data["table_schema"] = _student_table_schema(question.table_schema)
     return data
 
 
@@ -420,6 +567,10 @@ def _save_answer(attempt: ExamAttempt, question: ExamQuestion, data: dict) -> tu
     elif question.question_type == ExamQuestion.QuestionType.MATCHING:
         answer.matching_answer = _validate_matching_answer(
             attempt, question, data.get("matching_answer") or {}
+        )
+    elif question.question_type == ExamQuestion.QuestionType.TABLE:
+        answer.table_answer = _validate_table_answer(
+            question, data.get("table_answer") or {}
         )
     elif question.question_type == ExamQuestion.QuestionType.DIAGRAM:
         xml = str(data.get("diagram_xml") or "")
@@ -665,7 +816,14 @@ def teacher_exam_attempts_api(request: HttpRequest, exam_id: int):
     if not teacher:
         return _api_error("not authenticated", 401)
     exam = get_object_or_404(Exam, id=exam_id, owner=teacher)
-    attempts = list(exam.attempts.select_related("student__class_group").order_by("-started_at"))
+    attempts = list(
+        exam.attempts.select_related("student__class_group")
+        .annotate(
+            integrity_event_count=Count("integrity_events"),
+            last_integrity_at=Max("integrity_events__created_at"),
+        )
+        .order_by("-started_at")
+    )
     for attempt in attempts:
         _expire_if_needed(attempt)
     return JsonResponse({"ok": True, "attempts": [_attempt_summary(a) for a in attempts]})
@@ -710,7 +868,16 @@ def teacher_exam_attempt_detail_api(request: HttpRequest, attempt_id: int):
             "teacher_feedback": answer.teacher_feedback if answer else "",
             "matching_rows": matching_rows,
         })
-    return JsonResponse({"ok": True, "attempt": _attempt_summary(attempt), "answers": rows})
+    events = [
+        _serialize_integrity_event(event)
+        for event in attempt.integrity_events.order_by("-created_at")[:100]
+    ]
+    return JsonResponse({
+        "ok": True,
+        "attempt": _attempt_summary(attempt),
+        "answers": rows,
+        "integrity_events": events,
+    })
 
 
 @_json_errors
@@ -897,6 +1064,82 @@ def student_exam_answer_api(request: HttpRequest, exam_id: int, question_id: int
     except ValueError as exc:
         return _api_error(str(exc))
 
+
+@_json_errors
+@require_POST
+def student_exam_integrity_api(request: HttpRequest, exam_id: int):
+    student = _student(request)
+    if not student:
+        return _api_error("not authenticated", 401)
+    if request_is_limited(
+        "exam_integrity",
+        f"{student.id}:{exam_id}",
+        limit=180,
+        window_seconds=600,
+    ):
+        response = _api_error("integrity event limit exceeded", 429)
+        response["Retry-After"] = "600"
+        return response
+
+    data = _json_body(request)
+    raw_events = data.get("events")
+    if not isinstance(raw_events, list) or not 1 <= len(raw_events) <= 20:
+        return _api_error("events must contain between 1 and 20 items")
+
+    try:
+        with transaction.atomic():
+            attempt = get_object_or_404(
+                ExamAttempt.objects.select_for_update(),
+                exam_id=exam_id,
+                student=student,
+            )
+            if attempt.status != ExamAttempt.Status.IN_PROGRESS:
+                return _api_error("exam attempt is closed", 409)
+            if timezone.now() >= attempt.expires_at:
+                attempt.status = ExamAttempt.Status.EXPIRED
+                attempt.submitted_at = attempt.expires_at
+                attempt.save(update_fields=["status", "submitted_at", "updated_at"])
+                return _api_error("exam attempt is closed", 409)
+
+            remaining = max(0, 500 - attempt.integrity_events.count())
+            clean_events = []
+            for raw in raw_events[:remaining]:
+                if not isinstance(raw, dict):
+                    raise ValueError("every integrity event must be an object")
+                event_type = str(raw.get("event_type") or "").strip()
+                if event_type not in ExamIntegrityEvent.EventType.values:
+                    raise ValueError("unsupported integrity event type")
+                client_event_id = str(raw.get("client_event_id") or "").strip()
+                if not re.fullmatch(r"[A-Za-z0-9_-]{8,64}", client_event_id):
+                    raise ValueError("invalid client_event_id")
+                detail = re.sub(
+                    r"[^A-Za-z0-9+._ -]",
+                    "",
+                    str(raw.get("detail") or ""),
+                )[:120]
+                client_at = parse_datetime(str(raw.get("client_at") or ""))
+                if client_at and timezone.is_naive(client_at):
+                    client_at = timezone.make_aware(client_at)
+                clean_events.append(
+                    ExamIntegrityEvent(
+                        attempt=attempt,
+                        event_type=event_type,
+                        client_event_id=client_event_id,
+                        detail=detail,
+                        client_at=client_at,
+                    )
+                )
+            ExamIntegrityEvent.objects.bulk_create(
+                clean_events,
+                ignore_conflicts=True,
+            )
+        return JsonResponse({
+            "ok": True,
+            "accepted": len(clean_events),
+            "capped": remaining == 0,
+        })
+    except ValueError as exc:
+        return _api_error(str(exc))
 
 @_json_errors
 @require_POST

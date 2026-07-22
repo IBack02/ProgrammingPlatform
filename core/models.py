@@ -705,6 +705,7 @@ class ExamQuestion(models.Model):
         OPEN_TEXT = "open_text", "Open text"
         MATCHING = "matching", "Matching"
         DIAGRAM = "diagram", "Diagram"
+        TABLE = "table", "Fill table"
 
     exam = models.ForeignKey(Exam, on_delete=models.CASCADE, related_name="questions")
     position = models.PositiveIntegerField()
@@ -712,6 +713,7 @@ class ExamQuestion(models.Model):
     prompt = models.TextField()
     image_url = models.URLField(max_length=1000, blank=True, default="")
     model_answer = models.TextField(blank=True, default="")
+    table_schema = models.JSONField(default=dict, blank=True)
     max_score = models.DecimalField(max_digits=7, decimal_places=2, default=1)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -775,6 +777,7 @@ class ExamAnswer(models.Model):
     matching_answer = models.JSONField(default=dict, blank=True)
     diagram_xml = models.TextField(blank=True, default="")
     diagram_file_url = models.URLField(max_length=1000, blank=True, default="")
+    table_answer = models.JSONField(default=dict, blank=True)
     awarded_score = models.DecimalField(max_digits=7, decimal_places=2, null=True, blank=True)
     teacher_feedback = models.TextField(blank=True, default="")
     updated_at = models.DateTimeField(auto_now=True)
@@ -785,3 +788,42 @@ class ExamAnswer(models.Model):
 
     def __str__(self):
         return f"Attempt {self.attempt_id}, question {self.question_id}"
+
+
+class ExamIntegrityEvent(models.Model):
+    class EventType(models.TextChoices):
+        TAB_HIDDEN = "tab_hidden", "Tab hidden"
+        WINDOW_BLUR = "window_blur", "Window blur"
+        CLIPBOARD = "clipboard", "Clipboard"
+        SHORTCUT = "shortcut", "Suspicious shortcut"
+        CONTEXT_MENU = "context_menu", "Context menu"
+        FULLSCREEN_EXIT = "fullscreen_exit", "Fullscreen exit"
+
+    attempt = models.ForeignKey(
+        ExamAttempt,
+        on_delete=models.CASCADE,
+        related_name="integrity_events",
+    )
+    event_type = models.CharField(max_length=24, choices=EventType.choices)
+    client_event_id = models.CharField(max_length=64)
+    detail = models.CharField(max_length=120, blank=True, default="")
+    client_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["attempt", "client_event_id"],
+                name="uniq_exam_integrity_client_event",
+            )
+        ]
+        indexes = [
+            models.Index(
+                fields=["attempt", "created_at"],
+                name="exam_integrity_attempt_idx",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.attempt_id}: {self.event_type}"

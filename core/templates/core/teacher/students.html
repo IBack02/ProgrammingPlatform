@@ -153,7 +153,7 @@
   <div style="font-weight:900;margin-bottom:8px;">{{ T.create_student }}</div>
   <div style="display:flex; gap:10px; flex-wrap:wrap;">
     <input id="newName" class="input-ui" placeholder="{{ T.full_name_unique }}" style="min-width:240px;"/>
-    <input id="newPin" class="input-ui" placeholder="{{ T.pin_6_digits }}" inputmode="numeric" style="min-width:180px;"/>
+    <input id="newPin" class="input-ui" type="password" placeholder="{{ T.pin_6_digits }}" inputmode="numeric" style="min-width:180px;"/>
     <button class="btn" id="createBtn" type="button">{{ T.create }}</button>
   </div>
 </div>
@@ -390,7 +390,7 @@
                 <div class="editor-row">
                   <div>
                     <div class="muted" style="margin-bottom:6px;">${escapeHtml(UI.newPin)}</div>
-                    <input class="input-ui" data-pin="${s.id}" placeholder="${escapeHtml(UI.pinOptionalChange)}" inputmode="numeric" style="width:100%;">
+                    <input class="input-ui" type="password" data-pin="${s.id}" placeholder="${escapeHtml(UI.pinOptionalChange)}" inputmode="numeric" style="width:100%;">
                   </div>
                   <div style="display:flex;align-items:flex-end;">
                     <label class="muted" style="display:flex;gap:8px;align-items:center;">

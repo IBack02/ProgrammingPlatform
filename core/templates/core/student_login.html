@@ -79,7 +79,7 @@
       <input name="full_name" autocomplete="off" required />
 
       <label>{{ T.student_login_pin_label|default:"PIN (6 digits)" }}</label>
-      <input name="pin" inputmode="numeric" pattern="\d{6}" maxlength="6" required />
+      <input type="password" name="pin" inputmode="numeric" pattern="\d{6}" maxlength="6" autocomplete="current-password" required />
 
       <button type="submit">{{ T.student_login_submit|default:"Login" }}</button>
 

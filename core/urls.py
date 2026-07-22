@@ -17,6 +17,7 @@ urlpatterns = [
 
     # Student pages
     path("student/login/", views.student_login_page, name="student_login_page"),
+    path("student/change-pin/", views.student_change_pin_page, name="student_change_pin_page"),
     path("student/dashboard/", views.student_dashboard_page, name="student_dashboard_page"),
     path("student/", views.student_portal_page, name="student_portal_page"),
     path("student/logout/", views.student_logout_page, name="student_logout_page"),
@@ -32,6 +33,7 @@ urlpatterns = [
 
     # Teacher pages
     path("teacher/login/", views.teacher_login_page, name="teacher_login_page"),
+    path("teacher/change-pin/", views.teacher_change_pin_page, name="teacher_change_pin_page"),
     path("teacher/", views.teacher_dashboard_page, name="teacher_dashboard_page"),
     path("teacher/sessions/", views.teacher_sessions_page, name="teacher_sessions_page"),
     path("teacher/classes/", views.teacher_classes_page, name="teacher_classes_page"),
@@ -152,6 +154,7 @@ path(
     path("api/student/exams/<int:exam_id>/", exam_views.student_exam_detail_api, name="student_exam_detail_api"),
     path("api/student/exams/<int:exam_id>/start/", exam_views.student_exam_start_api, name="student_exam_start_api"),
     path("api/student/exams/<int:exam_id>/questions/<int:question_id>/answer/", exam_views.student_exam_answer_api, name="student_exam_answer_api"),
+    path("api/student/exams/<int:exam_id>/integrity/", exam_views.student_exam_integrity_api, name="student_exam_integrity_api"),
     path("api/student/exams/<int:exam_id>/submit/", exam_views.student_exam_submit_api, name="student_exam_submit_api"),
 
     # Health

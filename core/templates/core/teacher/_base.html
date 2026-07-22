@@ -46,6 +46,7 @@
     <div class="topbar">
       <div>
         <div class="title">{{ T.teacher_portal }}</div>
+        <div class="muted">{{ request.session.teacher_name }} | <a href="/teacher/change-pin/">{{ T.change_pin }}</a></div>
         <div class="muted">{% block subtitle %}{% endblock %}</div>
       </div>
 
