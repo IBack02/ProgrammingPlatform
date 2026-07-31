@@ -40,14 +40,30 @@ def _csv_env(name, default):
 
 ALLOWED_HOSTS = _csv_env(
     "ALLOWED_HOSTS",
-    ["localhost", "127.0.0.1"] if DEBUG else [".onrender.com"],
+    [
+        "localhost",
+        "127.0.0.1",
+        ".onrender.com",
+        "dbug.ink",
+        "www.dbug.ink",
+    ] if DEBUG else [
+        ".onrender.com",
+        "dbug.ink",
+        "www.dbug.ink",
+    ],
 )
 
 CSRF_TRUSTED_ORIGINS = _csv_env(
     "CSRF_TRUSTED_ORIGINS",
-    [] if DEBUG else ["https://*.onrender.com"],
+    [
+        "http://localhost:8000",
+        "http://127.0.0.1:8000",
+    ] if DEBUG else [
+        "https://*.onrender.com",
+        "https://dbug.ink",
+        "https://www.dbug.ink",
+    ],
 )
-
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 SECURE_SSL_REDIRECT = os.environ.get("SECURE_SSL_REDIRECT", "false" if DEBUG else "true").lower() == "true"
 SESSION_COOKIE_SECURE = not DEBUG
