@@ -247,15 +247,13 @@ def _require_theory_quiz_owner_or_404(module_id: int, teacher: Teacher):
 
 
 def _student_background_urls() -> dict:
-    default_dashboard = "https://drive.google.com/thumbnail?id=1Y6rWFq1wTLT8rqeicZE9tVOK5lHfzhN6&sz=w2200"
-    default_coding = "https://drive.google.com/thumbnail?id=1fG9zQKwkQP79ainWjq1Ihq0mLo-Kn2Ah&sz=w2200"
-    default_quiz = "https://drive.google.com/thumbnail?id=1Yd805wNkD-dWI-UhCAMK8L9ID1tWR7L4&sz=w2200"
-    default_theory = "https://drive.google.com/thumbnail?id=17G440sCJAx5DlOhOzi6IRx2UvxJyf1nZ&sz=w2200"
+    # A single Drive image is currently used for all student-facing backgrounds.
+    background_url = "https://drive.google.com/thumbnail?id=1hzxqoXk4FBFtbJg000np3vYArAZwlXHZ&sz=w2200"
     return {
-        "dashboard": getattr(settings, "STUDENT_BG_DASHBOARD_URL", default_dashboard).strip(),
-        "coding": getattr(settings, "STUDENT_BG_CODING_URL", default_coding).strip(),
-        "quiz": getattr(settings, "STUDENT_BG_QUIZ_URL", default_quiz).strip(),
-        "theory": getattr(settings, "STUDENT_BG_THEORY_URL", default_theory).strip(),
+        "dashboard": background_url,
+        "coding": background_url,
+        "quiz": background_url,
+        "theory": background_url,
     }
 
 
