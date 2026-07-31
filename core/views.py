@@ -247,8 +247,9 @@ def _require_theory_quiz_owner_or_404(module_id: int, teacher: Teacher):
 
 
 def _student_background_urls() -> dict:
-    # A single Drive image is currently used for all student-facing backgrounds.
-    background_url = "https://drive.google.com/thumbnail?id=1U9lwEfqjmN3S_6JrogRQRwrbH0rBZAxd"
+    # Serve the public Drive file itself: /thumbnail can return a reduced preview.
+    drive_file_id = "1QOBJ300r04BRBxrKH95aviO0ig0MiJnj"
+    background_url = f"https://drive.google.com/uc?export=view&id={drive_file_id}"
     return {
         "dashboard": background_url,
         "coding": background_url,
