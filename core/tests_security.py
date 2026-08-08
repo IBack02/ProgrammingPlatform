@@ -68,6 +68,34 @@ class SecurityRegressionTests(TestCase):
         session.save()
         return client
 
+    def test_teacher_can_log_in_with_text_password(self):
+        self.teacher.set_password("teacher7")
+        self.teacher.save(update_fields=["pin_hash"])
+
+        response = self._json(
+            Client(),
+            "post",
+            "/api/auth/teacher-login",
+            {"full_name": self.teacher.full_name, "password": "teacher7"},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.json()["ok"])
+
+        invalid = self._json(
+            Client(),
+            "post",
+            "/api/auth/teacher-login",
+            {"full_name": self.teacher.full_name, "password": "short"},
+        )
+        self.assertEqual(invalid.status_code, 400)
+
+    def test_class_name_can_repeat_for_different_teachers(self):
+        other_teacher = Teacher(full_name="Second Teacher", is_active=True)
+        other_teacher.set_password("teacher8")
+        other_teacher.save()
+
+        duplicate_name = ClassGroup.objects.create(name=self.class_group.name, owner=other_teacher)
+        self.assertNotEqual(self.class_group.id, duplicate_name.id)
     def test_login_is_persistently_rate_limited(self):
         client = Client(REMOTE_ADDR="203.0.113.8")
         for _ in range(3):

@@ -36,17 +36,31 @@ from django import forms
 from .models import Teacher
 
 class TeacherAdminForm(forms.ModelForm):
-    pin = forms.CharField(max_length=6, required=False, help_text="Set/Reset teacher PIN (6 digits)")
+    password = forms.CharField(
+        min_length=6,
+        max_length=15,
+        required=False,
+        widget=forms.PasswordInput(render_value=False),
+        help_text="Set or reset a teacher password (6-15 printable ASCII characters).",
+    )
 
     class Meta:
         model = Teacher
-        fields = ("full_name", "is_active", "pin")
+        fields = ("full_name", "is_active", "password")
+
+    def clean_password(self):
+        password = self.cleaned_data.get("password") or ""
+        if not password:
+            return ""
+        if not all(33 <= ord(char) <= 126 for char in password):
+            raise ValidationError("Password must contain printable ASCII characters without spaces.")
+        return password
 
     def save(self, commit=True):
         obj: Teacher = super().save(commit=False)
-        raw_pin = (self.cleaned_data.get("pin") or "").strip()
-        if raw_pin:
-            obj.set_pin(raw_pin)
+        password = self.cleaned_data.get("password") or ""
+        if password:
+            obj.set_password(password)
         if commit:
             obj.save()
         return obj

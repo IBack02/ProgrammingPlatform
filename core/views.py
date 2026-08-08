@@ -69,7 +69,7 @@ from .security import (
 )
 
 PIN_RE = re.compile(r"^\d{6}$")
-TEACHER_PIN_RE = re.compile(r"^\d{6}$")
+TEACHER_PASSWORD_RE = re.compile(r"^[\x21-\x7e]{6,15}$")
 SUBMIT_COOLDOWN_SECONDS = 15
 SESSION_STATUS_DRAFT = "draft"
 SESSION_STATUS_RUNNING = "running"
@@ -786,13 +786,12 @@ def _authenticate_student(full_name: str, pin: str):
     return matches[0] if len(matches) == 1 else None
 
 
-def _authenticate_teacher(full_name: str, pin: str):
+def _authenticate_teacher(full_name: str, password: str):
     teacher = Teacher.objects.filter(full_name__iexact=full_name, is_active=True).first()
     if not teacher:
-        check_password(pin, DUMMY_PIN_HASH)
+        check_password(password, DUMMY_PIN_HASH)
         return None
-    return teacher if teacher.check_pin(pin) else None
-
+    return teacher if teacher.check_password(password) else None
 
 # -------------------------
 # Student auth API
@@ -1814,6 +1813,7 @@ def student_login_page(request: HttpRequest):
 def _change_pin_page(request: HttpRequest, role: str):
     lang = get_ui_lang(request)
     translations = UI_TRANSLATIONS.get(lang, UI_TRANSLATIONS["en"])
+    is_teacher = role == "teacher"
     if role == "student":
         account = _get_logged_in_student(request)
         login_url = "/student/login/"
@@ -1829,61 +1829,73 @@ def _change_pin_page(request: HttpRequest, role: str):
 
     if not account:
         return redirect(login_url)
-    context = {
-        "role": role,
-        "account_name": account.full_name,
-        "return_url": return_url,
-    }
+    if is_teacher:
+        context = {
+            "role": role,
+            "account_name": account.full_name,
+            "return_url": return_url,
+            "credential_title": translations.get("change_password", "Change password"),
+            "current_credential_label": translations.get("current_password", "Current password"),
+            "new_credential_label": translations.get("new_password", "New password"),
+            "confirm_credential_label": translations.get("confirm_new_password", "Repeat new password"),
+            "credential_inputmode": "text",
+            "credential_pattern": "",
+            "credential_maxlength": 15,
+        }
+        credential_re = TEACHER_PASSWORD_RE
+        invalid_key, invalid_default = "password_must_be_6_to_15", "Password must be 6-15 characters without spaces."
+        mismatch_key, mismatch_default = "password_confirmation_mismatch", "Password confirmation does not match."
+        current_key, current_default = "current_password_invalid", "Current password is incorrect."
+        different_key, different_default = "password_must_be_different", "New password must be different."
+        changed_key, changed_default = "password_changed_success", "Password changed successfully."
+    else:
+        context = {
+            "role": role,
+            "account_name": account.full_name,
+            "return_url": return_url,
+            "credential_title": translations.get("change_pin", "Change PIN"),
+            "current_credential_label": translations.get("current_pin", "Current PIN"),
+            "new_credential_label": translations.get("new_pin", "New PIN"),
+            "confirm_credential_label": translations.get("confirm_new_pin", "Repeat new PIN"),
+            "credential_inputmode": "numeric",
+            "credential_pattern": r"\d{6}",
+            "credential_maxlength": 6,
+        }
+        credential_re = PIN_RE
+        invalid_key, invalid_default = "pin_must_be_6_digits", "PIN must be 6 digits."
+        mismatch_key, mismatch_default = "pin_confirmation_mismatch", "PIN confirmation does not match."
+        current_key, current_default = "current_pin_invalid", "Current PIN is incorrect."
+        different_key, different_default = "pin_must_be_different", "New PIN must be different."
+        changed_key, changed_default = "pin_changed_success", "PIN changed successfully."
+
     if request.method == "GET":
         return render(request, "core/change_pin.html", context)
-
-    if request_is_limited(
-        f"change_pin_{role}",
-        str(account.id),
-        limit=10,
-        window_seconds=900,
-    ):
-        context["error"] = translations.get(
-            "pin_change_too_many",
-            "Too many attempts. Try again later.",
-        )
+    if request_is_limited(f"change_pin_{role}", str(account.id), limit=10, window_seconds=900):
+        context["error"] = translations.get("pin_change_too_many", "Too many attempts. Try again later.")
         return render(request, "core/change_pin.html", context, status=429)
 
-    current_pin = (request.POST.get("current_pin") or "").strip()
-    new_pin = (request.POST.get("new_pin") or "").strip()
-    confirm_pin = (request.POST.get("confirm_pin") or "").strip()
-    if not PIN_RE.fullmatch(current_pin) or not PIN_RE.fullmatch(new_pin):
-        context["error"] = translations.get(
-            "pin_must_be_6_digits",
-            "PIN must be 6 digits.",
-        )
-    elif new_pin != confirm_pin:
-        context["error"] = translations.get(
-            "pin_confirmation_mismatch",
-            "PIN confirmation does not match.",
-        )
-    elif not account.check_pin(current_pin):
-        context["error"] = translations.get(
-            "current_pin_invalid",
-            "Current PIN is incorrect.",
-        )
-    elif account.check_pin(new_pin):
-        context["error"] = translations.get(
-            "pin_must_be_different",
-            "New PIN must be different.",
-        )
+    current_credential = request.POST.get("current_pin") or ""
+    new_credential = request.POST.get("new_pin") or ""
+    confirmation = request.POST.get("confirm_pin") or ""
+    if not credential_re.fullmatch(current_credential) or not credential_re.fullmatch(new_credential):
+        context["error"] = translations.get(invalid_key, invalid_default)
+    elif new_credential != confirmation:
+        context["error"] = translations.get(mismatch_key, mismatch_default)
+    elif not (account.check_password(current_credential) if is_teacher else account.check_pin(current_credential)):
+        context["error"] = translations.get(current_key, current_default)
+    elif account.check_password(new_credential) if is_teacher else account.check_pin(new_credential):
+        context["error"] = translations.get(different_key, different_default)
     else:
-        account.set_pin(new_pin)
+        if is_teacher:
+            account.set_password(new_credential)
+        else:
+            account.set_pin(new_credential)
         account.save(update_fields=["pin_hash"])
         request.session.cycle_key()
         request.session[auth_key] = auth_version(account.pin_hash)
         request.session[logged_key] = timezone.now().isoformat()
-        context["success"] = translations.get(
-            "pin_changed_success",
-            "PIN changed successfully.",
-        )
+        context["success"] = translations.get(changed_key, changed_default)
     return render(request, "core/change_pin.html", context)
-
 
 @ensure_csrf_cookie
 @require_http_methods(["GET", "POST"])
@@ -2203,16 +2215,20 @@ def admin_student_profile(request: HttpRequest, student_id: int) -> HttpResponse
 def teacher_login(request: HttpRequest):
     data = _json_body(request)
     full_name = (data.get("full_name") or "").strip()
-    pin = str(data.get("pin") or "").strip()
+    # Accept the old `pin` key temporarily so existing API clients are not broken.
+    password = str(data.get("password") or data.get("pin") or "")
 
-    if not full_name or not pin or len(full_name) > 120:
-        return JsonResponse({"ok": False, "error": "full_name and pin are required"}, status=400)
-    if not TEACHER_PIN_RE.match(pin):
-        return JsonResponse({"ok": False, "error": "pin must be 6 digits"}, status=400)
+    if not full_name or not password or len(full_name) > 120:
+        return JsonResponse({"ok": False, "error": "full_name and password are required"}, status=400)
+    if not TEACHER_PASSWORD_RE.fullmatch(password):
+        return JsonResponse(
+            {"ok": False, "error": "password must be 6-15 printable ASCII characters without spaces"},
+            status=400,
+        )
     if _login_rate_limited("teacher", request, full_name):
         return _login_rate_limit_json()
 
-    teacher = _authenticate_teacher(full_name, pin)
+    teacher = _authenticate_teacher(full_name, password)
     if not teacher:
         _record_login_failure("teacher", request, full_name)
         return JsonResponse({"ok": False, "error": GENERIC_LOGIN_ERROR}, status=401)
@@ -2223,9 +2239,7 @@ def teacher_login(request: HttpRequest):
     request.session["teacher_name"] = teacher.full_name
     request.session["teacher_logged_in_at"] = timezone.now().isoformat()
     request.session["teacher_auth_version"] = auth_version(teacher.pin_hash)
-
     return JsonResponse({"ok": True, "teacher": {"id": teacher.id, "full_name": teacher.full_name}})
-
 
 @require_POST
 def teacher_logout(request: HttpRequest):
@@ -2252,26 +2266,34 @@ def teacher_me(request: HttpRequest):
 @ensure_csrf_cookie
 @require_http_methods(["GET", "POST"])
 def teacher_login_page(request: HttpRequest):
+    translations = UI_TRANSLATIONS.get(get_ui_lang(request), UI_TRANSLATIONS["en"])
     if request.method == "GET":
         return render(request, "core/teacher_login.html")
 
     full_name = (request.POST.get("full_name") or "").strip()
-    pin = (request.POST.get("pin") or "").strip()
-
-    if not full_name or len(full_name) > 120 or not pin or not TEACHER_PIN_RE.match(pin):
-        return render(request, "core/teacher_login.html", {"error": "Enter name and PIN (6 digits)."})
+    password = request.POST.get("password") or request.POST.get("pin") or ""
+    if not full_name or len(full_name) > 120 or not password or not TEACHER_PASSWORD_RE.fullmatch(password):
+        return render(
+            request,
+            "core/teacher_login.html",
+            {"error": translations.get("teacher_login_error_required", "Enter name and password (6-15 characters).")},
+        )
     if _login_rate_limited("teacher", request, full_name):
         return render(
             request,
             "core/teacher_login.html",
-            {"error": "Too many attempts. Try again later."},
+            {"error": translations.get("login_error_too_many_attempts", "Too many attempts. Try again later.")},
             status=429,
         )
 
-    teacher = _authenticate_teacher(full_name, pin)
+    teacher = _authenticate_teacher(full_name, password)
     if not teacher:
         _record_login_failure("teacher", request, full_name)
-        return render(request, "core/teacher_login.html", {"error": "Invalid name or PIN."})
+        return render(
+            request,
+            "core/teacher_login.html",
+            {"error": translations.get("teacher_login_error_invalid", "Invalid name or password.")},
+        )
 
     _clear_login_failures("teacher", request, full_name)
     request.session.cycle_key()
@@ -2280,7 +2302,6 @@ def teacher_login_page(request: HttpRequest):
     request.session["teacher_logged_in_at"] = timezone.now().isoformat()
     request.session["teacher_auth_version"] = auth_version(teacher.pin_hash)
     return redirect("/teacher/")
-
 
 @teacher_required
 @ensure_csrf_cookie

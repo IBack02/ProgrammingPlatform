@@ -3,7 +3,8 @@ from django.utils import timezone
 from django.contrib.auth.hashers import make_password, check_password
 
 class ClassGroup(models.Model):
-    name = models.CharField(max_length=32, unique=True)
+    # Django's primary-key `id` is the stable unique class identifier.
+    name = models.CharField(max_length=32)
     owner = models.ForeignKey(
         "Teacher",
         on_delete=models.SET_NULL,
@@ -640,11 +641,18 @@ class Teacher(models.Model):
     def __str__(self):
         return self.full_name
 
-    def set_pin(self, raw_pin: str):
-        self.pin_hash = make_password(raw_pin)
+    def set_password(self, raw_password: str) -> None:
+        self.pin_hash = make_password(raw_password)
+
+    def check_password(self, raw_password: str) -> bool:
+        return check_password(raw_password, self.pin_hash)
+
+    # Keep legacy callers and existing password hashes compatible during rollout.
+    def set_pin(self, raw_pin: str) -> None:
+        self.set_password(raw_pin)
 
     def check_pin(self, raw_pin: str) -> bool:
-        return check_password(raw_pin, self.pin_hash)
+        return self.check_password(raw_pin)
 
 
 class SecurityThrottle(models.Model):

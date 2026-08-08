@@ -21,7 +21,7 @@ from .models import (
 
 @admin.register(ClassGroup)
 class ClassGroupAdmin(admin.ModelAdmin):
-    list_display = ("name", "created_at")
+    list_display = ("id", "name", "owner", "created_at")
     search_fields = ("name",)
 
 

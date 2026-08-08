@@ -1,9 +1,9 @@
 <!doctype html>
-<html lang="en">
+<html lang="{{ ui_lang|default:'en' }}">
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>Teacher Login</title>
+  <title>{{ T.teacher_login_title|default:"Teacher Login" }}</title>
   <style>
     body{font-family:Arial,sans-serif;background:#f6f7fb;margin:0}
     .wrap{max-width:420px;margin:10vh auto;background:#fff;border:1px solid #e5e7eb;border-radius:14px;padding:16px;box-shadow:0 10px 20px rgba(17,24,39,.06)}
@@ -16,16 +16,17 @@
 </head>
 <body>
   <div class="wrap">
-    <div class="title">Teacher Login</div>
-    <div class="muted">Use your name and 6-digit PIN.</div>
+    <div class="title">{{ T.teacher_login_title|default:"Teacher Login" }}</div>
+    <div class="muted">{{ T.teacher_login_hint|default:"Use your name and password (6-15 characters)." }}</div>
 
     {% if error %}<div class="err">{{ error }}</div>{% endif %}
 
     <form method="post">
       {% csrf_token %}
-      <input name="full_name" placeholder="Full name" autocomplete="username"/>
-      <input type="password" name="pin" placeholder="PIN (6 digits)" inputmode="numeric" pattern="\d{6}" maxlength="6" autocomplete="current-password"/>
-      <button type="submit">Login</button>
+      <input name="full_name" placeholder="{{ T.teacher_login_name_label|default:'Full name' }}" autocomplete="username"/>
+      <input type="password" name="password" placeholder="{{ T.teacher_login_password_label|default:'Password' }}" minlength="6" maxlength="15" autocomplete="current-password"/>
+      <button type="submit">{{ T.teacher_login_submit|default:"Login" }}</button>
+      <div class="muted" style="margin-top:12px;"><a href="/student/login/">{{ T.student_login_link|default:"Student login" }}</a></div>
     </form>
   </div>
 </body>

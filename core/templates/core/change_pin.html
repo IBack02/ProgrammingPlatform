@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>{{ T.change_pin }}</title>
+  <title>{{ credential_title }}</title>
   <style>
     :root{--ink:#172033;--muted:#64748b;--line:#dbe3ec;--blue:#0284c7;--font:Arial,"Segoe UI",sans-serif;--font-kk:"Noto Sans","DejaVu Sans","Segoe UI",Arial,sans-serif}
     *{box-sizing:border-box}
@@ -17,27 +17,27 @@
 </head>
 <body>
   <main class="card">
-    <h1>{{ T.change_pin }}</h1>
+    <h1>{{ credential_title }}</h1>
     <div class="account">{{ account_name }}</div>
     {% if error %}<div class="message error">{{ error }}</div>{% endif %}
     {% if success %}<div class="message success">{{ success }}</div>{% endif %}
     <form method="post">
       {% csrf_token %}
       <label class="field">
-        <span>{{ T.current_pin }}</span>
-        <input type="password" name="current_pin" inputmode="numeric" pattern="\d{6}" minlength="6" maxlength="6" autocomplete="current-password" required>
+        <span>{{ current_credential_label }}</span>
+        <input type="password" name="current_pin" inputmode="{{ credential_inputmode }}"{% if credential_pattern %} pattern="{{ credential_pattern }}"{% endif %} minlength="6" maxlength="{{ credential_maxlength }}" autocomplete="current-password" required>
       </label>
       <label class="field">
-        <span>{{ T.new_pin }}</span>
-        <input type="password" name="new_pin" inputmode="numeric" pattern="\d{6}" minlength="6" maxlength="6" autocomplete="new-password" required>
+        <span>{{ new_credential_label }}</span>
+        <input type="password" name="new_pin" inputmode="{{ credential_inputmode }}"{% if credential_pattern %} pattern="{{ credential_pattern }}"{% endif %} minlength="6" maxlength="{{ credential_maxlength }}" autocomplete="new-password" required>
       </label>
       <label class="field">
-        <span>{{ T.confirm_new_pin }}</span>
-        <input type="password" name="confirm_pin" inputmode="numeric" pattern="\d{6}" minlength="6" maxlength="6" autocomplete="new-password" required>
+        <span>{{ confirm_credential_label }}</span>
+        <input type="password" name="confirm_pin" inputmode="{{ credential_inputmode }}"{% if credential_pattern %} pattern="{{ credential_pattern }}"{% endif %} minlength="6" maxlength="{{ credential_maxlength }}" autocomplete="new-password" required>
       </label>
       <div class="actions">
         <a class="btn" href="{{ return_url }}">{{ T.back }}</a>
-        <button class="btn primary" type="submit">{{ T.change_pin }}</button>
+        <button class="btn primary" type="submit">{{ credential_title }}</button>
       </div>
     </form>
   </main>

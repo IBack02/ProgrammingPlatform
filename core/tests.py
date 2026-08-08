@@ -290,7 +290,7 @@ class ExamFlowTests(TestCase):
         self.assertEqual(self.student_client.get("/api/student/dashboard").status_code, 200)
         self.assertEqual(old_student_client.get("/api/student/dashboard").status_code, 401)
 
-        self.teacher.set_pin("123456")
+        self.teacher.set_password("teacher7")
         self.teacher.save(update_fields=["pin_hash"])
         teacher_session = self.teacher_client.session
         teacher_session["teacher_auth_version"] = auth_version(self.teacher.pin_hash)
@@ -303,18 +303,18 @@ class ExamFlowTests(TestCase):
 
         pin_page = self.teacher_client.get("/teacher/change-pin/")
         self.assertContains(pin_page, 'type="password"', count=3)
-        self.assertContains(self.teacher_client.get("/teacher/login/"), 'type="password" name="pin"')
+        self.assertContains(self.teacher_client.get("/teacher/login/"), 'type="password" name="password"')
         changed = self.teacher_client.post(
             "/teacher/change-pin/",
             {
-                "current_pin": "123456",
-                "new_pin": "445566",
-                "confirm_pin": "445566",
+                "current_pin": "teacher7",
+                "new_pin": "updated8",
+                "confirm_pin": "updated8",
             },
         )
         self.assertEqual(changed.status_code, 200)
         self.teacher.refresh_from_db()
-        self.assertTrue(self.teacher.check_pin("445566"))
+        self.assertTrue(self.teacher.check_password("updated8"))
         self.assertEqual(self.teacher_client.get("/api/auth/teacher-me").status_code, 200)
         self.assertEqual(old_teacher_client.get("/api/auth/teacher-me").status_code, 401)
     def test_json_import_is_atomic(self):
