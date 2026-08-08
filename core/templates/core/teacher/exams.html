@@ -232,10 +232,11 @@ function resetQuestionForm(){
   document.getElementById("pairsBox").innerHTML="";addPair();addPair();resetTableDraft();toggleQuestionFields();
   document.getElementById("saveQuestionBtn").textContent="{{ T.add_question|escapejs }}";document.getElementById("cancelQuestionBtn").hidden=true;
 }
-function toggleQuestionFields(){const type=document.getElementById("qType").value;document.getElementById("pairsEditor").hidden=type!=="matching";document.getElementById("tableEditor").hidden=type!=="table";document.getElementById("modelAnswerField").hidden=type==="table";}
+function toggleQuestionFields(){const type=document.getElementById("qType").value;document.getElementById("pairsEditor").hidden=type!=="matching";document.getElementById("tableEditor").hidden=type!=="table";document.getElementById("modelAnswerField").hidden=type==="table";if(type==="table")document.getElementById("qModelAnswer").value="";}
 function collectQuestion(){
   const type=document.getElementById("qType").value;
-  const payload={position:Number(document.getElementById("qPosition").value),question_type:type,prompt:document.getElementById("qPrompt").value,image_url:document.getElementById("qImage").value,model_answer:document.getElementById("qModelAnswer").value,max_score:document.getElementById("qScore").value};
+  const payload={position:Number(document.getElementById("qPosition").value),question_type:type,prompt:document.getElementById("qPrompt").value,image_url:document.getElementById("qImage").value,max_score:document.getElementById("qScore").value};
+  if(type!=="table")payload.model_answer=document.getElementById("qModelAnswer").value;
   if(type==="matching")payload.pairs=[...document.querySelectorAll(".pair-row")].map((row,i)=>({position:i+1,left_text:row.querySelector(".pair-left").value,right_text:row.querySelector(".pair-right").value}));
   if(type==="table")payload.table_schema={columns:tableDraft.columns.map(c=>({label:c.label})),rows:tableDraft.rows.map(r=>({cells:r.cells.map(cell=>({...cell}))}))};
   return payload;
@@ -262,7 +263,7 @@ function normalizedCell(value){return String(value??"").trim().toLocaleLowerCase
 function renderTableReview(question,answer){
   const schema=question.table_schema||{},values=answer.table_answer||{};let html='<div class="review-table-wrap"><table class="review-table"><thead><tr>';
   (schema.columns||[]).forEach(column=>html+=`<th>${esc(column.label)}</th>`);html+='</tr></thead><tbody>';
-  (schema.rows||[]).forEach(row=>{html+='<tr>';(row.cells||[]).forEach(cell=>{if(cell.mode==="given")html+=`<td class="given">${esc(cell.value||"")}</td>`;else{const actual=values[cell.key]||"",correct=normalizedCell(actual)===normalizedCell(cell.answer);html+=`<td class="${correct?"correct":"incorrect"}"><b>${esc(actual||"-")}</b><div class="meta">${esc(UI.expectedAnswer)}: ${esc(cell.answer)}</div></td>`;}});html+='</tr>';});
+  (schema.rows||[]).forEach(row=>{html+='<tr>';(row.cells||[]).forEach(cell=>{if(cell.mode==="given")html+=`<td class="given">${esc(cell.value||"")}</td>`;else{const actual=values[cell.key]||"",hasExpected=normalizedCell(cell.answer)!=="",correct=hasExpected&&normalizedCell(actual)===normalizedCell(cell.answer);html+=`<td class="${hasExpected?(correct?"correct":"incorrect"):""}"><b>${esc(actual||"-")}</b>${hasExpected?`<div class="meta">${esc(UI.expectedAnswer)}: ${esc(cell.answer)}</div>`:""}</td>`;}});html+='</tr>';});
   return html+'</tbody></table></div>';
 }
 function renderIntegrity(data){
@@ -320,6 +321,12 @@ Delete: {"action":"delete","id":QUESTION_ID_FROM_SNAPSHOT}
 For action=update, omitted fields keep their current values. The id must belong to the selected exam.
 Use replace_questions=true only when questions must be replaced completely. In that mode provide complete questions without action or id fields.
 
+DIRECT QUESTION COMMANDS BY ID:
+Create: {"action":"create_question","exam_id":${snapshot?.exam_id||1},"question":FULL_QUESTION}
+Update: {"action":"update_question","question_id":QUESTION_ID_FROM_SNAPSHOT,"question":{"prompt":"New text","max_score":7}}
+Delete: {"action":"delete_question","question_id":QUESTION_ID_FROM_SNAPSHOT}
+For update_question, question may contain only fields that must change. The question ID must be from CURRENT_EXAM_SNAPSHOT and belong to the current teacher.
+
 QUESTION FIELDS:
 position is a positive unique integer. question_type is "open_text", "matching", "diagram", or "table". Common fields are prompt, image_url (empty or HTTPS URL), and max_score.
 Every non-table question requires a non-empty model_answer.
@@ -329,7 +336,7 @@ TABLE QUESTIONS:
 A table question does not need model_answer. It requires a complete table_schema with 2-8 columns, 1-30 rows, and at least one input cell.
 Each row must contain exactly one cell for every column and preserve the same column order.
 A given cell is shown and locked for the student: {"mode":"given","value":"Visible value"}.
-An input cell is empty for the student and must contain a hidden expected answer: {"mode":"input","answer":"Expected answer"}.
+An input cell is empty for the student. Its hidden expected answer is optional: {"mode":"input","answer":"Expected answer"} or {"mode":"input","answer":""}. Empty expected answers are left for teacher review.
 Create table example:
 {"action":"create","position":5,"question_type":"table","prompt":"Complete the table","image_url":"","max_score":6,"table_schema":{"columns":[{"label":"Term"},{"label":"Definition"}],"rows":[{"cells":[{"mode":"given","value":"TCP"},{"mode":"input","answer":"Reliable transport"}]},{"cells":[{"mode":"input","answer":"UDP"},{"mode":"given","value":"Connectionless transport"}]}]}}
 Update table example (table_schema replaces the previous table layout, so always send the complete schema when changing any column, row, mode, visible value, or expected answer):

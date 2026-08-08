@@ -281,9 +281,10 @@ def _parse_table_schema(raw_schema) -> dict:
                     raise ValueError("table cell value is too long")
                 cell["value"] = value
             else:
-                expected = str(raw_cell.get("answer") or "").strip()
-                if not expected or len(expected) > 1000:
-                    raise ValueError("every student table cell needs an expected answer")
+                # Empty expected values are allowed for teacher-reviewed table cells.
+                expected = str(raw_cell.get("answer") or "")
+                if len(expected) > 1000:
+                    raise ValueError("table expected answer is too long")
                 cell["answer"] = expected
                 input_count += 1
             cells.append(cell)
@@ -797,8 +798,36 @@ def teacher_exam_import_api(request: HttpRequest):
                                 question.delete()
                         else:
                             raise ValueError("question action must be create, update, or delete")
+            elif action == "create_question":
+                exam = get_object_or_404(
+                    Exam,
+                    id=_positive_int(data.get("exam_id"), "exam_id"),
+                    owner=teacher,
+                )
+                _ensure_exam_editable(exam)
+                question_data = data.get("question")
+                if not isinstance(question_data, dict):
+                    raise ValueError("question must be an object")
+                _create_question(exam, question_data)
+            elif action in {"update_question", "delete_question"}:
+                question = get_object_or_404(
+                    ExamQuestion.objects.select_related("exam").prefetch_related("matching_pairs"),
+                    id=_positive_int(data.get("question_id"), "question_id"),
+                    exam__owner=teacher,
+                )
+                exam = question.exam
+                _ensure_exam_editable(exam)
+                if action == "update_question":
+                    question_data = data.get("question")
+                    if not isinstance(question_data, dict):
+                        raise ValueError("question must be an object")
+                    _update_question(question, question_data)
+                else:
+                    question.delete()
             else:
-                raise ValueError("action must be create_exam or update_exam")
+                raise ValueError(
+                    "action must be create_exam, update_exam, create_question, update_question, or delete_question"
+                )
         exam = Exam.objects.get(id=exam.id)
         return JsonResponse({"ok": True, "exam": _serialize_exam(exam, True)})
     except (ValueError, IntegrityError) as exc:

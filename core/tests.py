@@ -213,6 +213,80 @@ class ExamFlowTests(TestCase):
         )
         self.assertNotIn(fixed_key, answer.table_answer)
 
+    def test_json_commands_can_update_and_delete_question_by_id(self):
+        created_exam = self._json(
+            "post",
+            "/api/teacher/exams/",
+            {"title": "Command exam", "duration_minutes": 30},
+        )
+        self.assertEqual(created_exam.status_code, 201)
+        exam_id = created_exam.json()["exam"]["id"]
+        created_question = self._json(
+            "post",
+            f"/api/teacher/exams/{exam_id}/questions/",
+            {
+                "position": 1,
+                "question_type": "open_text",
+                "prompt": "Original question",
+                "model_answer": "Original answer",
+                "max_score": 2,
+            },
+        )
+        self.assertEqual(created_question.status_code, 201)
+        question_id = created_question.json()["question"]["id"]
+
+        updated = self._json(
+            "post",
+            "/api/teacher/exams/import-json/",
+            {
+                "action": "update_question",
+                "question_id": question_id,
+                "question": {"prompt": "Updated by ID", "max_score": 5},
+            },
+        )
+        self.assertEqual(updated.status_code, 200)
+        self.assertEqual(updated.json()["exam"]["questions"][0]["prompt"], "Updated by ID")
+        self.assertEqual(updated.json()["exam"]["questions"][0]["max_score"], 5.0)
+
+        deleted = self._json(
+            "post",
+            "/api/teacher/exams/import-json/",
+            {"action": "delete_question", "question_id": question_id},
+        )
+        self.assertEqual(deleted.status_code, 200)
+        self.assertEqual(deleted.json()["exam"]["question_count"], 0)
+
+    def test_table_question_allows_empty_input_cells_without_model_answer(self):
+        created_exam = self._json(
+            "post",
+            "/api/teacher/exams/",
+            {"title": "Blank table", "duration_minutes": 30},
+        )
+        exam_id = created_exam.json()["exam"]["id"]
+        response = self._json(
+            "post",
+            f"/api/teacher/exams/{exam_id}/questions/",
+            {
+                "position": 1,
+                "question_type": "table",
+                "prompt": "Fill the table",
+                "max_score": 3,
+                "table_schema": {
+                    "columns": [{"label": "Term"}, {"label": "Definition"}],
+                    "rows": [
+                        {
+                            "cells": [
+                                {"mode": "given", "value": ""},
+                                {"mode": "input", "answer": ""},
+                            ]
+                        }
+                    ],
+                },
+            },
+        )
+        self.assertEqual(response.status_code, 201)
+        question = response.json()["question"]
+        self.assertEqual(question["table_schema"]["rows"][0]["cells"][1]["answer"], "")
     def test_integrity_events_are_live_and_idempotent(self):
         exam_id = self._create_running_exam()
         started = self._json(

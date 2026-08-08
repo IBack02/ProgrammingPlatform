@@ -69,11 +69,23 @@
           <a class="btn {% if active == 'students' %}active{% endif %}" href="/teacher/students/">{{ T.students }}</a>
 <a class="btn {% if active == 'modules' %}active{% endif %}" href="/teacher/modules/">{{ T.modules }}</a>
           <a class="btn {% if active == 'exams' %}active{% endif %}" href="/teacher/exams/">{{ T.exams }}</a>
+          <button class="btn logout" id="teacherLogoutBtn" type="button">{{ T.logout }}</button>
         </div>
       </div>
     </div>
 
     {% block content %}{% endblock %}
   </div>
+<script>
+  document.getElementById("teacherLogoutBtn")?.addEventListener("click", async () => {
+    const token = document.cookie.split("; ").find((item) => item.startsWith("csrftoken="))?.split("=")[1] || "";
+    await fetch("/api/auth/teacher-logout", {
+      method: "POST",
+      credentials: "include",
+      headers: {"X-CSRFToken": decodeURIComponent(token), "Accept": "application/json"},
+    });
+    window.location.assign("/teacher/login/");
+  });
+</script>
 </body>
 </html>
