@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="{{ ui_lang|default:'en' }}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>{{ T.peer_assessment }}</title>
+  <style>
+    :root{--ink:#172033;--muted:#64748b;--line:#d8e1ec;--blue:#075985;--sky:#e0f2fe;--paper:#fffdf8;--font-default:Arial,"Segoe UI",sans-serif;--font-kk:"Noto Sans","DejaVu Sans","Segoe UI",Arial,sans-serif}
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{margin:0;background:linear-gradient(135deg,#dceef5,#f7f2e8);color:var(--ink);font-family:{% if ui_lang == 'kk' %}var(--font-kk){% else %}var(--font-default){% endif %}}
+    button,select,textarea{font:inherit}
+    .app{height:100%;display:grid;grid-template-rows:auto minmax(0,1fr)}
+    .topbar{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:12px 18px;background:rgba(255,255,255,.94);border-bottom:1px solid var(--line)}
+    .title{font-size:20px;font-weight:900}
+    .top-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+    .top-actions select,.link{border:1px solid var(--line);background:#fff;border-radius:10px;padding:8px 10px;color:var(--ink);text-decoration:none}
+    .workspace{min-height:0;display:grid;grid-template-columns:270px minmax(0,1fr)}
+    .sidebar{min-height:0;overflow:auto;background:#f8fafc;border-right:1px solid var(--line);padding:14px}
+    .sidebar h2{font-size:15px;margin:0 0 10px}
+    .question-list{display:grid;gap:8px}
+    .question-btn{border:1px solid var(--line);background:#fff;border-radius:11px;padding:10px;text-align:left;cursor:pointer}
+    .question-btn.active{border-color:#0284c7;background:var(--sky)}
+    .question-btn.reviewed::after{content:'✓';float:right;color:#15803d;font-weight:900}
+    .main{min-width:0;min-height:0;display:grid;grid-template-rows:minmax(0,1fr) auto}
+    .scroll{overflow:auto;padding:18px}
+    .paper{max-width:980px;margin:0 auto;background:var(--paper);border:1px solid #e7dfd0;border-radius:18px;padding:22px;box-shadow:0 18px 45px rgba(30,41,59,.1)}
+    .question-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;border-bottom:1px solid #e7dfd0;padding-bottom:12px}
+    .points{white-space:nowrap;background:#fef3c7;color:#92400e;border-radius:999px;padding:6px 10px;font-size:12px;font-weight:900}
+    .prompt{font-size:18px;line-height:1.55;white-space:pre-wrap;margin:16px 0}
+    .question-image{display:block;max-width:100%;max-height:420px;margin:14px auto;border-radius:12px;object-fit:contain}
+    .block{border:1px solid var(--line);border-radius:13px;padding:14px;margin-top:12px;background:#fff}
+    .block.mark{border-color:#7dd3fc;background:#f0f9ff}
+    .block h3{font-size:14px;margin:0 0 9px;text-transform:uppercase;letter-spacing:.04em;color:#475569}
+    .answer-text{white-space:pre-wrap;line-height:1.55}
+    .pair{display:grid;grid-template-columns:1fr auto 1fr;gap:9px;align-items:center;padding:8px 0;border-bottom:1px solid #edf2f7}
+    .pair:last-child{border-bottom:0}
+    table{width:100%;border-collapse:collapse;overflow:hidden;border-radius:8px}
+    th,td{border:1px solid #cbd5e1;padding:8px;text-align:left}
+    th{background:#edf2f7}
+    .grading{margin-top:18px;border-top:2px solid #d7e5ee;padding-top:16px}
+    .field{display:flex;flex-direction:column;gap:6px;margin-top:10px}
+    .field label{font-size:13px;font-weight:800;color:#475569}
+    .field select,.field textarea{width:100%;border:1px solid #bcc9d8;border-radius:10px;padding:10px;background:#fff}
+    .field textarea{min-height:110px;resize:vertical}
+    .save{border:0;border-radius:10px;background:var(--blue);color:#fff;padding:10px 16px;font-weight:900;cursor:pointer;margin-top:10px}
+    .save:disabled{opacity:.55;cursor:not-allowed}
+    .status{display:inline-block;margin-left:10px;font-size:13px;color:#075985;font-weight:700}
+    .workbar{border-top:1px solid var(--line);background:rgba(255,255,255,.96);padding:10px 14px}
+    .workbar-title{font-size:12px;font-weight:900;color:#475569;margin-bottom:7px}
+    .works{display:flex;gap:8px;overflow-x:auto;padding-bottom:2px}
+    .work-btn{white-space:nowrap;border:1px solid var(--line);border-radius:10px;background:#fff;padding:9px 12px;cursor:pointer}
+    .work-btn.active{border-color:#0284c7;background:var(--sky)}
+    .empty{max-width:620px;margin:70px auto;padding:24px;text-align:center;color:var(--muted);border:1px dashed #94a3b8;border-radius:14px;background:rgba(255,255,255,.75)}
+    @media(max-width:760px){.app{height:auto;min-height:100%}.workspace{grid-template-columns:1fr}.sidebar{border-right:0;border-bottom:1px solid var(--line);max-height:220px}.main{min-height:70vh}.scroll{padding:10px}.paper{padding:15px;border-radius:13px}.topbar{align-items:flex-start}.pair{grid-template-columns:1fr}.pair span:nth-child(2){display:none}}
+  </style>
+</head>
+<body>
+<div class="app">
+  <header class="topbar">
+    <div><div class="title">{{ T.peer_assessment }}</div><div id="sessionState" style="font-size:12px;color:var(--muted)"></div></div>
+    <div class="top-actions">
+      <select id="sessionSelect" aria-label="{{ T.peer_sessions }}"></select>
+      <a class="link" href="/student/dashboard/">{{ T.dashboard }}</a>
+      <form method="post" action="/set-ui-language/">{% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}"><select name="lang" onchange="this.form.submit()"><option value="ru" {% if ui_lang == 'ru' %}selected{% endif %}>{{ T.russian }}</option><option value="kk" {% if ui_lang == 'kk' %}selected{% endif %}>{{ T.kazakh }}</option><option value="en" {% if ui_lang == 'en' %}selected{% endif %}>{{ T.english }}</option></select></form>
+    </div>
+  </header>
+  <div class="workspace">
+    <aside class="sidebar"><h2>{{ T.questions }}</h2><div class="question-list" id="questionList"></div></aside>
+    <main class="main">
+      <div class="scroll" id="content"><div class="empty">{{ T.select_assigned_work }}</div></div>
+      <div class="workbar"><div class="workbar-title">{{ T.assigned_works }}</div><div class="works" id="workList"></div></div>
+    </main>
+  </div>
+</div>
+<script>
+  const state={sessions:[],session:null,assignment:null,question:null};
+  const csrf=()=>decodeURIComponent(document.cookie.split('; ').find(x=>x.startsWith('csrftoken='))?.split('=')[1]||'');
+  const esc=v=>String(v??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#039;');
+  async function api(url,options={}){const response=await fetch(url,{credentials:'include',...options,headers:{Accept:'application/json','X-CSRFToken':csrf(),...(options.body?{'Content-Type':'application/json'}:{})}});const type=response.headers.get('content-type')||'';const data=type.includes('application/json')?await response.json():{ok:false,error:'Non-JSON response'};if(!response.ok||!data.ok)throw new Error(data.error||'Request failed');return data}
+  function renderSessions(){const box=document.getElementById('sessionSelect');box.innerHTML=state.sessions.length?state.sessions.map(s=>`<option value="${s.id}">${esc(s.title)}</option>`).join(''):`<option>{{ T.no_peer_sessions|escapejs }}</option>`;box.disabled=!state.sessions.length}
+  function selectSession(id){state.session=state.sessions.find(s=>s.id===Number(id));state.assignment=null;state.question=null;document.getElementById('sessionState').textContent=state.session?state.session.status:'';renderWorks();document.getElementById('questionList').innerHTML='';document.getElementById('content').innerHTML=`<div class="empty">{{ T.select_assigned_work|escapejs }}</div>`;if(state.session?.assignments.length)loadAssignment(state.session.assignments[0].id)}
+  function renderWorks(){const box=document.getElementById('workList');const rows=state.session?.assignments||[];box.innerHTML=rows.length?rows.map(a=>`<button class="work-btn ${state.assignment?.id===a.id?'active':''}" data-work="${a.id}">#${a.attempt_id} · ${a.reviewed_count}/${a.question_count}</button>`).join(''):`<span style="color:var(--muted)">{{ T.no_assigned_works|escapejs }}</span>`;box.querySelectorAll('[data-work]').forEach(b=>b.onclick=()=>loadAssignment(Number(b.dataset.work)))}
+  async function loadAssignment(id){try{const data=await api(`/api/student/peer-assignments/${id}/`);state.assignment=data.assignment;state.question=null;renderWorks();renderQuestions();const first=state.assignment.questions.find(q=>!q.review)||state.assignment.questions[0];if(first)selectQuestion(first.id)}catch(e){document.getElementById('content').innerHTML=`<div class="empty">${esc(e.message)}</div>`}}
+  function renderQuestions(){const box=document.getElementById('questionList');box.innerHTML=state.assignment.questions.map(q=>`<button class="question-btn ${state.question?.id===q.id?'active':''} ${q.review?'reviewed':''}" data-question="${q.id}">{{ T.question|escapejs }} ${q.position} · ${q.max_score} {{ T.points|escapejs }}</button>`).join('');box.querySelectorAll('[data-question]').forEach(b=>b.onclick=()=>selectQuestion(Number(b.dataset.question)))}
+  function selectQuestion(id){state.question=state.assignment.questions.find(q=>q.id===id);renderQuestions();renderQuestion()}
+  function renderPairs(rows){return rows?.length?rows.map(p=>`<div class="pair"><span>${esc(p.left_text)}</span><span>→</span><span>${esc(p.right_text)||'—'}</span></div>`).join(''):'<span>—</span>'}
+  function renderTable(schema,answer,showExpected=false){const cols=schema?.columns||[],rows=schema?.rows||[];if(!cols.length)return '<span>—</span>';return `<div style="overflow:auto"><table><thead><tr>${cols.map(c=>`<th>${esc(c.label)}</th>`).join('')}</tr></thead><tbody>${rows.map(r=>`<tr>${r.cells.map(c=>{let value=c.mode==='given'?c.value:(showExpected?c.answer:answer?.[c.key]);return `<td>${esc(value||'—')}</td>`}).join('')}</tr>`).join('')}</tbody></table></div>`}
+  function answerHtml(q){if(q.question_type==='matching')return renderPairs(q.answer.matching_rows);if(q.question_type==='table')return renderTable(q.table_schema,q.answer.table_answer);if(q.question_type==='diagram')return q.answer.diagram_file_url?`<a href="${esc(q.answer.diagram_file_url)}" target="_blank" rel="noopener noreferrer">{{ T.open_diagram|escapejs }}</a>`:`<span>{{ T.diagram_not_available|escapejs }}</span>`;return `<div class="answer-text">${esc(q.answer.text_answer)||'—'}</div>`}
+  function schemeHtml(q){const s=q.mark_scheme;if(q.question_type==='matching')return renderPairs(s.matching_pairs);if(q.question_type==='table')return renderTable(s.table_schema,{},true);return `<div class="answer-text">${esc(s.model_answer)||'—'}</div>`}
+  function scoreOptions(max,current){const values=[];const whole=Math.floor(max);for(let i=0;i<=whole;i++)values.push(i);if(Math.abs(max-whole)>.0001)values.push(max);return `<option value="">{{ T.select_score|escapejs }}</option>`+values.map(v=>`<option value="${v}" ${Number(current)===Number(v)?'selected':''}>${v}</option>`).join('')}
+  function renderQuestion(){const q=state.question;const review=q.review;const locked=state.assignment.session_status!=='running';document.getElementById('content').innerHTML=`<article class="paper"><div class="question-head"><div><b>{{ T.question|escapejs }} ${q.position}</b><div style="font-size:12px;color:var(--muted)">${esc(q.question_type)}</div></div><span class="points">0–${q.max_score} {{ T.points|escapejs }}</span></div><div class="prompt">${esc(q.prompt)}</div>${q.image_url?`<img class="question-image" src="${esc(q.image_url)}" alt="">`:''}<section class="block"><h3>{{ T.other_student_answer|escapejs }}</h3>${answerHtml(q)}</section><section class="block mark"><h3>{{ T.mark_scheme|escapejs }}</h3>${schemeHtml(q)}</section><section class="grading"><div class="field"><label for="score">{{ T.peer_score|escapejs }}</label><select id="score" ${locked?'disabled':''}>${scoreOptions(q.max_score,review?.score)}</select></div><div class="field" id="commentWrap" ${review?'':'hidden'}><label for="comment">{{ T.peer_comment_optional|escapejs }}</label><textarea id="comment" ${locked?'disabled':''}>${esc(review?.comment||'')}</textarea></div><button class="save" id="saveReview" ${locked?'disabled':''}>{{ T.save_peer_review|escapejs }}</button><span class="status" id="saveStatus">${locked?'{{ T.peer_session_closed|escapejs }}':''}</span></section></article>`;document.getElementById('score').onchange=e=>{document.getElementById('commentWrap').hidden=e.target.value===''};document.getElementById('saveReview').onclick=saveReview}
+  async function saveReview(){const score=document.getElementById('score').value;if(score===''){document.getElementById('saveStatus').textContent='{{ T.select_score|escapejs }}';return}const button=document.getElementById('saveReview');button.disabled=true;try{const data=await api(`/api/student/peer-assignments/${state.assignment.id}/questions/${state.question.id}/review/`,{method:'POST',body:JSON.stringify({score,comment:document.getElementById('comment').value})});state.question.review=data.review;const target=state.assignment.questions.find(q=>q.id===state.question.id);target.review=data.review;const work=state.session.assignments.find(a=>a.id===state.assignment.id);if(work)work.reviewed_count=state.assignment.questions.filter(q=>q.review).length;document.getElementById('saveStatus').textContent='{{ T.peer_review_saved|escapejs }}';renderQuestions();renderWorks()}catch(e){document.getElementById('saveStatus').textContent=e.message}finally{button.disabled=false}}
+  document.getElementById('sessionSelect').onchange=e=>selectSession(e.target.value);
+  (async()=>{try{const data=await api('/api/student/peer-sessions/');state.sessions=data.sessions||[];renderSessions();if(state.sessions.length){const running=state.sessions.find(s=>s.status==='running')||state.sessions[0];document.getElementById('sessionSelect').value=running.id;selectSession(running.id)}else document.getElementById('content').innerHTML=`<div class="empty">{{ T.no_peer_sessions|escapejs }}</div>`}catch(e){window.location.assign('/student/login/')}})();
+</script>
+</body>
+</html>

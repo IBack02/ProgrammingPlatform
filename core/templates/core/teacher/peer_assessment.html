@@ -1,0 +1,145 @@
+{% extends "core/teacher/_base.html" %}
+{% block title %}{{ T.peer_assessment }}{% endblock %}
+{% block subtitle %}{{ T.peer_assessment_subtitle }}{% endblock %}
+{% block content %}
+<style>
+  :root{--peer-blue:#075985;--peer-sky:#e0f2fe;--peer-ink:#172033;--peer-warm:#fff8ed}
+  *{box-sizing:border-box}
+  .peer-create{display:grid;grid-template-columns:minmax(220px,1fr) minmax(180px,.6fr) auto;gap:10px;align-items:end;margin-bottom:12px}
+  .peer-layout{display:grid;grid-template-columns:290px minmax(0,1fr);gap:12px;min-height:660px}
+  .peer-list{display:flex;flex-direction:column;gap:8px;max-height:720px;overflow:auto}
+  .peer-session{border:1px solid #dbe2ea;border-radius:12px;padding:11px;background:#fff;text-align:left;cursor:pointer}
+  .peer-session.active{border-color:#0284c7;background:var(--peer-sky)}
+  .peer-editor{display:none}
+  .peer-editor.visible{display:block}
+  .field{display:flex;flex-direction:column;gap:5px}
+  .field label{font-size:12px;font-weight:800;color:#526075}
+  input,select,textarea{width:100%;border:1px solid #cfd8e3;border-radius:10px;padding:9px 10px;font:inherit;background:#fff}
+  textarea{resize:vertical;min-height:78px}
+  .editor-head{display:grid;grid-template-columns:minmax(220px,1fr) minmax(180px,.55fr) auto;gap:10px;align-items:end}
+  .toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  button{font:inherit}
+  .action{border:0;border-radius:10px;padding:9px 13px;background:var(--peer-blue);color:#fff;font-weight:800;cursor:pointer}
+  .action.secondary{background:#fff;color:var(--peer-ink);border:1px solid #cfd8e3}
+  .action.danger{background:#b91c1c}
+  .section-title{display:flex;justify-content:space-between;align-items:center;gap:10px;margin:20px 0 10px}
+  .section-title h2{font-size:17px;margin:0}
+  .autofill{display:flex;gap:8px;align-items:end;flex-wrap:wrap;padding:12px;border:1px solid #fed7aa;background:var(--peer-warm);border-radius:12px}
+  .autofill .field{min-width:120px}
+  .check{display:flex;align-items:center;gap:7px;padding:9px 0;font-size:13px;font-weight:700}
+  .check input{width:auto}
+  .student-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:10px}
+  .student-card{border:1px solid #dbe2ea;border-radius:14px;background:linear-gradient(145deg,#fff,#f7fbff);padding:14px;cursor:pointer;text-align:left;transition:transform .15s,border-color .15s}
+  .student-card:hover{transform:translateY(-2px);border-color:#38bdf8}
+  .student-name{font-weight:900;color:var(--peer-ink)}
+  .pill{display:inline-block;margin-top:8px;border-radius:999px;padding:4px 8px;background:#e2e8f0;font-size:11px;font-weight:800}
+  .review-list{display:grid;gap:10px}
+  .review-card{border:1px solid #dbe2ea;border-radius:12px;padding:12px;background:#fff}
+  .review-meta{font-size:12px;color:#64748b;margin:4px 0 9px}
+  .review-grid{display:grid;grid-template-columns:minmax(170px,.45fr) minmax(240px,1fr) auto;gap:8px;align-items:end;margin-top:10px}
+  .overlay{position:fixed;inset:0;background:rgba(7,18,35,.72);display:none;align-items:center;justify-content:center;padding:18px;z-index:1000}
+  .overlay.open{display:flex}
+  .modal{width:min(820px,100%);max-height:88vh;overflow:auto;background:#f8fafc;border-radius:18px;padding:18px;box-shadow:0 30px 80px rgba(0,0,0,.35)}
+  .modal-head{display:flex;justify-content:space-between;gap:10px;align-items:center}
+  .assigned-row,.search-row{display:grid;grid-template-columns:1fr auto;gap:9px;align-items:center;border:1px solid #dbe2ea;background:#fff;border-radius:11px;padding:10px;margin-top:8px}
+  .empty{padding:22px;text-align:center;color:#64748b;border:1px dashed #cbd5e1;border-radius:12px}
+  .status{min-height:20px;margin:9px 0;color:#075985;font-size:13px;font-weight:700}
+  @media(max-width:850px){.peer-create,.peer-layout,.editor-head,.review-grid{grid-template-columns:1fr}.peer-layout{min-height:0}.peer-list{max-height:240px}.autofill>*{width:100%}}
+</style>
+
+<div class="card peer-create">
+  <div class="field"><label for="newTitle">{{ T.peer_session_title }}</label><input id="newTitle" maxlength="200"></div>
+  <div class="field"><label for="newClass">{{ T.reviewer_class }}</label><select id="newClass"></select></div>
+  <button class="action" id="createSession" type="button">{{ T.create_peer_session }}</button>
+</div>
+
+<div class="peer-layout">
+  <aside class="card">
+    <div class="section-title" style="margin-top:0"><h2>{{ T.peer_sessions }}</h2><button class="action secondary" id="refreshSessions" type="button">{{ T.refresh }}</button></div>
+    <div class="peer-list" id="sessionList"></div>
+  </aside>
+
+  <main class="card">
+    <div class="empty" id="selectHint">{{ T.select_peer_session }}</div>
+    <div class="peer-editor" id="editor">
+      <div class="editor-head">
+        <div class="field"><label for="sessionTitle">{{ T.peer_session_title }}</label><input id="sessionTitle" maxlength="200"></div>
+        <div class="field"><label for="sessionClass">{{ T.reviewer_class }}</label><select id="sessionClass"></select></div>
+        <div class="toolbar">
+          <button class="action" id="saveSession" type="button">{{ T.save }}</button>
+          <button class="action secondary" id="toggleSession" type="button"></button>
+          <button class="action danger" id="deleteSession" type="button">{{ T.delete }}</button>
+        </div>
+      </div>
+      <div class="status" id="status"></div>
+
+      <div class="section-title"><h2>{{ T.peer_autofill }}</h2></div>
+      <div class="autofill">
+        <div class="field"><label for="workCount">{{ T.works_per_student }}</label><input id="workCount" type="number" min="1" max="20" value="1"></div>
+        <label class="check"><input id="sameClassOnly" type="checkbox"> {{ T.same_class_only }}</label>
+        <div class="field" id="sourceClassWrap" hidden><label for="sourceClass">{{ T.source_class }}</label><select id="sourceClass"></select></div>
+        <button class="action" id="autofill" type="button">{{ T.run_autofill }}</button>
+      </div>
+
+      <div class="section-title"><h2>{{ T.reviewers }}</h2><span class="muted">{{ T.open_student_card }}</span></div>
+      <div class="student-grid" id="studentGrid"></div>
+
+      <div class="section-title"><h2>{{ T.peer_review_results }}</h2></div>
+      <div class="review-list" id="reviewList"></div>
+    </div>
+  </main>
+</div>
+
+<div class="overlay" id="reviewerModal" aria-hidden="true">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+    <div class="modal-head"><h2 id="modalTitle"></h2><div class="toolbar"><button class="action" id="saveModal" type="button">{{ T.save }}</button><button class="action secondary" id="closeModal" type="button">{{ T.close }}</button></div></div>
+    <h3>{{ T.assigned_works }}</h3>
+    <div id="assignedList"></div>
+    <h3 style="margin-top:20px">{{ T.add_work }}</h3>
+    <div class="field"><label for="attemptSearch">{{ T.attempt_search }}</label><input id="attemptSearch" placeholder="{{ T.attempt_search_placeholder }}"></div>
+    <div id="searchResults"></div>
+  </div>
+</div>
+
+<script>
+  const state={classes:[],sessions:[],current:null,reviewer:null,searchTimer:null};
+  const csrf=()=>decodeURIComponent(document.cookie.split('; ').find(x=>x.startsWith('csrftoken='))?.split('=')[1]||'');
+  const esc=v=>String(v??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#039;');
+  async function api(url,options={}){
+    const response=await fetch(url,{credentials:'include',...options,headers:{Accept:'application/json','X-CSRFToken':csrf(),...(options.body?{'Content-Type':'application/json'}:{}),...(options.headers||{})}});
+    const type=response.headers.get('content-type')||'';
+    const data=type.includes('application/json')?await response.json():{ok:false,error:'Non-JSON response'};
+    if(!response.ok||!data.ok)throw new Error(data.error||'Request failed');
+    return data;
+  }
+  function options(selected){return state.classes.map(c=>`<option value="${c.id}" ${Number(selected)===c.id?'selected':''}>#${c.id} ${esc(c.name)}</option>`).join('')}
+  function message(value,error=false){const box=document.getElementById('status');box.textContent=value||'';box.style.color=error?'#b91c1c':'#075985'}
+  async function loadClasses(){const data=await api('/api/teacher/classes/');state.classes=data.classes||[];document.getElementById('newClass').innerHTML=options(state.classes.at(-1)?.id);document.getElementById('sourceClass').innerHTML=options(state.classes.at(-1)?.id)}
+  async function loadSessions(selectId){const data=await api('/api/teacher/peer-sessions/');state.sessions=data.sessions||[];renderSessions();if(selectId)await selectSession(selectId)}
+  function renderSessions(){const box=document.getElementById('sessionList');box.innerHTML=state.sessions.length?state.sessions.map(s=>`<button class="peer-session ${state.current?.id===s.id?'active':''}" data-id="${s.id}"><b>${esc(s.title)}</b><div class="muted">${esc(s.reviewer_class.name)} · ${esc(s.status)} · ${s.assignment_count}</div></button>`).join(''):`<div class="empty">{{ T.no_peer_sessions|escapejs }}</div>`;box.querySelectorAll('[data-id]').forEach(b=>b.onclick=()=>selectSession(Number(b.dataset.id)))}
+  async function selectSession(id){const data=await api(`/api/teacher/peer-sessions/${id}/`);state.current=data.session;document.getElementById('selectHint').hidden=true;document.getElementById('editor').classList.add('visible');document.getElementById('sessionTitle').value=state.current.title;document.getElementById('sessionClass').innerHTML=options(state.current.reviewer_class.id);renderSessions();renderEditor()}
+  function renderEditor(){
+    const running=state.current.status==='running';const toggle=document.getElementById('toggleSession');toggle.textContent=running?'{{ T.stop_peer_session|escapejs }}':'{{ T.start_peer_session|escapejs }}';
+    document.getElementById('studentGrid').innerHTML=state.current.students.length?state.current.students.map(s=>`<button class="student-card" data-student="${s.id}"><div class="student-name">${esc(s.full_name)}</div><span class="pill">{{ T.assigned_works|escapejs }}: ${s.assignments.length}</span></button>`).join(''):`<div class="empty">{{ T.no_students|escapejs }}</div>`;
+    document.querySelectorAll('[data-student]').forEach(b=>b.onclick=()=>openReviewer(Number(b.dataset.student)));
+    const reviews=state.current.reviews||[];document.getElementById('reviewList').innerHTML=reviews.length?reviews.map(r=>`<article class="review-card"><b>${esc(r.reviewer_name)}</b> → #${r.attempt_id}, ${esc(r.exam_title)}<div class="review-meta">{{ T.question|escapejs }} ${r.question_position}: ${esc(r.question_prompt)} · ${r.score}/${r.max_score}</div><div>${esc(r.comment||'{{ T.no_comment|escapejs }}')}</div><div class="review-grid"><div class="field"><label>{{ T.peer_verdict|escapejs }}</label><select id="moderation-${r.id}"><option value="pending" ${r.moderation_status==='pending'?'selected':''}>{{ T.pending|escapejs }}</option><option value="objective" ${r.moderation_status==='objective'?'selected':''}>{{ T.objective|escapejs }}</option><option value="incorrect" ${r.moderation_status==='incorrect'?'selected':''}>{{ T.incorrect|escapejs }}</option><option value="insufficient" ${r.moderation_status==='insufficient'?'selected':''}>{{ T.insufficient_reasoning|escapejs }}</option></select></div><div class="field"><label>{{ T.teacher_comment|escapejs }}</label><textarea id="teacher-comment-${r.id}">${esc(r.teacher_comment)}</textarea></div><button class="action" data-moderate="${r.id}">{{ T.save|escapejs }}</button></div></article>`).join(''):`<div class="empty">{{ T.no_peer_reviews|escapejs }}</div>`;
+    document.querySelectorAll('[data-moderate]').forEach(b=>b.onclick=()=>moderate(Number(b.dataset.moderate)));
+  }
+  function openReviewer(id){state.reviewer=state.current.students.find(s=>s.id===id);document.getElementById('modalTitle').textContent=state.reviewer.full_name;renderAssigned();document.getElementById('attemptSearch').value='';document.getElementById('searchResults').innerHTML='';document.getElementById('reviewerModal').classList.add('open');document.getElementById('reviewerModal').setAttribute('aria-hidden','false');searchAttempts()}
+  function closeReviewer(){document.getElementById('reviewerModal').classList.remove('open');document.getElementById('reviewerModal').setAttribute('aria-hidden','true');state.reviewer=null}
+  function renderAssigned(){const box=document.getElementById('assignedList');box.innerHTML=state.reviewer.assignments.length?state.reviewer.assignments.map(a=>`<div class="assigned-row"><div><b>#${a.attempt_id} · ${esc(a.exam_title)}</b><div class="muted">${esc(a.author_name)} · ${esc(a.author_class)} · ${a.reviewed_count}/${a.question_count}</div></div><button class="action danger" data-remove="${a.id}" ${a.reviewed_count?'disabled':''}>{{ T.remove|escapejs }}</button></div>`).join(''):`<div class="empty">{{ T.no_assigned_works|escapejs }}</div>`;box.querySelectorAll('[data-remove]').forEach(b=>b.onclick=()=>removeAssignment(Number(b.dataset.remove)))}
+  async function searchAttempts(){if(!state.reviewer)return;try{const q=encodeURIComponent(document.getElementById('attemptSearch').value.trim());const data=await api(`/api/teacher/peer-attempts/search/?reviewer_id=${state.reviewer.id}&q=${q}`);const assigned=new Set(state.reviewer.assignments.map(a=>a.attempt_id));document.getElementById('searchResults').innerHTML=data.attempts.length?data.attempts.map(a=>`<div class="search-row"><div><b>#${a.id} · ${esc(a.student_name)}</b><div class="muted">${esc(a.exam_title)} · ${esc(a.class_name)}</div></div><button class="action" data-add="${a.id}" ${assigned.has(a.id)?'disabled':''}>{{ T.add|escapejs }}</button></div>`).join(''):`<div class="empty">{{ T.no_results|escapejs }}</div>`;document.querySelectorAll('[data-add]').forEach(b=>b.onclick=()=>addAssignment(Number(b.dataset.add)))}catch(e){message(e.message,true)}}
+  async function addAssignment(attemptId){try{await api(`/api/teacher/peer-sessions/${state.current.id}/assignments/`,{method:'POST',body:JSON.stringify({reviewer_id:state.reviewer.id,attempt_id:attemptId})});const reviewerId=state.reviewer.id;await selectSession(state.current.id);openReviewer(reviewerId)}catch(e){message(e.message,true)}}
+  async function removeAssignment(id){try{await api(`/api/teacher/peer-assignments/${id}/`,{method:'DELETE'});const reviewerId=state.reviewer.id;await selectSession(state.current.id);openReviewer(reviewerId)}catch(e){message(e.message,true)}}
+  async function moderate(id){try{await api(`/api/teacher/peer-reviews/${id}/moderate/`,{method:'PATCH',body:JSON.stringify({moderation_status:document.getElementById(`moderation-${id}`).value,teacher_comment:document.getElementById(`teacher-comment-${id}`).value})});message('{{ T.moderation_saved|escapejs }}')}catch(e){message(e.message,true)}}
+  document.getElementById('createSession').onclick=async()=>{try{const data=await api('/api/teacher/peer-sessions/',{method:'POST',body:JSON.stringify({title:document.getElementById('newTitle').value,class_id:Number(document.getElementById('newClass').value)})});document.getElementById('newTitle').value='';await loadSessions(data.session.id)}catch(e){message(e.message,true)}};
+  document.getElementById('saveSession').onclick=async()=>{try{await api(`/api/teacher/peer-sessions/${state.current.id}/`,{method:'PATCH',body:JSON.stringify({title:document.getElementById('sessionTitle').value,class_id:Number(document.getElementById('sessionClass').value)})});await selectSession(state.current.id);message('{{ T.peer_session_saved|escapejs }}')}catch(e){message(e.message,true)}};
+  document.getElementById('toggleSession').onclick=async()=>{try{const status=state.current.status==='running'?'stopped':'running';await api(`/api/teacher/peer-sessions/${state.current.id}/`,{method:'PATCH',body:JSON.stringify({status})});await selectSession(state.current.id)}catch(e){message(e.message,true)}};
+  document.getElementById('deleteSession').onclick=async()=>{if(!confirm('{{ T.confirm_delete_peer_session|escapejs }}'))return;try{await api(`/api/teacher/peer-sessions/${state.current.id}/`,{method:'DELETE'});state.current=null;document.getElementById('editor').classList.remove('visible');document.getElementById('selectHint').hidden=false;await loadSessions()}catch(e){message(e.message,true)}};
+  document.getElementById('autofill').onclick=async()=>{try{const same=document.getElementById('sameClassOnly').checked;const payload={count:Number(document.getElementById('workCount').value),source_class_id:same?Number(document.getElementById('sourceClass').value):null};await api(`/api/teacher/peer-sessions/${state.current.id}/autofill/`,{method:'POST',body:JSON.stringify(payload)});await selectSession(state.current.id);message('{{ T.autofill_complete|escapejs }}')}catch(e){message(e.message,true)}};
+  document.getElementById('sameClassOnly').onchange=e=>document.getElementById('sourceClassWrap').hidden=!e.target.checked;
+  document.getElementById('attemptSearch').oninput=()=>{clearTimeout(state.searchTimer);state.searchTimer=setTimeout(searchAttempts,250)};
+  document.getElementById('saveModal').onclick=closeReviewer;document.getElementById('closeModal').onclick=closeReviewer;document.getElementById('reviewerModal').onclick=e=>{if(e.target.id==='reviewerModal')closeReviewer()};document.getElementById('refreshSessions').onclick=()=>loadSessions(state.current?.id);
+  (async()=>{try{await loadClasses();await loadSessions()}catch(e){message(e.message,true)}})();
+</script>
+{% endblock %}

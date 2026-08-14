@@ -835,3 +835,115 @@ class ExamIntegrityEvent(models.Model):
 
     def __str__(self):
         return f"{self.attempt_id}: {self.event_type}"
+
+
+class PeerAssessmentSession(models.Model):
+    class Status(models.TextChoices):
+        DRAFT = "draft", "Draft"
+        RUNNING = "running", "Running"
+        STOPPED = "stopped", "Stopped"
+
+    owner = models.ForeignKey(
+        Teacher,
+        on_delete=models.CASCADE,
+        related_name="peer_assessment_sessions",
+    )
+    title = models.CharField(max_length=200)
+    reviewer_class = models.ForeignKey(
+        ClassGroup,
+        on_delete=models.PROTECT,
+        related_name="peer_assessment_sessions",
+    )
+    status = models.CharField(max_length=16, choices=Status.choices, default=Status.DRAFT)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-created_at", "-id"]
+        indexes = [
+            models.Index(fields=["owner", "status"], name="peer_session_owner_idx"),
+        ]
+
+    def __str__(self):
+        return f"{self.title} [{self.status}]"
+
+
+class PeerAssessmentAssignment(models.Model):
+    session = models.ForeignKey(
+        PeerAssessmentSession,
+        on_delete=models.CASCADE,
+        related_name="assignments",
+    )
+    reviewer = models.ForeignKey(
+        Student,
+        on_delete=models.CASCADE,
+        related_name="peer_assessment_assignments",
+    )
+    exam_attempt = models.ForeignKey(
+        ExamAttempt,
+        on_delete=models.PROTECT,
+        related_name="peer_assessment_assignments",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["id"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["session", "reviewer", "exam_attempt"],
+                name="uniq_peer_reviewer_attempt",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["session", "reviewer"], name="peer_assign_reviewer_idx"),
+        ]
+
+    def __str__(self):
+        return f"{self.reviewer_id} reviews attempt {self.exam_attempt_id}"
+
+
+class PeerAssessmentReview(models.Model):
+    class ModerationStatus(models.TextChoices):
+        PENDING = "pending", "Pending"
+        OBJECTIVE = "objective", "Objective"
+        INCORRECT = "incorrect", "Incorrect"
+        INSUFFICIENT = "insufficient", "Insufficient reasoning"
+
+    assignment = models.ForeignKey(
+        PeerAssessmentAssignment,
+        on_delete=models.CASCADE,
+        related_name="reviews",
+    )
+    question = models.ForeignKey(
+        ExamQuestion,
+        on_delete=models.PROTECT,
+        related_name="peer_assessment_reviews",
+    )
+    score = models.DecimalField(max_digits=7, decimal_places=2)
+    comment = models.TextField(blank=True, default="")
+    moderation_status = models.CharField(
+        max_length=16,
+        choices=ModerationStatus.choices,
+        default=ModerationStatus.PENDING,
+    )
+    teacher_comment = models.TextField(blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["question__position", "question_id"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["assignment", "question"],
+                name="uniq_peer_review_question",
+            ),
+        ]
+        indexes = [
+            models.Index(
+                fields=["assignment", "moderation_status"],
+                name="peer_review_status_idx",
+            ),
+        ]
+
+    def __str__(self):
+        return f"Assignment {self.assignment_id}, question {self.question_id}: {self.score}"

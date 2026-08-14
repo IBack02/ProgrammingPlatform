@@ -15,7 +15,8 @@ from .models import (
     ActivityAggregate,
     AiAssistMessage,
     TaskCodeFragment,  # NEW,
-    Exam, ExamClass, ExamQuestion, ExamMatchPair, ExamAttempt, ExamAnswer
+    Exam, ExamClass, ExamQuestion, ExamMatchPair, ExamAttempt, ExamAnswer,
+    PeerAssessmentSession, PeerAssessmentAssignment, PeerAssessmentReview,
 )
 
 
@@ -137,3 +138,4 @@ class TeacherAdmin(admin.ModelAdmin):
     exclude = ("pin_hash",)
 
 admin.site.register([Exam, ExamClass, ExamQuestion, ExamMatchPair, ExamAttempt, ExamAnswer])
+admin.site.register([PeerAssessmentSession, PeerAssessmentAssignment, PeerAssessmentReview])

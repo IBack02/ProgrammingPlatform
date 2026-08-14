@@ -1,6 +1,6 @@
 from django.urls import path
 from django.views.generic import RedirectView
-from . import exam_views, views
+from . import exam_views, peer_views, views
 
 urlpatterns = [
     # Student auth API
@@ -156,6 +156,21 @@ path(
     path("api/student/exams/<int:exam_id>/questions/<int:question_id>/answer/", exam_views.student_exam_answer_api, name="student_exam_answer_api"),
     path("api/student/exams/<int:exam_id>/integrity/", exam_views.student_exam_integrity_api, name="student_exam_integrity_api"),
     path("api/student/exams/<int:exam_id>/submit/", exam_views.student_exam_submit_api, name="student_exam_submit_api"),
+
+    # Peer assessment
+    path("teacher/assessment/", peer_views.teacher_peer_assessment_page, name="teacher_peer_assessment_page"),
+    path("api/teacher/peer-sessions/", peer_views.teacher_peer_sessions_api, name="teacher_peer_sessions_api"),
+    path("api/teacher/peer-sessions/<int:session_id>/", peer_views.teacher_peer_session_detail_api, name="teacher_peer_session_detail_api"),
+    path("api/teacher/peer-attempts/search/", peer_views.teacher_peer_attempt_search_api, name="teacher_peer_attempt_search_api"),
+    path("api/teacher/peer-sessions/<int:session_id>/assignments/", peer_views.teacher_peer_assignments_api, name="teacher_peer_assignments_api"),
+    path("api/teacher/peer-assignments/<int:assignment_id>/", peer_views.teacher_peer_assignment_detail_api, name="teacher_peer_assignment_detail_api"),
+    path("api/teacher/peer-sessions/<int:session_id>/autofill/", peer_views.teacher_peer_autofill_api, name="teacher_peer_autofill_api"),
+    path("api/teacher/peer-reviews/<int:review_id>/moderate/", peer_views.teacher_peer_review_moderate_api, name="teacher_peer_review_moderate_api"),
+
+    path("student/peer-assessment/", peer_views.student_peer_assessment_page, name="student_peer_assessment_page"),
+    path("api/student/peer-sessions/", peer_views.student_peer_sessions_api, name="student_peer_sessions_api"),
+    path("api/student/peer-assignments/<int:assignment_id>/", peer_views.student_peer_assignment_detail_api, name="student_peer_assignment_detail_api"),
+    path("api/student/peer-assignments/<int:assignment_id>/questions/<int:question_id>/review/", peer_views.student_peer_review_api, name="student_peer_review_api"),
 
     # Health
     path("healthz/", views.healthz, name="healthz"),
