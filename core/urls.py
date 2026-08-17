@@ -1,6 +1,6 @@
 from django.urls import path
 from django.views.generic import RedirectView
-from . import exam_views, peer_views, views
+from . import exam_views, game_views, peer_views, views
 
 urlpatterns = [
     # Student auth API
@@ -137,6 +137,21 @@ path(
     views.student_theory_quiz_submit,
     name="student_theory_quiz_submit",
 ),
+
+    # Lesson game modules
+    path("api/teacher/sessions/<int:session_id>/game-modules/", game_views.teacher_game_modules_api, name="teacher_game_modules_api"),
+    path("api/teacher/game-modules/<int:module_id>/", game_views.teacher_game_module_detail_api, name="teacher_game_module_detail_api"),
+    path("api/teacher/game-modules/<int:module_id>/prompts/", game_views.teacher_game_prompts_api, name="teacher_game_prompts_api"),
+    path("api/teacher/game-prompts/<int:prompt_id>/", game_views.teacher_game_prompt_detail_api, name="teacher_game_prompt_detail_api"),
+    path("api/teacher/game-modules/<int:module_id>/rounds/open/", game_views.teacher_game_open_round_api, name="teacher_game_open_round_api"),
+    path("api/teacher/game-rounds/<int:round_id>/start/", game_views.teacher_game_start_round_api, name="teacher_game_start_round_api"),
+    path("api/teacher/game-rounds/<int:round_id>/finish/", game_views.teacher_game_finish_round_api, name="teacher_game_finish_round_api"),
+    path("api/teacher/game-rounds/<int:round_id>/state/", game_views.teacher_game_round_state_api, name="teacher_game_round_state_api"),
+
+    path("api/student/game-module/<int:module_id>/", game_views.student_game_module_api, name="student_game_module_api"),
+    path("api/student/game-module/<int:module_id>/ready/", game_views.student_game_ready_api, name="student_game_ready_api"),
+    path("api/student/game-rounds/<int:round_id>/state/", game_views.student_game_round_state_api, name="student_game_round_state_api"),
+    path("api/student/game-rounds/<int:round_id>/answer/", game_views.student_game_answer_api, name="student_game_answer_api"),
 
     # Exams
     path("teacher/exams/", exam_views.teacher_exams_page, name="teacher_exams_page"),

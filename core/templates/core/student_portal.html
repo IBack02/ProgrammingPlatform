@@ -27,6 +27,7 @@
       --module-bg-theory: {% if bg_urls.theory %}url("{{ bg_urls.theory|escape }}"){% else %}none{% endif %};
       --module-bg-quiz: {% if bg_urls.quiz %}url("{{ bg_urls.quiz|escape }}"){% else %}none{% endif %};
       --module-bg-coding: {% if bg_urls.coding %}url("{{ bg_urls.coding|escape }}"){% else %}none{% endif %};
+      --module-bg-game: linear-gradient(135deg,#07152e,#0c4a6e 55%,#7c2d12);
     }
 
     body {
@@ -87,6 +88,11 @@
 
     body.module-bg-coding .content{
       background-image:var(--module-bg-coding);
+    }
+
+    body.module-bg-game .content{
+      background-image:var(--module-bg-game);
+      background-size:cover;
     }
 
     .top {
@@ -488,6 +494,32 @@
       flex-wrap:wrap;
     }
 
+    .gameArenaCard{position:relative;overflow:hidden;background:linear-gradient(160deg,rgba(255,255,255,.98),rgba(240,249,255,.96));border:1px solid #7dd3fc;min-height:calc(100vh - 64px)}
+    .gameArenaCard:before{content:"";position:absolute;inset:0;pointer-events:none;background:radial-gradient(circle at 12% 10%,rgba(250,204,21,.18),transparent 28%),radial-gradient(circle at 85% 22%,rgba(14,165,233,.18),transparent 32%)}
+    .gameArenaInner{position:relative;z-index:1}
+    .gameTop{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;flex-wrap:wrap}
+    .gameStatusPill{padding:6px 11px;border-radius:999px;background:#0f172a;color:#fff;font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.05em}
+    .gameLobby{text-align:center;padding:34px 16px;border:1px dashed #38bdf8;border-radius:16px;background:rgba(240,249,255,.82);margin-top:18px}
+    .gameReadyBtn{border:0;border-radius:999px;padding:13px 28px;background:#f97316;color:#fff;font-weight:900;font-size:16px;cursor:pointer;box-shadow:0 10px 24px rgba(249,115,22,.28)}
+    .gameReadyBtn:disabled{opacity:.55;cursor:not-allowed}
+    .gameTracks{margin-top:16px;display:grid;gap:8px}
+    .raceTrack{height:62px;position:relative;border-radius:14px;overflow:hidden;border-left:4px solid var(--runner-color);border-right:7px double #0f172a;background:repeating-linear-gradient(90deg,rgba(255,255,255,.84) 0 42px,rgba(148,163,184,.22) 43px 44px)}
+    .raceTrack:after{content:"";position:absolute;left:0;right:0;top:50%;border-top:2px dashed rgba(100,116,139,.42)}
+    .gameRunner{position:absolute;z-index:2;left:7px;top:7px;display:flex;align-items:center;gap:9px;transition:left .65s cubic-bezier(.18,.82,.26,1.15)}
+    .gameAvatar{width:46px;height:46px;position:relative;filter:drop-shadow(0 5px 5px rgba(15,23,42,.25))}
+    .gameAvatarBody{position:absolute;inset:0;background:var(--runner-color);border-radius:10px}
+    .gameAvatarBody.triangle{clip-path:polygon(50% 0,100% 100%,0 100%);border-radius:0}.gameAvatarBody.diamond{transform:rotate(45deg);inset:7px;border-radius:6px}.gameAvatarBody.pentagon{clip-path:polygon(50% 0,100% 38%,82% 100%,18% 100%,0 38%);border-radius:0}.gameAvatarBody.hexagon{clip-path:polygon(25% 0,75% 0,100% 50%,75% 100%,25% 100%,0 50%);border-radius:0}
+    .gameEye{position:absolute;z-index:3;top:14px;width:13px;height:15px;background:#fff;border:2px solid #0f172a;border-radius:50%}.gameEye.left{left:8px}.gameEye.right{right:8px}.gameEye:after{content:"";position:absolute;width:5px;height:5px;background:#0f172a;border-radius:50%;left:3px;top:4px;animation:gameLook 2.2s ease-in-out infinite alternate}
+    .gameRunnerName{position:relative;z-index:3;white-space:nowrap;font-size:11px;font-weight:900;background:rgba(255,255,255,.9);padding:3px 6px;border-radius:7px;max-width:150px;overflow:hidden;text-overflow:ellipsis}
+    .gamePromptStage{margin:22px auto 0;max-width:860px;padding:22px;border-radius:18px;background:#0f172a;color:#f8fafc;box-shadow:0 20px 45px rgba(15,23,42,.25);animation:gamePromptIn .38s ease}
+    .gamePromptSentence{font-size:clamp(19px,3vw,30px);line-height:1.45;text-align:center;white-space:pre-wrap}
+    .gameInputWrap{position:relative;margin-top:18px;min-height:66px;border:2px solid #334155;border-radius:14px;background:#020617;cursor:text}.gameAnswerInput{position:absolute;inset:0;width:100%;height:100%;opacity:.02;resize:none;z-index:3;cursor:text}
+    .gameChars{position:relative;z-index:2;display:flex;gap:6px;flex-wrap:wrap;justify-content:center;align-items:center;min-height:62px;padding:8px;pointer-events:none}.gameChar{display:inline-flex;align-items:center;justify-content:center;min-width:36px;height:42px;padding:0 8px;border-radius:9px;background:#e0f2fe;color:#0c4a6e;font-size:21px;font-weight:900;animation:gameCharIn .18s cubic-bezier(.2,.9,.3,1.3)}.gameChar.space{min-width:17px;background:transparent}.gameChar.leaving{animation:gameCharOut .16s ease forwards}
+    .gameSubmitRow{display:flex;justify-content:center;gap:10px;align-items:center;margin-top:12px;flex-wrap:wrap}.gameFeedback{min-height:24px;font-weight:900;text-align:center;margin-top:10px}.gamePromptStage.correct{animation:gameCorrect .5s ease}.gamePromptStage.wrong{animation:gameWrong .42s ease}
+    .gamePodium{display:flex;align-items:flex-end;justify-content:center;gap:12px;margin:28px auto;min-height:220px}.podiumPlace{width:min(28%,180px);text-align:center;border-radius:16px 16px 4px 4px;padding:14px 8px;background:#e2e8f0;box-shadow:0 12px 24px rgba(15,23,42,.15)}.podiumPlace.first{min-height:190px;background:linear-gradient(#fef3c7,#f59e0b)}.podiumPlace.second{min-height:155px;background:linear-gradient(#f8fafc,#94a3b8)}.podiumPlace.third{min-height:130px;background:linear-gradient(#ffedd5,#c2410c)}.podiumPlace .gameAvatar{margin:0 auto 10px;animation:gameCelebrate .7s ease-in-out infinite alternate}
+    .gameRanking{display:grid;gap:7px;max-width:700px;margin:0 auto}.gameRankRow{display:flex;justify-content:space-between;gap:10px;padding:10px 12px;border-radius:10px;background:#fff;border:1px solid #e2e8f0}
+    @keyframes gameLook{from{transform:translateX(-2px)}to{transform:translateX(2px)}}@keyframes gameCharIn{from{opacity:0;transform:translateY(12px) scale(.7)}to{opacity:1;transform:none}}@keyframes gameCharOut{to{opacity:0;transform:translateY(-12px) rotate(12deg) scale(.5)}}@keyframes gamePromptIn{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}@keyframes gameCorrect{50%{transform:scale(1.018);box-shadow:0 0 0 5px rgba(34,197,94,.35)}}@keyframes gameWrong{20%,60%{transform:translateX(-10px)}40%,80%{transform:translateX(10px)}}@keyframes gameCelebrate{from{transform:translateY(0) rotate(-4deg)}to{transform:translateY(-16px) rotate(4deg)}}
+
     @media (max-width: 900px){
       .content{
         padding:14px;
@@ -496,6 +528,7 @@
       .theoryMediaFrame{
         height:240px;
       }
+      .gamePodium{gap:6px}.podiumPlace{width:32%;font-size:11px}.gameRunnerName{max-width:95px}
     }
   </style>
 </head>
@@ -666,6 +699,41 @@
             <div id="quizResultsList" style="margin-top:10px;"></div>
           </div>
         </div>
+
+        <div class="card gameArenaCard" id="gameCard" style="display:none;">
+          <div class="gameArenaInner">
+            <div class="gameTop">
+              <div>
+                <div class="title" id="gameTitle">{{ T.mind_race }}</div>
+                <div class="small muted" id="gameTopic"></div>
+              </div>
+              <div class="gameStatusPill" id="gameStatus">{{ T.game_waiting }}</div>
+            </div>
+
+            <div id="gameLobby" class="gameLobby">
+              <div class="title" id="gameLobbyTitle">{{ T.game_registration_waiting }}</div>
+              <div class="small muted" id="gameLobbyText" style="margin:8px 0 14px;"></div>
+              <button id="gameReadyBtn" class="gameReadyBtn" type="button">{{ T.game_ready }}</button>
+            </div>
+
+            <div id="gameTracks" class="gameTracks"></div>
+
+            <div id="gamePromptStage" class="gamePromptStage" style="display:none;">
+              <div class="small" id="gamePromptNumber" style="text-align:center;color:#7dd3fc;margin-bottom:8px;"></div>
+              <div id="gamePromptSentence" class="gamePromptSentence"></div>
+              <div id="gameInputWrap" class="gameInputWrap">
+                <input id="gameAnswerInput" class="gameAnswerInput" type="text" maxlength="200" autocomplete="off" spellcheck="false" aria-label="{{ T.game_answer }}">
+                <div id="gameChars" class="gameChars"><span class="muted">{{ T.game_type_answer }}</span></div>
+              </div>
+              <div class="gameSubmitRow">
+                <button id="gameAnswerBtn" class="primary" type="button">{{ T.game_check_answer }}</button>
+              </div>
+              <div id="gameFeedback" class="gameFeedback"></div>
+            </div>
+
+            <div id="gameResults" style="display:none;"></div>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -739,6 +807,19 @@
     quizTypeSingle: "{{ T.single_choice|default:'Single choice'|escapejs }}",
     quizTypeOpen: "{{ T.open_answer|default:'Open answer'|escapejs }}",
     quizTypeMatching: "{{ T.matching|default:'Matching'|escapejs }}"
+    ,gameBadge: "{{ T.game_module_badge|escapejs }}"
+    ,gameWaiting: "{{ T.game_waiting|escapejs }}"
+    ,gameReady: "{{ T.game_ready|escapejs }}"
+    ,gameRegistered: "{{ T.game_registered|escapejs }}"
+    ,gameNotRegistered: "{{ T.game_not_registered|escapejs }}"
+    ,gameCorrect: "{{ T.game_correct|escapejs }}"
+    ,gameIncorrect: "{{ T.game_incorrect|escapejs }}"
+    ,gameFinished: "{{ T.game_finished|escapejs }}"
+    ,gamePlace: "{{ T.game_place|escapejs }}"
+    ,gameQuestion: "{{ T.game_sentence_number|escapejs }}"
+    ,gameNoRound: "{{ T.game_no_round|escapejs }}"
+    ,gameResults: "{{ T.game_results|escapejs }}"
+    ,gamePlayers: "{{ T.game_players|escapejs }}"
   };
 
   let currentTaskId = null;
@@ -752,6 +833,11 @@
   let hintCooldownUntil = {1:0, 2:0, 3:0};
   let lastProgress = null;
   let currentReadOnlyMode = false;
+  let currentGameRound = null;
+  let gamePollTimer = null;
+  let gamePreviousInput = "";
+  let gameAnswerPending = false;
+  let gameCharRenderToken = 0;
 
   function qs(id){ return document.getElementById(id); }
 
@@ -1036,11 +1122,13 @@
   }
 
   function setModuleBackground(moduleType){
-    document.body.classList.remove("module-bg-coding", "module-bg-theory", "module-bg-quiz");
+    document.body.classList.remove("module-bg-coding", "module-bg-theory", "module-bg-quiz", "module-bg-game");
     if (moduleType === "theory_material"){
       document.body.classList.add("module-bg-theory");
     } else if (moduleType === "theory_quiz"){
       document.body.classList.add("module-bg-quiz");
+    } else if (moduleType === "game"){
+      document.body.classList.add("module-bg-game");
     } else {
       document.body.classList.add("module-bg-coding");
     }
@@ -1071,6 +1159,13 @@
       editorPane.style.display = "block";
       editorPane.style.paddingLeft = "0";
       editorPane.style.maxWidth = "960px";
+      editorPane.style.margin = "0 auto";
+    } else if (moduleType === "game"){
+      resizer.style.display = "none";
+      taskPane.style.display = "none";
+      editorPane.style.display = "block";
+      editorPane.style.paddingLeft = "0";
+      editorPane.style.maxWidth = "1180px";
       editorPane.style.margin = "0 auto";
     }
   }
@@ -1470,6 +1565,210 @@
     }
   }
 
+  function stopStudentGamePolling(){
+    if (gamePollTimer) clearTimeout(gamePollTimer);
+    gamePollTimer = null;
+  }
+
+  function gameAvatarHtml(player){
+    return `<div class="gameAvatar" style="--runner-color:${escapeHtml(player.avatar_color)}"><div class="gameAvatarBody ${escapeHtml(player.avatar_shape)}"></div><span class="gameEye left"></span><span class="gameEye right"></span></div>`;
+  }
+
+  function renderGameTracks(round){
+    const box = qs("gameTracks");
+    const players = round?.participants || [];
+    const total = Math.max(1, Number(round?.total_prompts || 1));
+    const liveIds = new Set(players.map(player => `game_track_${player.id}`));
+    Array.from(box.children).forEach(child => {
+      if (!liveIds.has(child.id)) child.remove();
+    });
+    players.forEach(player => {
+      const ratio = Math.max(0, Math.min(1, Number(player.progress || 0) / total));
+      let track = qs(`game_track_${player.id}`);
+      if (!track){
+        track = document.createElement("div");
+        track.id = `game_track_${player.id}`;
+        track.className = "raceTrack";
+        track.innerHTML = `<div class="gameRunner">${gameAvatarHtml(player)}<span class="gameRunnerName"></span></div>`;
+      }
+      track.style.setProperty("--runner-color", player.avatar_color);
+      track.querySelector(".gameRunner").style.left = `calc(7px + ${ratio * 100}% - ${ratio * 76}px)`;
+      track.querySelector(".gameRunnerName").textContent = `${player.student_name} · ${player.progress}/${total}${player.finish_place ? ` · #${player.finish_place}` : ""}`;
+      box.appendChild(track);
+    });
+  }
+
+  function renderGameCharacters(value, force=false){
+    const renderToken = ++gameCharRenderToken;
+    const box = qs("gameChars");
+    const next = String(value || "");
+    if (!force && gamePreviousInput.startsWith(next) && gamePreviousInput.length === next.length + 1){
+      const last = box.lastElementChild;
+      if (last){
+        last.classList.add("leaving");
+        setTimeout(() => {
+          if (renderToken === gameCharRenderToken) renderGameCharacters(next, true);
+        }, 150);
+      } else {
+        renderGameCharacters(next, true);
+      }
+      gamePreviousInput = next;
+      return;
+    }
+    box.innerHTML = next
+      ? Array.from(next).map(char => `<span class="gameChar ${char === " " ? "space" : ""}">${char === " " ? "" : escapeHtml(char)}</span>`).join("")
+      : `<span class="muted">{{ T.game_type_answer|escapejs }}</span>`;
+    gamePreviousInput = next;
+  }
+
+  function renderGameResults(round){
+    const box = qs("gameResults");
+    const ranked = (round.participants || []).filter(row => row.finish_place).sort((a,b) => a.finish_place - b.finish_place);
+    box.style.display = "block";
+    if (!ranked.length){
+      box.innerHTML = `<div class="gameLobby"><div class="title">${escapeHtml(UI.gameResults)}</div><div class="muted">${escapeHtml(UI.gamePlayers)}: 0</div></div>`;
+      return;
+    }
+    const byPlace = new Map(ranked.map(row => [row.finish_place, row]));
+    const podiumOrder = [2,1,3].filter(place => byPlace.has(place));
+    const classes = {1:"first",2:"second",3:"third"};
+    const podium = podiumOrder.map(place => {
+      const player = byPlace.get(place);
+      return `<div class="podiumPlace ${classes[place]}">${gameAvatarHtml(player)}<b>#${place}</b><div>${escapeHtml(player.student_name)}</div></div>`;
+    }).join("");
+    box.innerHTML = `<div class="title" style="text-align:center;margin-top:22px;">${escapeHtml(UI.gameResults)}</div><div class="gamePodium">${podium}</div><div class="gameRanking">${ranked.map(player => `<div class="gameRankRow"><b>#${player.finish_place} ${escapeHtml(player.student_name)}</b><span>${player.progress}/${round.total_prompts}</span></div>`).join("")}</div>`;
+  }
+
+  function scheduleStudentGamePoll(roundId){
+    stopStudentGamePolling();
+    if (!roundId || currentModuleType !== "game") return;
+    gamePollTimer = setTimeout(() => pollStudentGame(roundId), 900);
+  }
+
+  async function pollStudentGame(roundId){
+    if (currentModuleType !== "game" || currentGameRound?.id !== roundId) return;
+    const res = await apiGet(`/api/student/game-rounds/${roundId}/state/`);
+    if (res.data.ok && currentModuleType === "game" && currentGameRound?.id === roundId) renderStudentGameRound(res.data.round);
+  }
+
+  function renderStudentGameRound(round){
+    currentGameRound = round || null;
+    const lobby = qs("gameLobby");
+    const readyBtn = qs("gameReadyBtn");
+    const stage = qs("gamePromptStage");
+    const results = qs("gameResults");
+    results.style.display = "none";
+    qs("gameStatus").textContent = round ? `${round.class.name} · #${round.run_number} · ${round.status}` : UI.gameWaiting;
+    renderGameTracks(round);
+
+    if (!round){
+      lobby.style.display = "block";
+      qs("gameLobbyTitle").textContent = UI.gameNoRound;
+      qs("gameLobbyText").textContent = UI.gameWaiting;
+      readyBtn.style.display = "none";
+      stage.style.display = "none";
+      return;
+    }
+
+    if (round.status === "lobby"){
+      lobby.style.display = "block";
+      qs("gameLobbyTitle").textContent = round.registered ? UI.gameRegistered : UI.gameWaiting;
+      qs("gameLobbyText").textContent = round.registered ? UI.gameRegistered : "{{ T.game_ready_hint|escapejs }}";
+      readyBtn.style.display = round.registered ? "none" : "inline-block";
+      readyBtn.disabled = false;
+      stage.style.display = "none";
+      scheduleStudentGamePoll(round.id);
+      return;
+    }
+
+    if (round.status === "finished"){
+      lobby.style.display = "none";
+      readyBtn.style.display = "none";
+      stage.style.display = "none";
+      renderGameResults(round);
+      stopStudentGamePolling();
+      return;
+    }
+
+    if (!round.registered){
+      lobby.style.display = "block";
+      qs("gameLobbyTitle").textContent = UI.gameNotRegistered;
+      qs("gameLobbyText").textContent = UI.gameNotRegistered;
+      readyBtn.style.display = "none";
+      stage.style.display = "none";
+      scheduleStudentGamePoll(round.id);
+      return;
+    }
+
+    if (!round.current_prompt){
+      lobby.style.display = "block";
+      qs("gameLobbyTitle").textContent = `${UI.gameFinished} · ${UI.gamePlace} #${round.me?.finish_place || "?"}`;
+      qs("gameLobbyText").textContent = "{{ T.game_wait_teacher_finish|escapejs }}";
+      readyBtn.style.display = "none";
+      stage.style.display = "none";
+      scheduleStudentGamePoll(round.id);
+      return;
+    }
+
+    lobby.style.display = "none";
+    stage.style.display = "block";
+    const prompt = round.current_prompt;
+    if (stage.dataset.promptIndex !== String(prompt.prompt_index)){
+      stage.dataset.promptIndex = String(prompt.prompt_index);
+      stage.classList.remove("correct", "wrong");
+      qs("gamePromptSentence").textContent = prompt.sentence;
+      qs("gamePromptNumber").textContent = `${UI.gameQuestion} ${prompt.prompt_index + 1}/${round.total_prompts}`;
+      qs("gameAnswerInput").value = "";
+      qs("gameFeedback").textContent = "";
+      renderGameCharacters("", true);
+      setTimeout(() => qs("gameAnswerInput").focus(), 30);
+    }
+    scheduleStudentGamePoll(round.id);
+  }
+
+  async function markGameReady(){
+    if (!currentTaskId || currentModuleType !== "game") return;
+    qs("gameReadyBtn").disabled = true;
+    const res = await apiPost(`/api/student/game-module/${currentTaskId}/ready/`, {});
+    if (!res.data.ok){
+      showStatus(res.data.error || UI.gameNoRound);
+      qs("gameReadyBtn").disabled = false;
+      return;
+    }
+    renderStudentGameRound(res.data.round);
+  }
+
+  async function submitGameAnswer(){
+    if (gameAnswerPending || !currentGameRound?.current_prompt) return;
+    const input = qs("gameAnswerInput");
+    if (!input.value.trim()) return;
+    gameAnswerPending = true;
+    qs("gameAnswerBtn").disabled = true;
+    const promptIndex = currentGameRound.current_prompt.prompt_index;
+    const res = await apiPost(`/api/student/game-rounds/${currentGameRound.id}/answer/`, {
+      answer: input.value,
+      prompt_index: promptIndex
+    });
+    const stage = qs("gamePromptStage");
+    stage.classList.remove("correct", "wrong");
+    void stage.offsetWidth;
+    if (!res.data.ok){
+      qs("gameFeedback").textContent = res.data.error || UI.gameIncorrect;
+    } else if (res.data.correct){
+      stage.classList.add("correct");
+      qs("gameFeedback").textContent = UI.gameCorrect;
+      setTimeout(() => pollStudentGame(currentGameRound.id), 280);
+    } else if (res.data.stale){
+      pollStudentGame(currentGameRound.id);
+    } else {
+      stage.classList.add("wrong");
+      qs("gameFeedback").textContent = UI.gameIncorrect;
+      input.select();
+    }
+    gameAnswerPending = false;
+    qs("gameAnswerBtn").disabled = false;
+  }
+
   function renderTasks(tasks){
     const list = qs("taskList");
     list.innerHTML = "";
@@ -1492,6 +1791,8 @@
         badge.textContent = UI.theoryBadge;
       } else if (t.module_type === "theory_quiz"){
         badge.textContent = UI.quizBadge;
+      } else if (t.module_type === "game"){
+        badge.textContent = UI.gameBadge;
       } else {
         badge.textContent = statusLabel(st);
       }
@@ -1505,6 +1806,9 @@
   }
 
   async function openTask(taskId, moduleType, btn){
+    stopStudentGamePolling();
+    currentGameRound = null;
+    qs("gameCard").style.display = "none";
     if (currentTaskId && currentModuleType === "coding_task"){
       saveCachedCode(currentTaskId, qs("codeArea").value || "", currentModuleType);
     }
@@ -1586,6 +1890,25 @@
 
       lastProgress = null;
       currentReadOnlyMode = false;
+      hideStatus();
+      return;
+    }
+
+    if (currentModuleType === "game"){
+      const res = await apiGet(`/api/student/game-module/${taskId}/`);
+      if (!res.data.ok){
+        showStatus(res.data.error || UI.failedLoadTask);
+        return;
+      }
+      qs("taskCard").style.display = "none";
+      qs("editorCard").style.display = "none";
+      qs("quizCard").style.display = "none";
+      qs("gameCard").style.display = "block";
+      qs("hintsPanel").style.display = "none";
+      qs("resultCard").style.display = "none";
+      qs("gameTitle").textContent = res.data.module.title || "{{ T.mind_race|escapejs }}";
+      qs("gameTopic").textContent = res.data.module.topic || "";
+      renderStudentGameRound(res.data.round);
       hideStatus();
       return;
     }
@@ -1826,6 +2149,16 @@
 
     qs("submitBtn").addEventListener("click", submit);
     qs("quizSubmitBtn").addEventListener("click", submitQuiz);
+    qs("gameReadyBtn").addEventListener("click", markGameReady);
+    qs("gameAnswerBtn").addEventListener("click", submitGameAnswer);
+    qs("gameAnswerInput").addEventListener("input", event => renderGameCharacters(event.target.value));
+    qs("gameAnswerInput").addEventListener("keydown", event => {
+      if (event.key === "Enter"){
+        event.preventDefault();
+        submitGameAnswer();
+      }
+    });
+    qs("gameInputWrap").addEventListener("click", () => qs("gameAnswerInput").focus());
     qs("codeArea").addEventListener("input", () => {
       if (!currentTaskId || currentModuleType !== "coding_task") return;
       saveCachedCode(currentTaskId, qs("codeArea").value || "", currentModuleType);

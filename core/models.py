@@ -334,6 +334,124 @@ class TheoryQuizMatchPair(models.Model):
         return f"Pair {self.question_id} #{self.ordinal}"
 
 
+class GameModule(models.Model):
+    class Rubric(models.TextChoices):
+        MIND_RACE = "mind_race", "Mind race"
+
+    session = models.ForeignKey(Session, on_delete=models.CASCADE, related_name="game_modules")
+    position = models.PositiveIntegerField()
+    title = models.CharField(max_length=200)
+    topic = models.CharField(max_length=255, blank=True, default="")
+    rubric = models.CharField(max_length=24, choices=Rubric.choices, default=Rubric.MIND_RACE)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["session", "position", "id"]
+        constraints = [
+            models.UniqueConstraint(fields=["session", "position"], name="uniq_game_module_position"),
+        ]
+        indexes = [
+            models.Index(fields=["session", "position", "is_active"], name="game_module_session_idx"),
+        ]
+
+    def __str__(self):
+        return f"[{self.session_id}] {self.position}. {self.title}"
+
+
+class MindRacePrompt(models.Model):
+    module = models.ForeignKey(GameModule, on_delete=models.CASCADE, related_name="prompts")
+    ordinal = models.PositiveIntegerField()
+    sentence = models.TextField()
+    missing_text = models.CharField(max_length=200)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["module", "ordinal", "id"]
+        constraints = [
+            models.UniqueConstraint(fields=["module", "ordinal"], name="uniq_mind_race_prompt_order"),
+        ]
+        indexes = [
+            models.Index(fields=["module", "ordinal"], name="mind_race_prompt_idx"),
+        ]
+
+    def __str__(self):
+        return f"Game {self.module_id}, prompt {self.ordinal}"
+
+
+class GameRound(models.Model):
+    class Status(models.TextChoices):
+        LOBBY = "lobby", "Lobby"
+        RUNNING = "running", "Running"
+        FINISHED = "finished", "Finished"
+
+    module = models.ForeignKey(GameModule, on_delete=models.PROTECT, related_name="rounds")
+    class_group = models.ForeignKey(ClassGroup, on_delete=models.PROTECT, related_name="game_rounds")
+    moderator = models.ForeignKey(
+        "Teacher",
+        on_delete=models.PROTECT,
+        related_name="moderated_game_rounds",
+    )
+    run_number = models.PositiveIntegerField()
+    status = models.CharField(max_length=16, choices=Status.choices, default=Status.LOBBY)
+    prompt_snapshot = models.JSONField(default=list, blank=True)
+    total_prompts = models.PositiveIntegerField(default=0)
+    opened_at = models.DateTimeField(auto_now_add=True)
+    started_at = models.DateTimeField(null=True, blank=True)
+    finished_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-opened_at", "-id"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["module", "class_group", "run_number"],
+                name="uniq_game_round_run_number",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["module", "class_group", "status"], name="game_round_active_idx"),
+        ]
+
+    def __str__(self):
+        return f"Game {self.module_id}, class {self.class_group_id}, run {self.run_number}"
+
+
+class GameParticipant(models.Model):
+    class AvatarShape(models.TextChoices):
+        SQUARE = "square", "Square"
+        DIAMOND = "diamond", "Diamond"
+        TRIANGLE = "triangle", "Triangle"
+        PENTAGON = "pentagon", "Pentagon"
+        HEXAGON = "hexagon", "Hexagon"
+
+    round = models.ForeignKey(GameRound, on_delete=models.CASCADE, related_name="participants")
+    student = models.ForeignKey(Student, on_delete=models.PROTECT, related_name="game_participations")
+    avatar_shape = models.CharField(max_length=16, choices=AvatarShape.choices)
+    avatar_color = models.CharField(max_length=7)
+    progress = models.PositiveIntegerField(default=0)
+    correct_answers = models.PositiveIntegerField(default=0)
+    wrong_answers = models.PositiveIntegerField(default=0)
+    finish_place = models.PositiveIntegerField(null=True, blank=True)
+    ready_at = models.DateTimeField(auto_now_add=True)
+    finished_at = models.DateTimeField(null=True, blank=True)
+    last_answer_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["finish_place", "ready_at", "id"]
+        constraints = [
+            models.UniqueConstraint(fields=["round", "student"], name="uniq_game_round_student"),
+            models.UniqueConstraint(fields=["round", "finish_place"], name="uniq_game_finish_place"),
+        ]
+        indexes = [
+            models.Index(fields=["round", "progress"], name="game_participant_progress_idx"),
+        ]
+
+    def __str__(self):
+        return f"{self.student_id} in game round {self.round_id}"
+
+
 class StudentTheoryQuizAttempt(models.Model):
     student_session = models.ForeignKey(
         "StudentSession",

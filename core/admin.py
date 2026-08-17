@@ -17,6 +17,7 @@ from .models import (
     TaskCodeFragment,  # NEW,
     Exam, ExamClass, ExamQuestion, ExamMatchPair, ExamAttempt, ExamAnswer,
     PeerAssessmentSession, PeerAssessmentAssignment, PeerAssessmentReview,
+    GameModule, MindRacePrompt, GameRound, GameParticipant,
 )
 
 
@@ -139,3 +140,4 @@ class TeacherAdmin(admin.ModelAdmin):
 
 admin.site.register([Exam, ExamClass, ExamQuestion, ExamMatchPair, ExamAttempt, ExamAnswer])
 admin.site.register([PeerAssessmentSession, PeerAssessmentAssignment, PeerAssessmentReview])
+admin.site.register([GameModule, MindRacePrompt, GameRound, GameParticipant])

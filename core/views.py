@@ -56,6 +56,10 @@ from .models import (
     TheoryMaterialBlock,
     TheoryMaterialModule,
     StudentTheoryQuizAttempt,
+    GameModule,
+    GameRound,
+    GameParticipant,
+    MindRacePrompt,
 
 )
 from .ui_translations import SUPPORTED_UI_LANGS, UI_TRANSLATIONS, get_ui_lang
@@ -645,6 +649,11 @@ def _is_module_position_taken(session: Session, position: int, *, skip_type: str
     ).exists():
         return True
 
+    if GameModule.objects.filter(session=session, position=position).exclude(
+        id=skip_id if skip_type == "game" else None
+    ).exists():
+        return True
+
     return False
 
 
@@ -906,6 +915,24 @@ def student_active_session(request: HttpRequest):
         .order_by("position", "id")
         .values("id", "position", "title")
     )
+    game_modules = list(
+        GameModule.objects.filter(session=session, is_active=True)
+        .order_by("position", "id")
+        .values("id", "position", "title")
+    )
+    latest_game_rounds = {}
+    for game_round in GameRound.objects.filter(
+        module_id__in=[row["id"] for row in game_modules],
+        class_group_id=class_id,
+    ).order_by("module_id", "-run_number", "-id"):
+        latest_game_rounds.setdefault(game_round.module_id, game_round)
+    game_participants = {
+        row.round_id: row
+        for row in GameParticipant.objects.filter(
+            round_id__in=[row.id for row in latest_game_rounds.values()],
+            student_id=student_id,
+        )
+    }
 
     progress_qs = StudentTaskProgress.objects.filter(student_session=ss).values(
         "task_id", "status", "attempts_total", "attempts_failed"
@@ -956,6 +983,26 @@ def student_active_session(request: HttpRequest):
                     "status": "not_started",
                     "attempts_total": 0,
                     "attempts_failed": 0,
+                },
+            }
+        )
+
+    for game in game_modules:
+        latest_round = latest_game_rounds.get(game["id"])
+        participant = game_participants.get(latest_round.id) if latest_round else None
+        status = "not_started"
+        if participant:
+            status = "solved" if participant.finish_place else "in_progress"
+        tasks_out.append(
+            {
+                "id": game["id"],
+                "position": game["position"],
+                "title": game["title"],
+                "module_type": "game",
+                "progress": {
+                    "status": status,
+                    "attempts_total": participant.correct_answers if participant else 0,
+                    "attempts_failed": participant.wrong_answers if participant else 0,
                 },
             }
         )
@@ -2696,6 +2743,30 @@ def teacher_session_clone_api(request: HttpRequest, session_id: int):
                         )
                         for p in q.pairs.all().order_by("ordinal", "id")
                     ])
+
+            source_games = list(
+                GameModule.objects.filter(session=source)
+                .prefetch_related("prompts")
+                .order_by("position", "id")
+            )
+            for game in source_games:
+                game_clone = GameModule.objects.create(
+                    session=clone,
+                    position=game.position,
+                    title=game.title,
+                    topic=game.topic,
+                    rubric=game.rubric,
+                    is_active=game.is_active,
+                )
+                MindRacePrompt.objects.bulk_create([
+                    MindRacePrompt(
+                        module=game_clone,
+                        ordinal=prompt.ordinal,
+                        sentence=prompt.sentence,
+                        missing_text=prompt.missing_text,
+                    )
+                    for prompt in game.prompts.all().order_by("ordinal", "id")
+                ])
 
         return JsonResponse({"ok": True, "session": _serialize_session(clone)}, status=201)
     except Exception as e:
