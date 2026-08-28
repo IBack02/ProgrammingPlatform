@@ -1,3 +1,4 @@
+{% load static %}
 <!doctype html>
 <html lang="{{ ui_lang|default:'en' }}">
 <head>
@@ -12,12 +13,21 @@
     body{
       font-family: {% if ui_lang == 'kk' %}var(--ui-font-kk){% else %}var(--ui-font-default){% endif %};
       margin:0;
-      background:#f6f7fb;
+      background-color:#f6f7fb;
+      background-image:url("{% static 'student.png' %}");
+      background-repeat:no-repeat;
+      background-position:center 62%;
+      background-size:cover;
+      background-attachment:fixed;
+      min-height:100vh;
+      padding:1px 16px;
+      box-sizing:border-box;
     }
     .wrap{
       max-width:440px;
       margin:72px auto;
-      background:#fff;
+      background:rgba(255,255,255,.94);
+      backdrop-filter:blur(8px);
       padding:24px;
       border-radius:14px;
       box-shadow: 0 10px 24px rgba(17,24,39,.08);

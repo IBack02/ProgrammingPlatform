@@ -115,6 +115,7 @@
           <option value="mind_race">{{ T.mind_race }}</option>
           <option value="wonder_field">{{ T.wonder_field }}</option>
         </select>
+        <div class="muted" style="margin-top:6px;">{{ T.game_rubric_change_hint }}</div>
       </div>
 
       <div class="row" style="margin-top:10px;">
@@ -685,7 +686,7 @@
     const isWonder = module.rubric === "wonder_field";
     qs("mindRaceEditor").style.display = isWonder ? "none" : "block";
     qs("wonderFieldEditor").style.display = isWonder ? "block" : "none";
-    qs("gameRubric").disabled = true;
+    qs("gameRubric").disabled = false;
     renderGamePrompts(module.prompts || []);
     renderWonderQuestions(module.wonder_questions || []);
     const classSelect = qs("gameClassSelect");
@@ -956,6 +957,7 @@
       body.instructions = qs("quizInstructions").value;
     } else if (item.module_type === "game"){
       url = `/api/teacher/game-modules/${item.id}/`;
+      body.rubric = qs("gameRubric").value;
     } else {
       return;
     }
@@ -1055,6 +1057,12 @@
   });
   qs("questionType").addEventListener("change", syncQuestionTypeFields);
   qs("newModuleType").addEventListener("change", syncCreateTypeFields);
+  qs("gameRubric").addEventListener("change", () => {
+    const isWonder = qs("gameRubric").value === "wonder_field";
+    qs("mindRaceEditor").style.display = isWonder ? "none" : "block";
+    qs("wonderFieldEditor").style.display = isWonder ? "block" : "none";
+    setMsg("{{ T.game_rubric_save_hint|escapejs }}");
+  });
   qs("blockType").addEventListener("change", syncBlockTypeFields);
   qs("addPairBtn").addEventListener("click", () => addMatchingPairRow("", ""));
   qs("createBtn").addEventListener("click", createModule);

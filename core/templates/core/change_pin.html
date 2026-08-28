@@ -1,3 +1,4 @@
+{% load static %}
 <!doctype html>
 <html lang="{{ ui_lang|default:'en' }}">
 <head>
@@ -7,7 +8,7 @@
   <style>
     :root{--ink:#172033;--muted:#64748b;--line:#dbe3ec;--blue:#0284c7;--font:Arial,"Segoe UI",sans-serif;--font-kk:"Noto Sans","DejaVu Sans","Segoe UI",Arial,sans-serif}
     *{box-sizing:border-box}
-    body{margin:0;min-height:100vh;display:grid;place-items:center;padding:18px;color:var(--ink);font-family:{% if ui_lang == 'kk' %}var(--font-kk){% else %}var(--font){% endif %};background:radial-gradient(circle at 12% 8%,#dbeafe,transparent 30%),linear-gradient(135deg,#f8fafc,#eaf2f4)}
+    body{margin:0;min-height:100vh;display:grid;place-items:center;padding:18px;color:var(--ink);font-family:{% if ui_lang == 'kk' %}var(--font-kk){% else %}var(--font){% endif %};background-color:#eef4f7;background-image:url("{% if role == 'teacher' %}{% static 'teacher.png' %}{% else %}{% static 'student.png' %}{% endif %}");background-repeat:no-repeat;background-position:center 62%;background-size:cover;background-attachment:fixed}
     .card{width:min(100%,460px);background:rgba(255,255,255,.97);border:1px solid var(--line);border-radius:18px;padding:24px;box-shadow:0 22px 55px rgba(15,23,42,.12)}
     h1{margin:0 0 5px;font-size:24px}.account{color:var(--muted);font-size:13px;margin-bottom:20px}.field{display:grid;gap:6px;margin-top:13px}.field span{font-size:13px;font-weight:800}
     input{width:100%;border:1px solid #cbd5e1;border-radius:11px;padding:11px 12px;font:inherit;letter-spacing:.12em}input:focus{outline:0;border-color:#38bdf8;box-shadow:0 0 0 3px rgba(56,189,248,.14)}

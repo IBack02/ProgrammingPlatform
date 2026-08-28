@@ -382,3 +382,30 @@ class MindRaceGameTests(TestCase):
         )
         self.assertEqual(invalid.status_code, 400)
         self.assertFalse(WonderFieldQuestion.objects.filter(module=module).exists())
+
+    def test_empty_game_module_rubric_can_be_changed(self):
+        module = GameModule.objects.create(
+            session=self.session,
+            position=1,
+            title="Empty game",
+            rubric=GameModule.Rubric.MIND_RACE,
+        )
+        changed = self._json(
+            self.teacher_client,
+            "patch",
+            f"/api/teacher/game-modules/{module.id}/",
+            {"rubric": "wonder_field"},
+        )
+        self.assertEqual(changed.status_code, 200)
+        self.assertEqual(changed.json()["module"]["rubric"], GameModule.Rubric.WONDER_FIELD)
+
+        WonderFieldQuestion.objects.create(module=module, ordinal=1, prompt="Question", answer="ANSWER")
+        blocked = self._json(
+            self.teacher_client,
+            "patch",
+            f"/api/teacher/game-modules/{module.id}/",
+            {"rubric": "mind_race"},
+        )
+        self.assertEqual(blocked.status_code, 409)
+        module.refresh_from_db()
+        self.assertEqual(module.rubric, GameModule.Rubric.WONDER_FIELD)

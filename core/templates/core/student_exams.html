@@ -1,3 +1,4 @@
+{% load static %}
 <!doctype html>
 <html lang="{{ ui_lang }}">
 <head>
@@ -6,7 +7,7 @@
   <title>{{ T.exam_practice }}</title>
   <style>
     :root{--ink:#172033;--muted:#64748b;--line:#dbe3ec;--blue:#0369a1;--paper:#fff;--bg:#eef4f7;--font:Georgia,"Times New Roman",serif;--font-kk:"Noto Sans","DejaVu Sans","Segoe UI",sans-serif}
-    *{box-sizing:border-box}body{margin:0;color:var(--ink);font-family:{% if ui_lang == 'kk' %}var(--font-kk){% else %}var(--font){% endif %};background:radial-gradient(circle at 12% 8%,#dbeafe 0,transparent 28%),linear-gradient(135deg,#f8fafc,#eaf2f4);min-height:100vh}
+    *{box-sizing:border-box}body{margin:0;color:var(--ink);font-family:{% if ui_lang == 'kk' %}var(--font-kk){% else %}var(--font){% endif %};background-color:#eef4f7;background-image:url("{% static 'student.png' %}");background-repeat:no-repeat;background-position:center 62%;background-size:cover;background-attachment:fixed;min-height:100vh}
     button,input,textarea,select{font:inherit}.topbar{position:sticky;top:0;z-index:20;background:rgba(255,255,255,.94);backdrop-filter:blur(12px);border-bottom:1px solid var(--line);padding:11px 18px;display:flex;justify-content:space-between;align-items:center;gap:12px}
     .brand{font-weight:900;font-size:20px}.actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.btn{border:1px solid var(--line);background:#fff;color:var(--ink);border-radius:10px;padding:9px 12px;text-decoration:none;cursor:pointer}.btn.primary{background:var(--blue);color:#fff;border-color:var(--blue)}.btn.danger{background:#b91c1c;color:#fff;border-color:#b91c1c}
     .timer{font-family:"Segoe UI",sans-serif;font-weight:900;font-variant-numeric:tabular-nums;background:#0f172a;color:#fff;border-radius:10px;padding:9px 13px}.timer.urgent{background:#b91c1c}

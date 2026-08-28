@@ -1,3 +1,4 @@
+{% load static %}
 <!doctype html>
 <html lang="{{ ui_lang|default:'en' }}">
 <head>
@@ -8,7 +9,7 @@
     :root{--ink:#172033;--muted:#64748b;--line:#d8e1ec;--blue:#075985;--sky:#e0f2fe;--paper:#fffdf8;--font-default:Arial,"Segoe UI",sans-serif;--font-kk:"Noto Sans","DejaVu Sans","Segoe UI",Arial,sans-serif}
     *{box-sizing:border-box}
     html,body{height:100%}
-    body{margin:0;background:linear-gradient(135deg,#dceef5,#f7f2e8);color:var(--ink);font-family:{% if ui_lang == 'kk' %}var(--font-kk){% else %}var(--font-default){% endif %}}
+    body{margin:0;background-color:#eef4f7;background-image:url("{% static 'student.png' %}");background-repeat:no-repeat;background-position:center 62%;background-size:cover;background-attachment:fixed;color:var(--ink);font-family:{% if ui_lang == 'kk' %}var(--font-kk){% else %}var(--font-default){% endif %}}
     button,select,textarea{font:inherit}
     .app{height:100%;display:grid;grid-template-rows:auto minmax(0,1fr)}
     .topbar{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:12px 18px;background:rgba(255,255,255,.94);border-bottom:1px solid var(--line)}

@@ -1,3 +1,4 @@
+{% load static %}
 <!doctype html>
 <html lang="{{ ui_lang }}">
 <head>
@@ -10,7 +11,12 @@
 
   body{
     font-family: {% if ui_lang == 'kk' %}var(--ui-font-kk){% else %}var(--ui-font-default){% endif %};
-    background:#f6f7fb;
+    background-color:#f6f7fb;
+    background-image:url("{% static 'teacher.png' %}");
+    background-repeat:no-repeat;
+    background-position:center 62%;
+    background-size:cover;
+    background-attachment:fixed;
     margin:0;
     text-rendering:optimizeLegibility;
     -webkit-font-smoothing:antialiased;
@@ -27,7 +33,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <title>{% block title %}{{ T.teacher_portal }}{% endblock %}</title>
   <style>
-    body{font-family:inherit;background:#f6f7fb;margin:0}
+    body{font-family:inherit;margin:0}
     .wrap{max-width:1200px;margin:18px auto;padding:0 14px}
     .topbar{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:12px}
     .title{font-size:20px;font-weight:900}

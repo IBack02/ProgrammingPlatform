@@ -24,16 +24,21 @@
       --ui-font-default: Arial, "Segoe UI", sans-serif;
       --ui-font-kk: "Noto Sans", "DejaVu Sans", "Segoe UI", Arial, sans-serif;
       --code-font: Consolas, "Courier New", monospace;
-      --module-bg-theory: {% if bg_urls.theory %}url("{{ bg_urls.theory|escape }}"){% else %}none{% endif %};
-      --module-bg-quiz: {% if bg_urls.quiz %}url("{{ bg_urls.quiz|escape }}"){% else %}none{% endif %};
-      --module-bg-coding: {% if bg_urls.coding %}url("{{ bg_urls.coding|escape }}"){% else %}none{% endif %};
-      --module-bg-game: linear-gradient(135deg,#07152e,#0c4a6e 55%,#7c2d12);
+      --student-account-bg: url("{% static 'student.png' %}");
+      --module-bg-theory: var(--student-account-bg);
+      --module-bg-quiz: var(--student-account-bg);
+      --module-bg-coding: var(--student-account-bg);
+      --module-bg-game: var(--student-account-bg);
     }
 
     body {
       font-family: {% if ui_lang == 'kk' %}var(--ui-font-kk){% else %}var(--ui-font-default){% endif %};
       margin:0;
-      background:var(--bg);
+      background-color:var(--bg);
+      background-image:var(--student-account-bg);
+      background-repeat:no-repeat;
+      background-position:center 62%;
+      background-size:cover;
       text-rendering: optimizeLegibility;
       -webkit-font-smoothing: antialiased;
       -moz-osx-font-smoothing: grayscale;
@@ -74,7 +79,7 @@
       background-color:#132033;
       background-repeat:no-repeat;
       background-position:center center;
-      background-size:contain;
+      background-size:cover;
       transition: background-image .25s ease, background-position .25s ease;
     }
 

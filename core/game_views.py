@@ -492,6 +492,18 @@ def teacher_game_module_detail_api(request: HttpRequest, module_id: int):
         module.title = title[:200]
     if "topic" in data:
         module.topic = str(data.get("topic") or "").strip()[:255]
+    if "rubric" in data:
+        rubric = str(data.get("rubric") or "")
+        if rubric not in GameModule.Rubric.values:
+            raise ValueError("unsupported game rubric")
+        if rubric != module.rubric:
+            has_content = module.prompts.exists() or module.wonder_questions.exists()
+            if has_content or module.rounds.exists():
+                return _api_error(
+                    "delete existing game questions and rounds before changing rubric",
+                    409,
+                )
+            module.rubric = rubric
     if "position" in data:
         position = _positive_int(data["position"], "position")
         if _position_taken(module.session, position, skip_id=module.id):
