@@ -337,6 +337,7 @@ class TheoryQuizMatchPair(models.Model):
 class GameModule(models.Model):
     class Rubric(models.TextChoices):
         MIND_RACE = "mind_race", "Mind race"
+        WONDER_FIELD = "wonder_field", "Wonder field"
 
     session = models.ForeignKey(Session, on_delete=models.CASCADE, related_name="game_modules")
     position = models.PositiveIntegerField()
@@ -381,11 +382,38 @@ class MindRacePrompt(models.Model):
         return f"Game {self.module_id}, prompt {self.ordinal}"
 
 
+class WonderFieldQuestion(models.Model):
+    module = models.ForeignKey(GameModule, on_delete=models.CASCADE, related_name="wonder_questions")
+    ordinal = models.PositiveIntegerField()
+    prompt = models.TextField()
+    answer = models.CharField(max_length=200)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["module", "ordinal", "id"]
+        constraints = [
+            models.UniqueConstraint(fields=["module", "ordinal"], name="uniq_wonder_question_order"),
+        ]
+        indexes = [
+            models.Index(fields=["module", "ordinal"], name="wonder_question_idx"),
+        ]
+
+    def __str__(self):
+        return f"Wonder field {self.module_id}, question {self.ordinal}"
+
+
 class GameRound(models.Model):
     class Status(models.TextChoices):
         LOBBY = "lobby", "Lobby"
         RUNNING = "running", "Running"
         FINISHED = "finished", "Finished"
+
+    class Outcome(models.TextChoices):
+        PENDING = "pending", "Pending"
+        WON = "won", "Won"
+        LOST = "lost", "Lost"
+        STOPPED = "stopped", "Stopped"
 
     module = models.ForeignKey(GameModule, on_delete=models.PROTECT, related_name="rounds")
     class_group = models.ForeignKey(ClassGroup, on_delete=models.PROTECT, related_name="game_rounds")
@@ -398,6 +426,14 @@ class GameRound(models.Model):
     status = models.CharField(max_length=16, choices=Status.choices, default=Status.LOBBY)
     prompt_snapshot = models.JSONField(default=list, blank=True)
     total_prompts = models.PositiveIntegerField(default=0)
+    current_question_index = models.PositiveIntegerField(default=0)
+    revealed_letters = models.JSONField(default=list, blank=True)
+    used_letters = models.JSONField(default=list, blank=True)
+    strikes = models.PositiveSmallIntegerField(default=0)
+    turn_order = models.JSONField(default=list, blank=True)
+    turn_index = models.PositiveIntegerField(default=0)
+    turn_started_at = models.DateTimeField(null=True, blank=True)
+    outcome = models.CharField(max_length=16, choices=Outcome.choices, default=Outcome.PENDING)
     opened_at = models.DateTimeField(auto_now_add=True)
     started_at = models.DateTimeField(null=True, blank=True)
     finished_at = models.DateTimeField(null=True, blank=True)
@@ -450,6 +486,40 @@ class GameParticipant(models.Model):
 
     def __str__(self):
         return f"{self.student_id} in game round {self.round_id}"
+
+
+class GameRoundEvent(models.Model):
+    class EventType(models.TextChoices):
+        CORRECT = "correct", "Correct letter"
+        WRONG = "wrong", "Wrong letter"
+        TIMEOUT = "timeout", "Turn timeout"
+        PENALTY = "penalty", "Teacher penalty"
+        QUESTION_COMPLETE = "question_complete", "Question complete"
+        GAME_WON = "game_won", "Game won"
+        GAME_LOST = "game_lost", "Game lost"
+        GAME_STOPPED = "game_stopped", "Game stopped"
+
+    round = models.ForeignKey(GameRound, on_delete=models.CASCADE, related_name="events")
+    participant = models.ForeignKey(
+        GameParticipant,
+        on_delete=models.SET_NULL,
+        related_name="game_events",
+        null=True,
+        blank=True,
+    )
+    event_type = models.CharField(max_length=24, choices=EventType.choices)
+    question_index = models.PositiveIntegerField(default=0)
+    letter = models.CharField(max_length=1, blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["created_at", "id"]
+        indexes = [
+            models.Index(fields=["round", "created_at"], name="game_round_event_idx"),
+        ]
+
+    def __str__(self):
+        return f"Round {self.round_id}: {self.event_type}"
 
 
 class StudentTheoryQuizAttempt(models.Model):

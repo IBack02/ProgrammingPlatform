@@ -1,6 +1,7 @@
 import re
 import secrets
 import unicodedata
+from datetime import timedelta
 from functools import wraps
 
 from django.db import IntegrityError, transaction
@@ -17,13 +18,19 @@ from .models import (
     GameModule,
     GameParticipant,
     GameRound,
+    GameRoundEvent,
     MindRacePrompt,
     SessionClass,
     SessionTask,
     TheoryMaterialModule,
     TheoryQuizModule,
+    WonderFieldQuestion,
 )
 from .security import request_is_limited
+
+
+WONDER_FIELD_LETTERS = "QWERTYUIOPASDFGHJKLZXCVBNM"
+WONDER_FIELD_TURN_SECONDS = 20
 
 
 def _json_errors(view_func):
@@ -105,6 +112,28 @@ def _masked_sentence(sentence, missing_text):
     return re.sub(re.escape(missing_text), blank, sentence, flags=re.IGNORECASE)
 
 
+def _normalize_wonder_answer(value):
+    answer = unicodedata.normalize("NFKC", str(value or "")).strip().upper()
+    answer = " ".join(answer.split())
+    if not answer:
+        raise ValueError("answer is required")
+    if len(answer) > 200:
+        raise ValueError("answer is too long")
+    if not re.fullmatch(r"[A-Z]+(?: [A-Z]+)*", answer):
+        raise ValueError("answer may contain only Latin letters A-Z and spaces")
+    return answer
+
+
+def _validate_wonder_question(data, question=None):
+    prompt = str(data.get("prompt", question.prompt if question else "") or "").strip()
+    if not prompt:
+        raise ValueError("question prompt is required")
+    if len(prompt) > 3000:
+        raise ValueError("question prompt is too long")
+    answer = _normalize_wonder_answer(data.get("answer", question.answer if question else ""))
+    return prompt, answer
+
+
 def _position_taken(session, position, skip_id=None):
     if SessionTask.objects.filter(session=session, position=position).exists():
         return True
@@ -128,6 +157,15 @@ def _serialize_prompt(prompt):
     }
 
 
+def _serialize_wonder_question(question):
+    return {
+        "id": question.id,
+        "ordinal": question.ordinal,
+        "prompt": question.prompt,
+        "answer": question.answer,
+    }
+
+
 def _participant_row(participant):
     return {
         "id": participant.id,
@@ -143,9 +181,85 @@ def _participant_row(participant):
     }
 
 
+def _wonder_event_row(event):
+    participant = event.participant
+    return {
+        "id": event.id,
+        "event_type": event.event_type,
+        "question_index": event.question_index,
+        "letter": event.letter,
+        "student_id": participant.student_id if participant else None,
+        "student_name": participant.student.full_name if participant else "",
+        "created_at": event.created_at.isoformat(),
+    }
+
+
+def _wonder_round_data(round_obj):
+    participants = list(round_obj.participants.select_related("student").all())
+    by_student_id = {row.student_id: row for row in participants}
+    queue = [by_student_id[student_id] for student_id in round_obj.turn_order if student_id in by_student_id]
+    current_participant = queue[round_obj.turn_index % len(queue)] if queue else None
+    question_index = round_obj.current_question_index
+    current_question = None
+    if question_index < len(round_obj.prompt_snapshot):
+        snapshot = round_obj.prompt_snapshot[question_index]
+        answer = snapshot.get("answer", "")
+        revealed = set(round_obj.revealed_letters or [])
+        correct_events = list(
+            round_obj.events.filter(
+                event_type=GameRoundEvent.EventType.CORRECT,
+                question_index=question_index,
+            ).select_related("participant__student")
+        )
+        guessed_by = {}
+        for event in correct_events:
+            if event.participant:
+                guessed_by.setdefault(event.letter, []).append(event.participant.student.full_name)
+        cells = []
+        for character in answer:
+            if character == " ":
+                cells.append({"kind": "space"})
+            else:
+                cells.append({
+                    "kind": "letter",
+                    "value": character if character in revealed else "",
+                    "guessed_by": guessed_by.get(character, []) if character in revealed else [],
+                })
+        current_question = {
+            "question_index": question_index,
+            "ordinal": snapshot.get("ordinal", question_index + 1),
+            "prompt": snapshot.get("prompt", ""),
+            "cells": cells,
+        }
+    deadline = None
+    seconds_left = 0
+    if round_obj.status == GameRound.Status.RUNNING and round_obj.turn_started_at:
+        deadline_value = round_obj.turn_started_at + timedelta(seconds=WONDER_FIELD_TURN_SECONDS)
+        deadline = deadline_value.isoformat()
+        seconds_left = max(0, int((deadline_value - timezone.now()).total_seconds() + 0.999))
+    events = list(
+        round_obj.events.select_related("participant__student").order_by("-created_at", "-id")[:60]
+    )
+    return {
+        "outcome": round_obj.outcome,
+        "current_question_index": question_index,
+        "current_question": current_question,
+        "strikes": round_obj.strikes,
+        "max_strikes": 3,
+        "available_letters": [letter for letter in WONDER_FIELD_LETTERS if letter not in set(round_obj.used_letters or [])],
+        "used_letters": round_obj.used_letters or [],
+        "turn_order": [_participant_row(row) for row in queue],
+        "current_turn_student_id": current_participant.student_id if current_participant else None,
+        "turn_deadline": deadline,
+        "seconds_left": seconds_left,
+        "events": [_wonder_event_row(row) for row in reversed(events)],
+    }
+
+
 def _round_row(round_obj, include_participants=True):
     data = {
         "id": round_obj.id,
+        "rubric": round_obj.module.rubric,
         "run_number": round_obj.run_number,
         "status": round_obj.status,
         "class": {"id": round_obj.class_group_id, "name": round_obj.class_group.name},
@@ -166,10 +280,17 @@ def _round_row(round_obj, include_participants=True):
             )
         )
         data["participants"] = [_participant_row(row) for row in participants]
+    if round_obj.module.rubric == GameModule.Rubric.WONDER_FIELD:
+        data.update(_wonder_round_data(round_obj))
     return data
 
 
 def _module_row(module, include_detail=False):
+    prompt_count = (
+        module.wonder_questions.count()
+        if module.rubric == GameModule.Rubric.WONDER_FIELD
+        else module.prompts.count()
+    )
     data = {
         "id": module.id,
         "session_id": module.session_id,
@@ -178,10 +299,14 @@ def _module_row(module, include_detail=False):
         "topic": module.topic,
         "rubric": module.rubric,
         "is_active": module.is_active,
-        "prompt_count": module.prompts.count(),
+        "prompt_count": prompt_count,
     }
     if include_detail:
         data["prompts"] = [_serialize_prompt(row) for row in module.prompts.order_by("ordinal", "id")]
+        data["wonder_questions"] = [
+            _serialize_wonder_question(row)
+            for row in module.wonder_questions.order_by("ordinal", "id")
+        ]
         data["classes"] = [
             {"id": row.id, "name": row.name}
             for row in ClassGroup.objects.filter(
@@ -222,9 +347,16 @@ def _student_round_state(round_obj, student):
     data = _round_row(round_obj)
     data["registered"] = bool(participant)
     data["me"] = _participant_row(participant) if participant else None
+    data["is_my_turn"] = bool(
+        participant
+        and round_obj.module.rubric == GameModule.Rubric.WONDER_FIELD
+        and data.get("current_turn_student_id") == student.id
+        and round_obj.status == GameRound.Status.RUNNING
+    )
     data["current_prompt"] = None
     if (
         participant
+        and round_obj.module.rubric == GameModule.Rubric.MIND_RACE
         and round_obj.status == GameRound.Status.RUNNING
         and participant.finish_place is None
         and participant.progress < round_obj.total_prompts
@@ -239,6 +371,73 @@ def _student_round_state(round_obj, student):
     return data
 
 
+def _finish_wonder_round(round_obj, outcome, event_type):
+    finished_at = timezone.now()
+    round_obj.status = GameRound.Status.FINISHED
+    round_obj.outcome = outcome
+    round_obj.finished_at = finished_at
+    round_obj.turn_started_at = None
+    round_obj.save(update_fields=["status", "outcome", "finished_at", "turn_started_at"])
+    GameRoundEvent.objects.create(
+        round=round_obj,
+        event_type=event_type,
+        question_index=round_obj.current_question_index,
+    )
+
+
+def _advance_wonder_turn(round_obj, now=None):
+    if round_obj.turn_order:
+        round_obj.turn_index = (round_obj.turn_index + 1) % len(round_obj.turn_order)
+    round_obj.turn_started_at = now or timezone.now()
+
+
+def _apply_wonder_timeout(round_obj):
+    if (
+        round_obj.module.rubric != GameModule.Rubric.WONDER_FIELD
+        or round_obj.status != GameRound.Status.RUNNING
+        or not round_obj.turn_started_at
+        or not round_obj.turn_order
+    ):
+        return False
+    now = timezone.now()
+    if round_obj.turn_started_at + timedelta(seconds=WONDER_FIELD_TURN_SECONDS) > now:
+        return False
+    student_id = round_obj.turn_order[round_obj.turn_index % len(round_obj.turn_order)]
+    participant = round_obj.participants.select_for_update().filter(student_id=student_id).first()
+    if participant:
+        participant.wrong_answers += 1
+        participant.last_answer_at = now
+        participant.save(update_fields=["wrong_answers", "last_answer_at"])
+    round_obj.strikes += 1
+    GameRoundEvent.objects.create(
+        round=round_obj,
+        participant=participant,
+        event_type=GameRoundEvent.EventType.TIMEOUT,
+        question_index=round_obj.current_question_index,
+    )
+    if round_obj.strikes >= 3:
+        round_obj.save(update_fields=["strikes"])
+        _finish_wonder_round(
+            round_obj,
+            GameRound.Outcome.LOST,
+            GameRoundEvent.EventType.GAME_LOST,
+        )
+    else:
+        _advance_wonder_turn(round_obj, now)
+        round_obj.save(update_fields=["strikes", "turn_index", "turn_started_at"])
+    return True
+
+
+def _refresh_wonder_round(round_id):
+    with transaction.atomic():
+        round_obj = get_object_or_404(
+            GameRound.objects.select_for_update().select_related("module", "class_group"),
+            id=round_id,
+        )
+        _apply_wonder_timeout(round_obj)
+    return GameRound.objects.select_related("module", "class_group").get(id=round_id)
+
+
 @_json_errors
 @require_http_methods(["GET", "POST"])
 def teacher_game_modules_api(request: HttpRequest, session_id: int):
@@ -249,7 +448,7 @@ def teacher_game_modules_api(request: HttpRequest, session_id: int):
 
     session = get_object_or_404(Session, id=session_id, author=teacher)
     if request.method == "GET":
-        modules = GameModule.objects.filter(session=session).prefetch_related("prompts")
+        modules = GameModule.objects.filter(session=session).prefetch_related("prompts", "wonder_questions")
         return JsonResponse({"ok": True, "modules": [_module_row(row) for row in modules]})
 
     data = _json_body(request)
@@ -311,6 +510,8 @@ def teacher_game_prompts_api(request: HttpRequest, module_id: int):
     if not teacher:
         return _api_error("not authenticated", 401)
     module = _owned_module(teacher, module_id)
+    if module.rubric != GameModule.Rubric.MIND_RACE:
+        return _api_error("this endpoint is only available for mind race modules", 409)
     if request.method == "GET":
         return JsonResponse({
             "ok": True,
@@ -350,6 +551,55 @@ def teacher_game_prompt_detail_api(request: HttpRequest, prompt_id: int):
     prompt.missing_text = missing_text
     prompt.save()
     return JsonResponse({"ok": True, "prompt": _serialize_prompt(prompt)})
+
+
+@_json_errors
+@require_http_methods(["GET", "POST"])
+def teacher_wonder_questions_api(request: HttpRequest, module_id: int):
+    teacher = _teacher(request)
+    if not teacher:
+        return _api_error("not authenticated", 401)
+    module = _owned_module(teacher, module_id)
+    if module.rubric != GameModule.Rubric.WONDER_FIELD:
+        return _api_error("this endpoint is only available for wonder field modules", 409)
+    if request.method == "GET":
+        questions = module.wonder_questions.order_by("ordinal", "id")
+        return JsonResponse({"ok": True, "questions": [_serialize_wonder_question(row) for row in questions]})
+    data = _json_body(request)
+    ordinal = _positive_int(data.get("ordinal", 1), "ordinal", 500)
+    prompt, answer = _validate_wonder_question(data)
+    question = WonderFieldQuestion.objects.create(
+        module=module,
+        ordinal=ordinal,
+        prompt=prompt,
+        answer=answer,
+    )
+    return JsonResponse({"ok": True, "question": _serialize_wonder_question(question)}, status=201)
+
+
+@_json_errors
+@require_http_methods(["PATCH", "DELETE"])
+def teacher_wonder_question_detail_api(request: HttpRequest, question_id: int):
+    teacher = _teacher(request)
+    if not teacher:
+        return _api_error("not authenticated", 401)
+    question = get_object_or_404(
+        WonderFieldQuestion.objects.select_related("module__session"),
+        id=question_id,
+        module__session__author=teacher,
+        module__rubric=GameModule.Rubric.WONDER_FIELD,
+    )
+    if request.method == "DELETE":
+        question.delete()
+        return JsonResponse({"ok": True})
+    data = _json_body(request)
+    prompt, answer = _validate_wonder_question(data, question)
+    if "ordinal" in data:
+        question.ordinal = _positive_int(data["ordinal"], "ordinal", 500)
+    question.prompt = prompt
+    question.answer = answer
+    question.save()
+    return JsonResponse({"ok": True, "question": _serialize_wonder_question(question)})
 
 
 @_json_errors
@@ -404,23 +654,56 @@ def teacher_game_start_round_api(request: HttpRequest, round_id: int):
             raise ValueError("only a lobby round can be started")
         if not round_obj.module.session.is_active_now():
             raise ValueError("the lesson session must be running before the game starts")
-        prompts = list(round_obj.module.prompts.order_by("ordinal", "id"))
-        if not prompts:
-            raise ValueError("add at least one sentence before starting")
         if not round_obj.participants.exists():
             raise ValueError("no students are ready")
-        round_obj.prompt_snapshot = [
-            {
-                "ordinal": prompt.ordinal,
-                "sentence": _masked_sentence(prompt.sentence, prompt.missing_text),
-                "answer": prompt.missing_text,
-            }
-            for prompt in prompts
-        ]
-        round_obj.total_prompts = len(prompts)
+        if round_obj.module.rubric == GameModule.Rubric.WONDER_FIELD:
+            questions = list(round_obj.module.wonder_questions.order_by("ordinal", "id"))
+            if not questions:
+                raise ValueError("add at least one question before starting")
+            round_obj.prompt_snapshot = [
+                {"ordinal": row.ordinal, "prompt": row.prompt, "answer": row.answer}
+                for row in questions
+            ]
+            round_obj.total_prompts = len(questions)
+            turn_order = list(round_obj.participants.values_list("student_id", flat=True))
+            secrets.SystemRandom().shuffle(turn_order)
+            round_obj.turn_order = turn_order
+            round_obj.turn_index = 0
+            round_obj.current_question_index = 0
+            round_obj.revealed_letters = []
+            round_obj.used_letters = []
+            round_obj.strikes = 0
+            round_obj.outcome = GameRound.Outcome.PENDING
+            round_obj.turn_started_at = timezone.now()
+        else:
+            prompts = list(round_obj.module.prompts.order_by("ordinal", "id"))
+            if not prompts:
+                raise ValueError("add at least one sentence before starting")
+            round_obj.prompt_snapshot = [
+                {
+                    "ordinal": prompt.ordinal,
+                    "sentence": _masked_sentence(prompt.sentence, prompt.missing_text),
+                    "answer": prompt.missing_text,
+                }
+                for prompt in prompts
+            ]
+            round_obj.total_prompts = len(prompts)
         round_obj.status = GameRound.Status.RUNNING
         round_obj.started_at = timezone.now()
-        round_obj.save(update_fields=["prompt_snapshot", "total_prompts", "status", "started_at"])
+        round_obj.save(update_fields=[
+            "prompt_snapshot",
+            "total_prompts",
+            "turn_order",
+            "turn_index",
+            "current_question_index",
+            "revealed_letters",
+            "used_letters",
+            "strikes",
+            "outcome",
+            "turn_started_at",
+            "status",
+            "started_at",
+        ])
     return JsonResponse({"ok": True, "round": _round_row(round_obj)})
 
 
@@ -433,6 +716,13 @@ def teacher_game_finish_round_api(request: HttpRequest, round_id: int):
     with transaction.atomic():
         round_obj = _owned_round(teacher, round_id, lock=True)
         if round_obj.status == GameRound.Status.FINISHED:
+            return JsonResponse({"ok": True, "round": _round_row(round_obj)})
+        if round_obj.module.rubric == GameModule.Rubric.WONDER_FIELD:
+            _finish_wonder_round(
+                round_obj,
+                GameRound.Outcome.STOPPED,
+                GameRoundEvent.EventType.GAME_STOPPED,
+            )
             return JsonResponse({"ok": True, "round": _round_row(round_obj)})
         next_place = (
             round_obj.participants.filter(finish_place__isnull=False)
@@ -463,6 +753,39 @@ def teacher_game_round_state_api(request: HttpRequest, round_id: int):
     if not teacher:
         return _api_error("not authenticated", 401)
     round_obj = _owned_round(teacher, round_id)
+    if round_obj.module.rubric == GameModule.Rubric.WONDER_FIELD:
+        round_obj = _refresh_wonder_round(round_obj.id)
+    return JsonResponse({"ok": True, "round": _round_row(round_obj)})
+
+
+@_json_errors
+@require_POST
+def teacher_game_round_penalty_api(request: HttpRequest, round_id: int):
+    teacher = _teacher(request)
+    if not teacher:
+        return _api_error("not authenticated", 401)
+    with transaction.atomic():
+        round_obj = _owned_round(teacher, round_id, lock=True)
+        if round_obj.module.rubric != GameModule.Rubric.WONDER_FIELD:
+            return _api_error("penalties are only available in wonder field", 409)
+        _apply_wonder_timeout(round_obj)
+        if round_obj.status != GameRound.Status.RUNNING:
+            return _api_error("the game is not running", 409)
+        round_obj.strikes += 1
+        GameRoundEvent.objects.create(
+            round=round_obj,
+            event_type=GameRoundEvent.EventType.PENALTY,
+            question_index=round_obj.current_question_index,
+        )
+        if round_obj.strikes >= 3:
+            round_obj.save(update_fields=["strikes"])
+            _finish_wonder_round(
+                round_obj,
+                GameRound.Outcome.LOST,
+                GameRoundEvent.EventType.GAME_LOST,
+            )
+        else:
+            round_obj.save(update_fields=["strikes"])
     return JsonResponse({"ok": True, "round": _round_row(round_obj)})
 
 
@@ -474,6 +797,8 @@ def student_game_module_api(request: HttpRequest, module_id: int):
         return _api_error("not authenticated", 401)
     module = _student_module(student, module_id)
     round_obj = _active_round_for_student(module, student)
+    if round_obj and module.rubric == GameModule.Rubric.WONDER_FIELD:
+        round_obj = _refresh_wonder_round(round_obj.id)
     return JsonResponse({
         "ok": True,
         "module": {
@@ -482,7 +807,11 @@ def student_game_module_api(request: HttpRequest, module_id: int):
             "title": module.title,
             "topic": module.topic,
             "rubric": module.rubric,
-            "prompt_count": module.prompts.count(),
+            "prompt_count": (
+                module.wonder_questions.count()
+                if module.rubric == GameModule.Rubric.WONDER_FIELD
+                else module.prompts.count()
+            ),
         },
         "round": _student_round_state(round_obj, student) if round_obj else None,
     })
@@ -544,6 +873,8 @@ def student_game_round_state_api(request: HttpRequest, round_id: int):
         class_group=student.class_group,
         module__session__sessionclass__class_group=student.class_group,
     )
+    if round_obj.module.rubric == GameModule.Rubric.WONDER_FIELD:
+        round_obj = _refresh_wonder_round(round_obj.id)
     return JsonResponse({"ok": True, "round": _student_round_state(round_obj, student)})
 
 
@@ -582,6 +913,8 @@ def student_game_answer_api(request: HttpRequest, round_id: int):
         )
         if round_obj.status != GameRound.Status.RUNNING:
             return _api_error("the game is not running", 409)
+        if round_obj.module.rubric != GameModule.Rubric.MIND_RACE:
+            return _api_error("use the letter endpoint for this game rubric", 409)
         if participant.finish_place is not None:
             return JsonResponse({"ok": True, "correct": True, "finished": True, "place": participant.finish_place})
         if prompt_index != participant.progress:
@@ -620,4 +953,132 @@ def student_game_answer_api(request: HttpRequest, round_id: int):
         "finished": finished,
         "place": participant.finish_place,
         "progress": participant.progress,
+    })
+
+
+@_json_errors
+@require_POST
+def student_game_letter_api(request: HttpRequest, round_id: int):
+    student = _student(request)
+    if not student:
+        return _api_error("not authenticated", 401)
+    if request_is_limited(
+        "game_letter",
+        f"{student.id}:{round_id}",
+        limit=40,
+        window_seconds=60,
+    ):
+        return _api_error("letter rate limit exceeded", 429)
+    data = _json_body(request)
+    letter = unicodedata.normalize("NFKC", str(data.get("letter") or "")).strip().upper()
+    if len(letter) != 1 or letter not in WONDER_FIELD_LETTERS:
+        raise ValueError("letter must be one Latin letter A-Z")
+    try:
+        question_index = int(data.get("question_index"))
+    except (TypeError, ValueError) as exc:
+        raise ValueError("question_index must be an integer") from exc
+
+    with transaction.atomic():
+        round_obj = get_object_or_404(
+            GameRound.objects.select_for_update().select_related("module", "class_group"),
+            id=round_id,
+            class_group=student.class_group,
+        )
+        participant = get_object_or_404(
+            GameParticipant.objects.select_for_update().select_related("student"),
+            round=round_obj,
+            student=student,
+        )
+        if round_obj.module.rubric != GameModule.Rubric.WONDER_FIELD:
+            return _api_error("this endpoint is only available for wonder field", 409)
+        timed_out = _apply_wonder_timeout(round_obj)
+        if round_obj.status != GameRound.Status.RUNNING:
+            return _api_error("the game is not running", 409)
+        if timed_out:
+            return _api_error("turn time expired", 409)
+        if question_index != round_obj.current_question_index:
+            return JsonResponse({"ok": True, "stale": True, "round": _student_round_state(round_obj, student)})
+        if not round_obj.turn_order:
+            return _api_error("turn order is unavailable", 409)
+        current_student_id = round_obj.turn_order[round_obj.turn_index % len(round_obj.turn_order)]
+        if current_student_id != student.id:
+            return _api_error("it is not your turn", 409)
+        if letter in set(round_obj.used_letters or []):
+            return _api_error("this letter has already been used", 409)
+        if question_index >= len(round_obj.prompt_snapshot):
+            return _api_error("question sequence is unavailable", 409)
+
+        now = timezone.now()
+        answer = round_obj.prompt_snapshot[question_index]["answer"]
+        round_obj.used_letters = [*(round_obj.used_letters or []), letter]
+        participant.last_answer_at = now
+        correct = letter in answer
+        if correct:
+            round_obj.revealed_letters = [*(round_obj.revealed_letters or []), letter]
+            participant.correct_answers += 1
+            participant.progress += 1
+            event_type = GameRoundEvent.EventType.CORRECT
+        else:
+            round_obj.strikes += 1
+            participant.wrong_answers += 1
+            event_type = GameRoundEvent.EventType.WRONG
+        participant.save(update_fields=["progress", "correct_answers", "wrong_answers", "last_answer_at"])
+        GameRoundEvent.objects.create(
+            round=round_obj,
+            participant=participant,
+            event_type=event_type,
+            question_index=question_index,
+            letter=letter,
+        )
+
+        question_complete = correct and all(
+            character == " " or character in set(round_obj.revealed_letters)
+            for character in answer
+        )
+        if question_complete:
+            GameRoundEvent.objects.create(
+                round=round_obj,
+                participant=participant,
+                event_type=GameRoundEvent.EventType.QUESTION_COMPLETE,
+                question_index=question_index,
+            )
+            round_obj.current_question_index += 1
+            round_obj.strikes = max(0, round_obj.strikes - 1)
+            round_obj.used_letters = []
+            round_obj.revealed_letters = []
+
+        if round_obj.strikes >= 3:
+            round_obj.save(update_fields=[
+                "used_letters", "revealed_letters", "strikes", "current_question_index",
+            ])
+            _finish_wonder_round(
+                round_obj,
+                GameRound.Outcome.LOST,
+                GameRoundEvent.EventType.GAME_LOST,
+            )
+        elif round_obj.current_question_index >= round_obj.total_prompts:
+            round_obj.save(update_fields=[
+                "used_letters", "revealed_letters", "strikes", "current_question_index",
+            ])
+            _finish_wonder_round(
+                round_obj,
+                GameRound.Outcome.WON,
+                GameRoundEvent.EventType.GAME_WON,
+            )
+        else:
+            _advance_wonder_turn(round_obj, now)
+            round_obj.save(update_fields=[
+                "used_letters",
+                "revealed_letters",
+                "strikes",
+                "current_question_index",
+                "turn_index",
+                "turn_started_at",
+            ])
+
+    return JsonResponse({
+        "ok": True,
+        "correct": correct,
+        "question_complete": question_complete,
+        "round": _student_round_state(round_obj, student),
     })

@@ -518,6 +518,26 @@
     .gameSubmitRow{display:flex;justify-content:center;gap:10px;align-items:center;margin-top:12px;flex-wrap:wrap}.gameFeedback{min-height:24px;font-weight:900;text-align:center;margin-top:10px}.gamePromptStage.correct{animation:gameCorrect .5s ease}.gamePromptStage.wrong{animation:gameWrong .42s ease}
     .gamePodium{display:flex;align-items:flex-end;justify-content:center;gap:12px;margin:28px auto;min-height:220px}.podiumPlace{width:min(28%,180px);text-align:center;border-radius:16px 16px 4px 4px;padding:14px 8px;background:#e2e8f0;box-shadow:0 12px 24px rgba(15,23,42,.15)}.podiumPlace.first{min-height:190px;background:linear-gradient(#fef3c7,#f59e0b)}.podiumPlace.second{min-height:155px;background:linear-gradient(#f8fafc,#94a3b8)}.podiumPlace.third{min-height:130px;background:linear-gradient(#ffedd5,#c2410c)}.podiumPlace .gameAvatar{margin:0 auto 10px;animation:gameCelebrate .7s ease-in-out infinite alternate}
     .gameRanking{display:grid;gap:7px;max-width:700px;margin:0 auto}.gameRankRow{display:flex;justify-content:space-between;gap:10px;padding:10px 12px;border-radius:10px;background:#fff;border:1px solid #e2e8f0}
+    .wonderStudentBoard{display:grid;grid-template-columns:minmax(0,1fr) 290px;gap:16px;margin-top:18px}
+    .wonderPlayArea,.wonderStudentLog{border:1px solid #bae6fd;border-radius:18px;background:rgba(255,255,255,.94);padding:18px;box-shadow:0 16px 34px rgba(15,23,42,.1)}
+    .wonderStudentLog{max-height:520px;overflow:auto;align-self:start}
+    .wonderHeadline{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;flex-wrap:wrap}
+    .wonderQuestion{font-size:clamp(19px,2.5vw,30px);line-height:1.35;font-weight:850;color:#0f172a;margin:18px 0;text-align:center;white-space:pre-wrap}
+    .wonderAnswerCells{display:flex;gap:8px;justify-content:center;align-items:flex-end;flex-wrap:wrap;margin:20px 0 28px}
+    .wonderAnswerCellWrap{display:flex;flex-direction:column;align-items:center;gap:4px;min-height:64px}
+    .wonderAnswerCell{width:39px;height:48px;display:grid;place-items:center;border:2px solid #0f172a;border-radius:9px;background:#fff;font-size:25px;font-weight:900;box-shadow:0 4px 0 #cbd5e1}
+    .wonderAnswerCell.space{width:20px;border:0;box-shadow:none;background:transparent}
+    .wonderGuesser{font-size:9px;color:#64748b;max-width:84px;text-align:center;line-height:1.1}
+    .wonderKeyboard{display:grid;grid-template-columns:repeat(10,minmax(32px,1fr));gap:7px;max-width:760px;margin:0 auto}
+    .wonderLetterBtn{min-height:43px;border:1px solid #94a3b8;border-radius:9px;background:linear-gradient(#fff,#e2e8f0);font-weight:900;font-size:17px;color:#0f172a;cursor:pointer;transition:transform .14s,box-shadow .14s,background .14s}
+    .wonderLetterBtn:hover:not(:disabled){transform:translateY(-2px);box-shadow:0 5px 12px rgba(15,23,42,.16)}
+    .wonderLetterBtn.selected{background:#facc15;border-color:#a16207;transform:translateY(-3px);box-shadow:0 6px 0 #a16207}
+    .wonderLetterBtn:disabled{opacity:.28;cursor:not-allowed;text-decoration:line-through}
+    .wonderTurnBox{text-align:center;margin:16px 0 10px;font-weight:850}.wonderTimer{font-variant-numeric:tabular-nums;padding:5px 10px;border-radius:999px;background:#0f172a;color:#fff}.wonderTimer.urgent{background:#dc2626;animation:wonderPulse .75s infinite alternate}
+    .wonderStrikes{font-size:27px;color:#dc2626;letter-spacing:4px;font-weight:950}
+    .wonderQueue{display:flex;gap:6px;flex-wrap:wrap;justify-content:center;margin:12px 0}.wonderQueueItem{padding:6px 9px;border-radius:999px;background:#e2e8f0;font-size:11px}.wonderQueueItem.current{background:#facc15;color:#422006;font-weight:900;box-shadow:0 0 0 3px rgba(250,204,21,.25)}
+    .wonderLogRow{padding:9px 0;border-bottom:1px solid #e2e8f0;font-size:12px;line-height:1.35}.wonderTeamResult{text-align:center;padding:44px 18px;border-radius:18px;margin-top:20px}.wonderTeamResult.won{background:linear-gradient(135deg,#dcfce7,#fef9c3);color:#14532d}.wonderTeamResult.lost{background:linear-gradient(135deg,#fee2e2,#ffedd5);color:#7f1d1d}
+    @keyframes wonderPulse{to{transform:scale(1.08);box-shadow:0 0 0 5px rgba(220,38,38,.18)}}
     @keyframes gameLook{from{transform:translateX(-2px)}to{transform:translateX(2px)}}@keyframes gameCharIn{from{opacity:0;transform:translateY(12px) scale(.7)}to{opacity:1;transform:none}}@keyframes gameCharOut{to{opacity:0;transform:translateY(-12px) rotate(12deg) scale(.5)}}@keyframes gamePromptIn{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}@keyframes gameCorrect{50%{transform:scale(1.018);box-shadow:0 0 0 5px rgba(34,197,94,.35)}}@keyframes gameWrong{20%,60%{transform:translateX(-10px)}40%,80%{transform:translateX(10px)}}@keyframes gameCelebrate{from{transform:translateY(0) rotate(-4deg)}to{transform:translateY(-16px) rotate(4deg)}}
 
     @media (max-width: 900px){
@@ -529,7 +549,9 @@
         height:240px;
       }
       .gamePodium{gap:6px}.podiumPlace{width:32%;font-size:11px}.gameRunnerName{max-width:95px}
+      .wonderStudentBoard{grid-template-columns:1fr}.wonderStudentLog{max-height:220px;order:2}.wonderKeyboard{grid-template-columns:repeat(7,minmax(32px,1fr))}
     }
+    @media (max-width:520px){.wonderKeyboard{grid-template-columns:repeat(5,minmax(34px,1fr))}.wonderAnswerCell{width:32px;height:42px;font-size:21px}.wonderPlayArea{padding:12px}}
   </style>
 </head>
 <body class="module-bg-coding">
@@ -731,6 +753,27 @@
               <div id="gameFeedback" class="gameFeedback"></div>
             </div>
 
+            <div id="wonderStudentBoard" class="wonderStudentBoard" style="display:none;">
+              <section class="wonderPlayArea">
+                <div class="wonderHeadline">
+                  <div><b id="wonderQuestionNumber"></b></div>
+                  <div><span id="wonderStrikes" class="wonderStrikes"></span> <span id="wonderTimer" class="wonderTimer">20s</span></div>
+                </div>
+                <div id="wonderQuestionText" class="wonderQuestion"></div>
+                <div id="wonderAnswerCells" class="wonderAnswerCells"></div>
+                <div id="wonderTurnBox" class="wonderTurnBox"></div>
+                <div id="wonderKeyboard" class="wonderKeyboard"></div>
+                <div class="gameSubmitRow">
+                  <button id="wonderSubmitBtn" class="primary" type="button" disabled>{{ T.wonder_submit_letter }}</button>
+                </div>
+                <div id="wonderQueue" class="wonderQueue"></div>
+              </section>
+              <aside class="wonderStudentLog">
+                <div class="title" style="font-size:17px;">{{ T.wonder_logs }}</div>
+                <div id="wonderLogs"></div>
+              </aside>
+            </div>
+
             <div id="gameResults" style="display:none;"></div>
           </div>
         </div>
@@ -820,6 +863,19 @@
     ,gameNoRound: "{{ T.game_no_round|escapejs }}"
     ,gameResults: "{{ T.game_results|escapejs }}"
     ,gamePlayers: "{{ T.game_players|escapejs }}"
+    ,wonderTurn: "{{ T.wonder_turn|escapejs }}"
+    ,wonderYourTurn: "{{ T.wonder_your_turn|escapejs }}"
+    ,wonderWaitTurn: "{{ T.wonder_wait_turn|escapejs }}"
+    ,wonderSelectLetter: "{{ T.wonder_select_letter|escapejs }}"
+    ,wonderLogCorrect: "{{ T.wonder_log_correct|escapejs }}"
+    ,wonderLogWrong: "{{ T.wonder_log_wrong|escapejs }}"
+    ,wonderLogTimeout: "{{ T.wonder_log_timeout|escapejs }}"
+    ,wonderLogPenalty: "{{ T.wonder_log_penalty|escapejs }}"
+    ,wonderLogQuestionComplete: "{{ T.wonder_log_question_complete|escapejs }}"
+    ,wonderTeamWon: "{{ T.wonder_team_won|escapejs }}"
+    ,wonderTeamLost: "{{ T.wonder_team_lost|escapejs }}"
+    ,wonderGameStopped: "{{ T.wonder_game_stopped|escapejs }}"
+    ,wonderNoLogs: "{{ T.wonder_no_logs|escapejs }}"
   };
 
   let currentTaskId = null;
@@ -838,6 +894,8 @@
   let gamePreviousInput = "";
   let gameAnswerPending = false;
   let gameCharRenderToken = 0;
+  let selectedWonderLetter = "";
+  let wonderSelectionContext = "";
 
   function qs(id){ return document.getElementById(id); }
 
@@ -1639,6 +1697,92 @@
     box.innerHTML = `<div class="title" style="text-align:center;margin-top:22px;">${escapeHtml(UI.gameResults)}</div><div class="gamePodium">${podium}</div><div class="gameRanking">${ranked.map(player => `<div class="gameRankRow"><b>#${player.finish_place} ${escapeHtml(player.student_name)}</b><span>${player.progress}/${round.total_prompts}</span></div>`).join("")}</div>`;
   }
 
+  function wonderStudentEventText(event){
+    const name = event.student_name || "{{ T.teacher_label|default:'Teacher'|escapejs }}";
+    if (event.event_type === "correct") return `${name}: ${event.letter} · ${UI.wonderLogCorrect}`;
+    if (event.event_type === "wrong") return `${name}: ${event.letter} · ${UI.wonderLogWrong}`;
+    if (event.event_type === "timeout") return `${name} · ${UI.wonderLogTimeout}`;
+    if (event.event_type === "penalty") return UI.wonderLogPenalty;
+    if (event.event_type === "question_complete") return UI.wonderLogQuestionComplete;
+    if (event.event_type === "game_won") return UI.wonderTeamWon;
+    if (event.event_type === "game_lost") return UI.wonderTeamLost;
+    return UI.wonderGameStopped;
+  }
+
+  function chooseWonderLetter(letter){
+    if (!currentGameRound?.is_my_turn || !(currentGameRound.available_letters || []).includes(letter)) return;
+    selectedWonderLetter = letter;
+    renderStudentWonderRound(currentGameRound);
+  }
+
+  function renderStudentWonderRound(round){
+    const board = qs("wonderStudentBoard");
+    board.style.display = "grid";
+    const question = round.current_question;
+    const context = `${round.current_turn_student_id || 0}:${round.current_question_index}`;
+    if (wonderSelectionContext !== context || !(round.available_letters || []).includes(selectedWonderLetter)){
+      selectedWonderLetter = "";
+      wonderSelectionContext = context;
+    }
+    qs("wonderQuestionNumber").textContent = question ? `${UI.gameQuestion} ${question.question_index + 1}/${round.total_prompts}` : "";
+    qs("wonderQuestionText").textContent = question?.prompt || "";
+    qs("wonderStrikes").textContent = `${"✕".repeat(Number(round.strikes || 0))}${"○".repeat(Math.max(0, 3 - Number(round.strikes || 0)))}`;
+    const seconds = Number(round.seconds_left || 0);
+    qs("wonderTimer").textContent = `${seconds}s`;
+    qs("wonderTimer").classList.toggle("urgent", seconds <= 5 && round.status === "running");
+    qs("wonderAnswerCells").innerHTML = question ? (question.cells || []).map(cell => {
+      if (cell.kind === "space") return `<span class="wonderAnswerCellWrap"><span class="wonderAnswerCell space"></span></span>`;
+      const names = (cell.guessed_by || []).map(escapeHtml).join(", ");
+      return `<span class="wonderAnswerCellWrap"><span class="wonderAnswerCell">${escapeHtml(cell.value || "")}</span><span class="wonderGuesser">${names}</span></span>`;
+    }).join("") : "";
+    const currentPlayer = (round.turn_order || []).find(row => Number(row.student_id) === Number(round.current_turn_student_id));
+    qs("wonderTurnBox").textContent = round.is_my_turn
+      ? `${UI.wonderYourTurn} ${selectedWonderLetter ? `· ${UI.wonderSelectLetter}: ${selectedWonderLetter}` : `· ${UI.wonderSelectLetter}`}`
+      : `${UI.wonderWaitTurn}: ${currentPlayer?.student_name || "—"}`;
+    const available = new Set(round.available_letters || []);
+    qs("wonderKeyboard").innerHTML = "QWERTYUIOPASDFGHJKLZXCVBNM".split("").map(letter => `
+      <button type="button" class="wonderLetterBtn ${selectedWonderLetter === letter ? "selected" : ""}" data-letter="${letter}" ${!round.is_my_turn || !available.has(letter) ? "disabled" : ""}>${letter}</button>
+    `).join("");
+    qs("wonderKeyboard").querySelectorAll("[data-letter]").forEach(button => {
+      button.addEventListener("click", () => chooseWonderLetter(button.dataset.letter));
+    });
+    qs("wonderSubmitBtn").disabled = !round.is_my_turn || !selectedWonderLetter;
+    qs("wonderQueue").innerHTML = (round.turn_order || []).map((row, index) => `
+      <span class="wonderQueueItem ${Number(row.student_id) === Number(round.current_turn_student_id) ? "current" : ""}">${index + 1}. ${escapeHtml(row.student_name)}</span>
+    `).join("");
+    const logs = (round.events || []).slice().reverse();
+    qs("wonderLogs").innerHTML = logs.length
+      ? logs.map(event => `<div class="wonderLogRow">${escapeHtml(wonderStudentEventText(event))}</div>`).join("")
+      : `<div class="muted" style="margin-top:10px;">${escapeHtml(UI.wonderNoLogs)}</div>`;
+  }
+
+  function renderWonderTeamResult(round){
+    const box = qs("gameResults");
+    const won = round.outcome === "won";
+    const text = won ? UI.wonderTeamWon : (round.outcome === "lost" ? UI.wonderTeamLost : UI.wonderGameStopped);
+    box.style.display = "block";
+    box.innerHTML = `<div class="wonderTeamResult ${won ? "won" : "lost"}"><div class="title" style="font-size:clamp(26px,5vw,48px);">${escapeHtml(text)}</div><div style="margin-top:10px;">${round.current_question_index}/${round.total_prompts}</div></div>`;
+  }
+
+  async function submitWonderLetter(){
+    if (gameAnswerPending || !currentGameRound?.is_my_turn || !selectedWonderLetter || !currentGameRound.current_question) return;
+    gameAnswerPending = true;
+    qs("wonderSubmitBtn").disabled = true;
+    const res = await apiPost(`/api/student/game-rounds/${currentGameRound.id}/letter/`, {
+      letter: selectedWonderLetter,
+      question_index: currentGameRound.current_question.question_index
+    });
+    gameAnswerPending = false;
+    selectedWonderLetter = "";
+    if (!res.data.ok){
+      showStatus(res.data.error || UI.gameIncorrect);
+      await pollStudentGame(currentGameRound.id);
+      return;
+    }
+    hideStatus();
+    renderStudentGameRound(res.data.round);
+  }
+
   function scheduleStudentGamePoll(roundId){
     stopStudentGamePolling();
     if (!roundId || currentModuleType !== "game") return;
@@ -1656,8 +1800,11 @@
     const lobby = qs("gameLobby");
     const readyBtn = qs("gameReadyBtn");
     const stage = qs("gamePromptStage");
+    const wonderBoard = qs("wonderStudentBoard");
     const results = qs("gameResults");
     results.style.display = "none";
+    wonderBoard.style.display = "none";
+    qs("gameTracks").style.display = round?.rubric === "wonder_field" ? "none" : "grid";
     qs("gameStatus").textContent = round ? `${round.class.name} · #${round.run_number} · ${round.status}` : UI.gameWaiting;
     renderGameTracks(round);
 
@@ -1685,7 +1832,9 @@
       lobby.style.display = "none";
       readyBtn.style.display = "none";
       stage.style.display = "none";
-      renderGameResults(round);
+      wonderBoard.style.display = "none";
+      if (round.rubric === "wonder_field") renderWonderTeamResult(round);
+      else renderGameResults(round);
       stopStudentGamePolling();
       return;
     }
@@ -1696,6 +1845,14 @@
       qs("gameLobbyText").textContent = UI.gameNotRegistered;
       readyBtn.style.display = "none";
       stage.style.display = "none";
+      scheduleStudentGamePoll(round.id);
+      return;
+    }
+
+    if (round.rubric === "wonder_field"){
+      lobby.style.display = "none";
+      stage.style.display = "none";
+      renderStudentWonderRound(round);
       scheduleStudentGamePoll(round.id);
       return;
     }
@@ -2151,6 +2308,7 @@
     qs("quizSubmitBtn").addEventListener("click", submitQuiz);
     qs("gameReadyBtn").addEventListener("click", markGameReady);
     qs("gameAnswerBtn").addEventListener("click", submitGameAnswer);
+    qs("wonderSubmitBtn").addEventListener("click", submitWonderLetter);
     qs("gameAnswerInput").addEventListener("input", event => renderGameCharacters(event.target.value));
     qs("gameAnswerInput").addEventListener("keydown", event => {
       if (event.key === "Enter"){

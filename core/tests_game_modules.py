@@ -9,11 +9,13 @@ from .models import (
     GameModule,
     GameParticipant,
     GameRound,
+    GameRoundEvent,
     Session,
     SessionClass,
     SessionTask,
     Student,
     Teacher,
+    WonderFieldQuestion,
 )
 from .security import auth_version
 
@@ -115,6 +117,28 @@ class MindRaceGameTests(TestCase):
         )
         self.assertIn(response.status_code, {200, 201})
         return response.json()["round"]
+
+    def _create_wonder_module(self):
+        response = self._json(
+            self.teacher_client,
+            "post",
+            f"/api/teacher/sessions/{self.session.id}/game-modules/",
+            {"title": "Wonder", "topic": "Terms", "position": 1, "rubric": "wonder_field"},
+        )
+        self.assertEqual(response.status_code, 201)
+        module_id = response.json()["module"]["id"]
+        for question in [
+            {"ordinal": 1, "prompt": "Two letters", "answer": "A B"},
+            {"ordinal": 2, "prompt": "Programming unit", "answer": "CODE"},
+        ]:
+            added = self._json(
+                self.teacher_client,
+                "post",
+                f"/api/teacher/game-modules/{module_id}/wonder-questions/",
+                question,
+            )
+            self.assertEqual(added.status_code, 201)
+        return module_id
 
     def test_rounds_are_isolated_by_class_and_repeat_run(self):
         module_id = self._create_module()
@@ -261,3 +285,100 @@ class MindRaceGameTests(TestCase):
         student_page = self.client_a.get("/student/")
         self.assertEqual(student_page.status_code, 200)
         self.assertContains(student_page, 'id="gameCard"')
+
+    def test_wonder_field_uses_fixed_turns_and_never_exposes_answer(self):
+        module_id = self._create_wonder_module()
+        round_row = self._open_round(module_id, self.class_a)
+        self._json(self.client_a, "post", f"/api/student/game-module/{module_id}/ready/")
+        self._json(self.client_a2, "post", f"/api/student/game-module/{module_id}/ready/")
+        started = self._json(
+            self.teacher_client,
+            "post",
+            f"/api/teacher/game-rounds/{round_row['id']}/start/",
+        )
+        self.assertEqual(started.status_code, 200)
+        started_round = started.json()["round"]
+        original_order = [row["student_id"] for row in started_round["turn_order"]]
+        self.assertCountEqual(original_order, [self.student_a.id, self.student_a2.id])
+
+        clients = {self.student_a.id: self.client_a, self.student_a2.id: self.client_a2}
+        first_student_id = started_round["current_turn_student_id"]
+        other_student_id = next(value for value in original_order if value != first_student_id)
+        blocked = self._json(
+            clients[other_student_id],
+            "post",
+            f"/api/student/game-rounds/{round_row['id']}/letter/",
+            {"letter": "A", "question_index": 0},
+        )
+        self.assertEqual(blocked.status_code, 409)
+
+        first_guess = self._json(
+            clients[first_student_id],
+            "post",
+            f"/api/student/game-rounds/{round_row['id']}/letter/",
+            {"letter": "A", "question_index": 0},
+        )
+        self.assertEqual(first_guess.status_code, 200)
+        self.assertTrue(first_guess.json()["correct"])
+        state = first_guess.json()["round"]
+        self.assertEqual([cell["kind"] for cell in state["current_question"]["cells"]], ["letter", "space", "letter"])
+        self.assertEqual(state["current_question"]["cells"][0]["value"], "A")
+        expected_name = {self.student_a.id: self.student_a.full_name, self.student_a2.id: self.student_a2.full_name}
+        self.assertEqual(state["current_question"]["cells"][0]["guessed_by"], [expected_name[first_student_id]])
+
+        second_student_id = state["current_turn_student_id"]
+        completed = self._json(
+            clients[second_student_id],
+            "post",
+            f"/api/student/game-rounds/{round_row['id']}/letter/",
+            {"letter": "B", "question_index": 0},
+        )
+        self.assertTrue(completed.json()["question_complete"])
+        next_state = completed.json()["round"]
+        self.assertEqual(next_state["current_question_index"], 1)
+        self.assertEqual(next_state["used_letters"], [])
+        self.assertEqual([row["student_id"] for row in next_state["turn_order"]], original_order)
+
+        student_state = clients[first_student_id].get(f"/api/student/game-rounds/{round_row['id']}/state/")
+        self.assertNotIn('"answer"', student_state.content.decode("utf-8").casefold())
+        self.assertNotIn("code", student_state.content.decode("utf-8").casefold())
+
+    def test_wonder_field_timeout_and_three_strikes_end_the_game(self):
+        module_id = self._create_wonder_module()
+        round_row = self._open_round(module_id, self.class_a)
+        self._json(self.client_a, "post", f"/api/student/game-module/{module_id}/ready/")
+        self._json(self.teacher_client, "post", f"/api/teacher/game-rounds/{round_row['id']}/start/")
+        GameRound.objects.filter(id=round_row["id"]).update(
+            turn_started_at=timezone.now() - timedelta(seconds=21),
+        )
+
+        timed_out = self.client_a.get(f"/api/student/game-rounds/{round_row['id']}/state/")
+        self.assertEqual(timed_out.status_code, 200)
+        self.assertEqual(timed_out.json()["round"]["strikes"], 1)
+        self.assertTrue(GameRoundEvent.objects.filter(round_id=round_row["id"], event_type="timeout").exists())
+
+        for _ in range(2):
+            penalty = self._json(
+                self.teacher_client,
+                "post",
+                f"/api/teacher/game-rounds/{round_row['id']}/penalty/",
+            )
+        self.assertEqual(penalty.status_code, 200)
+        self.assertEqual(penalty.json()["round"]["status"], GameRound.Status.FINISHED)
+        self.assertEqual(penalty.json()["round"]["outcome"], GameRound.Outcome.LOST)
+
+    def test_wonder_question_validation(self):
+        module = GameModule.objects.create(
+            session=self.session,
+            position=1,
+            title="Wonder",
+            rubric=GameModule.Rubric.WONDER_FIELD,
+        )
+        invalid = self._json(
+            self.teacher_client,
+            "post",
+            f"/api/teacher/game-modules/{module.id}/wonder-questions/",
+            {"ordinal": 1, "prompt": "Question", "answer": "ОТВЕТ 1"},
+        )
+        self.assertEqual(invalid.status_code, 400)
+        self.assertFalse(WonderFieldQuestion.objects.filter(module=module).exists())

@@ -38,7 +38,22 @@
   .teacher-runner-shape.pentagon{clip-path:polygon(50% 0,100% 38%,82% 100%,18% 100%,0 38%)}
   .teacher-runner-shape.hexagon{clip-path:polygon(25% 0,75% 0,100% 50%,75% 100%,25% 100%,0 50%)}
   .game-round-history{display:flex;gap:7px;flex-wrap:wrap;margin-top:10px}
+  .wonder-board{display:grid;grid-template-columns:minmax(0,1fr) 280px;gap:14px;margin-top:12px}
+  .wonder-main,.wonder-log{background:rgba(255,255,255,.9);border:1px solid #dbeafe;border-radius:14px;padding:14px}
+  .wonder-cells{display:flex;gap:7px;flex-wrap:wrap;align-items:flex-end;margin:14px 0}
+  .wonder-cell{width:34px;height:42px;border:2px solid #0f172a;border-radius:7px;display:grid;place-items:center;font-size:22px;font-weight:800;background:#fff}
+  .wonder-cell.space{width:16px;border:0;background:transparent}
+  .wonder-keyboard{display:flex;gap:5px;flex-wrap:wrap}
+  .wonder-key{min-width:29px;padding:6px;border-radius:7px;background:#e0f2fe;text-align:center;font-weight:800}
+  .wonder-key.used{background:#e5e7eb;color:#9ca3af;text-decoration:line-through}
+  .wonder-queue{display:flex;gap:7px;flex-wrap:wrap;margin:10px 0}
+  .wonder-queue-item{padding:6px 9px;border-radius:999px;background:#e2e8f0;font-size:12px}
+  .wonder-queue-item.current{background:#facc15;color:#422006;font-weight:800;box-shadow:0 0 0 3px rgba(250,204,21,.24)}
+  .wonder-log{max-height:360px;overflow:auto}
+  .wonder-log-row{padding:7px 0;border-bottom:1px solid #e5e7eb;font-size:12px}
+  .wonder-strikes{font-size:25px;letter-spacing:4px;color:#dc2626;font-weight:900}
   @media(max-width:800px){.game-host .row>*{width:100%}}
+  @media(max-width:900px){.wonder-board{grid-template-columns:1fr}.wonder-log{max-height:220px}}
 </style>
 
 <div class="card" style="margin-bottom:12px;">
@@ -61,6 +76,10 @@
       <select id="newCodingLanguage" class="select-ui" style="min-width:150px;">
         <option value="python">{{ T.language_python|default:"Python" }}</option>
         <option value="cpp">{{ T.language_cpp|default:"C++" }}</option>
+      </select>
+      <select id="newGameRubric" class="select-ui" style="min-width:170px;display:none;">
+        <option value="mind_race">{{ T.mind_race }}</option>
+        <option value="wonder_field">{{ T.wonder_field }}</option>
       </select>
       <input id="newPosition" class="input-ui" type="number" value="1" style="width:90px;">
       <input id="newTitle" class="input-ui" placeholder="{{ T.module_title }}" style="flex:1;">
@@ -94,6 +113,7 @@
         <div class="muted" style="margin-top:10px;">{{ T.game_rubric }}</div>
         <select id="gameRubric" class="select-ui" style="width:100%;">
           <option value="mind_race">{{ T.mind_race }}</option>
+          <option value="wonder_field">{{ T.wonder_field }}</option>
         </select>
       </div>
 
@@ -170,21 +190,36 @@
             <button id="gameOpenLobbyBtn" class="btn" type="button">{{ T.open_game_registration }}</button>
             <button id="gameStartBtn" class="btn" type="button">{{ T.start_game }}</button>
             <button id="gameFinishBtn" class="btn" type="button">{{ T.finish_game }}</button>
+            <button id="gamePenaltyBtn" class="btn" type="button" style="display:none;">{{ T.wonder_penalty }}</button>
             <span id="gameRoundStatus" class="muted"></span>
           </div>
           <div id="gameParticipants" style="margin-top:12px;"></div>
           <div id="gameRoundHistory" class="game-round-history"></div>
         </div>
 
-        <div style="margin-top:16px;"><b>{{ T.mind_race_sentences }}</b></div>
-        <div class="muted">{{ T.mind_race_sentence_help }}</div>
-        <div class="row" style="margin-top:10px;">
-          <input id="gamePromptOrdinal" class="input-ui" type="number" min="1" value="1" style="width:90px;">
-          <input id="gameMissingText" class="input-ui" placeholder="{{ T.missing_text }}" style="min-width:180px;">
-          <button id="gameAddPromptBtn" class="btn" type="button">{{ T.add_sentence }}</button>
+        <div id="mindRaceEditor">
+          <div style="margin-top:16px;"><b>{{ T.mind_race_sentences }}</b></div>
+          <div class="muted">{{ T.mind_race_sentence_help }}</div>
+          <div class="row" style="margin-top:10px;">
+            <input id="gamePromptOrdinal" class="input-ui" type="number" min="1" value="1" style="width:90px;">
+            <input id="gameMissingText" class="input-ui" placeholder="{{ T.missing_text }}" style="min-width:180px;">
+            <button id="gameAddPromptBtn" class="btn" type="button">{{ T.add_sentence }}</button>
+          </div>
+          <textarea id="gameSentence" class="textarea-ui" placeholder="{{ T.full_sentence }}" style="width:100%;height:90px;margin-top:8px;"></textarea>
+          <div id="gamePromptsList"></div>
         </div>
-        <textarea id="gameSentence" class="textarea-ui" placeholder="{{ T.full_sentence }}" style="width:100%;height:90px;margin-top:8px;"></textarea>
-        <div id="gamePromptsList"></div>
+
+        <div id="wonderFieldEditor" style="display:none;">
+          <div style="margin-top:16px;"><b>{{ T.wonder_questions }}</b></div>
+          <div class="muted">{{ T.wonder_question_help }}</div>
+          <div class="row" style="margin-top:10px;">
+            <input id="wonderQuestionOrdinal" class="input-ui" type="number" min="1" value="1" style="width:90px;">
+            <input id="wonderAnswer" class="input-ui" placeholder="{{ T.wonder_answer }}" maxlength="200" style="min-width:190px;">
+            <button id="wonderAddQuestionBtn" class="btn" type="button">{{ T.add_question }}</button>
+          </div>
+          <textarea id="wonderQuestionPrompt" class="textarea-ui" placeholder="{{ T.question_prompt }}" style="width:100%;height:90px;margin-top:8px;"></textarea>
+          <div id="wonderQuestionsList"></div>
+        </div>
       </div>
 
       <div id="legacyEditor" class="panel" style="display:none;"></div>
@@ -278,6 +313,7 @@
   function syncCreateTypeFields(){
     const type = qs("newModuleType").value;
     qs("newCodingLanguage").style.display = type === "coding_task" ? "inline-block" : "none";
+    qs("newGameRubric").style.display = type === "game" ? "inline-block" : "none";
   }
 
   function syncBlockTypeFields(){
@@ -513,6 +549,69 @@
     qs("gamePromptOrdinal").value = String(next);
   }
 
+  function renderWonderQuestions(questions){
+    const list = qs("wonderQuestionsList");
+    list.innerHTML = "";
+    (questions || []).forEach(question => {
+      const row = document.createElement("div");
+      row.className = "game-prompt-row";
+      row.innerHTML = `
+        <div class="row">
+          <input id="wonder_ord_${question.id}" class="input-ui" type="number" min="1" value="${question.ordinal}" style="width:80px;">
+          <input id="wonder_answer_${question.id}" class="input-ui" value="${escapeHtml(question.answer)}" maxlength="200" style="min-width:190px;flex:1;">
+          <button type="button" class="btn" onclick="saveWonderQuestion(${question.id})">{{ T.save }}</button>
+          <button type="button" class="btn" onclick="deleteWonderQuestion(${question.id})">{{ T.delete }}</button>
+        </div>
+        <textarea id="wonder_prompt_${question.id}" class="textarea-ui" style="width:100%;margin-top:8px;">${escapeHtml(question.prompt)}</textarea>
+      `;
+      list.appendChild(row);
+    });
+    const used = new Set((questions || []).map(row => Number(row.ordinal)));
+    let next = 1;
+    while (used.has(next)) next += 1;
+    qs("wonderQuestionOrdinal").value = String(next);
+  }
+
+  function wonderEventText(event){
+    const name = event.student_name || "{{ T.teacher_label|default:'Teacher'|escapejs }}";
+    if (event.event_type === "correct") return `${name}: ${event.letter} · {{ T.wonder_log_correct|escapejs }}`;
+    if (event.event_type === "wrong") return `${name}: ${event.letter} · {{ T.wonder_log_wrong|escapejs }}`;
+    if (event.event_type === "timeout") return `${name} · {{ T.wonder_log_timeout|escapejs }}`;
+    if (event.event_type === "penalty") return `{{ T.wonder_log_penalty|escapejs }}`;
+    if (event.event_type === "question_complete") return `{{ T.wonder_log_question_complete|escapejs }}`;
+    if (event.event_type === "game_won") return `{{ T.wonder_team_won|escapejs }}`;
+    if (event.event_type === "game_lost") return `{{ T.wonder_team_lost|escapejs }}`;
+    return `{{ T.wonder_game_stopped|escapejs }}`;
+  }
+
+  function renderTeacherWonderRound(round){
+    const question = round.current_question;
+    const currentStudentId = Number(round.current_turn_student_id || 0);
+    const queue = (round.turn_order || []).map((row, index) => `
+      <span class="wonder-queue-item ${Number(row.student_id) === currentStudentId ? "current" : ""}">${index + 1}. ${escapeHtml(row.student_name)}</span>
+    `).join("");
+    const cells = question ? (question.cells || []).map(cell => {
+      if (cell.kind === "space") return `<span class="wonder-cell space"></span>`;
+      const names = (cell.guessed_by || []).map(escapeHtml).join(", ");
+      return `<span style="display:flex;flex-direction:column;align-items:center;gap:3px;"><span class="wonder-cell">${escapeHtml(cell.value || "")}</span><small class="muted" style="max-width:74px;text-align:center;">${names}</small></span>`;
+    }).join("") : "";
+    const used = new Set(round.used_letters || []);
+    const keys = "QWERTYUIOPASDFGHJKLZXCVBNM".split("").map(letter => `<span class="wonder-key ${used.has(letter) ? "used" : ""}">${letter}</span>`).join("");
+    const logs = (round.events || []).slice().reverse().map(event => `<div class="wonder-log-row">${escapeHtml(wonderEventText(event))}</div>`).join("");
+    qs("gameParticipants").innerHTML = `
+      <div class="wonder-board">
+        <div class="wonder-main">
+          <div class="row" style="justify-content:space-between;"><b>${question ? `#${question.question_index + 1}/${round.total_prompts} · ${escapeHtml(question.prompt)}` : "{{ T.wonder_no_question|escapejs }}"}</b><span><span class="wonder-strikes">${"✕".repeat(Number(round.strikes || 0))}${"○".repeat(Math.max(0, 3 - Number(round.strikes || 0)))}</span> · ${round.seconds_left || 0}s</span></div>
+          <div class="wonder-cells">${cells}</div>
+          <div class="wonder-keyboard">${keys}</div>
+          <div style="margin-top:14px;"><b>{{ T.wonder_turn_queue }}</b></div>
+          <div class="wonder-queue">${queue || `<span class="muted">{{ T.waiting_for_players|escapejs }}</span>`}</div>
+        </div>
+        <aside class="wonder-log"><b>{{ T.wonder_logs }}</b>${logs || `<div class="muted" style="margin-top:8px;">{{ T.wonder_no_logs|escapejs }}</div>`}</aside>
+      </div>
+    `;
+  }
+
   function gameShapeHtml(participant){
     return `<div class="teacher-runner-shape ${escapeHtml(participant.avatar_shape)}" style="--runner-color:${escapeHtml(participant.avatar_color)}"></div>`;
   }
@@ -526,11 +625,18 @@
       participantsBox.innerHTML = `<div class="muted">{{ T.open_registration_hint|escapejs }}</div>`;
       qs("gameStartBtn").disabled = true;
       qs("gameFinishBtn").disabled = true;
+      qs("gamePenaltyBtn").style.display = "none";
       return;
     }
     status.textContent = `#${round.run_number} · ${round.class.name} · ${round.status}`;
     qs("gameStartBtn").disabled = round.status !== "lobby";
     qs("gameFinishBtn").disabled = round.status === "finished";
+    qs("gamePenaltyBtn").style.display = round.rubric === "wonder_field" ? "inline-block" : "none";
+    qs("gamePenaltyBtn").disabled = round.status !== "running";
+    if (round.rubric === "wonder_field"){
+      renderTeacherWonderRound(round);
+      return;
+    }
     const total = Number(round.total_prompts || currentGameModule?.prompt_count || 1);
     participantsBox.innerHTML = (round.participants || []).length
       ? round.participants.map(p => {
@@ -576,7 +682,12 @@
 
   function renderGameModule(module){
     currentGameModule = module;
+    const isWonder = module.rubric === "wonder_field";
+    qs("mindRaceEditor").style.display = isWonder ? "none" : "block";
+    qs("wonderFieldEditor").style.display = isWonder ? "block" : "none";
+    qs("gameRubric").disabled = true;
     renderGamePrompts(module.prompts || []);
+    renderWonderQuestions(module.wonder_questions || []);
     const classSelect = qs("gameClassSelect");
     const previous = Number(classSelect.value || 0);
     classSelect.innerHTML = (module.classes || []).map(row => `<option value="${row.id}">${escapeHtml(row.name)}</option>`).join("");
@@ -617,6 +728,37 @@
     await openModule(currentSelectedItem());
   }
 
+  async function addWonderQuestion(){
+    if (currentGameModule?.rubric !== "wonder_field" || !selectedModuleId) return;
+    const res = await api(`/api/teacher/game-modules/${selectedModuleId}/wonder-questions/`, "POST", {
+      ordinal: qs("wonderQuestionOrdinal").value,
+      prompt: qs("wonderQuestionPrompt").value,
+      answer: qs("wonderAnswer").value
+    });
+    if (!res.data.ok) return setMsg(res.data.error || UI.createFailed);
+    qs("wonderQuestionPrompt").value = "";
+    qs("wonderAnswer").value = "";
+    setMsg("{{ T.question_added|escapejs }}");
+    await openModule(currentSelectedItem());
+  }
+
+  async function saveWonderQuestion(questionId){
+    const res = await api(`/api/teacher/wonder-questions/${questionId}/`, "PATCH", {
+      ordinal: qs(`wonder_ord_${questionId}`).value,
+      prompt: qs(`wonder_prompt_${questionId}`).value,
+      answer: qs(`wonder_answer_${questionId}`).value
+    });
+    if (!res.data.ok) return setMsg(res.data.error || UI.saveFailed);
+    setMsg("{{ T.question_saved|default:'Saved'|escapejs }}");
+    await openModule(currentSelectedItem());
+  }
+
+  async function deleteWonderQuestion(questionId){
+    const res = await api(`/api/teacher/wonder-questions/${questionId}/`, "DELETE");
+    if (!res.data.ok) return setMsg(res.data.error || UI.deleteFailed);
+    await openModule(currentSelectedItem());
+  }
+
   async function openGameLobby(){
     if (!selectedModuleId || !qs("gameClassSelect").value) return;
     const res = await api(`/api/teacher/game-modules/${selectedModuleId}/rounds/open/`, "POST", {class_id:Number(qs("gameClassSelect").value)});
@@ -639,6 +781,13 @@
     if (!res.data.ok) return setMsg(res.data.error || UI.saveFailed);
     renderTeacherGameRound(res.data.round);
     await openModule(currentSelectedItem());
+  }
+
+  async function penalizeGameRound(){
+    if (!currentGameRound || currentGameRound.rubric !== "wonder_field") return;
+    const res = await api(`/api/teacher/game-rounds/${currentGameRound.id}/penalty/`, "POST", {});
+    if (!res.data.ok) return setMsg(res.data.error || UI.saveFailed);
+    renderTeacherGameRound(res.data.round);
   }
 
   async function openModule(item){
@@ -765,7 +914,7 @@
       body.instructions = "";
     } else if (type === "game"){
       url = `/api/teacher/sessions/${selectedSessionId}/game-modules/`;
-      body.rubric = "mind_race";
+      body.rubric = qs("newGameRubric").value || "mind_race";
     } else if (type === "coding_task"){
       url = `/api/teacher/sessions/${selectedSessionId}/tasks/`;
       body.statement = "";
@@ -915,10 +1064,12 @@
   qs("generateBtn").addEventListener("click", generateModule);
   qs("addQuestionBtn").addEventListener("click", addQuestion);
   qs("gameAddPromptBtn").addEventListener("click", addGamePrompt);
+  qs("wonderAddQuestionBtn").addEventListener("click", addWonderQuestion);
   qs("gameClassSelect").addEventListener("change", selectGameClass);
   qs("gameOpenLobbyBtn").addEventListener("click", openGameLobby);
   qs("gameStartBtn").addEventListener("click", startGameRound);
   qs("gameFinishBtn").addEventListener("click", finishGameRound);
+  qs("gamePenaltyBtn").addEventListener("click", penalizeGameRound);
 
   syncQuestionTypeFields();
   syncCreateTypeFields();
