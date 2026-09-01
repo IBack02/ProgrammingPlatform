@@ -2103,6 +2103,9 @@ def student_dashboard_data(request: HttpRequest):
             }
         )
 
+    from .exam_views import build_student_exam_chart
+    exam_chart = build_student_exam_chart(student)
+
     return JsonResponse(
         {
             "ok": True,
@@ -2121,6 +2124,7 @@ def student_dashboard_data(request: HttpRequest):
                 "accepted_counts": chart_accepted_counts,
                 "total_attempts": chart_total_attempts,
             },
+            "exam_chart": exam_chart,
             "last_attempts": attempts_out,
         }
     )

@@ -649,9 +649,10 @@
           <div><b>{{ T.task_statement }}</b></div>
           <div id="taskStatement"></div>
 
-          <div style="margin-top:10px;"></div>
-          <div class="small"><b>{{ T.constraints }}</b></div>
-          <div class="small" id="taskConstraints"></div>
+          <div id="constraintsSection" style="margin-top:10px;display:none;">
+            <div class="small"><b>{{ T.constraints }}</b></div>
+            <div class="small" id="taskConstraints"></div>
+          </div>
 
           <div style="margin-top:12px;"></div>
           <div class="small"><b>{{ T.visible_tests }}</b></div>
@@ -2004,6 +2005,7 @@
       qs("taskMeta").textContent = `Theory module #${res.data.module.position} (id=${res.data.module.id})`;
       qs("taskStatement").textContent = res.data.module.topic || "";
       qs("taskConstraints").textContent = "";
+      qs("constraintsSection").style.display = "none";
       qs("visibleTests").innerHTML = "";
       renderTheoryBlocks(res.data.module.blocks || []);
 
@@ -2030,6 +2032,7 @@
       qs("taskMeta").textContent = `Quiz module #${res.data.module.position} (id=${res.data.module.id})`;
       qs("taskStatement").textContent = res.data.module.topic || "";
       qs("taskConstraints").textContent = "";
+      qs("constraintsSection").style.display = "none";
       qs("visibleTests").innerHTML = "";
       qs("moduleBlocks").innerHTML = "";
       qs("quizInstructions").textContent = res.data.module.instructions || "";
@@ -2091,7 +2094,9 @@
     qs("taskTitle").textContent = res.data.task.title;
     qs("taskMeta").textContent = `Task #${res.data.task.position} (id=${res.data.task.id})`;
     qs("taskStatement").textContent = res.data.task.statement;
-    qs("taskConstraints").textContent = res.data.task.constraints || "—";
+    const constraints = String(res.data.task.constraints || "").trim();
+    qs("taskConstraints").textContent = constraints;
+    qs("constraintsSection").style.display = constraints ? "block" : "none";
 
     lastProgress = res.data.progress || null;
     updateHintsUI();

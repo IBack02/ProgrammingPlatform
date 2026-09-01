@@ -1,0 +1,76 @@
+{% load static %}
+<!doctype html>
+<html lang="{{ ui_lang|default:'en' }}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>{{ T.exam_result_details }} - {{ exam.title }}</title>
+  <style>
+    :root{--ink:#142033;--muted:#64748b;--line:#dbe4ee;--blue:#0369a1;--red:#dc2626;--green:#15803d;--paper:rgba(255,255,255,.96);--font:Arial,"Segoe UI",sans-serif;--font-kk:"Noto Sans","DejaVu Sans","Segoe UI",Arial,sans-serif}
+    *{box-sizing:border-box}
+    body{margin:0;min-height:100vh;color:var(--ink);font-family:{% if ui_lang == 'kk' %}var(--font-kk){% else %}var(--font){% endif %};background-color:#eaf1f5;background-image:url("{% static 'student.png' %}");background-repeat:no-repeat;background-position:center 62%;background-size:cover;background-attachment:fixed}
+    .shell{width:min(1120px,calc(100% - 28px));margin:0 auto;padding:20px 0 46px}
+    .topbar{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px}
+    .back{display:inline-flex;padding:9px 13px;border:1px solid var(--line);border-radius:11px;background:#fff;color:var(--ink);text-decoration:none;font-weight:800}
+    .hero,.question-card{background:var(--paper);border:1px solid rgba(219,228,238,.95);border-radius:18px;box-shadow:0 18px 46px rgba(15,23,42,.12);backdrop-filter:blur(8px)}
+    .hero{padding:22px}.hero h1{margin:0;font-size:clamp(25px,4vw,40px)}.meta{color:var(--muted);font-size:13px;margin-top:6px}
+    .scores{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:11px;margin-top:18px}.score{padding:15px;border-radius:14px;border:1px solid var(--line);background:#fff}.score.teacher{border-top:4px solid var(--blue)}.score.peer{border-top:4px solid var(--red)}.score.max{border-top:4px solid #64748b}.score-label{font-size:12px;color:var(--muted);font-weight:800}.score-value{font-size:26px;font-weight:950;margin-top:5px}.score-percent{font-size:12px;color:var(--muted)}
+    .peer-totals{display:flex;gap:7px;flex-wrap:wrap;margin-top:13px}.peer-pill{padding:6px 9px;border-radius:999px;background:#eef2ff;font-size:12px}.peer-pill.incomplete{background:#fff7ed;color:#9a3412}
+    .question-card{padding:18px;margin-top:14px}.question-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}.question-title{font-size:18px;font-weight:900;white-space:pre-wrap}.points{white-space:nowrap;border-radius:999px;padding:5px 9px;background:#fef3c7;color:#92400e;font-size:12px;font-weight:900}
+    .section{margin-top:14px;padding-top:13px;border-top:1px solid var(--line)}.section-title{font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:900}.answer-text{margin-top:8px;white-space:pre-wrap;line-height:1.55}.empty{color:var(--muted);font-style:italic}
+    .teacher-grade{display:grid;grid-template-columns:130px minmax(0,1fr);gap:10px;margin-top:9px}.grade-box{padding:11px;border-radius:11px;background:#e0f2fe;color:#075985;font-weight:900}.feedback{padding:11px;border-radius:11px;background:#f8fafc;white-space:pre-wrap}
+    .peer-review{border:1px solid #fecaca;background:#fffafa;border-radius:13px;padding:12px;margin-top:9px}.peer-head{display:flex;justify-content:space-between;gap:9px;flex-wrap:wrap}.peer-comment{white-space:pre-wrap;margin-top:8px}.moderation{display:inline-flex;padding:3px 7px;border-radius:999px;background:#e2e8f0;font-size:11px;font-weight:850}.moderation.objective{background:#dcfce7;color:#166534}.moderation.incorrect{background:#fee2e2;color:#991b1b}.moderation.insufficient{background:#ffedd5;color:#9a3412}.teacher-note{margin-top:9px;padding:9px;border-left:3px solid var(--blue);background:#eff6ff;white-space:pre-wrap}
+    table{width:100%;border-collapse:collapse;margin-top:9px;background:#fff}th,td{border:1px solid var(--line);padding:9px;text-align:left}th{background:#f1f5f9}.matching-row{display:grid;grid-template-columns:1fr auto 1fr;gap:9px;align-items:center;padding:7px 0;border-bottom:1px solid #edf2f7}.diagram-link{display:inline-flex;margin-top:8px;padding:8px 11px;border-radius:9px;background:#e0f2fe;color:#075985;text-decoration:none;font-weight:800}
+    @media(max-width:720px){.scores{grid-template-columns:1fr}.teacher-grade{grid-template-columns:1fr}.shell{width:min(100% - 18px,1120px)}.hero,.question-card{padding:14px}.matching-row{grid-template-columns:1fr}.matching-row span{display:none}}
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <div class="topbar">
+      <a class="back" href="/student/dashboard/">{{ T.back_to_dashboard }}</a>
+      <a class="back" href="/student/exams/">{{ T.exams }}</a>
+    </div>
+
+    <section class="hero">
+      <h1>{{ exam.title }}</h1>
+      <div class="meta">{{ exam.topic }}{% if attempt.submitted_at %} · {{ T.submitted_at }}: {{ attempt.submitted_at|date:"d.m.Y H:i" }}{% endif %}</div>
+      <div class="scores">
+        <div class="score max"><div class="score-label">{{ T.exam_maximum_score }}</div><div class="score-value">{{ maximum_score }}</div></div>
+        <div class="score teacher"><div class="score-label">{{ T.exam_teacher_score }}</div>{% if teacher_graded %}<div class="score-value">{{ teacher_score }} / {{ maximum_score }}</div><div class="score-percent">{{ teacher_percent }}%</div>{% else %}<div class="score-value">—</div><div class="score-percent">{{ T.exam_not_graded }}</div>{% endif %}</div>
+        <div class="score peer"><div class="score-label">{{ T.exam_peer_score }}</div>{% if peer_graded %}<div class="score-value">{{ peer_score }} / {{ maximum_score }}</div><div class="score-percent">{{ peer_percent }}%</div>{% else %}<div class="score-value">—</div><div class="score-percent">{{ T.exam_no_peer_grade }}</div>{% endif %}</div>
+      </div>
+      {% if peer_reviewer_totals %}<div class="peer-totals">{% for peer in peer_reviewer_totals %}<span class="peer-pill{% if not peer.complete %} incomplete{% endif %}">{{ T.peer_reviewer }} {{ peer.number }}: {{ peer.score }} / {{ maximum_score }}{% if not peer.complete %} · {{ peer.reviewed_count }}/{{ peer.question_count }}{% endif %}</span>{% endfor %}</div>{% endif %}
+    </section>
+
+    {% for row in question_rows %}
+      <article class="question-card">
+        <div class="question-head"><div class="question-title">{{ row.question.position }}. {{ row.question.prompt }}</div><span class="points">{{ row.question.max_score }} {{ T.points }}</span></div>
+        <div class="section">
+          <div class="section-title">{{ T.your_exam_answer }}</div>
+          {% if row.question.question_type == 'open_text' %}
+            <div class="answer-text{% if not row.answer or not row.answer.text_answer %} empty{% endif %}">{% if row.answer and row.answer.text_answer %}{{ row.answer.text_answer }}{% else %}{{ T.no_answer }}{% endif %}</div>
+          {% elif row.question.question_type == 'matching' %}
+            {% if row.matching_rows %}{% for pair in row.matching_rows %}<div class="matching-row"><div>{{ pair.left_text }}</div><span>→</span><div>{{ pair.right_text|default:T.no_answer }}</div></div>{% endfor %}{% else %}<div class="answer-text empty">{{ T.no_answer }}</div>{% endif %}
+          {% elif row.question.question_type == 'table' %}
+            {% if row.table_rows %}<div style="overflow:auto"><table><thead><tr>{% for column in row.table_columns %}<th>{{ column }}</th>{% endfor %}</tr></thead><tbody>{% for cells in row.table_rows %}<tr>{% for value in cells %}<td>{{ value|default:T.no_answer }}</td>{% endfor %}</tr>{% endfor %}</tbody></table></div>{% else %}<div class="answer-text empty">{{ T.no_answer }}</div>{% endif %}
+          {% else %}
+            {% if row.diagram_url %}<a class="diagram-link" href="{{ row.diagram_url }}" target="_blank" rel="noopener noreferrer">{{ T.open_diagram }}</a>{% else %}<div class="answer-text empty">{{ T.diagram_not_available }}</div>{% endif %}
+          {% endif %}
+        </div>
+
+        <div class="section">
+          <div class="section-title">{{ T.exam_teacher_assessment }}</div>
+          <div class="teacher-grade"><div class="grade-box">{% if row.answer and row.answer.awarded_score != None %}{{ row.answer.awarded_score }} / {{ row.question.max_score }}{% else %}{{ T.exam_not_graded }}{% endif %}</div><div class="feedback{% if not row.answer or not row.answer.teacher_feedback %} empty{% endif %}">{% if row.answer and row.answer.teacher_feedback %}{{ row.answer.teacher_feedback }}{% else %}{{ T.no_comment }}{% endif %}</div></div>
+        </div>
+
+        <div class="section">
+          <div class="section-title">{{ T.exam_peer_assessments }}</div>
+          {% if row.peer_reviews %}
+            {% for review in row.peer_reviews %}<div class="peer-review"><div class="peer-head"><b>{{ T.peer_reviewer }} {{ review.reviewer_number }} · {{ review.score }} / {{ row.question.max_score }}</b><span class="moderation {{ review.moderation_status }}">{% if review.moderation_status == 'objective' %}{{ T.objective }}{% elif review.moderation_status == 'incorrect' %}{{ T.incorrect }}{% elif review.moderation_status == 'insufficient' %}{{ T.insufficient_reasoning }}{% else %}{{ T.pending_review }}{% endif %}</span></div><div class="peer-comment{% if not review.comment %} empty{% endif %}">{% if review.comment %}{{ review.comment }}{% else %}{{ T.no_comment }}{% endif %}</div>{% if review.teacher_comment %}<div class="teacher-note"><b>{{ T.teacher_feedback }}:</b> {{ review.teacher_comment }}</div>{% endif %}</div>{% endfor %}
+          {% else %}<div class="answer-text empty">{{ T.exam_no_peer_grade }}</div>{% endif %}
+        </div>
+      </article>
+    {% empty %}<section class="question-card empty">{{ T.no_questions }}</section>{% endfor %}
+  </main>
+</body>
+</html>

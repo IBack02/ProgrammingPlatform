@@ -1,5 +1,6 @@
 import json
 from datetime import timedelta
+from decimal import Decimal
 
 from django.test import Client, TestCase
 from django.utils import timezone
@@ -213,3 +214,41 @@ class PeerAssessmentFlowTests(TestCase):
         student_page = self.student_client.get("/student/peer-assessment/")
         self.assertEqual(student_page.status_code, 200)
         self.assertContains(student_page, "/api/student/peer-sessions/")
+
+    def test_exam_chart_and_private_result_details(self):
+        answer = ExamAnswer.objects.get(attempt=self.attempt, question=self.question)
+        answer.awarded_score = Decimal("4")
+        answer.teacher_feedback = "Teacher detail"
+        answer.save(update_fields=["awarded_score", "teacher_feedback", "updated_at"])
+        _, assignment = self._create_assignment()
+        PeerAssessmentReview.objects.create(
+            assignment=assignment,
+            question=self.question,
+            score=Decimal("3"),
+            comment="Peer detail",
+            moderation_status=PeerAssessmentReview.ModerationStatus.OBJECTIVE,
+            teacher_comment="Moderator detail",
+        )
+
+        author_client = self._student_client(self.author)
+        dashboard = author_client.get("/api/student/dashboard")
+        self.assertEqual(dashboard.status_code, 200)
+        exam_chart = dashboard.json()["exam_chart"]
+        self.assertEqual(exam_chart["attempt_ids"], [self.attempt.id])
+        self.assertEqual(exam_chart["teacher_percentages"], [80.0])
+        self.assertEqual(exam_chart["peer_percentages"], [60.0])
+
+        dashboard_page = author_client.get("/student/dashboard/")
+        self.assertEqual(dashboard_page.status_code, 200)
+        self.assertContains(dashboard_page, 'id="examChartButton"')
+        self.assertContains(dashboard_page, "/student/exam-results/${attemptId}/")
+
+        detail = author_client.get(f"/student/exam-results/{self.attempt.id}/")
+        self.assertEqual(detail.status_code, 200)
+        self.assertContains(detail, "Teacher detail")
+        self.assertContains(detail, "Peer detail")
+        self.assertContains(detail, "Moderator detail")
+        self.assertNotContains(detail, self.question.model_answer)
+
+        foreign_detail = self.student_client.get(f"/student/exam-results/{self.attempt.id}/")
+        self.assertEqual(foreign_detail.status_code, 404)

@@ -42,6 +42,10 @@
     .actions{display:flex;gap:8px;align-items:center;}
     .ghost,.primary{border:1px solid var(--border);padding:9px 12px;border-radius:10px;background:#fff;cursor:pointer;text-decoration:none;color:#111827;}
     .primary{background:var(--primary);border-color:var(--primary);color:#fff;}
+    .chart-heading{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;}
+    .chart-switch{display:inline-flex;gap:4px;padding:4px;border:1px solid var(--border);border-radius:12px;background:#f8fafc;}
+    .chart-switch button{border:0;border-radius:8px;padding:7px 10px;background:transparent;color:#475569;font:inherit;font-size:12px;font-weight:800;cursor:pointer;}
+    .chart-switch button.active{background:#0f172a;color:#fff;box-shadow:0 4px 10px rgba(15,23,42,.16);}
     #metricsChartWrap{
       margin-top:12px;
       border:1px solid var(--border);
@@ -53,6 +57,7 @@
       position: relative;
     }
     #metricsChart{width:100% !important;height:100% !important;}
+    #chartEmpty{position:absolute;inset:48px 18px 18px;display:none;align-items:center;justify-content:center;text-align:center;color:var(--muted);font-size:13px;pointer-events:none;}
     @media (max-width:1100px){ .grid{grid-template-columns:1fr;} }
   </style>
 </head>
@@ -92,10 +97,19 @@
       </div>
 
       <div class="card">
-        <div class="title">{{ T.performance_by_session|default:"Performance by sessions" }}</div>
-        <div class="muted">{{ T.performance_formula_note|default:"Blue line — task completion %. Red line — successful answers %." }}</div>
+        <div class="chart-heading">
+          <div>
+            <div class="title" id="chartTitle">{{ T.exam_performance|default:"Exam performance" }}</div>
+            <div class="muted" id="chartNote">{{ T.exam_performance_note|default:"Scores as a percentage of each exam maximum. Select a point for details." }}</div>
+          </div>
+          <div class="chart-switch" role="group" aria-label="{{ T.performance_chart_type|default:'Performance chart type' }}">
+            <button type="button" id="examChartButton" class="active">{{ T.exams|default:"Exams" }}</button>
+            <button type="button" id="programmingChartButton">{{ T.programming_performance|default:"Programming" }}</button>
+          </div>
+        </div>
         <div id="metricsChartWrap">
           <canvas id="metricsChart"></canvas>
+          <div id="chartEmpty">{{ T.exam_chart_empty|default:"Completed exams will appear here after grading." }}</div>
         </div>
       </div>
 
@@ -114,6 +128,132 @@
       const ct = r.headers.get("content-type") || "";
       if (!ct.includes("application/json")) return { ok:false, error:"Non-JSON response" };
       return await r.json();
+    }
+
+    let metricsChart = null;
+    let chartMode = "exam";
+    let programmingChartData = {};
+    let examChartData = {};
+
+    function renderMetricsChart(){
+      const isExam = chartMode === "exam";
+      const source = isExam ? examChartData : programmingChartData;
+      const labels = source.labels || [];
+      const examButton = document.getElementById("examChartButton");
+      const programmingButton = document.getElementById("programmingChartButton");
+      examButton.classList.toggle("active", isExam);
+      programmingButton.classList.toggle("active", !isExam);
+      examButton.setAttribute("aria-pressed", String(isExam));
+      programmingButton.setAttribute("aria-pressed", String(!isExam));
+      document.getElementById("chartTitle").textContent = isExam
+        ? "{{ T.exam_performance|default:'Exam performance'|escapejs }}"
+        : "{{ T.performance_by_session|default:'Performance by sessions'|escapejs }}";
+      document.getElementById("chartNote").textContent = isExam
+        ? "{{ T.exam_performance_note|default:'Scores as a percentage of each exam maximum. Select a point for details.'|escapejs }}"
+        : "{{ T.performance_formula_note|default:'Blue line — task completion %. Red line — successful answers %.'|escapejs }}";
+      const empty = document.getElementById("chartEmpty");
+      empty.textContent = isExam
+        ? "{{ T.exam_chart_empty|default:'Completed exams will appear here after grading.'|escapejs }}"
+        : "{{ T.programming_chart_empty|default:'Programming session statistics will appear here.'|escapejs }}";
+      const hasExamScores = [...(source.teacher_percentages || []), ...(source.peer_percentages || [])]
+        .some(value => value != null);
+      empty.style.display = labels.length && (!isExam || hasExamScores) ? "none" : "flex";
+
+      const datasets = isExam ? [
+        {
+          label: "{{ T.exam_teacher_score_percent|default:'Teacher score (%)'|escapejs }}",
+          data: source.teacher_percentages || [],
+          tension: 0.25,
+          spanGaps: true,
+          borderWidth: 2,
+          pointRadius: 5,
+          pointHoverRadius: 7,
+          borderColor: "#2563eb",
+          backgroundColor: "#2563eb",
+        },
+        {
+          label: "{{ T.exam_peer_score_percent|default:'Peer score (%)'|escapejs }}",
+          data: source.peer_percentages || [],
+          tension: 0.25,
+          spanGaps: true,
+          borderWidth: 2,
+          pointRadius: 5,
+          pointHoverRadius: 7,
+          borderColor: "#dc2626",
+          backgroundColor: "#dc2626",
+        }
+      ] : [
+        {
+          label: "{{ T.task_completion_percent|default:'Task completion (%)'|escapejs }}",
+          data: source.task_completion_rates || [],
+          tension: 0.25,
+          borderWidth: 2,
+          pointRadius: 4,
+          borderColor: "#2563eb",
+          backgroundColor: "#2563eb",
+        },
+        {
+          label: "{{ T.successful_answers_percent|default:'Successful answers (%)'|escapejs }}",
+          data: source.success_rates || [],
+          tension: 0.25,
+          borderWidth: 2,
+          pointRadius: 4,
+          borderColor: "#dc2626",
+          backgroundColor: "#dc2626",
+        }
+      ];
+
+      if (metricsChart) metricsChart.destroy();
+      metricsChart = new Chart(document.getElementById("metricsChart"), {
+        type: "line",
+        data: { labels, datasets },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          interaction: { mode: "index", intersect: false },
+          layout: { padding: { top: 14, right: 8, bottom: 6, left: 8 } },
+          onClick: (_event, elements) => {
+            if (!isExam || !elements.length) return;
+            const attemptId = source.attempt_ids?.[elements[0].index];
+            if (attemptId) window.location.href = `/student/exam-results/${attemptId}/`;
+          },
+          onHover: (event, elements) => {
+            event.native.target.style.cursor = isExam && elements.length ? "pointer" : "default";
+          },
+          plugins: {
+            legend: { position: "top" },
+            tooltip: {
+              callbacks: {
+                afterBody: (items) => {
+                  if (!items.length) return [];
+                  const i = items[0].dataIndex;
+                  if (isExam) {
+                    const maximum = source.max_scores?.[i] ?? 0;
+                    const teacher = source.teacher_scores?.[i];
+                    const peer = source.peer_scores?.[i];
+                    return [
+                      `{{ T.exam_teacher_score|default:'Teacher score'|escapejs }}: ${teacher == null ? "{{ T.exam_not_graded|default:'Not graded'|escapejs }}" : `${teacher} / ${maximum}`}`,
+                      `{{ T.exam_peer_score|default:'Peer score'|escapejs }}: ${peer == null ? "{{ T.exam_no_peer_grade|default:'No peer score'|escapejs }}" : `${peer} / ${maximum}`}`,
+                      "{{ T.open_exam_result_hint|default:'Select the point to open details'|escapejs }}"
+                    ];
+                  }
+                  return [
+                    `{{ T.tasks_solved|default:'Tasks solved'|escapejs }}: ${source.solved_counts?.[i] ?? 0} / ${source.total_tasks?.[i] ?? 0}`,
+                    `{{ T.accepted_answers|default:'Accepted answers'|escapejs }}: ${source.accepted_counts?.[i] ?? 0} / ${source.total_attempts?.[i] ?? 0}`
+                  ];
+                }
+              }
+            }
+          },
+          scales: {
+            y: { beginAtZero: true, max: 100 },
+            x: {
+              ticks: { autoSkip: false, maxRotation: 20, minRotation: 20, padding: 8 },
+              grid: { drawBorder: false }
+            }
+          }
+        }
+      });
     }
 
     async function init(){
@@ -149,72 +289,17 @@
         attemptsBox.appendChild(link);
       });
 
-      const chart = data.chart || {};
-      const ctx = document.getElementById("metricsChart");
-      new Chart(ctx, {
-        type: "line",
-        data: {
-          labels: chart.labels || [],
-          datasets: [
-            {
-              label: "{{ T.task_completion_percent|default:'Task completion (%)'|escapejs }}",
-              data: chart.task_completion_rates || [],
-              tension: 0.25,
-              borderWidth: 2,
-              pointRadius: 4,
-              borderColor: "#2563eb",
-              backgroundColor: "#2563eb",
-            },
-            {
-              label: "{{ T.successful_answers_percent|default:'Successful answers (%)'|escapejs }}",
-              data: chart.success_rates || [],
-              tension: 0.25,
-              borderWidth: 2,
-              pointRadius: 4,
-              borderColor: "#dc2626",
-              backgroundColor: "#dc2626",
-            }
-          ]
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          layout: {
-            padding: { top: 14, right: 8, bottom: 6, left: 8 }
-          },
-          plugins: {
-            legend: { position: "top" },
-            tooltip: {
-              callbacks: {
-                afterBody: (items) => {
-                  const i = items[0].dataIndex;
-                  return [
-                    `{{ T.tasks_solved|default:'Tasks solved'|escapejs }}: ${chart.solved_counts?.[i] ?? 0} / ${chart.total_tasks?.[i] ?? 0}`,
-                    `{{ T.accepted_answers|default:'Accepted answers'|escapejs }}: ${chart.accepted_counts?.[i] ?? 0} / ${chart.total_attempts?.[i] ?? 0}`
-                  ];
-                }
-              }
-            }
-          },
-          scales: {
-            y: {
-              beginAtZero: true,
-              max: 100
-            },
-            x: {
-              ticks: {
-                autoSkip: false,
-                maxRotation: 20,
-                minRotation: 20,
-                padding: 8
-              },
-              grid: {
-                drawBorder: false
-              }
-            }
-          }
-        }
-      });
+      programmingChartData = data.chart || {};
+      examChartData = data.exam_chart || {};
+      document.getElementById("examChartButton").onclick = () => {
+        chartMode = "exam";
+        renderMetricsChart();
+      };
+      document.getElementById("programmingChartButton").onclick = () => {
+        chartMode = "programming";
+        renderMetricsChart();
+      };
+      renderMetricsChart();
     }
     init();
   </script>

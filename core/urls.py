@@ -169,6 +169,7 @@ path(
     path("api/teacher/exam-answers/<int:answer_id>/grade/", exam_views.teacher_exam_answer_grade_api, name="teacher_exam_answer_grade_api"),
 
     path("student/exams/", exam_views.student_exams_page, name="student_exams_page"),
+    path("student/exam-results/<int:attempt_id>/", exam_views.student_exam_result_page, name="student_exam_result_page"),
     path("api/student/exams/", exam_views.student_exams_api, name="student_exams_api"),
     path("api/student/exams/<int:exam_id>/", exam_views.student_exam_detail_api, name="student_exam_detail_api"),
     path("api/student/exams/<int:exam_id>/start/", exam_views.student_exam_start_api, name="student_exam_start_api"),

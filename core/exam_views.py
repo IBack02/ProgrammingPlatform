@@ -546,6 +546,93 @@ def _student_question(question: ExamQuestion, attempt: ExamAttempt, answer: Exam
     return data
 
 
+def _student_exam_attempts(student):
+    return (
+        ExamAttempt.objects.filter(
+            student=student,
+            status__in=[ExamAttempt.Status.SUBMITTED, ExamAttempt.Status.EXPIRED],
+        )
+        .select_related("exam")
+        .prefetch_related(
+            "exam__questions",
+            "answers__question",
+            "peer_assessment_assignments__reviews__question",
+        )
+    )
+
+
+def _percent_of_max(score, maximum):
+    if not maximum:
+        return None
+    return round(float(Decimal(score) * Decimal("100") / Decimal(maximum)), 2)
+
+
+def _exam_attempt_score_summary(attempt):
+    questions = list(attempt.exam.questions.all())
+    question_ids = {question.id for question in questions}
+    maximum = sum((question.max_score for question in questions), Decimal("0"))
+    answers = list(attempt.answers.all())
+    graded_answers = [answer for answer in answers if answer.awarded_score is not None]
+    teacher_score = (
+        sum((answer.awarded_score for answer in graded_answers), Decimal("0"))
+        if graded_answers
+        else None
+    )
+
+    peer_totals = []
+    assignments = list(attempt.peer_assessment_assignments.all())
+    for assignment in assignments:
+        reviews = list(assignment.reviews.all())
+        reviewed_ids = {review.question_id for review in reviews}
+        if question_ids and question_ids.issubset(reviewed_ids):
+            peer_totals.append(sum((review.score for review in reviews), Decimal("0")))
+    peer_score = (
+        sum(peer_totals, Decimal("0")) / Decimal(len(peer_totals))
+        if peer_totals
+        else None
+    )
+    return {
+        "maximum": maximum,
+        "teacher_score": teacher_score,
+        "teacher_percent": _percent_of_max(teacher_score, maximum) if teacher_score is not None else None,
+        "peer_score": peer_score,
+        "peer_percent": _percent_of_max(peer_score, maximum) if peer_score is not None else None,
+        "completed_peer_reviews": len(peer_totals),
+        "graded_answer_count": len(graded_answers),
+        "question_count": len(questions),
+    }
+
+
+def build_student_exam_chart(student):
+    attempts = list(
+        _student_exam_attempts(student).order_by("submitted_at", "started_at", "id")
+    )
+    rows = []
+    for attempt in attempts:
+        summary = _exam_attempt_score_summary(attempt)
+        rows.append({
+            "attempt_id": attempt.id,
+            "exam_id": attempt.exam_id,
+            "label": attempt.exam.title,
+            "submitted_at": attempt.submitted_at.isoformat() if attempt.submitted_at else None,
+            "maximum": float(summary["maximum"]),
+            "teacher_score": float(summary["teacher_score"]) if summary["teacher_score"] is not None else None,
+            "teacher_percent": summary["teacher_percent"],
+            "peer_score": float(summary["peer_score"]) if summary["peer_score"] is not None else None,
+            "peer_percent": summary["peer_percent"],
+        })
+    return {
+        "labels": [row["label"] for row in rows],
+        "attempt_ids": [row["attempt_id"] for row in rows],
+        "submitted_at": [row["submitted_at"] for row in rows],
+        "max_scores": [row["maximum"] for row in rows],
+        "teacher_scores": [row["teacher_score"] for row in rows],
+        "teacher_percentages": [row["teacher_percent"] for row in rows],
+        "peer_scores": [row["peer_score"] for row in rows],
+        "peer_percentages": [row["peer_percent"] for row in rows],
+    }
+
+
 def _validate_matching_answer(attempt: ExamAttempt, question: ExamQuestion, value) -> dict:
     if not isinstance(value, dict):
         raise ValueError("matching_answer must be an object")
@@ -603,6 +690,106 @@ def teacher_exams_page(request: HttpRequest):
 @ensure_csrf_cookie
 def student_exams_page(request: HttpRequest):
     return render(request, "core/student_exams.html")
+
+
+@_student_required
+@ensure_csrf_cookie
+def student_exam_result_page(request: HttpRequest, attempt_id: int):
+    student = _student(request)
+    attempt = get_object_or_404(
+        _student_exam_attempts(student),
+        id=attempt_id,
+        student=student,
+    )
+    questions = list(attempt.exam.questions.all())
+    answers = {answer.question_id: answer for answer in attempt.answers.all()}
+    assignments = sorted(attempt.peer_assessment_assignments.all(), key=lambda row: row.id)
+    assignment_numbers = {assignment.id: index + 1 for index, assignment in enumerate(assignments)}
+    reviews_by_question = {}
+    peer_reviewer_totals = []
+    question_ids = {question.id for question in questions}
+    for assignment in assignments:
+        reviews = list(assignment.reviews.all())
+        reviewed_ids = {review.question_id for review in reviews}
+        peer_reviewer_totals.append({
+            "number": assignment_numbers[assignment.id],
+            "score": float(sum((review.score for review in reviews), Decimal("0"))),
+            "complete": bool(question_ids and question_ids.issubset(reviewed_ids)),
+            "reviewed_count": len(reviewed_ids),
+            "question_count": len(question_ids),
+        })
+        for review in reviews:
+            reviews_by_question.setdefault(review.question_id, []).append({
+                "reviewer_number": assignment_numbers[assignment.id],
+                "score": float(review.score),
+                "comment": review.comment,
+                "moderation_status": review.moderation_status,
+                "teacher_comment": review.teacher_comment,
+                "updated_at": review.updated_at,
+            })
+
+    question_rows = []
+    for question in questions:
+        answer = answers.get(question.id)
+        matching_rows = []
+        table_columns = []
+        table_rows = []
+        diagram_url = ""
+        if question.question_type == ExamQuestion.QuestionType.MATCHING:
+            presentation = attempt.presentation_json.get(str(question.id), {})
+            right_by_key = {
+                str(item.get("key")): str(item.get("text") or "")
+                for item in presentation.get("right", [])
+            }
+            selected = answer.matching_answer if answer else {}
+            matching_rows = [
+                {
+                    "left_text": str(item.get("text") or ""),
+                    "right_text": right_by_key.get(str(selected.get(str(item.get("key")))), ""),
+                }
+                for item in presentation.get("left", [])
+            ]
+        elif question.question_type == ExamQuestion.QuestionType.TABLE:
+            schema = question.table_schema if isinstance(question.table_schema, dict) else {}
+            table_columns = [str(column.get("label") or "") for column in schema.get("columns", [])]
+            submitted_cells = answer.table_answer if answer and isinstance(answer.table_answer, dict) else {}
+            for schema_row in schema.get("rows", []):
+                values = []
+                for cell in schema_row.get("cells", []):
+                    if cell.get("mode") == "given":
+                        values.append(str(cell.get("value") or ""))
+                    else:
+                        values.append(str(submitted_cells.get(str(cell.get("key")), "")))
+                table_rows.append(values)
+        elif question.question_type == ExamQuestion.QuestionType.DIAGRAM and answer:
+            try:
+                diagram_url = _student_image_url(_https_url(answer.diagram_file_url, "diagram_file_url"))
+            except ValueError:
+                diagram_url = ""
+        question_rows.append({
+            "question": question,
+            "answer": answer,
+            "matching_rows": matching_rows,
+            "table_columns": table_columns,
+            "table_rows": table_rows,
+            "diagram_url": diagram_url,
+            "peer_reviews": reviews_by_question.get(question.id, []),
+        })
+
+    score_summary = _exam_attempt_score_summary(attempt)
+    return render(request, "core/student_exam_result.html", {
+        "attempt": attempt,
+        "exam": attempt.exam,
+        "question_rows": question_rows,
+        "maximum_score": float(score_summary["maximum"]),
+        "teacher_graded": score_summary["teacher_score"] is not None,
+        "teacher_score": float(score_summary["teacher_score"]) if score_summary["teacher_score"] is not None else None,
+        "teacher_percent": score_summary["teacher_percent"],
+        "peer_graded": score_summary["peer_score"] is not None,
+        "peer_score": float(score_summary["peer_score"]) if score_summary["peer_score"] is not None else None,
+        "peer_percent": score_summary["peer_percent"],
+        "peer_reviewer_totals": peer_reviewer_totals,
+    })
 
 
 @_json_errors
