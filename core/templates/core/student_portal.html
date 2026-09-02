@@ -877,6 +877,7 @@
     ,wonderLogWrong: "{{ T.wonder_log_wrong|escapejs }}"
     ,wonderLogTimeout: "{{ T.wonder_log_timeout|escapejs }}"
     ,wonderLogPenalty: "{{ T.wonder_log_penalty|escapejs }}"
+    ,wonderLogPenaltyRemoved: "{{ T.wonder_log_penalty_removed|escapejs }}"
     ,wonderLogQuestionComplete: "{{ T.wonder_log_question_complete|escapejs }}"
     ,wonderTeamWon: "{{ T.wonder_team_won|escapejs }}"
     ,wonderTeamLost: "{{ T.wonder_team_lost|escapejs }}"
@@ -1709,6 +1710,7 @@
     if (event.event_type === "wrong") return `${name}: ${event.letter} · ${UI.wonderLogWrong}`;
     if (event.event_type === "timeout") return `${name} · ${UI.wonderLogTimeout}`;
     if (event.event_type === "penalty") return UI.wonderLogPenalty;
+    if (event.event_type === "penalty_removed") return UI.wonderLogPenaltyRemoved;
     if (event.event_type === "question_complete") return UI.wonderLogQuestionComplete;
     if (event.event_type === "game_won") return UI.wonderTeamWon;
     if (event.event_type === "game_lost") return UI.wonderTeamLost;
@@ -1746,8 +1748,8 @@
       ? `${UI.wonderYourTurn} ${selectedWonderLetter ? `· ${UI.wonderSelectLetter}: ${selectedWonderLetter}` : `· ${UI.wonderSelectLetter}`}`
       : `${UI.wonderWaitTurn}: ${currentPlayer?.student_name || "—"}`;
     const available = new Set(round.available_letters || []);
-    qs("wonderKeyboard").innerHTML = "QWERTYUIOPASDFGHJKLZXCVBNM".split("").map(letter => `
-      <button type="button" class="wonderLetterBtn ${selectedWonderLetter === letter ? "selected" : ""}" data-letter="${letter}" ${!round.is_my_turn || !available.has(letter) ? "disabled" : ""}>${letter}</button>
+    qs("wonderKeyboard").innerHTML = (round.keyboard_characters || []).map(character => `
+      <button type="button" class="wonderLetterBtn ${selectedWonderLetter === character ? "selected" : ""}" data-letter="${escapeHtml(character)}" ${!round.is_my_turn || !available.has(character) ? "disabled" : ""}>${escapeHtml(character)}</button>
     `).join("");
     qs("wonderKeyboard").querySelectorAll("[data-letter]").forEach(button => {
       button.addEventListener("click", () => chooseWonderLetter(button.dataset.letter));

@@ -192,6 +192,7 @@
             <button id="gameStartBtn" class="btn" type="button">{{ T.start_game }}</button>
             <button id="gameFinishBtn" class="btn" type="button">{{ T.finish_game }}</button>
             <button id="gamePenaltyBtn" class="btn" type="button" style="display:none;">{{ T.wonder_penalty }}</button>
+            <button id="gameRemovePenaltyBtn" class="btn" type="button" style="display:none;">{{ T.wonder_remove_penalty }}</button>
             <span id="gameRoundStatus" class="muted"></span>
           </div>
           <div id="gameParticipants" style="margin-top:12px;"></div>
@@ -211,7 +212,10 @@
         </div>
 
         <div id="wonderFieldEditor" style="display:none;">
-          <div style="margin-top:16px;"><b>{{ T.wonder_questions }}</b></div>
+          <div class="row" style="margin-top:16px;justify-content:space-between;">
+            <b>{{ T.wonder_questions }}</b>
+            <button id="shuffleWonderQuestionsBtn" class="btn" type="button" disabled>{{ T.wonder_shuffle_questions }}</button>
+          </div>
           <div class="muted">{{ T.wonder_question_help }}</div>
           <div class="row" style="margin-top:10px;">
             <input id="wonderQuestionOrdinal" class="input-ui" type="number" min="1" value="1" style="width:90px;">
@@ -571,6 +575,8 @@
     let next = 1;
     while (used.has(next)) next += 1;
     qs("wonderQuestionOrdinal").value = String(next);
+    const hasRunningRound = (currentGameModule?.rounds || []).some(round => round.status === "running");
+    qs("shuffleWonderQuestionsBtn").disabled = questions.length < 2 || hasRunningRound;
   }
 
   function wonderEventText(event){
@@ -579,6 +585,7 @@
     if (event.event_type === "wrong") return `${name}: ${event.letter} · {{ T.wonder_log_wrong|escapejs }}`;
     if (event.event_type === "timeout") return `${name} · {{ T.wonder_log_timeout|escapejs }}`;
     if (event.event_type === "penalty") return `{{ T.wonder_log_penalty|escapejs }}`;
+    if (event.event_type === "penalty_removed") return `{{ T.wonder_log_penalty_removed|escapejs }}`;
     if (event.event_type === "question_complete") return `{{ T.wonder_log_question_complete|escapejs }}`;
     if (event.event_type === "game_won") return `{{ T.wonder_team_won|escapejs }}`;
     if (event.event_type === "game_lost") return `{{ T.wonder_team_lost|escapejs }}`;
@@ -597,7 +604,7 @@
       return `<span style="display:flex;flex-direction:column;align-items:center;gap:3px;"><span class="wonder-cell">${escapeHtml(cell.value || "")}</span><small class="muted" style="max-width:74px;text-align:center;">${names}</small></span>`;
     }).join("") : "";
     const used = new Set(round.used_letters || []);
-    const keys = "QWERTYUIOPASDFGHJKLZXCVBNM".split("").map(letter => `<span class="wonder-key ${used.has(letter) ? "used" : ""}">${letter}</span>`).join("");
+    const keys = (round.keyboard_characters || []).map(character => `<span class="wonder-key ${used.has(character) ? "used" : ""}">${escapeHtml(character)}</span>`).join("");
     const logs = (round.events || []).slice().reverse().map(event => `<div class="wonder-log-row">${escapeHtml(wonderEventText(event))}</div>`).join("");
     qs("gameParticipants").innerHTML = `
       <div class="wonder-board">
@@ -619,6 +626,8 @@
 
   function renderTeacherGameRound(round){
     currentGameRound = round || null;
+    const hasRunningRound = (currentGameModule?.rounds || []).some(item => item.status === "running");
+    qs("shuffleWonderQuestionsBtn").disabled = (currentGameModule?.wonder_questions || []).length < 2 || hasRunningRound || round?.status === "running";
     const status = qs("gameRoundStatus");
     const participantsBox = qs("gameParticipants");
     if (!round){
@@ -627,6 +636,7 @@
       qs("gameStartBtn").disabled = true;
       qs("gameFinishBtn").disabled = true;
       qs("gamePenaltyBtn").style.display = "none";
+      qs("gameRemovePenaltyBtn").style.display = "none";
       return;
     }
     status.textContent = `#${round.run_number} · ${round.class.name} · ${round.status}`;
@@ -634,6 +644,8 @@
     qs("gameFinishBtn").disabled = round.status === "finished";
     qs("gamePenaltyBtn").style.display = round.rubric === "wonder_field" ? "inline-block" : "none";
     qs("gamePenaltyBtn").disabled = round.status !== "running";
+    qs("gameRemovePenaltyBtn").style.display = round.rubric === "wonder_field" ? "inline-block" : "none";
+    qs("gameRemovePenaltyBtn").disabled = round.status !== "running" || Number(round.strikes || 0) === 0;
     if (round.rubric === "wonder_field"){
       renderTeacherWonderRound(round);
       return;
@@ -760,6 +772,20 @@
     await openModule(currentSelectedItem());
   }
 
+  async function shuffleWonderQuestions(){
+    if (currentGameModule?.rubric !== "wonder_field" || !selectedModuleId) return;
+    const res = await api(`/api/teacher/game-modules/${selectedModuleId}/wonder-questions/shuffle/`, "POST", {});
+    if (!res.data.ok){
+      const message = res.status === 409
+        ? "{{ T.wonder_shuffle_running|escapejs }}"
+        : (res.data.error || UI.saveFailed);
+      return setMsg(message);
+    }
+    currentGameModule.wonder_questions = res.data.questions || [];
+    renderWonderQuestions(currentGameModule.wonder_questions);
+    setMsg("{{ T.wonder_questions_shuffled|escapejs }}");
+  }
+
   async function openGameLobby(){
     if (!selectedModuleId || !qs("gameClassSelect").value) return;
     const res = await api(`/api/teacher/game-modules/${selectedModuleId}/rounds/open/`, "POST", {class_id:Number(qs("gameClassSelect").value)});
@@ -787,6 +813,13 @@
   async function penalizeGameRound(){
     if (!currentGameRound || currentGameRound.rubric !== "wonder_field") return;
     const res = await api(`/api/teacher/game-rounds/${currentGameRound.id}/penalty/`, "POST", {});
+    if (!res.data.ok) return setMsg(res.data.error || UI.saveFailed);
+    renderTeacherGameRound(res.data.round);
+  }
+
+  async function removeGameRoundPenalty(){
+    if (!currentGameRound || currentGameRound.rubric !== "wonder_field") return;
+    const res = await api(`/api/teacher/game-rounds/${currentGameRound.id}/penalty/remove/`, "POST", {});
     if (!res.data.ok) return setMsg(res.data.error || UI.saveFailed);
     renderTeacherGameRound(res.data.round);
   }
@@ -1073,11 +1106,13 @@
   qs("addQuestionBtn").addEventListener("click", addQuestion);
   qs("gameAddPromptBtn").addEventListener("click", addGamePrompt);
   qs("wonderAddQuestionBtn").addEventListener("click", addWonderQuestion);
+  qs("shuffleWonderQuestionsBtn").addEventListener("click", shuffleWonderQuestions);
   qs("gameClassSelect").addEventListener("change", selectGameClass);
   qs("gameOpenLobbyBtn").addEventListener("click", openGameLobby);
   qs("gameStartBtn").addEventListener("click", startGameRound);
   qs("gameFinishBtn").addEventListener("click", finishGameRound);
   qs("gamePenaltyBtn").addEventListener("click", penalizeGameRound);
+  qs("gameRemovePenaltyBtn").addEventListener("click", removeGameRoundPenalty);
 
   syncQuestionTypeFields();
   syncCreateTypeFields();

@@ -494,6 +494,7 @@ class GameRoundEvent(models.Model):
         WRONG = "wrong", "Wrong letter"
         TIMEOUT = "timeout", "Turn timeout"
         PENALTY = "penalty", "Teacher penalty"
+        PENALTY_REMOVED = "penalty_removed", "Teacher removed penalty"
         QUESTION_COMPLETE = "question_complete", "Question complete"
         GAME_WON = "game_won", "Game won"
         GAME_LOST = "game_lost", "Game lost"

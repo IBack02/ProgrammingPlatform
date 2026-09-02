@@ -1,5 +1,6 @@
 import json
 from datetime import timedelta
+from unittest.mock import patch
 
 from django.test import Client, TestCase
 from django.utils import timezone
@@ -367,6 +368,53 @@ class MindRaceGameTests(TestCase):
         self.assertEqual(penalty.json()["round"]["status"], GameRound.Status.FINISHED)
         self.assertEqual(penalty.json()["round"]["outcome"], GameRound.Outcome.LOST)
 
+    def test_teacher_can_remove_wonder_field_penalty(self):
+        module_id = self._create_wonder_module()
+        round_row = self._open_round(module_id, self.class_a)
+        self._json(self.client_a, "post", f"/api/student/game-module/{module_id}/ready/")
+        self._json(
+            self.teacher_client,
+            "post",
+            f"/api/teacher/game-rounds/{round_row['id']}/start/",
+        )
+
+        added = self._json(
+            self.teacher_client,
+            "post",
+            f"/api/teacher/game-rounds/{round_row['id']}/penalty/",
+        )
+        self.assertEqual(added.status_code, 200)
+        self.assertEqual(added.json()["round"]["strikes"], 1)
+
+        removed = self._json(
+            self.teacher_client,
+            "post",
+            f"/api/teacher/game-rounds/{round_row['id']}/penalty/remove/",
+        )
+        self.assertEqual(removed.status_code, 200)
+        self.assertEqual(removed.json()["round"]["strikes"], 0)
+        self.assertTrue(
+            GameRoundEvent.objects.filter(
+                round_id=round_row["id"],
+                event_type=GameRoundEvent.EventType.PENALTY_REMOVED,
+            ).exists()
+        )
+
+        removed_again = self._json(
+            self.teacher_client,
+            "post",
+            f"/api/teacher/game-rounds/{round_row['id']}/penalty/remove/",
+        )
+        self.assertEqual(removed_again.status_code, 200)
+        self.assertEqual(removed_again.json()["round"]["strikes"], 0)
+        self.assertEqual(
+            GameRoundEvent.objects.filter(
+                round_id=round_row["id"],
+                event_type=GameRoundEvent.EventType.PENALTY_REMOVED,
+            ).count(),
+            1,
+        )
+
     def test_wonder_question_validation(self):
         module = GameModule.objects.create(
             session=self.session,
@@ -374,14 +422,103 @@ class MindRaceGameTests(TestCase):
             title="Wonder",
             rubric=GameModule.Rubric.WONDER_FIELD,
         )
+        accepted = self._json(
+            self.teacher_client,
+            "post",
+            f"/api/teacher/game-modules/{module.id}/wonder-questions/",
+            {"ordinal": 1, "prompt": "Question", "answer": "Жауап C++ №1"},
+        )
+        self.assertEqual(accepted.status_code, 201)
+        self.assertEqual(accepted.json()["question"]["answer"], "ЖАУАП C++ №1")
+
         invalid = self._json(
             self.teacher_client,
             "post",
             f"/api/teacher/game-modules/{module.id}/wonder-questions/",
-            {"ordinal": 1, "prompt": "Question", "answer": "ОТВЕТ 1"},
+            {"ordinal": 2, "prompt": "Hidden character", "answer": "CODE\u200b"},
         )
         self.assertEqual(invalid.status_code, 400)
-        self.assertFalse(WonderFieldQuestion.objects.filter(module=module).exists())
+        self.assertEqual(WonderFieldQuestion.objects.filter(module=module).count(), 1)
+
+    def test_wonder_field_supports_cyrillic_and_symbols(self):
+        module = GameModule.objects.create(
+            session=self.session,
+            position=1,
+            title="Unicode wonder",
+            rubric=GameModule.Rubric.WONDER_FIELD,
+        )
+        WonderFieldQuestion.objects.create(
+            module=module,
+            ordinal=1,
+            prompt="Programming language",
+            answer="КОД C++ №1",
+        )
+        round_row = self._open_round(module.id, self.class_a)
+        self._json(self.client_a, "post", f"/api/student/game-module/{module.id}/ready/")
+        started = self._json(
+            self.teacher_client,
+            "post",
+            f"/api/teacher/game-rounds/{round_row['id']}/start/",
+        )
+        self.assertEqual(started.status_code, 200)
+        state = started.json()["round"]
+        for character in ["К", "C", "+", "№", "1"]:
+            self.assertIn(character, state["keyboard_characters"])
+
+        guessed = self._json(
+            self.client_a,
+            "post",
+            f"/api/student/game-rounds/{round_row['id']}/letter/",
+            {"letter": "к", "question_index": 0},
+        )
+        self.assertEqual(guessed.status_code, 200)
+        self.assertTrue(guessed.json()["correct"])
+        self.assertEqual(guessed.json()["round"]["current_question"]["cells"][0]["value"], "К")
+
+        unavailable = self._json(
+            self.client_a,
+            "post",
+            f"/api/student/game-rounds/{round_row['id']}/letter/",
+            {"letter": "$", "question_index": 0},
+        )
+        self.assertEqual(unavailable.status_code, 409)
+
+    def test_wonder_questions_can_shuffle_only_before_start(self):
+        module_id = self._create_wonder_module()
+        original_ids = list(
+            WonderFieldQuestion.objects.filter(module_id=module_id)
+            .order_by("ordinal")
+            .values_list("id", flat=True)
+        )
+        with patch("core.game_views.secrets.SystemRandom.shuffle", side_effect=lambda rows: rows.reverse()):
+            shuffled = self._json(
+                self.teacher_client,
+                "post",
+                f"/api/teacher/game-modules/{module_id}/wonder-questions/shuffle/",
+            )
+        self.assertEqual(shuffled.status_code, 200)
+        self.assertEqual(
+            [row["id"] for row in shuffled.json()["questions"]],
+            list(reversed(original_ids)),
+        )
+        self.assertEqual(
+            list(
+                WonderFieldQuestion.objects.filter(module_id=module_id)
+                .order_by("ordinal")
+                .values_list("ordinal", flat=True)
+            ),
+            [1, 2],
+        )
+
+        round_row = self._open_round(module_id, self.class_a)
+        self._json(self.client_a, "post", f"/api/student/game-module/{module_id}/ready/")
+        self._json(self.teacher_client, "post", f"/api/teacher/game-rounds/{round_row['id']}/start/")
+        blocked = self._json(
+            self.teacher_client,
+            "post",
+            f"/api/teacher/game-modules/{module_id}/wonder-questions/shuffle/",
+        )
+        self.assertEqual(blocked.status_code, 409)
 
     def test_empty_game_module_rubric_can_be_changed(self):
         module = GameModule.objects.create(

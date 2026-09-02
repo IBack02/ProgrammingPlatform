@@ -29,7 +29,10 @@ from .models import (
 from .security import request_is_limited
 
 
-WONDER_FIELD_LETTERS = "QWERTYUIOPASDFGHJKLZXCVBNM"
+WONDER_FIELD_LATIN = "QWERTYUIOPASDFGHJKLZXCVBNM"
+WONDER_FIELD_CYRILLIC = "ЙЦУКЕНГШЩЗХЪФЫВАПРОЛДЖЭЯЧСМИТЬБЮЁӘҒҚҢӨҰҮҺІ"
+WONDER_FIELD_DIGITS = "1234567890"
+WONDER_FIELD_SYMBOLS = ".,!?-+*/=:%@#&()[]{}_\\|<>\"'№"
 WONDER_FIELD_TURN_SECONDS = 20
 
 
@@ -113,15 +116,41 @@ def _masked_sentence(sentence, missing_text):
 
 
 def _normalize_wonder_answer(value):
-    answer = unicodedata.normalize("NFKC", str(value or "")).strip().upper()
+    answer = unicodedata.normalize("NFC", str(value or "")).strip().upper()
     answer = " ".join(answer.split())
     if not answer:
         raise ValueError("answer is required")
     if len(answer) > 200:
         raise ValueError("answer is too long")
-    if not re.fullmatch(r"[A-Z]+(?: [A-Z]+)*", answer):
-        raise ValueError("answer may contain only Latin letters A-Z and spaces")
+    invalid = [character for character in answer if character != " " and not _is_wonder_character(character)]
+    if invalid:
+        raise ValueError("answer may contain letters, numbers, punctuation, symbols, and spaces")
     return answer
+
+
+def _is_wonder_character(character):
+    return len(character) == 1 and unicodedata.category(character)[:1] in {"L", "N", "P", "S"}
+
+
+def _wonder_keyboard(answer):
+    characters = []
+
+    def append_group(group):
+        for character in group:
+            if character not in characters:
+                characters.append(character)
+
+    answer_characters = [character for character in answer if character != " "]
+    if any("LATIN" in unicodedata.name(character, "") for character in answer_characters):
+        append_group(WONDER_FIELD_LATIN)
+    if any("CYRILLIC" in unicodedata.name(character, "") for character in answer_characters):
+        append_group(WONDER_FIELD_CYRILLIC)
+    if any(unicodedata.category(character).startswith("N") for character in answer_characters):
+        append_group(WONDER_FIELD_DIGITS)
+    if any(unicodedata.category(character)[:1] in {"P", "S"} for character in answer_characters):
+        append_group(WONDER_FIELD_SYMBOLS)
+    append_group(answer_characters)
+    return characters
 
 
 def _validate_wonder_question(data, question=None):
@@ -201,9 +230,11 @@ def _wonder_round_data(round_obj):
     current_participant = queue[round_obj.turn_index % len(queue)] if queue else None
     question_index = round_obj.current_question_index
     current_question = None
+    keyboard_characters = []
     if question_index < len(round_obj.prompt_snapshot):
         snapshot = round_obj.prompt_snapshot[question_index]
         answer = snapshot.get("answer", "")
+        keyboard_characters = _wonder_keyboard(answer)
         revealed = set(round_obj.revealed_letters or [])
         correct_events = list(
             round_obj.events.filter(
@@ -246,7 +277,12 @@ def _wonder_round_data(round_obj):
         "current_question": current_question,
         "strikes": round_obj.strikes,
         "max_strikes": 3,
-        "available_letters": [letter for letter in WONDER_FIELD_LETTERS if letter not in set(round_obj.used_letters or [])],
+        "keyboard_characters": keyboard_characters,
+        "available_letters": [
+            character
+            for character in keyboard_characters
+            if character not in set(round_obj.used_letters or [])
+        ],
         "used_letters": round_obj.used_letters or [],
         "turn_order": [_participant_row(row) for row in queue],
         "current_turn_student_id": current_participant.student_id if current_participant else None,
@@ -590,6 +626,48 @@ def teacher_wonder_questions_api(request: HttpRequest, module_id: int):
 
 
 @_json_errors
+@require_POST
+def teacher_wonder_questions_shuffle_api(request: HttpRequest, module_id: int):
+    teacher = _teacher(request)
+    if not teacher:
+        return _api_error("not authenticated", 401)
+    with transaction.atomic():
+        module = get_object_or_404(
+            GameModule.objects.select_for_update().select_related("session"),
+            id=module_id,
+            session__author=teacher,
+            rubric=GameModule.Rubric.WONDER_FIELD,
+        )
+        if module.rounds.filter(status=GameRound.Status.RUNNING).exists():
+            return _api_error("questions cannot be shuffled while a game is running", 409)
+        questions = list(module.wonder_questions.select_for_update().order_by("ordinal", "id"))
+        if len(questions) < 2:
+            return JsonResponse({
+                "ok": True,
+                "questions": [_serialize_wonder_question(row) for row in questions],
+            })
+
+        temporary_start = max(row.ordinal for row in questions) + len(questions) + 1
+        for offset, question in enumerate(questions):
+            question.ordinal = temporary_start + offset
+            question.save(update_fields=["ordinal", "updated_at"])
+
+        original_order = [question.id for question in questions]
+        secrets.SystemRandom().shuffle(questions)
+        if [question.id for question in questions] == original_order:
+            questions.append(questions.pop(0))
+        for ordinal, question in enumerate(questions, start=1):
+            question.ordinal = ordinal
+            question.save(update_fields=["ordinal", "updated_at"])
+
+    questions.sort(key=lambda row: (row.ordinal, row.id))
+    return JsonResponse({
+        "ok": True,
+        "questions": [_serialize_wonder_question(row) for row in questions],
+    })
+
+
+@_json_errors
 @require_http_methods(["PATCH", "DELETE"])
 def teacher_wonder_question_detail_api(request: HttpRequest, question_id: int):
     teacher = _teacher(request)
@@ -802,6 +880,31 @@ def teacher_game_round_penalty_api(request: HttpRequest, round_id: int):
 
 
 @_json_errors
+@require_POST
+def teacher_game_round_remove_penalty_api(request: HttpRequest, round_id: int):
+    teacher = _teacher(request)
+    if not teacher:
+        return _api_error("not authenticated", 401)
+    with transaction.atomic():
+        round_obj = _owned_round(teacher, round_id, lock=True)
+        if round_obj.module.rubric != GameModule.Rubric.WONDER_FIELD:
+            return _api_error("penalties are only available in wonder field", 409)
+        _apply_wonder_timeout(round_obj)
+        if round_obj.status != GameRound.Status.RUNNING:
+            return _api_error("the game is not running", 409)
+        if round_obj.strikes == 0:
+            return JsonResponse({"ok": True, "round": _round_row(round_obj)})
+        round_obj.strikes -= 1
+        round_obj.save(update_fields=["strikes"])
+        GameRoundEvent.objects.create(
+            round=round_obj,
+            event_type=GameRoundEvent.EventType.PENALTY_REMOVED,
+            question_index=round_obj.current_question_index,
+        )
+    return JsonResponse({"ok": True, "round": _round_row(round_obj)})
+
+
+@_json_errors
 @require_GET
 def student_game_module_api(request: HttpRequest, module_id: int):
     student = _student(request)
@@ -982,9 +1085,9 @@ def student_game_letter_api(request: HttpRequest, round_id: int):
     ):
         return _api_error("letter rate limit exceeded", 429)
     data = _json_body(request)
-    letter = unicodedata.normalize("NFKC", str(data.get("letter") or "")).strip().upper()
-    if len(letter) != 1 or letter not in WONDER_FIELD_LETTERS:
-        raise ValueError("letter must be one Latin letter A-Z")
+    letter = unicodedata.normalize("NFC", str(data.get("letter") or "")).strip().upper()
+    if not _is_wonder_character(letter):
+        raise ValueError("letter must be one valid letter, number, or symbol")
     try:
         question_index = int(data.get("question_index"))
     except (TypeError, ValueError) as exc:
@@ -1022,6 +1125,8 @@ def student_game_letter_api(request: HttpRequest, round_id: int):
 
         now = timezone.now()
         answer = round_obj.prompt_snapshot[question_index]["answer"]
+        if letter not in _wonder_keyboard(answer):
+            return _api_error("this character is not available for the current question", 409)
         round_obj.used_letters = [*(round_obj.used_letters or []), letter]
         participant.last_answer_at = now
         correct = letter in answer
