@@ -21,6 +21,7 @@ from .exam_views import (
 )
 from .models import (
     ClassGroup,
+    Exam,
     ExamAttempt,
     ExamQuestion,
     PeerAssessmentAssignment,
@@ -53,7 +54,7 @@ def _owned_class(teacher, class_id):
 
 def _owned_session(teacher, session_id):
     return get_object_or_404(
-        PeerAssessmentSession.objects.select_related("reviewer_class"),
+        PeerAssessmentSession.objects.select_related("reviewer_class").prefetch_related("allowed_exams"),
         id=session_id,
         owner=teacher,
     )
@@ -74,6 +75,48 @@ def _attempt_queryset(teacher):
         exam__owner=teacher,
         status__in=[ExamAttempt.Status.SUBMITTED, ExamAttempt.Status.EXPIRED],
     )
+
+
+def _owned_exams(teacher, raw_ids):
+    if raw_ids is None:
+        return []
+    if not isinstance(raw_ids, list):
+        raise ValueError("exam_ids must be a list")
+    exam_ids = {
+        _positive_int(value, "exam_id", 2_000_000_000)
+        for value in raw_ids
+    }
+    exams = list(Exam.objects.filter(owner=teacher, id__in=exam_ids).order_by("title", "id"))
+    if len(exams) != len(exam_ids):
+        raise ValueError("one or more exams are unavailable")
+    return exams
+
+
+def _exam_filter_rows(teacher):
+    exams = (
+        Exam.objects.filter(owner=teacher)
+        .annotate(
+            completed_attempt_count=Count(
+                "attempts",
+                filter=Q(
+                    attempts__status__in=[
+                        ExamAttempt.Status.SUBMITTED,
+                        ExamAttempt.Status.EXPIRED,
+                    ]
+                ),
+            )
+        )
+        .order_by("title", "id")
+    )
+    return [
+        {
+            "id": exam.id,
+            "title": exam.title,
+            "topic": exam.topic,
+            "completed_attempt_count": exam.completed_attempt_count,
+        }
+        for exam in exams
+    ]
 
 
 def _public_https_url(value):
@@ -127,6 +170,10 @@ def _session_row(session, include_students=False):
             "name": session.reviewer_class.name,
         },
         "assignment_count": session.assignments.count(),
+        "allowed_exams": [
+            {"id": exam.id, "title": exam.title}
+            for exam in session.allowed_exams.all()
+        ],
         "created_at": session.created_at.isoformat(),
         "updated_at": session.updated_at.isoformat(),
     }
@@ -138,7 +185,7 @@ def _session_row(session, include_students=False):
             "reviewer",
             "exam_attempt__exam",
             "exam_attempt__student__class_group",
-        ).prefetch_related("reviews")
+        ).prefetch_related("reviews", "exam_attempt__exam__questions")
     )
     by_reviewer = {}
     for assignment in assignments:
@@ -186,6 +233,32 @@ def _session_row(session, include_students=False):
         }
         for review in reviews
     ]
+
+    works_by_attempt = {}
+    for assignment in assignments:
+        work = works_by_attempt.setdefault(
+            assignment.exam_attempt_id,
+            {
+                "attempt_id": assignment.exam_attempt_id,
+                "exam_id": assignment.exam_attempt.exam_id,
+                "exam_title": assignment.exam_attempt.exam.title,
+                "author_name": assignment.exam_attempt.student.full_name,
+                "author_class": assignment.exam_attempt.student.class_group.name,
+                "question_count": assignment.exam_attempt.exam.questions.count(),
+                "reviewer_count": 0,
+                "completed_reviewer_count": 0,
+                "review_count": 0,
+            },
+        )
+        review_count = assignment.reviews.count()
+        work["reviewer_count"] += 1
+        work["review_count"] += review_count
+        if work["question_count"] and review_count >= work["question_count"]:
+            work["completed_reviewer_count"] += 1
+    data["result_works"] = sorted(
+        works_by_attempt.values(),
+        key=lambda row: (row["exam_title"].casefold(), row["author_name"].casefold(), row["attempt_id"]),
+    )
     return data
 
 
@@ -252,6 +325,85 @@ def student_peer_assessment_page(request: HttpRequest):
     return render(request, "core/student_peer_assessment.html")
 
 
+@_teacher_required
+@ensure_csrf_cookie
+def teacher_peer_result_page(request: HttpRequest, session_id: int, attempt_id: int):
+    teacher = _teacher(request)
+    session = _owned_session(teacher, session_id)
+    assignments = list(
+        PeerAssessmentAssignment.objects.filter(
+            session=session,
+            exam_attempt_id=attempt_id,
+        )
+        .select_related(
+            "reviewer",
+            "exam_attempt__exam",
+            "exam_attempt__student__class_group",
+        )
+        .prefetch_related("reviews")
+    )
+    if not assignments:
+        raise Http404
+
+    attempt = assignments[0].exam_attempt
+    answers = {answer.question_id: answer for answer in attempt.answers.all()}
+    reviews_by_question = {}
+    reviewer_totals = []
+    for assignment in assignments:
+        assignment_reviews = list(assignment.reviews.all())
+        reviewer_totals.append({
+            "reviewer_name": assignment.reviewer.full_name,
+            "score": float(sum((review.score for review in assignment_reviews), Decimal("0"))),
+            "reviewed_count": len(assignment_reviews),
+        })
+        for review in assignment_reviews:
+            reviews_by_question.setdefault(review.question_id, []).append({
+                "id": review.id,
+                "reviewer_name": assignment.reviewer.full_name,
+                "score": float(review.score),
+                "comment": review.comment,
+                "moderation_status": review.moderation_status,
+                "teacher_comment": review.teacher_comment,
+            })
+
+    questions = list(
+        attempt.exam.questions.prefetch_related("matching_pairs").order_by("position", "id")
+    )
+    question_rows = []
+    maximum_score = sum((question.max_score for question in questions), Decimal("0"))
+    teacher_scores = []
+    for question in questions:
+        answer = answers.get(question.id)
+        if answer and answer.awarded_score is not None:
+            teacher_scores.append(answer.awarded_score)
+        row = _question_row(assignments[0], question, answer, None)
+        row["teacher_assessment"] = {
+            "score": float(answer.awarded_score) if answer and answer.awarded_score is not None else None,
+            "feedback": answer.teacher_feedback if answer else "",
+        }
+        row["peer_reviews"] = reviews_by_question.get(question.id, [])
+        question_rows.append(row)
+
+    result = {
+        "session_id": session.id,
+        "session_title": session.title,
+        "attempt_id": attempt.id,
+        "exam_title": attempt.exam.title,
+        "author_name": attempt.student.full_name,
+        "author_class": attempt.student.class_group.name,
+        "maximum_score": float(maximum_score),
+        "teacher_score": float(sum(teacher_scores, Decimal("0"))) if teacher_scores else None,
+        "question_count": len(questions),
+        "reviewer_totals": reviewer_totals,
+        "questions": question_rows,
+    }
+    return render(
+        request,
+        "core/teacher/peer_result_detail.html",
+        {"active": "assessment", "result": result},
+    )
+
+
 @_json_errors
 @require_http_methods(["GET", "POST"])
 def teacher_peer_sessions_api(request: HttpRequest):
@@ -259,8 +411,16 @@ def teacher_peer_sessions_api(request: HttpRequest):
     if not teacher:
         return _api_error("not authenticated", 401)
     if request.method == "GET":
-        sessions = PeerAssessmentSession.objects.filter(owner=teacher).select_related("reviewer_class")
-        return JsonResponse({"ok": True, "sessions": [_session_row(row) for row in sessions]})
+        sessions = (
+            PeerAssessmentSession.objects.filter(owner=teacher)
+            .select_related("reviewer_class")
+            .prefetch_related("allowed_exams")
+        )
+        return JsonResponse({
+            "ok": True,
+            "sessions": [_session_row(row) for row in sessions],
+            "exams": _exam_filter_rows(teacher),
+        })
 
     data = _json_body(request)
     title = str(data.get("title") or "").strip()
@@ -273,11 +433,14 @@ def teacher_peer_sessions_api(request: HttpRequest):
         reviewer_class = ClassGroup.objects.filter(owner=teacher).order_by("name", "id").last()
         if not reviewer_class:
             raise ValueError("create a class first")
-    session = PeerAssessmentSession.objects.create(
-        owner=teacher,
-        title=title[:200],
-        reviewer_class=reviewer_class,
-    )
+    allowed_exams = _owned_exams(teacher, data.get("exam_ids"))
+    with transaction.atomic():
+        session = PeerAssessmentSession.objects.create(
+            owner=teacher,
+            title=title[:200],
+            reviewer_class=reviewer_class,
+        )
+        session.allowed_exams.set(allowed_exams)
     return JsonResponse({"ok": True, "session": _session_row(session, True)}, status=201)
 
 
@@ -314,7 +477,16 @@ def teacher_peer_session_detail_api(request: HttpRequest, session_id: int):
         if status == PeerAssessmentSession.Status.RUNNING and not session.assignments.exists():
             raise ValueError("assign at least one work before starting")
         session.status = status
-    session.save()
+    exams = None
+    if "exam_ids" in data:
+        exams = _owned_exams(teacher, data.get("exam_ids"))
+        exam_ids = {exam.id for exam in exams}
+        if exam_ids and session.assignments.exclude(exam_attempt__exam_id__in=exam_ids).exists():
+            raise ValueError("remove assignments outside the selected exams before changing the filter")
+    with transaction.atomic():
+        session.save()
+        if exams is not None:
+            session.allowed_exams.set(exams)
     return JsonResponse({"ok": True, "session": _session_row(session, True)})
 
 
@@ -325,6 +497,15 @@ def teacher_peer_attempt_search_api(request: HttpRequest):
     if not teacher:
         return _api_error("not authenticated", 401)
     queryset = _attempt_queryset(teacher)
+    session_id = request.GET.get("session_id")
+    if session_id:
+        session = _owned_session(
+            teacher,
+            _positive_int(session_id, "session_id", 2_000_000_000),
+        )
+        allowed_exam_ids = list(session.allowed_exams.values_list("id", flat=True))
+        if allowed_exam_ids:
+            queryset = queryset.filter(exam_id__in=allowed_exam_ids)
     reviewer_id = request.GET.get("reviewer_id")
     if reviewer_id:
         reviewer = get_object_or_404(Student, id=reviewer_id, class_group__owner=teacher)
@@ -362,6 +543,9 @@ def teacher_peer_assignments_api(request: HttpRequest, session_id: int):
         _attempt_queryset(teacher),
         id=_positive_int(data.get("attempt_id"), "attempt_id", 2_000_000_000),
     )
+    allowed_exam_ids = set(session.allowed_exams.values_list("id", flat=True))
+    if allowed_exam_ids and attempt.exam_id not in allowed_exam_ids:
+        raise ValueError("the exam attempt is outside this assessment session filter")
     if attempt.student_id == reviewer.id:
         raise ValueError("students cannot review their own work")
     assignment, created = PeerAssessmentAssignment.objects.get_or_create(
@@ -405,9 +589,13 @@ def teacher_peer_autofill_api(request: HttpRequest, session_id: int):
     if data.get("source_class_id"):
         source_class = _owned_class(teacher, data["source_class_id"])
 
-    candidates = list(_attempt_queryset(teacher).filter(
+    candidate_queryset = _attempt_queryset(teacher).filter(
         **({"student__class_group": source_class} if source_class else {})
-    ))
+    )
+    allowed_exam_ids = list(session.allowed_exams.values_list("id", flat=True))
+    if allowed_exam_ids:
+        candidate_queryset = candidate_queryset.filter(exam_id__in=allowed_exam_ids)
+    candidates = list(candidate_queryset)
     reviewers = list(Student.objects.filter(
         class_group=session.reviewer_class,
         is_active=True,

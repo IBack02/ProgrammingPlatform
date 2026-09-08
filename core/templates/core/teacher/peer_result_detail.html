@@ -1,0 +1,66 @@
+{% extends "core/teacher/_base.html" %}
+{% block title %}{{ T.peer_result_detail }}{% endblock %}
+{% block subtitle %}{{ result.exam_title }} · #{{ result.attempt_id }}{% endblock %}
+{% block content %}
+<style>
+  :root{--result-ink:#172033;--result-muted:#64748b;--result-line:#d9e2ec;--result-blue:#075985;--result-sky:#f0f9ff;--result-warm:#fffbeb}
+  *{box-sizing:border-box}
+  .result-top{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+  .back-link{display:inline-flex;padding:9px 13px;border:1px solid var(--result-line);border-radius:10px;background:#fff;color:var(--result-ink);text-decoration:none;font-weight:800}
+  .summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:14px}
+  .summary-card{border:1px solid var(--result-line);border-radius:13px;padding:13px;background:#fff}
+  .summary-label{font-size:12px;color:var(--result-muted);font-weight:800}
+  .summary-value{font-size:22px;font-weight:900;margin-top:5px}
+  .reviewer-pills{display:flex;gap:7px;flex-wrap:wrap;margin-top:12px}
+  .reviewer-pill{padding:6px 9px;border-radius:999px;background:#e0f2fe;color:#075985;font-size:12px;font-weight:800}
+  .question-card{margin-top:14px;border:1px solid var(--result-line);border-radius:16px;background:rgba(255,255,255,.97);padding:17px;box-shadow:0 12px 28px rgba(15,23,42,.07)}
+  .question-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}
+  .question-title{font-size:18px;font-weight:900;white-space:pre-wrap}
+  .points{white-space:nowrap;padding:5px 9px;border-radius:999px;background:#fef3c7;color:#92400e;font-size:12px;font-weight:900}
+  .block{margin-top:12px;border:1px solid var(--result-line);border-radius:12px;padding:13px;background:#fff}
+  .block.scheme{background:var(--result-sky);border-color:#7dd3fc}
+  .block h3{margin:0 0 8px;font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:var(--result-muted)}
+  .answer-text{white-space:pre-wrap;line-height:1.55}
+  .pair{display:grid;grid-template-columns:1fr auto 1fr;gap:9px;align-items:center;padding:7px 0;border-bottom:1px solid #edf2f7}
+  table{width:100%;border-collapse:collapse}th,td{border:1px solid #cbd5e1;padding:8px;text-align:left}th{background:#edf2f7}
+  .peer-grid{display:grid;gap:9px;margin-top:9px}
+  .peer-review{border:1px solid #fed7aa;border-radius:12px;padding:12px;background:#fffaf4}
+  .peer-review-head{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap}
+  .moderation-grid{display:grid;grid-template-columns:minmax(150px,.45fr) minmax(220px,1fr) auto;gap:8px;align-items:end;margin-top:10px}
+  .field{display:flex;flex-direction:column;gap:5px}.field label{font-size:12px;font-weight:800;color:var(--result-muted)}
+  select,textarea,button{font:inherit}select,textarea{width:100%;border:1px solid #cbd5e1;border-radius:9px;padding:8px;background:#fff}textarea{min-height:70px;resize:vertical}
+  .save{border:0;border-radius:9px;padding:9px 12px;background:var(--result-blue);color:#fff;font-weight:850;cursor:pointer}
+  .status{min-height:18px;margin-top:8px;color:#075985;font-size:12px;font-weight:800}
+  @media(max-width:760px){.summary{grid-template-columns:1fr}.moderation-grid{grid-template-columns:1fr}.pair{grid-template-columns:1fr}.pair span:nth-child(2){display:none}}
+</style>
+
+<div class="result-top">
+  <a class="back-link" href="/teacher/assessment/">{{ T.back_to_peer_assessment }}</a>
+  <div><b>{{ result.author_name }}</b> · {{ result.author_class }}</div>
+</div>
+
+<section class="summary">
+  <div class="summary-card"><div class="summary-label">{{ T.exam_maximum_score }}</div><div class="summary-value">{{ result.maximum_score }}</div></div>
+  <div class="summary-card"><div class="summary-label">{{ T.exam_teacher_score }}</div><div class="summary-value">{% if result.teacher_score != None %}{{ result.teacher_score }} / {{ result.maximum_score }}{% else %}{{ T.exam_not_graded }}{% endif %}</div></div>
+  <div class="summary-card"><div class="summary-label">{{ T.peer_reviewers }}</div><div class="summary-value">{{ result.reviewer_totals|length }}</div></div>
+</section>
+
+<div class="reviewer-pills">
+  {% for reviewer in result.reviewer_totals %}<span class="reviewer-pill">{{ reviewer.reviewer_name }}: {{ reviewer.score }} / {{ result.maximum_score }} · {{ reviewer.reviewed_count }}/{{ result.question_count }}</span>{% endfor %}
+</div>
+
+<div id="questionList"></div>
+{{ result|json_script:"peer-result-data" }}
+<script>
+  const result=JSON.parse(document.getElementById('peer-result-data').textContent);
+  const csrf=()=>decodeURIComponent(document.cookie.split('; ').find(value=>value.startsWith('csrftoken='))?.split('=')[1]||'');
+  const esc=value=>String(value??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#039;');
+  function pairs(rows){return rows?.length?rows.map(row=>`<div class="pair"><span>${esc(row.left_text)}</span><span>→</span><span>${esc(row.right_text)||'—'}</span></div>`).join(''):'—'}
+  function table(schema,answer,expected=false){const columns=schema?.columns||[],rows=schema?.rows||[];if(!columns.length)return '—';return `<div style="overflow:auto"><table><thead><tr>${columns.map(column=>`<th>${esc(column.label)}</th>`).join('')}</tr></thead><tbody>${rows.map(row=>`<tr>${row.cells.map(cell=>{const value=cell.mode==='given'?cell.value:(expected?cell.answer:answer?.[cell.key]);return `<td>${esc(value||'—')}</td>`}).join('')}</tr>`).join('')}</tbody></table></div>`}
+  function answer(q){if(q.question_type==='matching')return pairs(q.answer.matching_rows);if(q.question_type==='table')return table(q.table_schema,q.answer.table_answer);if(q.question_type==='diagram')return q.answer.diagram_file_url?`<a href="${esc(q.answer.diagram_file_url)}" target="_blank" rel="noopener noreferrer">{{ T.open_diagram|escapejs }}</a>`:'{{ T.diagram_not_available|escapejs }}';return `<div class="answer-text">${esc(q.answer.text_answer)||'—'}</div>`}
+  function scheme(q){if(q.question_type==='matching')return pairs(q.mark_scheme.matching_pairs);if(q.question_type==='table')return table(q.mark_scheme.table_schema,{},true);return `<div class="answer-text">${esc(q.mark_scheme.model_answer)||'—'}</div>`}
+  function moderation(review){return `<div class="peer-review"><div class="peer-review-head"><b>${esc(review.reviewer_name)} · ${review.score}</b><span>${esc(review.comment||'{{ T.no_comment|escapejs }}')}</span></div><div class="moderation-grid"><div class="field"><label>{{ T.peer_verdict|escapejs }}</label><select id="moderation-${review.id}"><option value="pending" ${review.moderation_status==='pending'?'selected':''}>{{ T.pending|escapejs }}</option><option value="objective" ${review.moderation_status==='objective'?'selected':''}>{{ T.objective|escapejs }}</option><option value="incorrect" ${review.moderation_status==='incorrect'?'selected':''}>{{ T.incorrect|escapejs }}</option><option value="insufficient" ${review.moderation_status==='insufficient'?'selected':''}>{{ T.insufficient_reasoning|escapejs }}</option></select></div><div class="field"><label>{{ T.teacher_comment|escapejs }}</label><textarea id="teacher-comment-${review.id}">${esc(review.teacher_comment)}</textarea></div><button class="save" data-review="${review.id}">{{ T.save|escapejs }}</button></div><div class="status" id="status-${review.id}"></div></div>`}
+  document.getElementById('questionList').innerHTML=result.questions.map(q=>`<article class="question-card"><div class="question-head"><div class="question-title">${q.position}. ${esc(q.prompt)}</div><span class="points">${q.max_score} {{ T.points|escapejs }}</span></div>${q.image_url?`<img src="${esc(q.image_url)}" alt="" style="display:block;max-width:100%;max-height:420px;margin:12px auto;border-radius:10px">`:''}<section class="block"><h3>{{ T.other_student_answer|escapejs }}</h3>${answer(q)}</section><section class="block scheme"><h3>{{ T.mark_scheme|escapejs }}</h3>${scheme(q)}</section><section class="block"><h3>{{ T.exam_teacher_assessment|escapejs }}</h3><b>${q.teacher_assessment.score==null?'{{ T.exam_not_graded|escapejs }}':`${q.teacher_assessment.score} / ${q.max_score}`}</b><div class="answer-text" style="margin-top:7px">${esc(q.teacher_assessment.feedback||'{{ T.no_comment|escapejs }}')}</div></section><section class="block"><h3>{{ T.exam_peer_assessments|escapejs }}</h3><div class="peer-grid">${q.peer_reviews.length?q.peer_reviews.map(moderation).join(''):'{{ T.no_peer_reviews|escapejs }}'}</div></section></article>`).join('');
+  document.querySelectorAll('[data-review]').forEach(button=>button.onclick=async()=>{const id=Number(button.dataset.review);button.disabled=true;const status=document.getElementById(`status-${id}`);try{const response=await fetch(`/api/teacher/peer-reviews/${id}/moderate/`,{method:'PATCH',credentials:'include',headers:{Accept:'application/json','Content-Type':'application/json','X-CSRFToken':csrf()},body:JSON.stringify({moderation_status:document.getElementById(`moderation-${id}`).value,teacher_comment:document.getElementById(`teacher-comment-${id}`).value})});const data=await response.json();if(!response.ok||!data.ok)throw new Error(data.error||'Request failed');status.textContent='{{ T.moderation_saved|escapejs }}'}catch(error){status.textContent=error.message}finally{button.disabled=false}});
+</script>
+{% endblock %}

@@ -181,6 +181,7 @@ path(
 
     # Peer assessment
     path("teacher/assessment/", peer_views.teacher_peer_assessment_page, name="teacher_peer_assessment_page"),
+    path("teacher/assessment/<int:session_id>/results/<int:attempt_id>/", peer_views.teacher_peer_result_page, name="teacher_peer_result_page"),
     path("api/teacher/peer-sessions/", peer_views.teacher_peer_sessions_api, name="teacher_peer_sessions_api"),
     path("api/teacher/peer-sessions/<int:session_id>/", peer_views.teacher_peer_session_detail_api, name="teacher_peer_session_detail_api"),
     path("api/teacher/peer-attempts/search/", peer_views.teacher_peer_attempt_search_api, name="teacher_peer_attempt_search_api"),

@@ -200,6 +200,99 @@ class PeerAssessmentFlowTests(TestCase):
         self.assertEqual(assignments.count(), 2)
         self.assertFalse(assignments.exclude(exam_attempt__student__class_group=self.source_class).exists())
 
+    def test_exam_filter_limits_search_manual_assignment_and_autofill(self):
+        other_exam = Exam.objects.create(
+            owner=self.teacher,
+            title="Network basics",
+            duration_minutes=30,
+        )
+        other_question = ExamQuestion.objects.create(
+            exam=other_exam,
+            position=1,
+            question_type=ExamQuestion.QuestionType.OPEN_TEXT,
+            prompt="Explain a network",
+            model_answer="Connected devices.",
+            max_score=5,
+        )
+        other_attempt = ExamAttempt.objects.create(
+            exam=other_exam,
+            student=self.author,
+            status=ExamAttempt.Status.SUBMITTED,
+            started_at=timezone.now() - timedelta(minutes=5),
+            expires_at=timezone.now() + timedelta(minutes=25),
+            submitted_at=timezone.now(),
+        )
+        ExamAnswer.objects.create(
+            attempt=other_attempt,
+            question=other_question,
+            text_answer="Devices exchanging data.",
+        )
+        session = PeerAssessmentSession.objects.create(
+            owner=self.teacher,
+            title="Filtered review",
+            reviewer_class=self.reviewer_class,
+        )
+        session.allowed_exams.set([self.exam])
+
+        search = self.teacher_client.get(
+            f"/api/teacher/peer-attempts/search/?session_id={session.id}"
+        )
+        self.assertEqual(search.status_code, 200)
+        self.assertEqual(
+            [row["id"] for row in search.json()["attempts"]],
+            [self.attempt.id],
+        )
+
+        rejected = self._json(
+            self.teacher_client,
+            "post",
+            f"/api/teacher/peer-sessions/{session.id}/assignments/",
+            {"reviewer_id": self.reviewer.id, "attempt_id": other_attempt.id},
+        )
+        self.assertEqual(rejected.status_code, 400)
+
+        autofill = self._json(
+            self.teacher_client,
+            "post",
+            f"/api/teacher/peer-sessions/{session.id}/autofill/",
+            {"count": 1},
+        )
+        self.assertEqual(autofill.status_code, 200)
+        self.assertFalse(
+            PeerAssessmentAssignment.objects.filter(session=session).exclude(
+                exam_attempt__exam=self.exam
+            ).exists()
+        )
+
+        listed = self.teacher_client.get("/api/teacher/peer-sessions/")
+        self.assertEqual(listed.status_code, 200)
+        session_row = next(row for row in listed.json()["sessions"] if row["id"] == session.id)
+        self.assertEqual(session_row["allowed_exams"], [{"id": self.exam.id, "title": self.exam.title}])
+        self.assertEqual({row["id"] for row in listed.json()["exams"]}, {self.exam.id, other_exam.id})
+
+    def test_invalid_exam_filter_does_not_partially_update_session(self):
+        session = PeerAssessmentSession.objects.create(
+            owner=self.teacher,
+            title="Original title",
+            reviewer_class=self.reviewer_class,
+        )
+        other_teacher = Teacher.objects.create(full_name="Foreign Exam Teacher", pin_hash="!", is_active=True)
+        foreign_exam = Exam.objects.create(
+            owner=other_teacher,
+            title="Private exam",
+            duration_minutes=20,
+        )
+
+        response = self._json(
+            self.teacher_client,
+            "patch",
+            f"/api/teacher/peer-sessions/{session.id}/",
+            {"title": "Should not persist", "exam_ids": [foreign_exam.id]},
+        )
+        self.assertEqual(response.status_code, 400)
+        session.refresh_from_db()
+        self.assertEqual(session.title, "Original title")
+
     def test_student_cannot_read_another_reviewers_assignment(self):
         _, assignment = self._create_assignment()
         other_client = self._student_client(self.second_reviewer)
@@ -214,6 +307,43 @@ class PeerAssessmentFlowTests(TestCase):
         student_page = self.student_client.get("/student/peer-assessment/")
         self.assertEqual(student_page.status_code, 200)
         self.assertContains(student_page, "/api/student/peer-sessions/")
+        self.assertContains(student_page, "openNextPendingQuestion")
+
+    def test_results_are_grouped_by_work_and_detail_is_teacher_private(self):
+        answer = ExamAnswer.objects.get(attempt=self.attempt, question=self.question)
+        answer.awarded_score = Decimal("4")
+        answer.teacher_feedback = "Teacher feedback"
+        answer.save(update_fields=["awarded_score", "teacher_feedback", "updated_at"])
+        session, assignment = self._create_assignment()
+        PeerAssessmentReview.objects.create(
+            assignment=assignment,
+            question=self.question,
+            score=Decimal("3"),
+            comment="Peer feedback",
+        )
+
+        session_response = self.teacher_client.get(f"/api/teacher/peer-sessions/{session.id}/")
+        self.assertEqual(session_response.status_code, 200)
+        works = session_response.json()["session"]["result_works"]
+        self.assertEqual(len(works), 1)
+        self.assertEqual(works[0]["attempt_id"], self.attempt.id)
+        self.assertEqual(works[0]["review_count"], 1)
+
+        detail = self.teacher_client.get(
+            f"/teacher/assessment/{session.id}/results/{self.attempt.id}/"
+        )
+        self.assertEqual(detail.status_code, 200)
+        self.assertContains(detail, "Split repeated data into related tables.")
+        self.assertContains(detail, "Remove harmful redundancy.")
+        self.assertContains(detail, "Teacher feedback")
+        self.assertContains(detail, "Peer feedback")
+
+        other_teacher = Teacher.objects.create(full_name="Private Results Teacher", pin_hash="!", is_active=True)
+        other_client = self._teacher_client(other_teacher)
+        hidden = other_client.get(
+            f"/teacher/assessment/{session.id}/results/{self.attempt.id}/"
+        )
+        self.assertEqual(hidden.status_code, 404)
 
     def test_exam_chart_and_private_result_details(self):
         answer = ExamAnswer.objects.get(attempt=self.attempt, question=self.question)

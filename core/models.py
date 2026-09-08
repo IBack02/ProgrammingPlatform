@@ -1043,6 +1043,11 @@ class PeerAssessmentSession(models.Model):
         on_delete=models.PROTECT,
         related_name="peer_assessment_sessions",
     )
+    allowed_exams = models.ManyToManyField(
+        Exam,
+        blank=True,
+        related_name="peer_assessment_sessions",
+    )
     status = models.CharField(max_length=16, choices=Status.choices, default=Status.DRAFT)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

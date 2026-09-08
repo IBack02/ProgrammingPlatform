@@ -5,7 +5,7 @@
 <style>
   :root{--peer-blue:#075985;--peer-sky:#e0f2fe;--peer-ink:#172033;--peer-warm:#fff8ed}
   *{box-sizing:border-box}
-  .peer-create{display:grid;grid-template-columns:minmax(220px,1fr) minmax(180px,.6fr) auto;gap:10px;align-items:end;margin-bottom:12px}
+  .peer-create{display:grid;grid-template-columns:minmax(220px,1fr) minmax(180px,.55fr) minmax(220px,.8fr) auto;gap:10px;align-items:end;margin-bottom:12px}
   .peer-layout{display:grid;grid-template-columns:290px minmax(0,1fr);gap:12px;min-height:660px}
   .peer-list{display:flex;flex-direction:column;gap:8px;max-height:720px;overflow:auto}
   .peer-session{border:1px solid #dbe2ea;border-radius:12px;padding:11px;background:#fff;text-align:left;cursor:pointer}
@@ -16,7 +16,8 @@
   .field label{font-size:12px;font-weight:800;color:#526075}
   input,select,textarea{width:100%;border:1px solid #cfd8e3;border-radius:10px;padding:9px 10px;font:inherit;background:#fff}
   textarea{resize:vertical;min-height:78px}
-  .editor-head{display:grid;grid-template-columns:minmax(220px,1fr) minmax(180px,.55fr) auto;gap:10px;align-items:end}
+  select[multiple]{min-height:92px;padding:5px}
+  .editor-head{display:grid;grid-template-columns:minmax(220px,1fr) minmax(180px,.5fr) minmax(220px,.8fr) auto;gap:10px;align-items:end}
   .toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
   button{font:inherit}
   .action{border:0;border-radius:10px;padding:9px 13px;background:var(--peer-blue);color:#fff;font-weight:800;cursor:pointer}
@@ -35,6 +36,8 @@
   .pill{display:inline-block;margin-top:8px;border-radius:999px;padding:4px 8px;background:#e2e8f0;font-size:11px;font-weight:800}
   .review-list{display:grid;gap:10px}
   .review-card{border:1px solid #dbe2ea;border-radius:12px;padding:12px;background:#fff}
+  .result-work{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;align-items:center;border:1px solid #dbe2ea;border-radius:14px;padding:14px;background:linear-gradient(145deg,#fff,#f0f9ff);color:var(--peer-ink);text-decoration:none;transition:transform .15s,border-color .15s}
+  .result-work:hover{transform:translateY(-2px);border-color:#0284c7}
   .review-meta{font-size:12px;color:#64748b;margin:4px 0 9px}
   .review-grid{display:grid;grid-template-columns:minmax(170px,.45fr) minmax(240px,1fr) auto;gap:8px;align-items:end;margin-top:10px}
   .overlay{position:fixed;inset:0;background:rgba(7,18,35,.72);display:none;align-items:center;justify-content:center;padding:18px;z-index:1000}
@@ -50,6 +53,7 @@
 <div class="card peer-create">
   <div class="field"><label for="newTitle">{{ T.peer_session_title }}</label><input id="newTitle" maxlength="200"></div>
   <div class="field"><label for="newClass">{{ T.reviewer_class }}</label><select id="newClass"></select></div>
+  <div class="field"><label for="newExams">{{ T.peer_exam_filter }}</label><select id="newExams" multiple></select><small class="muted">{{ T.peer_exam_filter_hint }}</small></div>
   <button class="action" id="createSession" type="button">{{ T.create_peer_session }}</button>
 </div>
 
@@ -65,6 +69,7 @@
       <div class="editor-head">
         <div class="field"><label for="sessionTitle">{{ T.peer_session_title }}</label><input id="sessionTitle" maxlength="200"></div>
         <div class="field"><label for="sessionClass">{{ T.reviewer_class }}</label><select id="sessionClass"></select></div>
+        <div class="field"><label for="sessionExams">{{ T.peer_exam_filter }}</label><select id="sessionExams" multiple></select><small class="muted">{{ T.peer_exam_filter_hint }}</small></div>
         <div class="toolbar">
           <button class="action" id="saveSession" type="button">{{ T.save }}</button>
           <button class="action secondary" id="toggleSession" type="button"></button>
@@ -102,7 +107,7 @@
 </div>
 
 <script>
-  const state={classes:[],sessions:[],current:null,reviewer:null,searchTimer:null};
+  const state={classes:[],exams:[],sessions:[],current:null,reviewer:null,searchTimer:null};
   const csrf=()=>decodeURIComponent(document.cookie.split('; ').find(x=>x.startsWith('csrftoken='))?.split('=')[1]||'');
   const esc=v=>String(v??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#039;');
   async function api(url,options={}){
@@ -113,30 +118,30 @@
     return data;
   }
   function options(selected){return state.classes.map(c=>`<option value="${c.id}" ${Number(selected)===c.id?'selected':''}>#${c.id} ${esc(c.name)}</option>`).join('')}
+  function examOptions(selected=[]){const ids=new Set((selected||[]).map(row=>Number(row.id??row)));return state.exams.map(exam=>`<option value="${exam.id}" ${ids.has(exam.id)?'selected':''}>${esc(exam.title)} · ${exam.completed_attempt_count} {{ T.completed_works|escapejs }}</option>`).join('')}
+  function selectedExamIds(id){return Array.from(document.getElementById(id).selectedOptions).map(option=>Number(option.value))}
   function message(value,error=false){const box=document.getElementById('status');box.textContent=value||'';box.style.color=error?'#b91c1c':'#075985'}
   async function loadClasses(){const data=await api('/api/teacher/classes/');state.classes=data.classes||[];document.getElementById('newClass').innerHTML=options(state.classes.at(-1)?.id);document.getElementById('sourceClass').innerHTML=options(state.classes.at(-1)?.id)}
-  async function loadSessions(selectId){const data=await api('/api/teacher/peer-sessions/');state.sessions=data.sessions||[];renderSessions();if(selectId)await selectSession(selectId)}
+  async function loadSessions(selectId){const data=await api('/api/teacher/peer-sessions/');state.sessions=data.sessions||[];state.exams=data.exams||[];document.getElementById('newExams').innerHTML=examOptions();renderSessions();if(selectId)await selectSession(selectId)}
   function renderSessions(){const box=document.getElementById('sessionList');box.innerHTML=state.sessions.length?state.sessions.map(s=>`<button class="peer-session ${state.current?.id===s.id?'active':''}" data-id="${s.id}"><b>${esc(s.title)}</b><div class="muted">${esc(s.reviewer_class.name)} · ${esc(s.status)} · ${s.assignment_count}</div></button>`).join(''):`<div class="empty">{{ T.no_peer_sessions|escapejs }}</div>`;box.querySelectorAll('[data-id]').forEach(b=>b.onclick=()=>selectSession(Number(b.dataset.id)))}
-  async function selectSession(id){const data=await api(`/api/teacher/peer-sessions/${id}/`);state.current=data.session;document.getElementById('selectHint').hidden=true;document.getElementById('editor').classList.add('visible');document.getElementById('sessionTitle').value=state.current.title;document.getElementById('sessionClass').innerHTML=options(state.current.reviewer_class.id);renderSessions();renderEditor()}
+  async function selectSession(id){const data=await api(`/api/teacher/peer-sessions/${id}/`);state.current=data.session;document.getElementById('selectHint').hidden=true;document.getElementById('editor').classList.add('visible');document.getElementById('sessionTitle').value=state.current.title;document.getElementById('sessionClass').innerHTML=options(state.current.reviewer_class.id);document.getElementById('sessionExams').innerHTML=examOptions(state.current.allowed_exams);renderSessions();renderEditor()}
   function renderEditor(){
     const running=state.current.status==='running';const toggle=document.getElementById('toggleSession');toggle.textContent=running?'{{ T.stop_peer_session|escapejs }}':'{{ T.start_peer_session|escapejs }}';
     document.getElementById('studentGrid').innerHTML=state.current.students.length?state.current.students.map(s=>`<button class="student-card" data-student="${s.id}"><div class="student-name">${esc(s.full_name)}</div><span class="pill">{{ T.assigned_works|escapejs }}: ${s.assignments.length}</span></button>`).join(''):`<div class="empty">{{ T.no_students|escapejs }}</div>`;
     document.querySelectorAll('[data-student]').forEach(b=>b.onclick=()=>openReviewer(Number(b.dataset.student)));
-    const reviews=state.current.reviews||[];document.getElementById('reviewList').innerHTML=reviews.length?reviews.map(r=>`<article class="review-card"><b>${esc(r.reviewer_name)}</b> → #${r.attempt_id}, ${esc(r.exam_title)}<div class="review-meta">{{ T.question|escapejs }} ${r.question_position}: ${esc(r.question_prompt)} · ${r.score}/${r.max_score}</div><div>${esc(r.comment||'{{ T.no_comment|escapejs }}')}</div><div class="review-grid"><div class="field"><label>{{ T.peer_verdict|escapejs }}</label><select id="moderation-${r.id}"><option value="pending" ${r.moderation_status==='pending'?'selected':''}>{{ T.pending|escapejs }}</option><option value="objective" ${r.moderation_status==='objective'?'selected':''}>{{ T.objective|escapejs }}</option><option value="incorrect" ${r.moderation_status==='incorrect'?'selected':''}>{{ T.incorrect|escapejs }}</option><option value="insufficient" ${r.moderation_status==='insufficient'?'selected':''}>{{ T.insufficient_reasoning|escapejs }}</option></select></div><div class="field"><label>{{ T.teacher_comment|escapejs }}</label><textarea id="teacher-comment-${r.id}">${esc(r.teacher_comment)}</textarea></div><button class="action" data-moderate="${r.id}">{{ T.save|escapejs }}</button></div></article>`).join(''):`<div class="empty">{{ T.no_peer_reviews|escapejs }}</div>`;
-    document.querySelectorAll('[data-moderate]').forEach(b=>b.onclick=()=>moderate(Number(b.dataset.moderate)));
+    const works=state.current.result_works||[];document.getElementById('reviewList').innerHTML=works.length?works.map(work=>`<a class="result-work" href="/teacher/assessment/${state.current.id}/results/${work.attempt_id}/"><div><b>#${work.attempt_id} · ${esc(work.exam_title)}</b><div class="review-meta">${esc(work.author_name)} · ${esc(work.author_class)}</div><div class="muted">{{ T.peer_review_progress|escapejs }}: ${work.review_count}/${work.question_count*work.reviewer_count} · {{ T.reviewers_completed|escapejs }}: ${work.completed_reviewer_count}/${work.reviewer_count}</div></div><span class="action">{{ T.open_details|escapejs }}</span></a>`).join(''):`<div class="empty">{{ T.no_peer_result_works|escapejs }}</div>`;
   }
   function openReviewer(id){state.reviewer=state.current.students.find(s=>s.id===id);document.getElementById('modalTitle').textContent=state.reviewer.full_name;renderAssigned();document.getElementById('attemptSearch').value='';document.getElementById('searchResults').innerHTML='';document.getElementById('reviewerModal').classList.add('open');document.getElementById('reviewerModal').setAttribute('aria-hidden','false');searchAttempts()}
   function closeReviewer(){document.getElementById('reviewerModal').classList.remove('open');document.getElementById('reviewerModal').setAttribute('aria-hidden','true');state.reviewer=null}
   function renderAssigned(){const box=document.getElementById('assignedList');box.innerHTML=state.reviewer.assignments.length?state.reviewer.assignments.map(a=>`<div class="assigned-row"><div><b>#${a.attempt_id} · ${esc(a.exam_title)}</b><div class="muted">${esc(a.author_name)} · ${esc(a.author_class)} · ${a.reviewed_count}/${a.question_count}</div></div><button class="action danger" data-remove="${a.id}" ${a.reviewed_count?'disabled':''}>{{ T.remove|escapejs }}</button></div>`).join(''):`<div class="empty">{{ T.no_assigned_works|escapejs }}</div>`;box.querySelectorAll('[data-remove]').forEach(b=>b.onclick=()=>removeAssignment(Number(b.dataset.remove)))}
-  async function searchAttempts(){if(!state.reviewer)return;try{const q=encodeURIComponent(document.getElementById('attemptSearch').value.trim());const data=await api(`/api/teacher/peer-attempts/search/?reviewer_id=${state.reviewer.id}&q=${q}`);const assigned=new Set(state.reviewer.assignments.map(a=>a.attempt_id));document.getElementById('searchResults').innerHTML=data.attempts.length?data.attempts.map(a=>`<div class="search-row"><div><b>#${a.id} · ${esc(a.student_name)}</b><div class="muted">${esc(a.exam_title)} · ${esc(a.class_name)}</div></div><button class="action" data-add="${a.id}" ${assigned.has(a.id)?'disabled':''}>{{ T.add|escapejs }}</button></div>`).join(''):`<div class="empty">{{ T.no_results|escapejs }}</div>`;document.querySelectorAll('[data-add]').forEach(b=>b.onclick=()=>addAssignment(Number(b.dataset.add)))}catch(e){message(e.message,true)}}
+  async function searchAttempts(){if(!state.reviewer)return;try{const q=encodeURIComponent(document.getElementById('attemptSearch').value.trim());const data=await api(`/api/teacher/peer-attempts/search/?session_id=${state.current.id}&reviewer_id=${state.reviewer.id}&q=${q}`);const assigned=new Set(state.reviewer.assignments.map(a=>a.attempt_id));document.getElementById('searchResults').innerHTML=data.attempts.length?data.attempts.map(a=>`<div class="search-row"><div><b>#${a.id} · ${esc(a.student_name)}</b><div class="muted">${esc(a.exam_title)} · ${esc(a.class_name)}</div></div><button class="action" data-add="${a.id}" ${assigned.has(a.id)?'disabled':''}>{{ T.add|escapejs }}</button></div>`).join(''):`<div class="empty">{{ T.no_results|escapejs }}</div>`;document.querySelectorAll('[data-add]').forEach(b=>b.onclick=()=>addAssignment(Number(b.dataset.add)))}catch(e){message(e.message,true)}}
   async function addAssignment(attemptId){try{await api(`/api/teacher/peer-sessions/${state.current.id}/assignments/`,{method:'POST',body:JSON.stringify({reviewer_id:state.reviewer.id,attempt_id:attemptId})});const reviewerId=state.reviewer.id;await selectSession(state.current.id);openReviewer(reviewerId)}catch(e){message(e.message,true)}}
   async function removeAssignment(id){try{await api(`/api/teacher/peer-assignments/${id}/`,{method:'DELETE'});const reviewerId=state.reviewer.id;await selectSession(state.current.id);openReviewer(reviewerId)}catch(e){message(e.message,true)}}
-  async function moderate(id){try{await api(`/api/teacher/peer-reviews/${id}/moderate/`,{method:'PATCH',body:JSON.stringify({moderation_status:document.getElementById(`moderation-${id}`).value,teacher_comment:document.getElementById(`teacher-comment-${id}`).value})});message('{{ T.moderation_saved|escapejs }}')}catch(e){message(e.message,true)}}
-  document.getElementById('createSession').onclick=async()=>{try{const data=await api('/api/teacher/peer-sessions/',{method:'POST',body:JSON.stringify({title:document.getElementById('newTitle').value,class_id:Number(document.getElementById('newClass').value)})});document.getElementById('newTitle').value='';await loadSessions(data.session.id)}catch(e){message(e.message,true)}};
-  document.getElementById('saveSession').onclick=async()=>{try{await api(`/api/teacher/peer-sessions/${state.current.id}/`,{method:'PATCH',body:JSON.stringify({title:document.getElementById('sessionTitle').value,class_id:Number(document.getElementById('sessionClass').value)})});await selectSession(state.current.id);message('{{ T.peer_session_saved|escapejs }}')}catch(e){message(e.message,true)}};
+  document.getElementById('createSession').onclick=async()=>{try{const data=await api('/api/teacher/peer-sessions/',{method:'POST',body:JSON.stringify({title:document.getElementById('newTitle').value,class_id:Number(document.getElementById('newClass').value),exam_ids:selectedExamIds('newExams')})});document.getElementById('newTitle').value='';await loadSessions(data.session.id)}catch(e){message(e.message,true)}};
+  document.getElementById('saveSession').onclick=async()=>{try{await api(`/api/teacher/peer-sessions/${state.current.id}/`,{method:'PATCH',body:JSON.stringify({title:document.getElementById('sessionTitle').value,class_id:Number(document.getElementById('sessionClass').value),exam_ids:selectedExamIds('sessionExams')})});await selectSession(state.current.id);message('{{ T.peer_session_saved|escapejs }}')}catch(e){message(e.message,true)}};
   document.getElementById('toggleSession').onclick=async()=>{try{const status=state.current.status==='running'?'stopped':'running';await api(`/api/teacher/peer-sessions/${state.current.id}/`,{method:'PATCH',body:JSON.stringify({status})});await selectSession(state.current.id)}catch(e){message(e.message,true)}};
   document.getElementById('deleteSession').onclick=async()=>{if(!confirm('{{ T.confirm_delete_peer_session|escapejs }}'))return;try{await api(`/api/teacher/peer-sessions/${state.current.id}/`,{method:'DELETE'});state.current=null;document.getElementById('editor').classList.remove('visible');document.getElementById('selectHint').hidden=false;await loadSessions()}catch(e){message(e.message,true)}};
-  document.getElementById('autofill').onclick=async()=>{try{const same=document.getElementById('sameClassOnly').checked;const payload={count:Number(document.getElementById('workCount').value),source_class_id:same?Number(document.getElementById('sourceClass').value):null};await api(`/api/teacher/peer-sessions/${state.current.id}/autofill/`,{method:'POST',body:JSON.stringify(payload)});await selectSession(state.current.id);message('{{ T.autofill_complete|escapejs }}')}catch(e){message(e.message,true)}};
+  document.getElementById('autofill').onclick=async()=>{try{const same=document.getElementById('sameClassOnly').checked;await api(`/api/teacher/peer-sessions/${state.current.id}/`,{method:'PATCH',body:JSON.stringify({exam_ids:selectedExamIds('sessionExams')})});const payload={count:Number(document.getElementById('workCount').value),source_class_id:same?Number(document.getElementById('sourceClass').value):null};await api(`/api/teacher/peer-sessions/${state.current.id}/autofill/`,{method:'POST',body:JSON.stringify(payload)});await selectSession(state.current.id);message('{{ T.autofill_complete|escapejs }}')}catch(e){message(e.message,true)}};
   document.getElementById('sameClassOnly').onchange=e=>document.getElementById('sourceClassWrap').hidden=!e.target.checked;
   document.getElementById('attemptSearch').oninput=()=>{clearTimeout(state.searchTimer);state.searchTimer=setTimeout(searchAttempts,250)};
   document.getElementById('saveModal').onclick=closeReviewer;document.getElementById('closeModal').onclick=closeReviewer;document.getElementById('reviewerModal').onclick=e=>{if(e.target.id==='reviewerModal')closeReviewer()};document.getElementById('refreshSessions').onclick=()=>loadSessions(state.current?.id);
