@@ -72,6 +72,11 @@
     gap: 12px;
     margin-top: 12px;
   }
+  .chart-switch { display:inline-flex;gap:4px;padding:4px;border:1px solid #e5e7eb;border-radius:12px;background:#f8fafc; }
+  .chart-switch button { border:0;border-radius:8px;padding:7px 10px;background:transparent;color:#475569;font:inherit;font-size:12px;font-weight:800;cursor:pointer; }
+  .chart-switch button.active { background:#0f172a;color:#fff;box-shadow:0 4px 10px rgba(15,23,42,.16); }
+  .chart-wrap { height:360px;margin-top:12px;position:relative; }
+  .chart-wrap canvas { width:100% !important;height:100% !important; }
 
   .student-grid {
     display: grid;
@@ -183,19 +188,23 @@
   <div class="card">
     <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;">
       <div>
-        <div class="section-title">{{ T.submissions_by_session }}</div>
+        <div class="section-title" id="chartTitle">{{ T.exam_performance }}</div>
         <div class="small-muted" id="scaleNote"></div>
       </div>
+      <div class="chart-switch">
+        <button type="button" id="examChartButton" class="active">{{ T.exams }}</button>
+        <button type="button" id="programmingChartButton">{{ T.programming_performance }}</button>
+      </div>
     </div>
-    <div style="margin-top:12px;">
-      <canvas id="sessionChart" height="110"></canvas>
+    <div class="chart-wrap">
+      <canvas id="sessionChart"></canvas>
     </div>
   </div>
 
 </div>
 
 <div class="card" style="margin-top:12px;">
-  <div class="section-title">{{ T.students_avg_per_session }}</div>
+  <div class="section-title" id="cardsTitle">{{ T.exam_student_indicators }}</div>
 
   {% if student_cards %}
     <div class="student-grid" id="studentsGrid">
@@ -204,12 +213,12 @@
           <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;">
             <div>
               <div class="student-name">{{ s.name }}</div>
-              <div class="small-muted">{{ s.class_name }} • {{ T.sessions_count_short }}: {{ s.sessions_count }}</div>
+              <div class="small-muted">{{ s.class_name }} • <span class="programming-count" hidden>{{ T.sessions_count_short }}: {{ s.sessions_count }}</span><span class="exam-count">{{ T.exams }}: {{ s.exam_count }}</span></div>
             </div>
             <span class="pill">{{ T.open }}</span>
           </div>
 
-          <div class="bars">
+          <div class="bars programming-metrics" hidden>
             <div class="bar-row">
               <div class="bar-label">{{ T.avg_attempts }}</div>
               <div class="bar-track"><div class="bar-fill" data-val="{{ s.avg_total }}"></div></div>
@@ -226,6 +235,11 @@
               <div class="small-muted">{{ s.avg_hints }}</div>
             </div>
           </div>
+          <div class="bars exam-metrics">
+            <div class="bar-row"><div class="bar-label">{{ T.exams }}</div><div class="small-muted">{{ s.exam_count }}</div></div>
+            <div class="bar-row"><div class="bar-label">{{ T.exam_teacher_score_percent }}</div><div class="bar-track"><div class="bar-fill percent-fill" data-val="{{ s.avg_teacher_percent|default_if_none:0 }}"></div></div><div class="small-muted">{% if s.avg_teacher_percent != None %}{{ s.avg_teacher_percent }}%{% else %}—{% endif %}</div></div>
+            <div class="bar-row"><div class="bar-label">{{ T.exam_peer_score_percent }}</div><div class="bar-track"><div class="bar-fill percent-fill" data-val="{{ s.avg_peer_percent|default_if_none:0 }}"></div></div><div class="small-muted">{% if s.avg_peer_percent != None %}{{ s.avg_peer_percent }}%{% else %}—{% endif %}</div></div>
+          </div>
         </div>
       {% endfor %}
     </div>
@@ -235,15 +249,26 @@
 </div>
 
 {{ session_chart_json|json_script:"teacher-session-chart-data" }}
+{{ exam_chart_json|json_script:"teacher-exam-chart-data" }}
 <script>
   const UI = {
     chartNoteScaled: "{{ T.chart_note_scaled|escapejs }}",
     totalSubmissions: "{{ T.total_submissions|escapejs }}",
     acceptedSubmissions: "{{ T.accepted_submissions|escapejs }}",
-    assistantRequests: "{{ T.assistant_requests|escapejs }}"
+    assistantRequests: "{{ T.assistant_requests|escapejs }}",
+    examPerformance: "{{ T.exam_performance|escapejs }}",
+    programmingPerformance: "{{ T.submissions_by_session|escapejs }}",
+    teacherScore: "{{ T.exam_teacher_score_percent|escapejs }}",
+    peerScore: "{{ T.exam_peer_score_percent|escapejs }}",
+    examCards: "{{ T.exam_student_indicators|escapejs }}",
+    programmingCards: "{{ T.students_avg_per_session|escapejs }}"
   };
 
   const chartData = JSON.parse(document.getElementById("teacher-session-chart-data").textContent);
+  const examChartData = JSON.parse(document.getElementById("teacher-exam-chart-data").textContent);
+  let dashboardChart = null;
+  let chartMode = "exam";
+  const shortLabel = value => { const text=String(value||""); return text.length>22 ? `${text.slice(0,21)}…` : text; };
 
   const scaleNote = document.getElementById("scaleNote");
   if (chartData.scale_factor && chartData.scale_factor !== 1) {
@@ -252,7 +277,7 @@
     scaleNote.textContent = "";
   }
 
-  const datasets = [
+  const programmingDatasets = [
     {
       label: chartData.scale_factor && chartData.scale_factor !== 1
         ? `${UI.totalSubmissions} (÷${chartData.scale_factor})`
@@ -262,39 +287,58 @@
     }
   ];
 
-  datasets.push({
+  programmingDatasets.push({
     label: UI.acceptedSubmissions,
     data: chartData.datasets.accepted || [],
     borderWidth: 1,
   });
 
-  datasets.push({
+  programmingDatasets.push({
     label: UI.assistantRequests,
     data: chartData.datasets.hints || [],
     borderWidth: 1,
   });
 
-  const ctx = document.getElementById("sessionChart");
-  if (ctx) {
-    new Chart(ctx, {
-      type: "bar",
-      data: {
-        labels: chartData.labels || [],
-        datasets
-      },
+  function renderDashboardChart(){
+    const isExam=chartMode==="exam";
+    const source=isExam?examChartData:chartData;
+    const datasets=isExam?[
+      {label:UI.teacherScore,data:source.teacher_percentages||[],borderColor:"#2563eb",backgroundColor:"#2563eb",tension:.25,spanGaps:true},
+      {label:UI.peerScore,data:source.peer_percentages||[],borderColor:"#dc2626",backgroundColor:"#dc2626",tension:.25,spanGaps:true}
+    ]:programmingDatasets;
+    document.getElementById("chartTitle").textContent=isExam?UI.examPerformance:UI.programmingPerformance;
+    document.getElementById("cardsTitle").textContent=isExam?UI.examCards:UI.programmingCards;
+    document.getElementById("scaleNote").style.display=isExam?"none":"block";
+    document.getElementById("examChartButton").classList.toggle("active",isExam);
+    document.getElementById("programmingChartButton").classList.toggle("active",!isExam);
+    document.querySelectorAll(".exam-metrics").forEach(row=>row.hidden=!isExam);
+    document.querySelectorAll(".programming-metrics").forEach(row=>row.hidden=isExam);
+    document.querySelectorAll(".exam-count").forEach(row=>row.hidden=!isExam);
+    document.querySelectorAll(".programming-count").forEach(row=>row.hidden=isExam);
+    if(dashboardChart)dashboardChart.destroy();
+    dashboardChart=new Chart(document.getElementById("sessionChart"), {
+      type:isExam?"line":"bar",
+      data:{labels:source.labels||[],datasets},
       options: {
         responsive: true,
+        maintainAspectRatio:false,
+        interaction:{mode:"index",intersect:false},
         plugins: {
           legend: { position: "top" },
-          tooltip: { mode: "index", intersect: false }
+          tooltip: { mode: "index", intersect: false,
+            callbacks:{title:items=>items.length?String(source.labels?.[items[0].dataIndex]||""):""}
+          }
         },
         scales: {
-          x: { stacked: false, ticks: { maxRotation: 0, autoSkip: true } },
-          y: { beginAtZero: true }
+          x: { stacked:false,ticks:{maxRotation:20,minRotation:0,autoSkip:true,callback:function(value){return shortLabel(this.getLabelForValue(value));}} },
+          y: { beginAtZero:true,max:isExam?100:undefined }
         }
       }
     });
   }
+  document.getElementById("examChartButton").onclick=()=>{chartMode="exam";renderDashboardChart();};
+  document.getElementById("programmingChartButton").onclick=()=>{chartMode="programming";renderDashboardChart();};
+  renderDashboardChart();
 
   const fills = Array.from(document.querySelectorAll(".bar-fill"));
   const vals = fills
@@ -307,6 +351,7 @@
     const pct = Math.max(0, Math.min(100, (v / maxVal) * 100));
     f.style.width = pct + "%";
   });
+  document.querySelectorAll(".percent-fill").forEach(f=>{f.style.width=Math.max(0,Math.min(100,parseFloat(f.dataset.val||"0")))+"%";});
 
   document.querySelectorAll(".student-card").forEach(card => {
     card.addEventListener("click", () => {

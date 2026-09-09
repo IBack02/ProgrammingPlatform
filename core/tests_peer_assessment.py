@@ -368,6 +368,18 @@ class PeerAssessmentFlowTests(TestCase):
         self.assertEqual(exam_chart["teacher_percentages"], [80.0])
         self.assertEqual(exam_chart["peer_percentages"], [60.0])
 
+        teacher_dashboard = self.teacher_client.get("/teacher/")
+        self.assertEqual(teacher_dashboard.status_code, 200)
+        teacher_chart = teacher_dashboard.context["exam_chart_json"]
+        self.assertEqual(teacher_chart["labels"], [self.exam.title])
+        self.assertEqual(teacher_chart["teacher_percentages"], [80.0])
+        self.assertEqual(teacher_chart["peer_percentages"], [60.0])
+        author_card = next(
+            row for row in teacher_dashboard.context["student_cards"] if row["id"] == self.author.id
+        )
+        self.assertEqual(author_card["avg_teacher_percent"], 80.0)
+        self.assertEqual(author_card["avg_peer_percent"], 60.0)
+
         dashboard_page = author_client.get("/student/dashboard/")
         self.assertEqual(dashboard_page.status_code, 200)
         self.assertContains(dashboard_page, 'id="examChartButton"')

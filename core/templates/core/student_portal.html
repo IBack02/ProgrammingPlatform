@@ -780,6 +780,17 @@
               </aside>
             </div>
 
+            <div id="tournamentBoard" style="display:none;">
+              <div id="tournamentBracket" style="display:flex;gap:14px;overflow:auto;padding:8px 0 16px;"></div>
+              <div id="tournamentPlay" class="gameLobby" style="display:none;">
+                <div class="small muted" id="tournamentMatchScore"></div>
+                <div class="gamePromptSentence" id="tournamentPrompt" style="margin-top:12px;"></div>
+                <input id="tournamentAnswerInput" class="gameAnswerInput" type="text" maxlength="300" autocomplete="off" style="margin-top:14px;">
+                <button id="tournamentSubmitBtn" class="primary" type="button" style="margin-top:10px;">{{ T.game_check_answer }}</button>
+                <div id="tournamentFeedback" class="gameFeedback"></div>
+              </div>
+            </div>
+
             <div id="gameResults" style="display:none;"></div>
           </div>
         </div>
@@ -883,6 +894,10 @@
     ,wonderTeamLost: "{{ T.wonder_team_lost|escapejs }}"
     ,wonderGameStopped: "{{ T.wonder_game_stopped|escapejs }}"
     ,wonderNoLogs: "{{ T.wonder_no_logs|escapejs }}"
+    ,tournamentRound: "{{ T.tournament_round|escapejs }}"
+    ,tournamentWaitingMatch: "{{ T.tournament_waiting_match|escapejs }}"
+    ,tournamentEliminated: "{{ T.tournament_eliminated|escapejs }}"
+    ,tournamentChampion: "{{ T.tournament_champion|escapejs }}"
   };
 
   let currentTaskId = null;
@@ -1772,6 +1787,17 @@
     box.innerHTML = `<div class="wonderTeamResult ${won ? "won" : "lost"}"><div class="title" style="font-size:clamp(26px,5vw,48px);">${escapeHtml(text)}</div><div style="margin-top:10px;">${round.current_question_index}/${round.total_prompts}</div></div>`;
   }
 
+  function renderStudentTournament(round){
+    const board=qs("tournamentBoard");board.style.display="block";
+    const byStage=new Map();(round.tournament_matches||[]).forEach(match=>{if(!byStage.has(match.stage_number))byStage.set(match.stage_number,[]);byStage.get(match.stage_number).push(match)});
+    qs("tournamentBracket").innerHTML=Array.from(byStage.entries()).map(([number,matches])=>`<section style="min-width:220px;flex:1"><b>${escapeHtml(matches[0]?.stage_title||`${UI.tournamentRound} ${number}`)}</b>${matches.map(match=>`<div class="gameLobby" style="padding:10px;margin-top:8px"><div style="display:flex;justify-content:space-between"><span>${escapeHtml(match.player_one?.student_name||"BYE")}</span><b>${match.score_one}</b></div><div style="display:flex;justify-content:space-between"><span>${escapeHtml(match.player_two?.student_name||"BYE")}</span><b>${match.score_two}</b></div></div>`).join("")}</section>`).join("");
+    const match=(round.tournament_matches||[]).find(row=>Number(row.id)===Number(round.my_tournament_match_id));
+    const play=qs("tournamentPlay");
+    if(match?.current_question&&round.can_answer_tournament){play.style.display="block";qs("tournamentMatchScore").textContent=`${match.player_one.student_name} ${match.score_one} : ${match.score_two} ${match.player_two.student_name} · ${match.wins_required}`;qs("tournamentPrompt").textContent=match.current_question.prompt;if(play.dataset.question!==`${match.id}:${match.current_question.index}`){play.dataset.question=`${match.id}:${match.current_question.index}`;qs("tournamentAnswerInput").value="";qs("tournamentFeedback").textContent="";setTimeout(()=>qs("tournamentAnswerInput").focus(),20)}}else{play.style.display="block";qs("tournamentMatchScore").textContent=round.me?.finish_place===1?UI.tournamentChampion:(round.tournament_eliminated?UI.tournamentEliminated:UI.tournamentWaitingMatch);qs("tournamentPrompt").textContent="";qs("tournamentAnswerInput").style.display="none";qs("tournamentSubmitBtn").style.display="none";}
+  }
+
+  async function submitTournamentAnswer(){const match=(currentGameRound?.tournament_matches||[]).find(row=>Number(row.id)===Number(currentGameRound.my_tournament_match_id));if(!match?.current_question)return;const button=qs("tournamentSubmitBtn");button.disabled=true;const res=await apiPost(`/api/student/game-rounds/${currentGameRound.id}/tournament-answer/`,{match_id:match.id,question_index:match.current_question.index,answer:qs("tournamentAnswerInput").value});button.disabled=false;if(!res.data.ok){qs("tournamentFeedback").textContent=res.data.error||UI.gameIncorrect;return}qs("tournamentFeedback").textContent=res.data.correct?UI.gameCorrect:UI.gameIncorrect;renderStudentGameRound(res.data.round)}
+
   async function submitWonderLetter(){
     if (gameAnswerPending || !currentGameRound?.is_my_turn || !selectedWonderLetter || !currentGameRound.current_question) return;
     gameAnswerPending = true;
@@ -1809,10 +1835,13 @@
     const readyBtn = qs("gameReadyBtn");
     const stage = qs("gamePromptStage");
     const wonderBoard = qs("wonderStudentBoard");
+    const tournamentBoard = qs("tournamentBoard");
     const results = qs("gameResults");
     results.style.display = "none";
     wonderBoard.style.display = "none";
-    qs("gameTracks").style.display = round?.rubric === "wonder_field" ? "none" : "grid";
+    tournamentBoard.style.display = "none";
+    qs("tournamentAnswerInput").style.display="block";qs("tournamentSubmitBtn").style.display="inline-block";
+    qs("gameTracks").style.display = ["wonder_field","tournament"].includes(round?.rubric) ? "none" : "grid";
     qs("gameStatus").textContent = round ? `${round.class.name} · #${round.run_number} · ${round.status}` : UI.gameWaiting;
     renderGameTracks(round);
 
@@ -1842,6 +1871,7 @@
       stage.style.display = "none";
       wonderBoard.style.display = "none";
       if (round.rubric === "wonder_field") renderWonderTeamResult(round);
+      else if (round.rubric === "tournament") renderStudentTournament(round);
       else renderGameResults(round);
       stopStudentGamePolling();
       return;
@@ -1863,6 +1893,9 @@
       renderStudentWonderRound(round);
       scheduleStudentGamePoll(round.id);
       return;
+    }
+    if (round.rubric === "tournament"){
+      lobby.style.display="none";stage.style.display="none";renderStudentTournament(round);scheduleStudentGamePoll(round.id);return;
     }
 
     if (!round.current_prompt){
@@ -2321,6 +2354,8 @@
     qs("gameReadyBtn").addEventListener("click", markGameReady);
     qs("gameAnswerBtn").addEventListener("click", submitGameAnswer);
     qs("wonderSubmitBtn").addEventListener("click", submitWonderLetter);
+    qs("tournamentSubmitBtn").addEventListener("click", submitTournamentAnswer);
+    qs("tournamentAnswerInput").addEventListener("keydown",event=>{if(event.key==="Enter"){event.preventDefault();submitTournamentAnswer();}});
     qs("gameAnswerInput").addEventListener("input", event => renderGameCharacters(event.target.value));
     qs("gameAnswerInput").addEventListener("keydown", event => {
       if (event.key === "Enter"){

@@ -97,6 +97,7 @@
   };
 
   const data = JSON.parse(document.getElementById("student-chart-data").textContent);
+  const shortChartLabel = value => { const text=String(value||""); return text.length>22 ? `${text.slice(0,21)}…` : text; };
   const ctx = document.getElementById("rateChart");
 
   new Chart(ctx, {
@@ -130,6 +131,7 @@
         legend: { position: "top" },
         tooltip: {
           callbacks: {
+            title: (items) => items.length ? String(data.labels[items[0].dataIndex] || "") : "",
             afterBody: (items) => {
               const i = items[0].dataIndex;
               return [
@@ -144,7 +146,8 @@
         y: {
           beginAtZero: true,
           max: 100
-        }
+        },
+        x: { ticks: { callback:function(value){return shortChartLabel(this.getLabelForValue(value));} } }
       }
     }
   });

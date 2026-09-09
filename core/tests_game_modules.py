@@ -16,6 +16,7 @@ from .models import (
     SessionTask,
     Student,
     Teacher,
+    TournamentMatch,
     WonderFieldQuestion,
 )
 from .security import auth_version
@@ -546,3 +547,92 @@ class MindRaceGameTests(TestCase):
         self.assertEqual(blocked.status_code, 409)
         module.refresh_from_db()
         self.assertEqual(module.rubric, GameModule.Rubric.WONDER_FIELD)
+
+    def test_tournament_builds_single_elimination_bracket_with_bye(self):
+        student_a3 = Student.objects.create(
+            full_name="Runner A3",
+            class_group=self.class_a,
+            pin_hash="!",
+            is_active=True,
+        )
+        client_a3 = self._student_client(student_a3)
+        clients = {
+            self.student_a.id: self.client_a,
+            self.student_a2.id: self.client_a2,
+            student_a3.id: client_a3,
+        }
+        created = self._json(
+            self.teacher_client,
+            "post",
+            f"/api/teacher/sessions/{self.session.id}/game-modules/",
+            {"title": "Cup", "position": 1, "rubric": "tournament"},
+        )
+        self.assertEqual(created.status_code, 201)
+        module_id = created.json()["module"]["id"]
+        for stage_ordinal in (1, 2):
+            stage_response = self._json(
+                self.teacher_client,
+                "post",
+                f"/api/teacher/game-modules/{module_id}/tournament-stages/",
+                {"ordinal": stage_ordinal, "title": f"Stage {stage_ordinal}", "question_count": 3},
+            )
+            self.assertEqual(stage_response.status_code, 201)
+            stage_id = stage_response.json()["stage"]["id"]
+            for ordinal in (1, 2, 3):
+                question = self._json(
+                    self.teacher_client,
+                    "post",
+                    f"/api/teacher/tournament-stages/{stage_id}/questions/",
+                    {"ordinal": ordinal, "prompt": f"S{stage_ordinal} Q{ordinal}", "answer": f"A{stage_ordinal}{ordinal}"},
+                )
+                self.assertEqual(question.status_code, 201)
+
+        even_stage = self._json(
+            self.teacher_client,
+            "post",
+            f"/api/teacher/game-modules/{module_id}/tournament-stages/",
+            {"ordinal": 3, "question_count": 2},
+        )
+        self.assertEqual(even_stage.status_code, 400)
+
+        round_row = self._open_round(module_id, self.class_a)
+        for client in clients.values():
+            self.assertEqual(
+                self._json(client, "post", f"/api/student/game-module/{module_id}/ready/").status_code,
+                200,
+            )
+        started = self._json(
+            self.teacher_client,
+            "post",
+            f"/api/teacher/game-rounds/{round_row['id']}/start/",
+        )
+        self.assertEqual(started.status_code, 200)
+        state = started.json()["round"]
+        self.assertNotIn('"answer"', json.dumps(state).casefold())
+        stage_one = [row for row in state["tournament_matches"] if row["stage_number"] == 1]
+        self.assertEqual(len(stage_one), 2)
+        self.assertEqual(sum(row["status"] == TournamentMatch.Status.FINISHED for row in stage_one), 1)
+        active = next(row for row in stage_one if row["status"] == TournamentMatch.Status.RUNNING)
+        winner_student_id = active["player_one"]["student_id"]
+        for question_index in (0, 1):
+            response = self._json(
+                clients[winner_student_id],
+                "post",
+                f"/api/student/game-rounds/{round_row['id']}/tournament-answer/",
+                {"match_id": active["id"], "question_index": question_index, "answer": f"A1{question_index + 1}"},
+            )
+            self.assertEqual(response.status_code, 200)
+            self.assertTrue(response.json()["correct"])
+
+        final_match = TournamentMatch.objects.get(round_id=round_row["id"], stage_number=2)
+        final_student_id = final_match.player_one.student_id
+        for question_index in (0, 1):
+            response = self._json(
+                clients[final_student_id],
+                "post",
+                f"/api/student/game-rounds/{round_row['id']}/tournament-answer/",
+                {"match_id": final_match.id, "question_index": question_index, "answer": f"A2{question_index + 1}"},
+            )
+            self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["round"]["status"], GameRound.Status.FINISHED)
+        self.assertEqual(response.json()["round"]["me"]["finish_place"], 1)

@@ -338,6 +338,7 @@ class GameModule(models.Model):
     class Rubric(models.TextChoices):
         MIND_RACE = "mind_race", "Mind race"
         WONDER_FIELD = "wonder_field", "Wonder field"
+        TOURNAMENT = "tournament", "Tournament"
 
     session = models.ForeignKey(Session, on_delete=models.CASCADE, related_name="game_modules")
     position = models.PositiveIntegerField()
@@ -401,6 +402,36 @@ class WonderFieldQuestion(models.Model):
 
     def __str__(self):
         return f"Wonder field {self.module_id}, question {self.ordinal}"
+
+
+class TournamentStage(models.Model):
+    module = models.ForeignKey(GameModule, on_delete=models.CASCADE, related_name="tournament_stages")
+    ordinal = models.PositiveIntegerField()
+    title = models.CharField(max_length=120, blank=True, default="")
+    question_count = models.PositiveSmallIntegerField(default=3)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["module", "ordinal", "id"]
+        constraints = [
+            models.UniqueConstraint(fields=["module", "ordinal"], name="uniq_tournament_stage_order"),
+        ]
+
+
+class TournamentQuestion(models.Model):
+    stage = models.ForeignKey(TournamentStage, on_delete=models.CASCADE, related_name="questions")
+    ordinal = models.PositiveIntegerField()
+    prompt = models.TextField()
+    answer = models.CharField(max_length=300)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["stage", "ordinal", "id"]
+        constraints = [
+            models.UniqueConstraint(fields=["stage", "ordinal"], name="uniq_tournament_question_order"),
+        ]
 
 
 class GameRound(models.Model):
@@ -486,6 +517,54 @@ class GameParticipant(models.Model):
 
     def __str__(self):
         return f"{self.student_id} in game round {self.round_id}"
+
+
+class TournamentMatch(models.Model):
+    class Status(models.TextChoices):
+        PENDING = "pending", "Pending"
+        RUNNING = "running", "Running"
+        FINISHED = "finished", "Finished"
+
+    round = models.ForeignKey(GameRound, on_delete=models.CASCADE, related_name="tournament_matches")
+    stage_number = models.PositiveSmallIntegerField()
+    match_number = models.PositiveSmallIntegerField()
+    player_one = models.ForeignKey(
+        GameParticipant,
+        on_delete=models.CASCADE,
+        related_name="tournament_matches_as_one",
+        null=True,
+        blank=True,
+    )
+    player_two = models.ForeignKey(
+        GameParticipant,
+        on_delete=models.CASCADE,
+        related_name="tournament_matches_as_two",
+        null=True,
+        blank=True,
+    )
+    winner = models.ForeignKey(
+        GameParticipant,
+        on_delete=models.CASCADE,
+        related_name="tournament_wins",
+        null=True,
+        blank=True,
+    )
+    score_one = models.PositiveSmallIntegerField(default=0)
+    score_two = models.PositiveSmallIntegerField(default=0)
+    current_question_index = models.PositiveSmallIntegerField(default=0)
+    status = models.CharField(max_length=12, choices=Status.choices, default=Status.PENDING)
+    started_at = models.DateTimeField(null=True, blank=True)
+    finished_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["stage_number", "match_number", "id"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["round", "stage_number", "match_number"],
+                name="uniq_tournament_round_match",
+            ),
+        ]
+        indexes = [models.Index(fields=["round", "status"], name="tournament_match_status_idx")]
 
 
 class GameRoundEvent(models.Model):

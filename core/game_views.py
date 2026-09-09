@@ -1,11 +1,12 @@
 import re
 import secrets
 import unicodedata
+from math import ceil, log2
 from datetime import timedelta
 from functools import wraps
 
 from django.db import IntegrityError, transaction
-from django.db.models import Count, Max
+from django.db.models import Count, Max, Q
 from django.db.models.deletion import ProtectedError
 from django.http import Http404, HttpRequest, JsonResponse
 from django.shortcuts import get_object_or_404
@@ -24,6 +25,9 @@ from .models import (
     SessionTask,
     TheoryMaterialModule,
     TheoryQuizModule,
+    TournamentMatch,
+    TournamentQuestion,
+    TournamentStage,
     WonderFieldQuestion,
 )
 from .security import request_is_limited
@@ -195,6 +199,87 @@ def _serialize_wonder_question(question):
     }
 
 
+def _serialize_tournament_question(question, include_answer=True):
+    data = {"id": question.id, "ordinal": question.ordinal, "prompt": question.prompt}
+    if include_answer:
+        data["answer"] = question.answer
+    return data
+
+
+def _serialize_tournament_stage(stage):
+    return {
+        "id": stage.id,
+        "ordinal": stage.ordinal,
+        "title": stage.title,
+        "question_count": stage.question_count,
+        "questions": [
+            _serialize_tournament_question(row)
+            for row in stage.questions.order_by("ordinal", "id")
+        ],
+    }
+
+
+def _validate_tournament_stage(data, stage=None):
+    ordinal = _positive_int(data.get("ordinal", stage.ordinal if stage else 1), "ordinal", 20)
+    count = _positive_int(data.get("question_count", stage.question_count if stage else 3), "question_count", 19)
+    if count % 2 == 0:
+        raise ValueError("question_count must be odd")
+    title = str(data.get("title", stage.title if stage else "") or "").strip()[:120]
+    return ordinal, count, title
+
+
+def _validate_tournament_question(data, question=None):
+    ordinal = _positive_int(data.get("ordinal", question.ordinal if question else 1), "ordinal", 50)
+    prompt = str(data.get("prompt", question.prompt if question else "") or "").strip()
+    answer = str(data.get("answer", question.answer if question else "") or "").strip()
+    if not prompt or len(prompt) > 3000:
+        raise ValueError("prompt must contain between 1 and 3000 characters")
+    if not answer or len(answer) > 300:
+        raise ValueError("answer must contain between 1 and 300 characters")
+    return ordinal, prompt, answer
+
+
+def _tournament_match_row(match, snapshot):
+    stage = snapshot[match.stage_number - 1] if match.stage_number <= len(snapshot) else {}
+    questions = stage.get("questions", [])
+    current = questions[match.current_question_index] if match.current_question_index < len(questions) else None
+    return {
+        "id": match.id,
+        "stage_number": match.stage_number,
+        "stage_title": stage.get("title") or f"Round {match.stage_number}",
+        "match_number": match.match_number,
+        "status": match.status,
+        "player_one": _participant_row(match.player_one) if match.player_one else None,
+        "player_two": _participant_row(match.player_two) if match.player_two else None,
+        "winner_id": match.winner_id,
+        "score_one": match.score_one,
+        "score_two": match.score_two,
+        "wins_required": (int(stage.get("question_count", 1)) // 2) + 1,
+        "current_question_index": match.current_question_index,
+        "current_question": {
+            "index": match.current_question_index,
+            "ordinal": current.get("ordinal", match.current_question_index + 1),
+            "prompt": current.get("prompt", ""),
+        } if current and match.status == TournamentMatch.Status.RUNNING else None,
+    }
+
+
+def _tournament_round_data(round_obj):
+    snapshot = round_obj.prompt_snapshot or []
+    matches = list(
+        round_obj.tournament_matches.select_related(
+            "player_one__student", "player_two__student", "winner__student"
+        )
+    )
+    return {
+        "tournament_stages": [
+            {"number": index + 1, "title": stage.get("title") or f"Round {index + 1}", "question_count": stage.get("question_count", 0)}
+            for index, stage in enumerate(snapshot)
+        ],
+        "tournament_matches": [_tournament_match_row(row, snapshot) for row in matches],
+    }
+
+
 def _participant_row(participant):
     return {
         "id": participant.id,
@@ -318,15 +403,18 @@ def _round_row(round_obj, include_participants=True):
         data["participants"] = [_participant_row(row) for row in participants]
     if round_obj.module.rubric == GameModule.Rubric.WONDER_FIELD:
         data.update(_wonder_round_data(round_obj))
+    elif round_obj.module.rubric == GameModule.Rubric.TOURNAMENT:
+        data.update(_tournament_round_data(round_obj))
     return data
 
 
 def _module_row(module, include_detail=False):
-    prompt_count = (
-        module.wonder_questions.count()
-        if module.rubric == GameModule.Rubric.WONDER_FIELD
-        else module.prompts.count()
-    )
+    if module.rubric == GameModule.Rubric.WONDER_FIELD:
+        prompt_count = module.wonder_questions.count()
+    elif module.rubric == GameModule.Rubric.TOURNAMENT:
+        prompt_count = TournamentQuestion.objects.filter(stage__module=module).count()
+    else:
+        prompt_count = module.prompts.count()
     data = {
         "id": module.id,
         "session_id": module.session_id,
@@ -342,6 +430,10 @@ def _module_row(module, include_detail=False):
         data["wonder_questions"] = [
             _serialize_wonder_question(row)
             for row in module.wonder_questions.order_by("ordinal", "id")
+        ]
+        data["tournament_stages"] = [
+            _serialize_tournament_stage(row)
+            for row in module.tournament_stages.prefetch_related("questions").order_by("ordinal", "id")
         ]
         data["classes"] = [
             {"id": row.id, "name": row.name}
@@ -390,6 +482,19 @@ def _student_round_state(round_obj, student):
         and round_obj.status == GameRound.Status.RUNNING
     )
     data["current_prompt"] = None
+    if participant and round_obj.module.rubric == GameModule.Rubric.TOURNAMENT:
+        active_match = (
+            round_obj.tournament_matches.filter(status=TournamentMatch.Status.RUNNING)
+            .filter(Q(player_one=participant) | Q(player_two=participant))
+            .order_by("stage_number", "match_number")
+            .first()
+        )
+        data["my_tournament_match_id"] = active_match.id if active_match else None
+        data["can_answer_tournament"] = bool(active_match and round_obj.status == GameRound.Status.RUNNING)
+        data["tournament_eliminated"] = round_obj.tournament_matches.filter(
+            Q(player_one=participant) | Q(player_two=participant),
+            status=TournamentMatch.Status.FINISHED,
+        ).exclude(winner=participant).exists()
     if (
         participant
         and round_obj.module.rubric == GameModule.Rubric.MIND_RACE
@@ -484,7 +589,7 @@ def teacher_game_modules_api(request: HttpRequest, session_id: int):
 
     session = get_object_or_404(Session, id=session_id, author=teacher)
     if request.method == "GET":
-        modules = GameModule.objects.filter(session=session).prefetch_related("prompts", "wonder_questions")
+        modules = GameModule.objects.filter(session=session).prefetch_related("prompts", "wonder_questions", "tournament_stages__questions")
         return JsonResponse({"ok": True, "modules": [_module_row(row) for row in modules]})
 
     data = _json_body(request)
@@ -533,7 +638,11 @@ def teacher_game_module_detail_api(request: HttpRequest, module_id: int):
         if rubric not in GameModule.Rubric.values:
             raise ValueError("unsupported game rubric")
         if rubric != module.rubric:
-            has_content = module.prompts.exists() or module.wonder_questions.exists()
+            has_content = (
+                module.prompts.exists()
+                or module.wonder_questions.exists()
+                or module.tournament_stages.exists()
+            )
             if has_content or module.rounds.exists():
                 return _api_error(
                     "delete existing game questions and rounds before changing rubric",
@@ -693,6 +802,80 @@ def teacher_wonder_question_detail_api(request: HttpRequest, question_id: int):
 
 
 @_json_errors
+@require_http_methods(["GET", "POST"])
+def teacher_tournament_stages_api(request: HttpRequest, module_id: int):
+    teacher = _teacher(request)
+    if not teacher:
+        return _api_error("not authenticated", 401)
+    module = _owned_module(teacher, module_id)
+    if module.rubric != GameModule.Rubric.TOURNAMENT:
+        return _api_error("this endpoint is only available for tournament modules", 409)
+    if request.method == "GET":
+        stages = module.tournament_stages.prefetch_related("questions").order_by("ordinal", "id")
+        return JsonResponse({"ok": True, "stages": [_serialize_tournament_stage(row) for row in stages]})
+    ordinal, count, title = _validate_tournament_stage(_json_body(request))
+    stage = TournamentStage.objects.create(module=module, ordinal=ordinal, title=title, question_count=count)
+    return JsonResponse({"ok": True, "stage": _serialize_tournament_stage(stage)}, status=201)
+
+
+@_json_errors
+@require_http_methods(["PATCH", "DELETE"])
+def teacher_tournament_stage_detail_api(request: HttpRequest, stage_id: int):
+    teacher = _teacher(request)
+    if not teacher:
+        return _api_error("not authenticated", 401)
+    stage = get_object_or_404(
+        TournamentStage.objects.select_related("module__session"),
+        id=stage_id,
+        module__session__author=teacher,
+    )
+    if request.method == "DELETE":
+        stage.delete()
+        return JsonResponse({"ok": True})
+    ordinal, count, title = _validate_tournament_stage(_json_body(request), stage)
+    stage.ordinal, stage.question_count, stage.title = ordinal, count, title
+    stage.save()
+    return JsonResponse({"ok": True, "stage": _serialize_tournament_stage(stage)})
+
+
+@_json_errors
+@require_POST
+def teacher_tournament_questions_api(request: HttpRequest, stage_id: int):
+    teacher = _teacher(request)
+    if not teacher:
+        return _api_error("not authenticated", 401)
+    stage = get_object_or_404(
+        TournamentStage.objects.select_related("module__session"),
+        id=stage_id,
+        module__session__author=teacher,
+        module__rubric=GameModule.Rubric.TOURNAMENT,
+    )
+    ordinal, prompt, answer = _validate_tournament_question(_json_body(request))
+    question = TournamentQuestion.objects.create(stage=stage, ordinal=ordinal, prompt=prompt, answer=answer)
+    return JsonResponse({"ok": True, "question": _serialize_tournament_question(question)}, status=201)
+
+
+@_json_errors
+@require_http_methods(["PATCH", "DELETE"])
+def teacher_tournament_question_detail_api(request: HttpRequest, question_id: int):
+    teacher = _teacher(request)
+    if not teacher:
+        return _api_error("not authenticated", 401)
+    question = get_object_or_404(
+        TournamentQuestion.objects.select_related("stage__module__session"),
+        id=question_id,
+        stage__module__session__author=teacher,
+    )
+    if request.method == "DELETE":
+        question.delete()
+        return JsonResponse({"ok": True})
+    ordinal, prompt, answer = _validate_tournament_question(_json_body(request), question)
+    question.ordinal, question.prompt, question.answer = ordinal, prompt, answer
+    question.save()
+    return JsonResponse({"ok": True, "question": _serialize_tournament_question(question)})
+
+
+@_json_errors
 @require_POST
 def teacher_game_open_round_api(request: HttpRequest, module_id: int):
     teacher = _teacher(request)
@@ -732,6 +915,60 @@ def teacher_game_open_round_api(request: HttpRequest, module_id: int):
     return JsonResponse({"ok": True, "round": _round_row(round_obj)}, status=201)
 
 
+def _create_tournament_matches(round_obj, stage_number, participants):
+    now = timezone.now()
+    pairs = []
+    players = list(participants)
+    if stage_number == 1:
+        bracket_size = 1 << ceil(log2(len(players)))
+        bye_count = bracket_size - len(players)
+        for _ in range(bye_count):
+            pairs.append((players.pop(), None))
+    while players:
+        pairs.append((players.pop(), players.pop() if players else None))
+    secrets.SystemRandom().shuffle(pairs)
+    for match_number, (one, two) in enumerate(pairs, start=1):
+        is_bye = two is None
+        TournamentMatch.objects.create(
+            round=round_obj,
+            stage_number=stage_number,
+            match_number=match_number,
+            player_one=one,
+            player_two=two,
+            winner=one if is_bye else None,
+            status=TournamentMatch.Status.FINISHED if is_bye else TournamentMatch.Status.RUNNING,
+            started_at=now,
+            finished_at=now if is_bye else None,
+        )
+
+
+def _advance_tournament(round_obj):
+    while round_obj.status == GameRound.Status.RUNNING:
+        latest_stage = (
+            round_obj.tournament_matches.aggregate(value=Max("stage_number"))["value"] or 0
+        )
+        matches = list(
+            round_obj.tournament_matches.filter(stage_number=latest_stage).order_by("match_number")
+        )
+        if not matches or any(row.status != TournamentMatch.Status.FINISHED for row in matches):
+            return
+        winners = [row.winner for row in matches if row.winner_id]
+        if len(winners) == 1:
+            winner = winners[0]
+            winner.finish_place = 1
+            winner.finished_at = timezone.now()
+            winner.save(update_fields=["finish_place", "finished_at"])
+            round_obj.status = GameRound.Status.FINISHED
+            round_obj.outcome = GameRound.Outcome.WON
+            round_obj.finished_at = timezone.now()
+            round_obj.save(update_fields=["status", "outcome", "finished_at"])
+            return
+        next_stage = latest_stage + 1
+        if next_stage > len(round_obj.prompt_snapshot):
+            raise ValueError("the tournament needs another configured round")
+        _create_tournament_matches(round_obj, next_stage, winners)
+
+
 @_json_errors
 @require_POST
 def teacher_game_start_round_api(request: HttpRequest, round_id: int):
@@ -746,7 +983,33 @@ def teacher_game_start_round_api(request: HttpRequest, round_id: int):
             raise ValueError("the lesson session must be running before the game starts")
         if not round_obj.participants.exists():
             raise ValueError("no students are ready")
-        if round_obj.module.rubric == GameModule.Rubric.WONDER_FIELD:
+        if round_obj.module.rubric == GameModule.Rubric.TOURNAMENT:
+            participants = list(round_obj.participants.select_for_update().order_by("id"))
+            if len(participants) < 2:
+                raise ValueError("at least two students must be ready")
+            needed_stages = ceil(log2(len(participants)))
+            stages = list(
+                round_obj.module.tournament_stages.prefetch_related("questions").order_by("ordinal", "id")[:needed_stages]
+            )
+            if len(stages) < needed_stages:
+                raise ValueError("configure enough tournament rounds for the registered students")
+            snapshot = []
+            for stage in stages:
+                questions = list(stage.questions.order_by("ordinal", "id"))
+                if len(questions) != stage.question_count:
+                    raise ValueError("each tournament round must contain exactly its configured question count")
+                snapshot.append({
+                    "title": stage.title,
+                    "question_count": stage.question_count,
+                    "questions": [
+                        {"ordinal": row.ordinal, "prompt": row.prompt, "answer": row.answer}
+                        for row in questions
+                    ],
+                })
+            secrets.SystemRandom().shuffle(participants)
+            round_obj.prompt_snapshot = snapshot
+            round_obj.total_prompts = sum(row["question_count"] for row in snapshot)
+        elif round_obj.module.rubric == GameModule.Rubric.WONDER_FIELD:
             questions = list(round_obj.module.wonder_questions.order_by("ordinal", "id"))
             if not questions:
                 raise ValueError("add at least one question before starting")
@@ -794,6 +1057,9 @@ def teacher_game_start_round_api(request: HttpRequest, round_id: int):
             "status",
             "started_at",
         ])
+        if round_obj.module.rubric == GameModule.Rubric.TOURNAMENT:
+            _create_tournament_matches(round_obj, 1, participants)
+            _advance_tournament(round_obj)
     return JsonResponse({"ok": True, "round": _round_row(round_obj)})
 
 
@@ -813,6 +1079,12 @@ def teacher_game_finish_round_api(request: HttpRequest, round_id: int):
                 GameRound.Outcome.STOPPED,
                 GameRoundEvent.EventType.GAME_STOPPED,
             )
+            return JsonResponse({"ok": True, "round": _round_row(round_obj)})
+        if round_obj.module.rubric == GameModule.Rubric.TOURNAMENT:
+            round_obj.status = GameRound.Status.FINISHED
+            round_obj.outcome = GameRound.Outcome.STOPPED
+            round_obj.finished_at = timezone.now()
+            round_obj.save(update_fields=["status", "outcome", "finished_at"])
             return JsonResponse({"ok": True, "round": _round_row(round_obj)})
         next_place = (
             round_obj.participants.filter(finish_place__isnull=False)
@@ -925,6 +1197,8 @@ def student_game_module_api(request: HttpRequest, module_id: int):
             "prompt_count": (
                 module.wonder_questions.count()
                 if module.rubric == GameModule.Rubric.WONDER_FIELD
+                else TournamentQuestion.objects.filter(stage__module=module).count()
+                if module.rubric == GameModule.Rubric.TOURNAMENT
                 else module.prompts.count()
             ),
         },
@@ -1068,6 +1342,83 @@ def student_game_answer_api(request: HttpRequest, round_id: int):
         "finished": finished,
         "place": participant.finish_place,
         "progress": participant.progress,
+    })
+
+
+@_json_errors
+@require_POST
+def student_tournament_answer_api(request: HttpRequest, round_id: int):
+    student = _student(request)
+    if not student:
+        return _api_error("not authenticated", 401)
+    if request_is_limited("tournament_answer", f"{student.id}:{round_id}", limit=120, window_seconds=60):
+        return _api_error("answer rate limit exceeded", 429)
+    data = _json_body(request)
+    answer = str(data.get("answer") or "")
+    if not answer.strip() or len(answer) > 300:
+        raise ValueError("answer must contain between 1 and 300 characters")
+    match_id = _positive_int(data.get("match_id"), "match_id", 2_000_000_000)
+    try:
+        question_index = int(data.get("question_index"))
+    except (TypeError, ValueError) as exc:
+        raise ValueError("question_index must be an integer") from exc
+
+    with transaction.atomic():
+        round_obj = get_object_or_404(
+            GameRound.objects.select_for_update().select_related("module", "class_group"),
+            id=round_id,
+            class_group=student.class_group,
+            module__rubric=GameModule.Rubric.TOURNAMENT,
+        )
+        participant = get_object_or_404(
+            GameParticipant.objects.select_for_update(), round=round_obj, student=student
+        )
+        match = get_object_or_404(
+            TournamentMatch.objects.select_for_update(),
+            id=match_id,
+            round=round_obj,
+        )
+        if round_obj.status != GameRound.Status.RUNNING or match.status != TournamentMatch.Status.RUNNING:
+            return _api_error("this tournament match is not running", 409)
+        if participant.id not in {match.player_one_id, match.player_two_id}:
+            return _api_error("student is not assigned to this match", 403)
+        if question_index != match.current_question_index:
+            return JsonResponse({"ok": True, "correct": False, "stale": True, "round": _student_round_state(round_obj, student)})
+        stage = round_obj.prompt_snapshot[match.stage_number - 1]
+        questions = stage.get("questions", [])
+        if question_index >= len(questions):
+            return _api_error("tournament question is unavailable", 409)
+        participant.last_answer_at = timezone.now()
+        if _normalize_answer(answer) != _normalize_answer(questions[question_index]["answer"]):
+            participant.wrong_answers += 1
+            participant.save(update_fields=["wrong_answers", "last_answer_at"])
+            return JsonResponse({"ok": True, "correct": False, "round": _student_round_state(round_obj, student)})
+
+        if participant.id == match.player_one_id:
+            match.score_one += 1
+        else:
+            match.score_two += 1
+        participant.correct_answers += 1
+        participant.last_answer_at = timezone.now()
+        participant.progress = max(participant.progress, match.stage_number)
+        participant.save(update_fields=["correct_answers", "last_answer_at", "progress"])
+        wins_required = (int(stage["question_count"]) // 2) + 1
+        won = match.score_one >= wins_required or match.score_two >= wins_required
+        if won:
+            match.winner = participant
+            match.status = TournamentMatch.Status.FINISHED
+            match.finished_at = timezone.now()
+        else:
+            match.current_question_index += 1
+        match.save()
+        if won:
+            _advance_tournament(round_obj)
+
+    return JsonResponse({
+        "ok": True,
+        "correct": True,
+        "match_won": won,
+        "round": _student_round_state(round_obj, student),
     })
 
 

@@ -118,6 +118,7 @@
 {{ session_chart_json|json_script:"admin-session-chart-data" }}
 <script>
   const chartData = JSON.parse(document.getElementById("admin-session-chart-data").textContent);
+  const shortChartLabel = value => { const text=String(value||""); return text.length>22 ? `${text.slice(0,21)}…` : text; };
   const showSuccess = {{ show_success|yesno:"true,false" }};
   const showHints = {{ show_hints|yesno:"true,false" }};
 
@@ -163,10 +164,10 @@
       responsive: true,
       plugins: {
         legend: { position: "top" },
-        tooltip: { mode: "index", intersect: false }
+        tooltip: { mode: "index", intersect: false, callbacks:{title:items=>items.length?String(chartData.labels[items[0].dataIndex]||""):""} }
       },
       scales: {
-        x: { stacked: false, ticks: { maxRotation: 0, autoSkip: true } },
+        x: { stacked: false, ticks: { maxRotation: 0, autoSkip: true, callback:function(value){return shortChartLabel(this.getLabelForValue(value));} } },
         y: { beginAtZero: true }
       }
     }

@@ -134,6 +134,7 @@
     let chartMode = "exam";
     let programmingChartData = {};
     let examChartData = {};
+    const shortChartLabel = value => { const text=String(value||""); return text.length>22 ? `${text.slice(0,21)}…` : text; };
 
     function renderMetricsChart(){
       const isExam = chartMode === "exam";
@@ -224,6 +225,7 @@
             legend: { position: "top" },
             tooltip: {
               callbacks: {
+                title: (items) => items.length ? String(labels[items[0].dataIndex] || "") : "",
                 afterBody: (items) => {
                   if (!items.length) return [];
                   const i = items[0].dataIndex;
@@ -248,7 +250,7 @@
           scales: {
             y: { beginAtZero: true, max: 100 },
             x: {
-              ticks: { autoSkip: false, maxRotation: 20, minRotation: 20, padding: 8 },
+              ticks: { autoSkip: false, maxRotation: 20, minRotation: 20, padding: 8, callback:function(value){return shortChartLabel(this.getLabelForValue(value));} },
               grid: { drawBorder: false }
             }
           }

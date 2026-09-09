@@ -633,6 +633,69 @@ def build_student_exam_chart(student):
     }
 
 
+def build_teacher_exam_analytics(teacher, class_id=None):
+    attempts = (
+        ExamAttempt.objects.filter(
+            exam__owner=teacher,
+            student__class_group__owner=teacher,
+            status__in=[ExamAttempt.Status.SUBMITTED, ExamAttempt.Status.EXPIRED],
+        )
+        .select_related("exam", "student")
+        .prefetch_related(
+            "exam__questions",
+            "answers__question",
+            "peer_assessment_assignments__reviews__question",
+        )
+        .order_by("exam__created_at", "exam_id", "submitted_at", "id")
+    )
+    if class_id:
+        attempts = attempts.filter(student__class_group_id=class_id)
+
+    exam_rows = {}
+    student_rows = {}
+    for attempt in attempts:
+        summary = _exam_attempt_score_summary(attempt)
+        exam_row = exam_rows.setdefault(attempt.exam_id, {
+            "label": attempt.exam.title,
+            "maximum": float(summary["maximum"]),
+            "teacher": [],
+            "peer": [],
+        })
+        student_row = student_rows.setdefault(attempt.student_id, {
+            "exam_count": 0,
+            "teacher": [],
+            "peer": [],
+        })
+        student_row["exam_count"] += 1
+        if summary["teacher_percent"] is not None:
+            exam_row["teacher"].append(summary["teacher_percent"])
+            student_row["teacher"].append(summary["teacher_percent"])
+        if summary["peer_percent"] is not None:
+            exam_row["peer"].append(summary["peer_percent"])
+            student_row["peer"].append(summary["peer_percent"])
+
+    def average(values):
+        return round(sum(values) / len(values), 2) if values else None
+
+    chart_rows = list(exam_rows.values())
+    return {
+        "chart": {
+            "labels": [row["label"] for row in chart_rows],
+            "max_scores": [row["maximum"] for row in chart_rows],
+            "teacher_percentages": [average(row["teacher"]) for row in chart_rows],
+            "peer_percentages": [average(row["peer"]) for row in chart_rows],
+        },
+        "students": {
+            student_id: {
+                "exam_count": row["exam_count"],
+                "avg_teacher_percent": average(row["teacher"]),
+                "avg_peer_percent": average(row["peer"]),
+            }
+            for student_id, row in student_rows.items()
+        },
+    }
+
+
 def _validate_matching_answer(attempt: ExamAttempt, question: ExamQuestion, value) -> dict:
     if not isinstance(value, dict):
         raise ValueError("matching_answer must be an object")

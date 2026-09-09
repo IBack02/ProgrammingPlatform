@@ -3879,6 +3879,12 @@ def _build_dashboard_analytics_context(request: HttpRequest) -> dict:
         for x in hints_per_student
     }
 
+    from .exam_views import build_teacher_exam_analytics
+
+    exam_analytics = build_teacher_exam_analytics(
+        teacher,
+        int(class_id) if teacher and class_id.isdigit() else None,
+    ) if teacher else {"chart": {"labels": []}, "students": {}}
     student_cards = []
     for st in students_qs:
         sc = sessions_count_map.get(st.id, 0) or 0
@@ -3886,6 +3892,7 @@ def _build_dashboard_analytics_context(request: HttpRequest) -> dict:
         hint_s = hints_student_map.get(st.id, 0)
         denom = sc if sc > 0 else 1
 
+        exam_row = exam_analytics["students"].get(st.id, {})
         student_cards.append({
             "id": st.id,
             "name": st.full_name,
@@ -3894,6 +3901,9 @@ def _build_dashboard_analytics_context(request: HttpRequest) -> dict:
             "avg_total": round(total_s / denom, 2),
             "avg_accepted": round(acc_s / denom, 2),
             "avg_hints": round(hint_s / denom, 2),
+            "exam_count": exam_row.get("exam_count", 0),
+            "avg_teacher_percent": exam_row.get("avg_teacher_percent"),
+            "avg_peer_percent": exam_row.get("avg_peer_percent"),
         })
 
     return {
@@ -3902,5 +3912,6 @@ def _build_dashboard_analytics_context(request: HttpRequest) -> dict:
         "show_success": show_success,
         "show_hints": show_hints,
         "session_chart_json": session_chart,
+        "exam_chart_json": exam_analytics["chart"],
         "student_cards": student_cards,
     }

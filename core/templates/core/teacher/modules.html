@@ -80,6 +80,7 @@
       <select id="newGameRubric" class="select-ui" style="min-width:170px;display:none;">
         <option value="mind_race">{{ T.mind_race }}</option>
         <option value="wonder_field">{{ T.wonder_field }}</option>
+        <option value="tournament">{{ T.tournament }}</option>
       </select>
       <input id="newPosition" class="input-ui" type="number" value="1" style="width:90px;">
       <input id="newTitle" class="input-ui" placeholder="{{ T.module_title }}" style="flex:1;">
@@ -114,6 +115,7 @@
         <select id="gameRubric" class="select-ui" style="width:100%;">
           <option value="mind_race">{{ T.mind_race }}</option>
           <option value="wonder_field">{{ T.wonder_field }}</option>
+          <option value="tournament">{{ T.tournament }}</option>
         </select>
         <div class="muted" style="margin-top:6px;">{{ T.game_rubric_change_hint }}</div>
       </div>
@@ -224,6 +226,25 @@
           </div>
           <textarea id="wonderQuestionPrompt" class="textarea-ui" placeholder="{{ T.question_prompt }}" style="width:100%;height:90px;margin-top:8px;"></textarea>
           <div id="wonderQuestionsList"></div>
+        </div>
+        <div id="tournamentEditor" style="display:none;">
+          <div style="margin-top:16px;"><b>{{ T.tournament_rounds }}</b></div>
+          <div class="muted">{{ T.tournament_rounds_help }}</div>
+          <div class="row" style="margin-top:10px;">
+            <input id="tournamentStageOrdinal" class="input-ui" type="number" min="1" value="1" style="width:75px;">
+            <input id="tournamentStageTitle" class="input-ui" placeholder="{{ T.tournament_round_title }}" style="flex:1;">
+            <input id="tournamentQuestionCount" class="input-ui" type="number" min="1" max="19" step="2" value="3" style="width:90px;">
+            <button id="tournamentAddStageBtn" class="btn" type="button">{{ T.add_round }}</button>
+          </div>
+          <div id="tournamentStagesList"></div>
+          <div style="margin-top:18px;"><b>{{ T.tournament_questions }}</b></div>
+          <div class="row" style="margin-top:10px;">
+            <select id="tournamentQuestionStage" class="select-ui" style="min-width:160px;"></select>
+            <input id="tournamentQuestionOrdinal" class="input-ui" type="number" min="1" value="1" style="width:75px;">
+            <input id="tournamentAnswer" class="input-ui" placeholder="{{ T.correct_answer }}" style="flex:1;">
+            <button id="tournamentAddQuestionBtn" class="btn" type="button">{{ T.add_question }}</button>
+          </div>
+          <textarea id="tournamentPrompt" class="textarea-ui" placeholder="{{ T.question_prompt }}" style="width:100%;height:80px;margin-top:8px;"></textarea>
         </div>
       </div>
 
@@ -579,6 +600,24 @@
     qs("shuffleWonderQuestionsBtn").disabled = questions.length < 2 || hasRunningRound;
   }
 
+  function renderTournamentStages(stages){
+    const rows=stages||[];
+    const previousStage=Number(qs("tournamentQuestionStage").value||0);
+    qs("tournamentQuestionStage").innerHTML=rows.map(stage=>`<option value="${stage.id}">${stage.ordinal}. ${escapeHtml(stage.title||"{{ T.tournament_round|escapejs }}")}</option>`).join("");
+    if(rows.some(stage=>stage.id===previousStage))qs("tournamentQuestionStage").value=String(previousStage);
+    qs("tournamentStagesList").innerHTML=rows.map(stage=>`<div class="game-prompt-row"><div class="row"><input id="tour_stage_ord_${stage.id}" class="input-ui" type="number" min="1" value="${stage.ordinal}" style="width:70px"><input id="tour_stage_title_${stage.id}" class="input-ui" value="${escapeHtml(stage.title)}" style="flex:1"><input id="tour_stage_count_${stage.id}" class="input-ui" type="number" min="1" max="19" step="2" value="${stage.question_count}" style="width:80px"><button class="btn" onclick="saveTournamentStage(${stage.id})">{{ T.save }}</button><button class="btn" onclick="deleteTournamentStage(${stage.id})">{{ T.delete }}</button></div><div class="muted" style="margin-top:7px">{{ T.questions }}: ${(stage.questions||[]).length}/${stage.question_count}</div>${(stage.questions||[]).map(q=>`<div style="border-top:1px solid #e5e7eb;margin-top:8px;padding-top:8px"><div class="row"><input id="tour_q_ord_${q.id}" class="input-ui" type="number" min="1" value="${q.ordinal}" style="width:70px"><input id="tour_q_answer_${q.id}" class="input-ui" value="${escapeHtml(q.answer)}" style="flex:1"><button class="btn" onclick="saveTournamentQuestion(${q.id})">{{ T.save }}</button><button class="btn" onclick="deleteTournamentQuestion(${q.id})">{{ T.delete }}</button></div><textarea id="tour_q_prompt_${q.id}" class="textarea-ui" style="width:100%;margin-top:6px">${escapeHtml(q.prompt)}</textarea></div>`).join("")}</div>`).join("");
+    const used=new Set(rows.map(row=>Number(row.ordinal)));let next=1;while(used.has(next))next+=1;qs("tournamentStageOrdinal").value=String(next);
+    const selected=rows.find(row=>Number(row.id)===Number(qs("tournamentQuestionStage").value))||rows[0];
+    const questionUsed=new Set((selected?.questions||[]).map(row=>Number(row.ordinal)));let questionNext=1;while(questionUsed.has(questionNext))questionNext+=1;qs("tournamentQuestionOrdinal").value=String(questionNext);
+  }
+
+  async function addTournamentStage(){const res=await api(`/api/teacher/game-modules/${selectedModuleId}/tournament-stages/`,"POST",{ordinal:qs("tournamentStageOrdinal").value,title:qs("tournamentStageTitle").value,question_count:qs("tournamentQuestionCount").value});if(!res.data.ok)return setMsg(res.data.error);qs("tournamentStageTitle").value="";await openModule(currentSelectedItem())}
+  async function saveTournamentStage(id){const res=await api(`/api/teacher/tournament-stages/${id}/`,"PATCH",{ordinal:qs(`tour_stage_ord_${id}`).value,title:qs(`tour_stage_title_${id}`).value,question_count:qs(`tour_stage_count_${id}`).value});if(!res.data.ok)return setMsg(res.data.error);await openModule(currentSelectedItem())}
+  async function deleteTournamentStage(id){const res=await api(`/api/teacher/tournament-stages/${id}/`,"DELETE");if(!res.data.ok)return setMsg(res.data.error);await openModule(currentSelectedItem())}
+  async function addTournamentQuestion(){const stageId=Number(qs("tournamentQuestionStage").value||0);if(!stageId)return setMsg("{{ T.add_round_first|escapejs }}");const res=await api(`/api/teacher/tournament-stages/${stageId}/questions/`,"POST",{ordinal:qs("tournamentQuestionOrdinal").value,prompt:qs("tournamentPrompt").value,answer:qs("tournamentAnswer").value});if(!res.data.ok)return setMsg(res.data.error);qs("tournamentPrompt").value="";qs("tournamentAnswer").value="";await openModule(currentSelectedItem())}
+  async function saveTournamentQuestion(id){const res=await api(`/api/teacher/tournament-questions/${id}/`,"PATCH",{ordinal:qs(`tour_q_ord_${id}`).value,prompt:qs(`tour_q_prompt_${id}`).value,answer:qs(`tour_q_answer_${id}`).value});if(!res.data.ok)return setMsg(res.data.error);await openModule(currentSelectedItem())}
+  async function deleteTournamentQuestion(id){const res=await api(`/api/teacher/tournament-questions/${id}/`,"DELETE");if(!res.data.ok)return setMsg(res.data.error);await openModule(currentSelectedItem())}
+
   function wonderEventText(event){
     const name = event.student_name || "{{ T.teacher_label|default:'Teacher'|escapejs }}";
     if (event.event_type === "correct") return `${name}: ${event.letter} · {{ T.wonder_log_correct|escapejs }}`;
@@ -624,6 +663,12 @@
     return `<div class="teacher-runner-shape ${escapeHtml(participant.avatar_shape)}" style="--runner-color:${escapeHtml(participant.avatar_color)}"></div>`;
   }
 
+  function renderTeacherTournament(round){
+    const byStage=new Map();(round.tournament_matches||[]).forEach(match=>{if(!byStage.has(match.stage_number))byStage.set(match.stage_number,[]);byStage.get(match.stage_number).push(match)});
+    if(!byStage.size){qs("gameParticipants").innerHTML=(round.participants||[]).length?(round.participants||[]).map(player=>`<span class="pill" style="margin:4px">${escapeHtml(player.student_name)}</span>`).join(""):`<div class="muted">{{ T.waiting_for_players|escapejs }}</div>`;return;}
+    qs("gameParticipants").innerHTML=`<div style="display:flex;gap:16px;overflow:auto;padding:8px 2px">${Array.from(byStage.entries()).map(([number,matches])=>`<section style="min-width:240px;flex:1"><b>${escapeHtml(matches[0]?.stage_title||`{{ T.tournament_round|escapejs }} ${number}`)}</b>${matches.map(match=>`<div class="game-prompt-row"><div class="row" style="justify-content:space-between"><span>${escapeHtml(match.player_one?.student_name||"BYE")}</span><b>${match.score_one}</b></div><div class="row" style="justify-content:space-between"><span>${escapeHtml(match.player_two?.student_name||"BYE")}</span><b>${match.score_two}</b></div><div class="muted">${match.status}${match.winner_id?` · {{ T.winner|escapejs }}: ${escapeHtml(match.winner_id===match.player_one?.id?match.player_one?.student_name:match.player_two?.student_name)}`:""}</div></div>`).join("")}</section>`).join("")}</div>`;
+  }
+
   function renderTeacherGameRound(round){
     currentGameRound = round || null;
     const hasRunningRound = (currentGameModule?.rounds || []).some(item => item.status === "running");
@@ -648,6 +693,10 @@
     qs("gameRemovePenaltyBtn").disabled = round.status !== "running" || Number(round.strikes || 0) === 0;
     if (round.rubric === "wonder_field"){
       renderTeacherWonderRound(round);
+      return;
+    }
+    if (round.rubric === "tournament"){
+      renderTeacherTournament(round);
       return;
     }
     const total = Number(round.total_prompts || currentGameModule?.prompt_count || 1);
@@ -696,11 +745,14 @@
   function renderGameModule(module){
     currentGameModule = module;
     const isWonder = module.rubric === "wonder_field";
-    qs("mindRaceEditor").style.display = isWonder ? "none" : "block";
+    const isTournament = module.rubric === "tournament";
+    qs("mindRaceEditor").style.display = !isWonder && !isTournament ? "block" : "none";
     qs("wonderFieldEditor").style.display = isWonder ? "block" : "none";
+    qs("tournamentEditor").style.display = isTournament ? "block" : "none";
     qs("gameRubric").disabled = false;
     renderGamePrompts(module.prompts || []);
     renderWonderQuestions(module.wonder_questions || []);
+    renderTournamentStages(module.tournament_stages || []);
     const classSelect = qs("gameClassSelect");
     const previous = Number(classSelect.value || 0);
     classSelect.innerHTML = (module.classes || []).map(row => `<option value="${row.id}">${escapeHtml(row.name)}</option>`).join("");
@@ -1092,8 +1144,10 @@
   qs("newModuleType").addEventListener("change", syncCreateTypeFields);
   qs("gameRubric").addEventListener("change", () => {
     const isWonder = qs("gameRubric").value === "wonder_field";
-    qs("mindRaceEditor").style.display = isWonder ? "none" : "block";
+    const isTournament = qs("gameRubric").value === "tournament";
+    qs("mindRaceEditor").style.display = !isWonder && !isTournament ? "block" : "none";
     qs("wonderFieldEditor").style.display = isWonder ? "block" : "none";
+    qs("tournamentEditor").style.display = isTournament ? "block" : "none";
     setMsg("{{ T.game_rubric_save_hint|escapejs }}");
   });
   qs("blockType").addEventListener("change", syncBlockTypeFields);
@@ -1107,6 +1161,9 @@
   qs("gameAddPromptBtn").addEventListener("click", addGamePrompt);
   qs("wonderAddQuestionBtn").addEventListener("click", addWonderQuestion);
   qs("shuffleWonderQuestionsBtn").addEventListener("click", shuffleWonderQuestions);
+  qs("tournamentAddStageBtn").addEventListener("click", addTournamentStage);
+  qs("tournamentAddQuestionBtn").addEventListener("click", addTournamentQuestion);
+  qs("tournamentQuestionStage").addEventListener("change",()=>renderTournamentStages(currentGameModule?.tournament_stages||[]));
   qs("gameClassSelect").addEventListener("change", selectGameClass);
   qs("gameOpenLobbyBtn").addEventListener("click", openGameLobby);
   qs("gameStartBtn").addEventListener("click", startGameRound);

@@ -146,6 +146,10 @@ path(
     path("api/teacher/game-modules/<int:module_id>/wonder-questions/", game_views.teacher_wonder_questions_api, name="teacher_wonder_questions_api"),
     path("api/teacher/game-modules/<int:module_id>/wonder-questions/shuffle/", game_views.teacher_wonder_questions_shuffle_api, name="teacher_wonder_questions_shuffle_api"),
     path("api/teacher/wonder-questions/<int:question_id>/", game_views.teacher_wonder_question_detail_api, name="teacher_wonder_question_detail_api"),
+    path("api/teacher/game-modules/<int:module_id>/tournament-stages/", game_views.teacher_tournament_stages_api, name="teacher_tournament_stages_api"),
+    path("api/teacher/tournament-stages/<int:stage_id>/", game_views.teacher_tournament_stage_detail_api, name="teacher_tournament_stage_detail_api"),
+    path("api/teacher/tournament-stages/<int:stage_id>/questions/", game_views.teacher_tournament_questions_api, name="teacher_tournament_questions_api"),
+    path("api/teacher/tournament-questions/<int:question_id>/", game_views.teacher_tournament_question_detail_api, name="teacher_tournament_question_detail_api"),
     path("api/teacher/game-modules/<int:module_id>/rounds/open/", game_views.teacher_game_open_round_api, name="teacher_game_open_round_api"),
     path("api/teacher/game-rounds/<int:round_id>/start/", game_views.teacher_game_start_round_api, name="teacher_game_start_round_api"),
     path("api/teacher/game-rounds/<int:round_id>/finish/", game_views.teacher_game_finish_round_api, name="teacher_game_finish_round_api"),
@@ -158,6 +162,7 @@ path(
     path("api/student/game-rounds/<int:round_id>/state/", game_views.student_game_round_state_api, name="student_game_round_state_api"),
     path("api/student/game-rounds/<int:round_id>/answer/", game_views.student_game_answer_api, name="student_game_answer_api"),
     path("api/student/game-rounds/<int:round_id>/letter/", game_views.student_game_letter_api, name="student_game_letter_api"),
+    path("api/student/game-rounds/<int:round_id>/tournament-answer/", game_views.student_tournament_answer_api, name="student_tournament_answer_api"),
 
     # Exams
     path("teacher/exams/", exam_views.teacher_exams_page, name="teacher_exams_page"),
