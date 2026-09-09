@@ -52,8 +52,21 @@
   .wonder-log{max-height:360px;overflow:auto}
   .wonder-log-row{padding:7px 0;border-bottom:1px solid #e5e7eb;font-size:12px}
   .wonder-strikes{font-size:25px;letter-spacing:4px;color:#dc2626;font-weight:900}
+  .tournament-bracket-viewport{margin-top:12px;overflow:auto;border:1px solid #1e293b;border-radius:16px;background:#090f1f;color:#f8fafc;box-shadow:inset 0 0 42px rgba(15,23,42,.42)}
+  .tournament-bracket-grid{position:relative;display:grid;gap:72px;padding:18px 28px 28px;isolation:isolate}
+  .tournament-bracket-lines{position:absolute;inset:0;z-index:0;pointer-events:none;overflow:visible}
+  .tournament-stage{position:relative;z-index:1;min-width:230px}
+  .tournament-stage-title{height:42px;font-size:17px;font-weight:900;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#e2e8f0}
+  .tournament-stage-body{display:flex;flex-direction:column;justify-content:space-around;gap:18px}
+  .tournament-match{border:1px solid #26324b;border-right:4px solid #60a5fa;border-radius:5px;background:#151d32;box-shadow:0 10px 24px rgba(2,6,23,.28);overflow:hidden}
+  .tournament-player{display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:31px;padding:5px 9px;border-bottom:1px solid #29344e;color:#f8fafc}
+  .tournament-player:last-of-type{border-bottom:0}
+  .tournament-player.winner{background:rgba(250,204,21,.14);color:#fde68a}
+  .tournament-player.tbd,.tournament-player.bye{color:#94a3b8;font-style:italic}
+  .tournament-match-meta{padding:5px 9px;border-top:1px solid #29344e;color:#94a3b8;font-size:10px;text-transform:uppercase;letter-spacing:.04em}
   @media(max-width:800px){.game-host .row>*{width:100%}}
   @media(max-width:900px){.wonder-board{grid-template-columns:1fr}.wonder-log{max-height:220px}}
+  @media(max-width:700px){.tournament-bracket-grid{gap:52px;padding:14px 18px 22px}.tournament-stage{min-width:205px}.tournament-stage-title{font-size:15px}}
 </style>
 
 <div class="card" style="margin-bottom:12px;">
@@ -664,9 +677,38 @@
   }
 
   function renderTeacherTournament(round){
-    const byStage=new Map();(round.tournament_matches||[]).forEach(match=>{if(!byStage.has(match.stage_number))byStage.set(match.stage_number,[]);byStage.get(match.stage_number).push(match)});
-    if(!byStage.size){qs("gameParticipants").innerHTML=(round.participants||[]).length?(round.participants||[]).map(player=>`<span class="pill" style="margin:4px">${escapeHtml(player.student_name)}</span>`).join(""):`<div class="muted">{{ T.waiting_for_players|escapejs }}</div>`;return;}
-    qs("gameParticipants").innerHTML=`<div style="display:flex;gap:16px;overflow:auto;padding:8px 2px">${Array.from(byStage.entries()).map(([number,matches])=>`<section style="min-width:240px;flex:1"><b>${escapeHtml(matches[0]?.stage_title||`{{ T.tournament_round|escapejs }} ${number}`)}</b>${matches.map(match=>`<div class="game-prompt-row"><div class="row" style="justify-content:space-between"><span>${escapeHtml(match.player_one?.student_name||"BYE")}</span><b>${match.score_one}</b></div><div class="row" style="justify-content:space-between"><span>${escapeHtml(match.player_two?.student_name||"BYE")}</span><b>${match.score_two}</b></div><div class="muted">${match.status}${match.winner_id?` · {{ T.winner|escapejs }}: ${escapeHtml(match.winner_id===match.player_one?.id?match.player_one?.student_name:match.player_two?.student_name)}`:""}</div></div>`).join("")}</section>`).join("")}</div>`;
+    const stages=round.tournament_stages||[];
+    if(!stages.length){qs("gameParticipants").innerHTML=(round.participants||[]).length?(round.participants||[]).map(player=>`<span class="pill" style="margin:4px">${escapeHtml(player.student_name)}</span>`).join(""):`<div class="muted">{{ T.waiting_for_players|escapejs }}</div>`;return;}
+    const matches=round.tournament_matches||[];
+    const firstMatchCount=Math.max(1,Number(stages[0]?.match_count||1));
+    const bracketHeight=Math.max(360,firstMatchCount*104);
+    const stageHtml=stages.map(stage=>{
+      const stageMatches=matches.filter(match=>Number(match.stage_number)===Number(stage.number)).sort((a,b)=>Number(a.match_number)-Number(b.match_number));
+      const slots=Array.from({length:Math.max(1,Number(stage.match_count||stageMatches.length||1))},(_,index)=>stageMatches.find(match=>Number(match.match_number)===index+1)||null);
+      return `<section class="tournament-stage"><div class="tournament-stage-title" title="${escapeHtml(stage.title||"")}">${escapeHtml(stage.title||`{{ T.tournament_round|escapejs }} ${stage.number}`)}</div><div class="tournament-stage-body" style="height:${bracketHeight}px">${slots.map((match,index)=>{
+        if(!match)return `<div class="tournament-match" data-bracket-stage="${stage.number}" data-bracket-slot="${index}"><div class="tournament-player tbd"><span>{{ T.tournament_tbd|escapejs }}</span></div><div class="tournament-player tbd"><span>{{ T.tournament_tbd|escapejs }}</span></div></div>`;
+        const oneWinner=Number(match.winner_id)===Number(match.player_one?.id);
+        const twoWinner=Number(match.winner_id)===Number(match.player_two?.id);
+        return `<div class="tournament-match" data-bracket-stage="${stage.number}" data-bracket-slot="${index}"><div class="tournament-player ${oneWinner?"winner":""}"><span>${escapeHtml(match.player_one?.student_name||"{{ T.tournament_tbd|escapejs }}")}</span><b>${match.score_one}</b></div><div class="tournament-player ${match.player_two?(twoWinner?"winner":""):"bye"}"><span>${escapeHtml(match.player_two?.student_name||"{{ T.tournament_bye|escapejs }}")}</span><b>${match.player_two?match.score_two:""}</b></div><div class="tournament-match-meta">${escapeHtml(match.status)} · {{ T.tournament_wins_required|escapejs }} ${match.wins_required}</div></div>`;
+      }).join("")}</div></section>`;
+    }).join("");
+    qs("gameParticipants").innerHTML=`<div class="tournament-bracket-viewport"><div id="teacherTournamentGrid" class="tournament-bracket-grid" style="grid-template-columns:repeat(${stages.length},230px);min-width:${Math.max(1,stages.length)*230+Math.max(0,stages.length-1)*72+56}px"><svg class="tournament-bracket-lines" aria-hidden="true"></svg>${stageHtml}</div></div>`;
+    requestAnimationFrame(()=>drawTournamentConnectors("teacherTournamentGrid"));
+  }
+
+  function drawTournamentConnectors(gridId){
+    const grid=document.getElementById(gridId);if(!grid)return;
+    const svg=grid.querySelector(".tournament-bracket-lines");if(!svg)return;
+    const gridRect=grid.getBoundingClientRect();
+    svg.setAttribute("width",grid.scrollWidth);svg.setAttribute("height",grid.scrollHeight);svg.setAttribute("viewBox",`0 0 ${grid.scrollWidth} ${grid.scrollHeight}`);
+    const stageNumbers=Array.from(grid.querySelectorAll(".tournament-stage")).map((_,index)=>index+1);
+    const paths=[];
+    stageNumbers.slice(0,-1).forEach(stageNumber=>{
+      const sources=Array.from(grid.querySelectorAll(`[data-bracket-stage="${stageNumber}"]`));
+      const targets=Array.from(grid.querySelectorAll(`[data-bracket-stage="${stageNumber+1}"]`));
+      sources.forEach((source,index)=>{const target=targets[Math.floor(index/2)];if(!target)return;const from=source.getBoundingClientRect();const to=target.getBoundingClientRect();const x1=from.right-gridRect.left;const y1=from.top-gridRect.top+from.height/2;const x2=to.left-gridRect.left;const y2=to.top-gridRect.top+to.height/2;const middle=x1+(x2-x1)/2;paths.push(`<path d="M ${x1} ${y1} H ${middle} V ${y2} H ${x2}" fill="none" stroke="#60a5fa" stroke-width="2"/>`)});
+    });
+    svg.innerHTML=paths.join("");
   }
 
   function renderTeacherGameRound(round){

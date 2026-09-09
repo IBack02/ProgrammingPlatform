@@ -315,6 +315,7 @@
     document.querySelectorAll(".programming-metrics").forEach(row=>row.hidden=isExam);
     document.querySelectorAll(".exam-count").forEach(row=>row.hidden=!isExam);
     document.querySelectorAll(".programming-count").forEach(row=>row.hidden=isExam);
+    applyCardBars(isExam);
     if(dashboardChart)dashboardChart.destroy();
     dashboardChart=new Chart(document.getElementById("sessionChart"), {
       type:isExam?"line":"bar",
@@ -340,23 +341,25 @@
   document.getElementById("programmingChartButton").onclick=()=>{chartMode="programming";renderDashboardChart();};
   renderDashboardChart();
 
-  const fills = Array.from(document.querySelectorAll(".bar-fill"));
-  const vals = fills
-    .map(f => parseFloat(f.dataset.val || "0"))
-    .filter(v => !isNaN(v));
-  const maxVal = Math.max(...vals, 1);
-
-  fills.forEach(f => {
-    const v = parseFloat(f.dataset.val || "0");
-    const pct = Math.max(0, Math.min(100, (v / maxVal) * 100));
-    f.style.width = pct + "%";
-  });
-  document.querySelectorAll(".percent-fill").forEach(f=>{f.style.width=Math.max(0,Math.min(100,parseFloat(f.dataset.val||"0")))+"%";});
+  function applyCardBars(isExam){
+    if(isExam){
+      document.querySelectorAll(".exam-metrics .percent-fill").forEach(fill=>{
+        fill.style.width=Math.max(0,Math.min(100,parseFloat(fill.dataset.val||"0")))+"%";
+      });
+      return;
+    }
+    const fills=Array.from(document.querySelectorAll(".programming-metrics .bar-fill"));
+    const maxValue=Math.max(...fills.map(fill=>parseFloat(fill.dataset.val||"0")).filter(Number.isFinite),1);
+    fills.forEach(fill=>{
+      const value=parseFloat(fill.dataset.val||"0");
+      fill.style.width=Math.max(0,Math.min(100,(value/maxValue)*100))+"%";
+    });
+  }
 
   document.querySelectorAll(".student-card").forEach(card => {
     card.addEventListener("click", () => {
       const id = card.dataset.studentId;
-      window.location.href = `/admin-stats/student/${id}/`;
+      window.location.href = `/teacher/students/${id}/analytics/?mode=${encodeURIComponent(chartMode)}`;
     });
   });
 </script>

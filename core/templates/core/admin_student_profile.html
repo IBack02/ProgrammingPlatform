@@ -60,10 +60,18 @@
     padding:14px;
     box-shadow:0 10px 20px rgba(17,24,39,.06);
   }
+
+  .chart-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap}
+  .chart-switch{display:flex;gap:4px;padding:4px;border:1px solid #e5e7eb;border-radius:12px;background:#f8fafc}
+  .chart-switch button{border:0;border-radius:8px;padding:8px 12px;background:transparent;color:#475569;font-weight:800;cursor:pointer}
+  .chart-switch button.active{background:#0f172a;color:#fff;box-shadow:0 4px 12px rgba(15,23,42,.2)}
+  .chart-frame{height:clamp(340px,48vh,520px);margin-top:14px}
+  .chart-empty{display:none;height:100%;place-items:center;border:1px dashed #cbd5e1;border-radius:12px;color:#64748b;text-align:center;padding:20px;box-sizing:border-box}
+  @media(max-width:600px){.chart-switch{width:100%}.chart-switch button{flex:1}.chart-frame{height:390px}}
 </style>
 
 <div class="profile-top">
-  <a class="btn" href="/teacher/">{{ T.back_to_dashboard }}</a>
+  <a class="btn" href="{{ profile_back_url }}">{{ T.back_to_dashboard }}</a>
 </div>
 
 <div class="profile-card" style="margin-bottom:12px;">
@@ -78,14 +86,24 @@
 </div>
 
 <div class="chart-card">
-  <div style="font-weight:900;">{{ T.performance_by_session }}</div>
-  <div class="small">{{ T.performance_formula_note }}</div>
-  <div style="margin-top:12px;">
-    <canvas id="rateChart" height="120"></canvas>
+  <div class="chart-head">
+    <div>
+      <div id="profileChartTitle" style="font-weight:900;">{{ T.exam_performance }}</div>
+      <div id="profileChartNote" class="small">{{ T.exam_performance_note }}</div>
+    </div>
+    <div class="chart-switch">
+      <button type="button" id="profileExamButton">{{ T.exams }}</button>
+      <button type="button" id="profileProgrammingButton">{{ T.programming_performance }}</button>
+    </div>
+  </div>
+  <div class="chart-frame">
+    <canvas id="rateChart"></canvas>
+    <div id="profileChartEmpty" class="chart-empty"></div>
   </div>
 </div>
 
 {{ chart_json|json_script:"student-chart-data" }}
+{{ exam_chart_json|json_script:"student-exam-chart-data" }}
 <script>
   const UI = {
     taskCompletionPercent: "{{ T.task_completion_percent|escapejs }}",
@@ -93,21 +111,52 @@
     tasksSolved: "{{ T.tasks_solved|escapejs }}",
     totalTasks: "{{ T.total_tasks|escapejs }}",
     acceptedAnswers: "{{ T.accepted_answers|escapejs }}",
-    totalAttempts: "{{ T.total_attempts|escapejs }}"
+    totalAttempts: "{{ T.total_attempts|escapejs }}",
+    examPerformance: "{{ T.exam_performance|escapejs }}",
+    programmingPerformance: "{{ T.programming_performance|escapejs }}",
+    examPerformanceNote: "{{ T.exam_performance_note|escapejs }}",
+    programmingPerformanceNote: "{{ T.performance_formula_note|escapejs }}",
+    teacherScore: "{{ T.exam_teacher_score_percent|escapejs }}",
+    peerScore: "{{ T.exam_peer_score_percent|escapejs }}",
+    examEmpty: "{{ T.exam_chart_empty|escapejs }}",
+    programmingEmpty: "{{ T.programming_chart_empty|escapejs }}"
   };
 
-  const data = JSON.parse(document.getElementById("student-chart-data").textContent);
+  const programmingData = JSON.parse(document.getElementById("student-chart-data").textContent);
+  const examData = JSON.parse(document.getElementById("student-exam-chart-data").textContent);
   const shortChartLabel = value => { const text=String(value||""); return text.length>22 ? `${text.slice(0,21)}…` : text; };
   const ctx = document.getElementById("rateChart");
+  let profileChart = null;
+  let chartMode = "{{ initial_chart_mode|escapejs }}" === "programming" ? "programming" : "exam";
 
-  new Chart(ctx, {
-    type: "line",
-    data: {
-      labels: data.labels,
-      datasets: [
+  function renderProfileChart(){
+    const isExam = chartMode === "exam";
+    const data = isExam ? examData : programmingData;
+    const datasets = isExam ? [
+      {
+        label: UI.teacherScore,
+        data: data.teacher_percentages || [],
+        tension: .25,
+        spanGaps: true,
+        borderWidth: 2,
+        pointRadius: 4,
+        borderColor: "#2563eb",
+        backgroundColor: "#2563eb"
+      },
+      {
+        label: UI.peerScore,
+        data: data.peer_percentages || [],
+        tension: .25,
+        spanGaps: true,
+        borderWidth: 2,
+        pointRadius: 4,
+        borderColor: "#dc2626",
+        backgroundColor: "#dc2626"
+      }
+    ] : [
         {
           label: UI.taskCompletionPercent,
-          data: data.task_completion_rates,
+          data: data.task_completion_rates || [],
           tension: 0.25,
           borderWidth: 2,
           pointRadius: 4,
@@ -116,40 +165,65 @@
         },
         {
           label: UI.successfulAnswersPercent,
-          data: data.success_rates,
+          data: data.success_rates || [],
           tension: 0.25,
           borderWidth: 2,
           pointRadius: 4,
           borderColor: "#dc2626",
           backgroundColor: "#dc2626",
         }
-      ]
-    },
-    options: {
-      responsive: true,
-      plugins: {
-        legend: { position: "top" },
-        tooltip: {
-          callbacks: {
-            title: (items) => items.length ? String(data.labels[items[0].dataIndex] || "") : "",
-            afterBody: (items) => {
-              const i = items[0].dataIndex;
-              return [
-                `${UI.tasksSolved}: ${data.solved_counts[i]} / ${data.total_tasks[i]}`,
-                `${UI.acceptedAnswers}: ${data.accepted_counts[i]} / ${data.total_attempts[i]}`
-              ];
+      ];
+    document.getElementById("profileChartTitle").textContent = isExam ? UI.examPerformance : UI.programmingPerformance;
+    document.getElementById("profileChartNote").textContent = isExam ? UI.examPerformanceNote : UI.programmingPerformanceNote;
+    document.getElementById("profileExamButton").classList.toggle("active", isExam);
+    document.getElementById("profileProgrammingButton").classList.toggle("active", !isExam);
+    const hasData = (data.labels || []).length > 0;
+    ctx.style.display = hasData ? "block" : "none";
+    const empty = document.getElementById("profileChartEmpty");
+    empty.style.display = hasData ? "none" : "grid";
+    empty.textContent = isExam ? UI.examEmpty : UI.programmingEmpty;
+    if (profileChart) profileChart.destroy();
+    profileChart = null;
+    if (!hasData) return;
+    profileChart = new Chart(ctx, {
+      type: "line",
+      data: {labels: data.labels || [], datasets},
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: {mode: "index", intersect: false},
+        plugins: {
+          legend: {position: "top"},
+          tooltip: {
+            callbacks: {
+              title: items => items.length ? String(data.labels[items[0].dataIndex] || "") : "",
+              afterBody: items => {
+                const i = items[0].dataIndex;
+                if (isExam) {
+                  const maximum = data.max_scores?.[i] ?? 0;
+                  return [
+                    `${UI.teacherScore}: ${data.teacher_scores?.[i] ?? "—"} / ${maximum}`,
+                    `${UI.peerScore}: ${data.peer_scores?.[i] ?? "—"} / ${maximum}`
+                  ];
+                }
+                return [
+                  `${UI.tasksSolved}: ${data.solved_counts[i]} / ${data.total_tasks[i]}`,
+                  `${UI.acceptedAnswers}: ${data.accepted_counts[i]} / ${data.total_attempts[i]}`
+                ];
+              }
             }
           }
-        }
-      },
-      scales: {
-        y: {
-          beginAtZero: true,
-          max: 100
         },
-        x: { ticks: { callback:function(value){return shortChartLabel(this.getLabelForValue(value));} } }
+        scales: {
+          y: {beginAtZero: true, max: 100},
+          x: {ticks: {maxRotation: 20, minRotation: 0, callback:function(value){return shortChartLabel(this.getLabelForValue(value));}}}
+        },
       }
-    }
-  });
+    });
+  }
+
+  document.getElementById("profileExamButton").onclick = () => {chartMode = "exam"; renderProfileChart();};
+  document.getElementById("profileProgrammingButton").onclick = () => {chartMode = "programming"; renderProfileChart();};
+  renderProfileChart();
 </script>
 {% endblock %}

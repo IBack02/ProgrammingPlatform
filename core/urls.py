@@ -38,6 +38,11 @@ urlpatterns = [
     path("teacher/sessions/", views.teacher_sessions_page, name="teacher_sessions_page"),
     path("teacher/classes/", views.teacher_classes_page, name="teacher_classes_page"),
     path("teacher/students/", views.teacher_students_page, name="teacher_students_page"),
+    path(
+        "teacher/students/<int:student_id>/analytics/",
+        views.teacher_student_profile,
+        name="teacher_student_profile",
+    ),
     path("teacher/tasks/", views.teacher_tasks_page, name="teacher_tasks_page"),
     path(
         "teacher/analytics/",

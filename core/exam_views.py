@@ -603,10 +603,11 @@ def _exam_attempt_score_summary(attempt):
     }
 
 
-def build_student_exam_chart(student):
-    attempts = list(
-        _student_exam_attempts(student).order_by("submitted_at", "started_at", "id")
-    )
+def build_student_exam_chart(student, teacher=None):
+    attempts_qs = _student_exam_attempts(student)
+    if teacher is not None:
+        attempts_qs = attempts_qs.filter(exam__owner=teacher)
+    attempts = list(attempts_qs.order_by("submitted_at", "started_at", "id"))
     rows = []
     for attempt in attempts:
         summary = _exam_attempt_score_summary(attempt)

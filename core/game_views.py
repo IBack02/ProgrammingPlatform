@@ -271,9 +271,20 @@ def _tournament_round_data(round_obj):
             "player_one__student", "player_two__student", "winner__student"
         )
     )
+    entrants = round_obj.participants.count()
+    stage_sizes = []
+    for _stage in snapshot:
+        match_count = ceil(entrants / 2) if entrants > 1 else 1
+        stage_sizes.append(match_count)
+        entrants = match_count
     return {
         "tournament_stages": [
-            {"number": index + 1, "title": stage.get("title") or f"Round {index + 1}", "question_count": stage.get("question_count", 0)}
+            {
+                "number": index + 1,
+                "title": stage.get("title") or f"Round {index + 1}",
+                "question_count": stage.get("question_count", 0),
+                "match_count": stage_sizes[index],
+            }
             for index, stage in enumerate(snapshot)
         ],
         "tournament_matches": [_tournament_match_row(row, snapshot) for row in matches],
@@ -919,14 +930,8 @@ def _create_tournament_matches(round_obj, stage_number, participants):
     now = timezone.now()
     pairs = []
     players = list(participants)
-    if stage_number == 1:
-        bracket_size = 1 << ceil(log2(len(players)))
-        bye_count = bracket_size - len(players)
-        for _ in range(bye_count):
-            pairs.append((players.pop(), None))
-    while players:
-        pairs.append((players.pop(), players.pop() if players else None))
-    secrets.SystemRandom().shuffle(pairs)
+    for index in range(0, len(players), 2):
+        pairs.append((players[index], players[index + 1] if index + 1 < len(players) else None))
     for match_number, (one, two) in enumerate(pairs, start=1):
         is_bye = two is None
         TournamentMatch.objects.create(
@@ -988,11 +993,12 @@ def teacher_game_start_round_api(request: HttpRequest, round_id: int):
             if len(participants) < 2:
                 raise ValueError("at least two students must be ready")
             needed_stages = ceil(log2(len(participants)))
-            stages = list(
-                round_obj.module.tournament_stages.prefetch_related("questions").order_by("ordinal", "id")[:needed_stages]
+            configured_stages = list(
+                round_obj.module.tournament_stages.prefetch_related("questions").order_by("ordinal", "id")
             )
-            if len(stages) < needed_stages:
+            if len(configured_stages) < needed_stages:
                 raise ValueError("configure enough tournament rounds for the registered students")
+            stages = configured_stages[-needed_stages:]
             snapshot = []
             for stage in stages:
                 questions = list(stage.questions.order_by("ordinal", "id"))

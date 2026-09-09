@@ -2158,14 +2158,14 @@ def admin_stats_dashboard(request: HttpRequest) -> HttpResponse:
     return render(request, "core/admin_stats_dashboard.html", context)
 
 
-@staff_member_required
-def admin_student_profile(request: HttpRequest, student_id: int) -> HttpResponse:
-    student = get_object_or_404(
-        Student.objects.select_related("class_group"),
-        id=student_id,
-        is_active=True,
-    )
-
+def _build_student_profile_context(
+    student: Student,
+    *,
+    active: str = "",
+    back_url: str = "/teacher/",
+    initial_chart_mode: str = "exam",
+    exam_teacher: Teacher | None = None,
+) -> dict:
     ss_qs = (
         StudentSession.objects.filter(student=student)
         .select_related("session")
@@ -2247,15 +2247,51 @@ def admin_student_profile(request: HttpRequest, student_id: int) -> HttpResponse
         "total_attempts": total_attempts,
     }
 
-    return render(
-        request,
-        "core/admin_student_profile.html",
-        {
-            "student": student,
-            "chart_json": chart,
-            "active": "",
-        },
+    from .exam_views import build_student_exam_chart
+
+    return {
+        "student": student,
+        "chart_json": chart,
+        "exam_chart_json": build_student_exam_chart(student, teacher=exam_teacher),
+        "initial_chart_mode": "programming" if initial_chart_mode == "programming" else "exam",
+        "profile_back_url": back_url,
+        "active": active,
+    }
+
+
+@staff_member_required
+def admin_student_profile(request: HttpRequest, student_id: int) -> HttpResponse:
+    student = get_object_or_404(
+        Student.objects.select_related("class_group"),
+        id=student_id,
+        is_active=True,
     )
+    context = _build_student_profile_context(
+        student,
+        back_url="/admin-stats/",
+        initial_chart_mode=request.GET.get("mode", "exam"),
+    )
+    return render(request, "core/admin_student_profile.html", context)
+
+
+@teacher_required
+@ensure_csrf_cookie
+def teacher_student_profile(request: HttpRequest, student_id: int) -> HttpResponse:
+    teacher = _get_logged_in_teacher(request)
+    student = get_object_or_404(
+        Student.objects.select_related("class_group"),
+        id=student_id,
+        is_active=True,
+        class_group__owner=teacher,
+    )
+    context = _build_student_profile_context(
+        student,
+        active="dashboard",
+        back_url="/teacher/",
+        initial_chart_mode=request.GET.get("mode", "exam"),
+        exam_teacher=teacher,
+    )
+    return render(request, "core/admin_student_profile.html", context)
 
 
 # -------------------------

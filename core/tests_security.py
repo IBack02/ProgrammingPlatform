@@ -294,6 +294,25 @@ class SecurityRegressionTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertNotContains(response, title)
 
+    def test_teacher_student_profile_does_not_require_admin_and_is_owner_scoped(self):
+        response = self._teacher_client().get(
+            f"/teacher/students/{self.student.id}/analytics/"
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'id="student-exam-chart-data"')
+
+        other_teacher = Teacher(full_name="Profile Teacher", is_active=True)
+        other_teacher.set_password("profile7")
+        other_teacher.save()
+        response = self._teacher_client(other_teacher).get(
+            f"/teacher/students/{self.student.id}/analytics/"
+        )
+        self.assertEqual(response.status_code, 404)
+
+        anonymous = Client().get(f"/teacher/students/{self.student.id}/analytics/")
+        self.assertEqual(anonymous.status_code, 302)
+        self.assertEqual(anonymous.url, "/teacher/login/")
+
     def test_security_headers_are_present(self):
         response = Client().get("/healthz/")
         self.assertIn("Content-Security-Policy", response)
