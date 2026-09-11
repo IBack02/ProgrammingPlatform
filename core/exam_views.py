@@ -568,7 +568,12 @@ def _percent_of_max(score, maximum):
 
 
 def _exam_attempt_score_summary(attempt):
-    questions = list(attempt.exam.questions.all())
+    questions = list(
+        attempt.exam.questions.prefetch_related("matching_pairs").order_by(
+            "position",
+            "id",
+        )
+    )
     question_ids = {question.id for question in questions}
     maximum = sum((question.max_score for question in questions), Decimal("0"))
     answers = list(attempt.answers.all())
@@ -750,6 +755,22 @@ def teacher_exams_page(request: HttpRequest):
     return render(request, "core/teacher/exams.html", {"active": "exams"})
 
 
+@_teacher_required
+@ensure_csrf_cookie
+def teacher_exam_attempt_grade_page(request: HttpRequest, attempt_id: int):
+    teacher = _teacher(request)
+    attempt = get_object_or_404(
+        ExamAttempt.objects.select_related("exam", "student__class_group"),
+        id=attempt_id,
+        exam__owner=teacher,
+    )
+    return render(
+        request,
+        "core/teacher/exam_attempt_grade.html",
+        {"active": "exams", "attempt": attempt},
+    )
+
+
 @_student_required
 @ensure_csrf_cookie
 def student_exams_page(request: HttpRequest):
@@ -796,8 +817,10 @@ def student_exam_result_page(request: HttpRequest, attempt_id: int):
     for question in questions:
         answer = answers.get(question.id)
         matching_rows = []
+        mark_scheme_matching_rows = []
         table_columns = []
         table_rows = []
+        mark_scheme_table_rows = []
         diagram_url = ""
         if question.question_type == ExamQuestion.QuestionType.MATCHING:
             presentation = attempt.presentation_json.get(str(question.id), {})
@@ -813,6 +836,13 @@ def student_exam_result_page(request: HttpRequest, attempt_id: int):
                 }
                 for item in presentation.get("left", [])
             ]
+            mark_scheme_matching_rows = [
+                {
+                    "left_text": pair.left_text,
+                    "right_text": pair.right_text,
+                }
+                for pair in question.matching_pairs.all()
+            ]
         elif question.question_type == ExamQuestion.QuestionType.TABLE:
             schema = question.table_schema if isinstance(question.table_schema, dict) else {}
             table_columns = [str(column.get("label") or "") for column in schema.get("columns", [])]
@@ -825,6 +855,17 @@ def student_exam_result_page(request: HttpRequest, attempt_id: int):
                     else:
                         values.append(str(submitted_cells.get(str(cell.get("key")), "")))
                 table_rows.append(values)
+                mark_scheme_table_rows.append([
+                    str(
+                        (
+                            cell.get("value")
+                            if cell.get("mode") == "given"
+                            else cell.get("answer")
+                        )
+                        or ""
+                    )
+                    for cell in schema_row.get("cells", [])
+                ])
         elif question.question_type == ExamQuestion.QuestionType.DIAGRAM and answer:
             try:
                 diagram_url = _student_image_url(_https_url(answer.diagram_file_url, "diagram_file_url"))
@@ -834,8 +875,11 @@ def student_exam_result_page(request: HttpRequest, attempt_id: int):
             "question": question,
             "answer": answer,
             "matching_rows": matching_rows,
+            "mark_scheme_matching_rows": mark_scheme_matching_rows,
             "table_columns": table_columns,
             "table_rows": table_rows,
+            "mark_scheme_table_rows": mark_scheme_table_rows,
+            "mark_scheme_text": question.model_answer,
             "diagram_url": diagram_url,
             "peer_reviews": reviews_by_question.get(question.id, []),
         })

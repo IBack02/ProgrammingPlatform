@@ -156,6 +156,11 @@ class ExamFlowTests(TestCase):
         )
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["attempt"]["status"], ExamAttempt.Status.SUBMITTED)
+        attempt_id = response.json()["attempt"]["id"]
+        result_page = self.student_client.get(f"/student/exam-results/{attempt_id}/")
+        self.assertEqual(result_page.status_code, 200)
+        self.assertContains(result_page, "Reliable transport")
+        self.assertContains(result_page, "secret-table-answer")
 
         response = self._json(
             "post",

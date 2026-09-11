@@ -275,7 +275,7 @@ function renderIntegrity(data){
 async function loadAttempts(){
   if(!current)return;const data=await api(`/api/teacher/exams/${current.id}/attempts/`);const box=document.getElementById("attemptList");box.innerHTML="";
   if(!data.ok){box.innerHTML=`<div class="muted">${esc(data.error)}</div>`;return;}if(!data.attempts.length){box.innerHTML=`<div class="muted">${esc(UI.noAttempts)}</div>`;return;}
-  data.attempts.forEach(a=>{const div=document.createElement("button");div.type="button";div.className="attempt";const badge=a.integrity_event_count?` <span class="integrity-badge">! ${a.integrity_event_count}</span>`:"";div.innerHTML=`<b>${esc(a.student_name)}${badge}</b><div class="meta">${esc(a.class_name)} | ${esc(a.status)} | ${a.total_score}</div>`;div.onclick=()=>reviewAttempt(a.id);box.appendChild(div);});
+  data.attempts.forEach(a=>{const div=document.createElement("button");div.type="button";div.className="attempt";const badge=a.integrity_event_count?` <span class="integrity-badge">! ${a.integrity_event_count}</span>`:"";div.innerHTML=`<b>${esc(a.student_name)}${badge}</b><div class="meta">${esc(a.class_name)} | ${esc(a.status)} | ${a.total_score}</div>`;div.onclick=()=>window.location.assign(`/teacher/exams/attempts/${a.id}/grade/`);box.appendChild(div);});
 }
 async function reviewAttempt(id){
   const data=await api(`/api/teacher/exam-attempts/${id}/`);if(!data.ok){message(data.error);return;}selectedAttemptId=id;const box=document.getElementById("attemptReview");box.innerHTML=`<div class="section-title" style="margin-top:14px">${esc(data.attempt.student_name)}</div><div id="integrityPanel" class="integrity-panel"></div>`;renderIntegrity(data);

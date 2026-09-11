@@ -200,6 +200,54 @@ class PeerAssessmentFlowTests(TestCase):
         self.assertEqual(assignments.count(), 2)
         self.assertFalse(assignments.exclude(exam_attempt__student__class_group=self.source_class).exists())
 
+    def test_autofill_balances_reviewer_and_work_assignment_counts(self):
+        third_reviewer = Student.objects.create(
+            full_name="Reviewer Three",
+            class_group=self.reviewer_class,
+            pin_hash="!",
+            is_active=True,
+        )
+        now = timezone.now()
+        attempts = [
+            ExamAttempt.objects.create(
+                exam=self.exam,
+                student=student,
+                status=ExamAttempt.Status.SUBMITTED,
+                started_at=now - timedelta(minutes=10),
+                expires_at=now,
+                submitted_at=now,
+            )
+            for student in (self.reviewer, self.second_reviewer, third_reviewer)
+        ]
+        session = PeerAssessmentSession.objects.create(
+            owner=self.teacher,
+            title="Balanced review",
+            reviewer_class=self.reviewer_class,
+        )
+
+        response = self._json(
+            self.teacher_client,
+            "post",
+            f"/api/teacher/peer-sessions/{session.id}/autofill/",
+            {"count": 2, "source_class_id": self.reviewer_class.id},
+        )
+        self.assertEqual(response.status_code, 200)
+        assignments = list(
+            PeerAssessmentAssignment.objects.filter(session=session)
+        )
+        self.assertEqual(len(assignments), 6)
+        self.assertEqual(
+            {student.id: sum(row.reviewer_id == student.id for row in assignments) for student in (self.reviewer, self.second_reviewer, third_reviewer)},
+            {self.reviewer.id: 2, self.second_reviewer.id: 2, third_reviewer.id: 2},
+        )
+        self.assertEqual(
+            {attempt.id: sum(row.exam_attempt_id == attempt.id for row in assignments) for attempt in attempts},
+            {attempt.id: 2 for attempt in attempts},
+        )
+        self.assertFalse(
+            any(row.reviewer_id == row.exam_attempt.student_id for row in assignments)
+        )
+
     def test_exam_filter_limits_search_manual_assignment_and_autofill(self):
         other_exam = Exam.objects.create(
             owner=self.teacher,
@@ -309,6 +357,41 @@ class PeerAssessmentFlowTests(TestCase):
         self.assertContains(student_page, "/api/student/peer-sessions/")
         self.assertContains(student_page, "openNextPendingQuestion")
 
+    def test_teacher_exam_grading_page_is_private_and_saves_teacher_score(self):
+        exams_page = self.teacher_client.get("/teacher/exams/")
+        self.assertContains(
+            exams_page,
+            "/teacher/exams/attempts/${a.id}/grade/",
+        )
+        page = self.teacher_client.get(
+            f"/teacher/exams/attempts/{self.attempt.id}/grade/"
+        )
+        self.assertEqual(page.status_code, 200)
+        self.assertContains(page, f"const attemptId={self.attempt.id}")
+        self.assertContains(page, "/api/teacher/exam-attempts/${attemptId}/")
+
+        answer = ExamAnswer.objects.get(attempt=self.attempt, question=self.question)
+        saved = self._json(
+            self.teacher_client,
+            "patch",
+            f"/api/teacher/exam-answers/{answer.id}/grade/",
+            {"awarded_score": 4, "teacher_feedback": "Accurate answer"},
+        )
+        self.assertEqual(saved.status_code, 200)
+        answer.refresh_from_db()
+        self.assertEqual(answer.awarded_score, Decimal("4.00"))
+        self.assertEqual(answer.teacher_feedback, "Accurate answer")
+
+        other_teacher = Teacher.objects.create(
+            full_name="Foreign Grader",
+            pin_hash="!",
+            is_active=True,
+        )
+        hidden = self._teacher_client(other_teacher).get(
+            f"/teacher/exams/attempts/{self.attempt.id}/grade/"
+        )
+        self.assertEqual(hidden.status_code, 404)
+
     def test_results_are_grouped_by_work_and_detail_is_teacher_private(self):
         answer = ExamAnswer.objects.get(attempt=self.attempt, question=self.question)
         answer.awarded_score = Decimal("4")
@@ -390,7 +473,7 @@ class PeerAssessmentFlowTests(TestCase):
         self.assertContains(detail, "Teacher detail")
         self.assertContains(detail, "Peer detail")
         self.assertContains(detail, "Moderator detail")
-        self.assertNotContains(detail, self.question.model_answer)
+        self.assertContains(detail, self.question.model_answer)
 
         foreign_detail = self.student_client.get(f"/student/exam-results/{self.attempt.id}/")
         self.assertEqual(foreign_detail.status_code, 404)

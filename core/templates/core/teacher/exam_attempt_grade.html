@@ -1,0 +1,150 @@
+{% extends "core/teacher/_base.html" %}
+{% block title %}{{ T.teacher_grading_title }}{% endblock %}
+{% block subtitle %}{{ attempt.exam.title }} · #{{ attempt.id }}{% endblock %}
+{% block content %}
+<style>
+  :root{--grade-ink:#172033;--grade-muted:#64748b;--grade-line:#d9e2ec;--grade-blue:#075985;--grade-sky:#f0f9ff;--grade-warm:#fffbeb}
+  *{box-sizing:border-box}
+  .grade-top{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+  .back-link{display:inline-flex;padding:9px 13px;border:1px solid var(--grade-line);border-radius:10px;background:#fff;color:var(--grade-ink);text-decoration:none;font-weight:800}
+  .summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:14px}
+  .summary-card{border:1px solid var(--grade-line);border-radius:13px;padding:13px;background:#fff}
+  .summary-label{font-size:12px;color:var(--grade-muted);font-weight:800}
+  .summary-value{font-size:22px;font-weight:900;margin-top:5px}
+  .integrity{margin-top:14px;border:1px solid #fecaca;border-radius:14px;padding:14px;background:#fff7f7}
+  .integrity-list{display:grid;gap:7px;margin-top:9px}
+  .integrity-row{display:flex;justify-content:space-between;gap:12px;padding-top:7px;border-top:1px solid #fecaca;font-size:12px}
+  .question-card{margin-top:14px;border:1px solid var(--grade-line);border-radius:16px;background:rgba(255,255,255,.97);padding:17px;box-shadow:0 12px 28px rgba(15,23,42,.07)}
+  .question-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}
+  .question-title{font-size:18px;font-weight:900;white-space:pre-wrap}
+  .points{white-space:nowrap;padding:5px 9px;border-radius:999px;background:#fef3c7;color:#92400e;font-size:12px;font-weight:900}
+  .block{margin-top:12px;border:1px solid var(--grade-line);border-radius:12px;padding:13px;background:#fff}
+  .block.scheme{background:var(--grade-sky);border-color:#7dd3fc}
+  .block h3{margin:0 0 8px;font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:var(--grade-muted)}
+  .answer-text{white-space:pre-wrap;line-height:1.55}
+  .pair{display:grid;grid-template-columns:1fr auto 1fr;gap:9px;align-items:center;padding:7px 0;border-bottom:1px solid #edf2f7}
+  table{width:100%;border-collapse:collapse}th,td{border:1px solid #cbd5e1;padding:8px;text-align:left}th{background:#edf2f7}
+  .grading-grid{display:grid;grid-template-columns:minmax(130px,.32fr) minmax(240px,1fr) auto;gap:9px;align-items:end}
+  .field{display:flex;flex-direction:column;gap:5px}.field>span{font-size:12px;font-weight:800;color:var(--grade-muted)}
+  input,textarea,button{font:inherit}input,textarea{width:100%;border:1px solid #cbd5e1;border-radius:9px;padding:9px;background:#fff}textarea{min-height:78px;resize:vertical}
+  input:focus,textarea:focus{outline:3px solid rgba(14,165,233,.18);border-color:#0284c7}
+  .save-grade{border:0;border-radius:9px;padding:10px 13px;background:var(--grade-blue);color:#fff;font-weight:850;cursor:pointer}
+  .save-grade:disabled{opacity:.5;cursor:not-allowed}
+  .status{min-height:18px;margin-top:7px;color:#075985;font-size:12px;font-weight:800}
+  .empty{color:var(--grade-muted);font-style:italic}
+  @media(max-width:760px){.summary,.grading-grid{grid-template-columns:1fr}.pair{grid-template-columns:1fr}.pair span:nth-child(2){display:none}.integrity-row{flex-direction:column}.question-card{padding:14px}}
+</style>
+
+<div class="grade-top">
+  <a class="back-link" href="/teacher/exams/">{{ T.back_to_exams }}</a>
+  <div><b>{{ attempt.student.full_name }}</b> · {{ attempt.student.class_group.name }}</div>
+</div>
+
+<section class="summary">
+  <div class="summary-card"><div class="summary-label">{{ T.exam_maximum_score }}</div><div class="summary-value" id="maximumScore">0</div></div>
+  <div class="summary-card"><div class="summary-label">{{ T.exam_teacher_score }}</div><div class="summary-value" id="teacherScore">0</div></div>
+  <div class="summary-card"><div class="summary-label">{{ T.grading_progress }}</div><div class="summary-value" id="gradingProgress">0 / 0</div></div>
+</section>
+
+<section class="integrity">
+  <b>{{ T.exam_violations }}: <span id="integrityCount">0</span></b>
+  <div class="integrity-list" id="integrityList"></div>
+</section>
+
+<div id="pageStatus" class="status"></div>
+<div id="questionList"></div>
+
+<script>
+  const attemptId={{ attempt.id }};
+  const UI={
+    answer:"{{ T.student_answer|escapejs }}",
+    markScheme:"{{ T.mark_scheme|escapejs }}",
+    grading:"{{ T.grading|escapejs }}",
+    feedback:"{{ T.teacher_feedback|escapejs }}",
+    save:"{{ T.save_grade|escapejs }}",
+    saved:"{{ T.grade_saved|escapejs }}",
+    noAnswer:"{{ T.no_answer|escapejs }}",
+    noViolations:"{{ T.no_exam_violations|escapejs }}",
+    requestFailed:"{{ T.answer_save_failed|escapejs }}",
+    openDiagram:"{{ T.open_diagram|escapejs }}",
+    diagramUnavailable:"{{ T.diagram_not_available|escapejs }}",
+    events:{tab_hidden:"{{ T.event_tab_hidden|escapejs }}",window_blur:"{{ T.event_window_blur|escapejs }}",clipboard:"{{ T.event_clipboard|escapejs }}",shortcut:"{{ T.event_shortcut|escapejs }}",context_menu:"{{ T.event_context_menu|escapejs }}",fullscreen_exit:"{{ T.event_fullscreen_exit|escapejs }}"}
+  };
+  const csrf=()=>decodeURIComponent(document.cookie.split("; ").find(value=>value.startsWith("csrftoken="))?.split("=")[1]||"");
+  const esc=value=>String(value??"").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;").replaceAll("'","&#039;");
+  const safeHttps=value=>{try{const url=new URL(String(value||""),window.location.origin);return url.protocol==="https:"?url.href:""}catch{return ""}};
+  let pageData=null;
+
+  async function api(url,options={}){
+    const response=await fetch(url,{credentials:"include",headers:{Accept:"application/json",...(options.body?{"Content-Type":"application/json","X-CSRFToken":csrf()}:{}),...(options.headers||{})},...options});
+    const contentType=response.headers.get("content-type")||"";
+    if(!contentType.includes("application/json"))throw new Error(`HTTP ${response.status}`);
+    const data=await response.json();
+    if(!response.ok||!data.ok)throw new Error(data.error||`HTTP ${response.status}`);
+    return data;
+  }
+
+  function pairs(rows,leftKey="left_text",rightKey="right_text"){
+    return rows?.length?rows.map(row=>`<div class="pair"><span>${esc(row[leftKey])}</span><span>→</span><span>${esc(row[rightKey])||esc(UI.noAnswer)}</span></div>`).join(""):`<span class="empty">${esc(UI.noAnswer)}</span>`;
+  }
+
+  function table(schema,answer,expected=false){
+    const columns=schema?.columns||[],rows=schema?.rows||[];
+    if(!columns.length)return `<span class="empty">${esc(UI.noAnswer)}</span>`;
+    return `<div style="overflow:auto"><table><thead><tr>${columns.map(column=>`<th>${esc(column.label)}</th>`).join("")}</tr></thead><tbody>${rows.map(row=>`<tr>${(row.cells||[]).map(cell=>{const value=cell.mode==="given"?cell.value:(expected?cell.answer:answer?.[cell.key]);return `<td>${esc(value)||esc(UI.noAnswer)}</td>`}).join("")}</tr>`).join("")}</tbody></table></div>`;
+  }
+
+  function answer(row){
+    const q=row.question,a=row.answer||{};
+    if(q.question_type==="matching")return pairs(row.matching_rows,"left_text","selected_right_text");
+    if(q.question_type==="table")return table(q.table_schema,a.table_answer||{});
+    if(q.question_type==="diagram"){const url=safeHttps(a.diagram_file_url);return url?`<a href="${esc(url)}" target="_blank" rel="noopener noreferrer">${esc(UI.openDiagram)}</a>`:`<span class="empty">${esc(UI.diagramUnavailable)}</span>`}
+    return `<div class="answer-text${a.text_answer?"":" empty"}">${esc(a.text_answer)||esc(UI.noAnswer)}</div>`;
+  }
+
+  function scheme(q){
+    if(q.question_type==="matching")return pairs(q.pairs||[]);
+    if(q.question_type==="table")return table(q.table_schema,{},true);
+    return `<div class="answer-text${q.model_answer?"":" empty"}">${esc(q.model_answer)||esc(UI.noAnswer)}</div>`;
+  }
+
+  function renderSummary(){
+    const rows=pageData?.answers||[];
+    const maximum=rows.reduce((sum,row)=>sum+Number(row.question.max_score||0),0);
+    const graded=rows.filter(row=>row.awarded_score!==null&&row.awarded_score!==undefined);
+    const score=graded.reduce((sum,row)=>sum+Number(row.awarded_score||0),0);
+    document.getElementById("maximumScore").textContent=maximum;
+    document.getElementById("teacherScore").textContent=`${score} / ${maximum}`;
+    document.getElementById("gradingProgress").textContent=`${graded.length} / ${rows.length}`;
+  }
+
+  function renderIntegrity(){
+    const rows=pageData.integrity_events||[];
+    document.getElementById("integrityCount").textContent=rows.length;
+    document.getElementById("integrityList").innerHTML=rows.length?rows.map(event=>`<div class="integrity-row"><span><b>${esc(UI.events[event.event_type]||event.event_type)}</b>${event.detail?` · ${esc(event.detail)}`:""}</span><time>${esc(new Date(event.created_at).toLocaleString())}</time></div>`).join(""):`<div class="empty">${esc(UI.noViolations)}</div>`;
+  }
+
+  function renderQuestions(){
+    const box=document.getElementById("questionList");
+    box.innerHTML=(pageData.answers||[]).map(row=>{const q=row.question;const imageUrl=safeHttps(q.image_url);return `<article class="question-card" data-question="${q.id}"><div class="question-head"><div class="question-title">${q.position}. ${esc(q.prompt)}</div><span class="points">${q.max_score} {{ T.points|escapejs }}</span></div>${imageUrl?`<img src="${esc(imageUrl)}" alt="" style="display:block;max-width:100%;max-height:420px;margin:12px auto;border-radius:10px">`:""}<section class="block"><h3>${esc(UI.answer)}</h3>${answer(row)}</section><section class="block scheme"><h3>${esc(UI.markScheme)}</h3>${scheme(q)}</section><section class="block"><div class="grading-grid"><label class="field"><span>${esc(UI.grading)}</span><input class="score" type="number" min="0" max="${q.max_score}" step="0.01" value="${row.awarded_score??""}" ${row.answer_id?"":"disabled"}></label><label class="field"><span>${esc(UI.feedback)}</span><textarea class="feedback" maxlength="10000" ${row.answer_id?"":"disabled"}>${esc(row.teacher_feedback||"")}</textarea></label><button class="save-grade" type="button" data-answer="${row.answer_id||""}" ${row.answer_id?"":"disabled"}>${esc(UI.save)}</button></div><div class="status"></div></section></article>`}).join("");
+    box.querySelectorAll("[data-answer]").forEach(button=>button.onclick=()=>saveGrade(button));
+  }
+
+  async function saveGrade(button){
+    const answerId=Number(button.dataset.answer);if(!answerId)return;
+    const card=button.closest(".question-card"),row=pageData.answers.find(item=>Number(item.answer_id)===answerId),status=card.querySelector(".status");
+    button.disabled=true;status.textContent="";
+    try{
+      const score=card.querySelector(".score").value;
+      await api(`/api/teacher/exam-answers/${answerId}/grade/`,{method:"PATCH",body:JSON.stringify({awarded_score:score,teacher_feedback:card.querySelector(".feedback").value})});
+      row.awarded_score=Number(score);row.teacher_feedback=card.querySelector(".feedback").value;renderSummary();status.textContent=UI.saved;
+    }catch(error){status.textContent=error.message||UI.requestFailed}finally{button.disabled=false}
+  }
+
+  async function loadAttempt(){
+    const status=document.getElementById("pageStatus");
+    try{pageData=await api(`/api/teacher/exam-attempts/${attemptId}/`);renderSummary();renderIntegrity();renderQuestions();status.textContent=""}catch(error){status.textContent=error.message}
+  }
+  loadAttempt();
+</script>
+{% endblock %}

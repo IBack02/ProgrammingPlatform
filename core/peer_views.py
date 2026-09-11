@@ -1,4 +1,5 @@
 import random
+from collections import Counter
 from decimal import Decimal, InvalidOperation
 from functools import wraps
 from urllib.parse import urlparse
@@ -607,28 +608,68 @@ def teacher_peer_autofill_api(request: HttpRequest, session_id: int):
 
     created_count = 0
     with transaction.atomic():
+        session = PeerAssessmentSession.objects.select_for_update().get(
+            id=session.id,
+            owner=teacher,
+        )
         removable = session.assignments.annotate(review_count=Count("reviews")).filter(review_count=0)
         removable.delete()
-        existing = {
-            reviewer.id: set(
-                session.assignments.filter(reviewer=reviewer).values_list("exam_attempt_id", flat=True)
+        remaining_assignments = list(
+            session.assignments.only(
+                "reviewer_id",
+                "exam_attempt_id",
             )
-            for reviewer in reviewers
-        }
+        )
+        existing = {reviewer.id: set() for reviewer in reviewers}
+        reviewer_loads = Counter()
+        incoming_loads = Counter()
+        for assignment in remaining_assignments:
+            incoming_loads[assignment.exam_attempt_id] += 1
+            if assignment.reviewer_id in existing:
+                existing[assignment.reviewer_id].add(assignment.exam_attempt_id)
+                reviewer_loads[assignment.reviewer_id] += 1
+
+        randomizer = random.SystemRandom()
         rows = []
-        for reviewer in reviewers:
-            available = [
-                attempt for attempt in candidates
-                if attempt.student_id != reviewer.id and attempt.id not in existing[reviewer.id]
+        while True:
+            underloaded = [
+                reviewer
+                for reviewer in reviewers
+                if reviewer_loads[reviewer.id] < count
             ]
-            needed = max(0, count - len(existing[reviewer.id]))
-            for attempt in random.sample(available, min(needed, len(available))):
+            if not underloaded:
+                break
+            randomizer.shuffle(underloaded)
+            created_in_pass = False
+            for reviewer in underloaded:
+                available = [
+                    attempt
+                    for attempt in candidates
+                    if attempt.student_id != reviewer.id
+                    and attempt.id not in existing[reviewer.id]
+                ]
+                if not available:
+                    continue
+                minimum_load = min(incoming_loads[attempt.id] for attempt in available)
+                least_assigned = [
+                    attempt
+                    for attempt in available
+                    if incoming_loads[attempt.id] == minimum_load
+                ]
+                attempt = randomizer.choice(least_assigned)
                 rows.append(PeerAssessmentAssignment(
                     session=session,
                     reviewer=reviewer,
                     exam_attempt=attempt,
                 ))
-        created_count = len(PeerAssessmentAssignment.objects.bulk_create(rows, ignore_conflicts=True))
+                existing[reviewer.id].add(attempt.id)
+                reviewer_loads[reviewer.id] += 1
+                incoming_loads[attempt.id] += 1
+                created_in_pass = True
+            if not created_in_pass:
+                break
+        PeerAssessmentAssignment.objects.bulk_create(rows)
+        created_count = len(rows)
 
     return JsonResponse({
         "ok": True,

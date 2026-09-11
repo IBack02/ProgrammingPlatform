@@ -171,6 +171,11 @@ path(
 
     # Exams
     path("teacher/exams/", exam_views.teacher_exams_page, name="teacher_exams_page"),
+    path(
+        "teacher/exams/attempts/<int:attempt_id>/grade/",
+        exam_views.teacher_exam_attempt_grade_page,
+        name="teacher_exam_attempt_grade_page",
+    ),
     path("api/teacher/exams/", exam_views.teacher_exams_api, name="teacher_exams_api"),
     path("api/teacher/exams/import-json/", exam_views.teacher_exam_import_api, name="teacher_exam_import_api"),
     path("api/teacher/exams/<int:exam_id>/", exam_views.teacher_exam_detail_api, name="teacher_exam_detail_api"),
