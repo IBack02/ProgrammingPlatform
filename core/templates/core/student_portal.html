@@ -511,6 +511,26 @@
     .tournamentPlayer.winner{background:rgba(250,204,21,.14);color:#fde68a}
     .tournamentPlayer.tbd,.tournamentPlayer.bye{color:#94a3b8;font-style:italic}
     .tournamentMatchMeta{padding:5px 9px;border-top:1px solid #29344e;color:#94a3b8;font-size:10px;text-transform:uppercase;letter-spacing:.04em}
+    .tournamentAnswerInput{
+      position:static;
+      display:block;
+      width:min(100%,680px);
+      min-height:50px;
+      margin:14px auto 0;
+      padding:12px 14px;
+      box-sizing:border-box;
+      border:2px solid #38bdf8;
+      border-radius:12px;
+      background:#fff;
+      color:#0f172a;
+      caret-color:#0369a1;
+      font:700 16px/1.4 inherit;
+      opacity:1;
+      box-shadow:0 8px 22px rgba(14,165,233,.16);
+      outline:none;
+    }
+    .tournamentAnswerInput::placeholder{color:#94a3b8;font-weight:500}
+    .tournamentAnswerInput:focus{border-color:#0284c7;box-shadow:0 0 0 4px rgba(14,165,233,.2),0 10px 24px rgba(14,165,233,.18)}
 
     .gameArenaCard{position:relative;overflow:hidden;background:linear-gradient(160deg,rgba(255,255,255,.98),rgba(240,249,255,.96));border:1px solid #7dd3fc;min-height:calc(100vh - 64px)}
     .gameArenaCard:before{content:"";position:absolute;inset:0;pointer-events:none;background:radial-gradient(circle at 12% 10%,rgba(250,204,21,.18),transparent 28%),radial-gradient(circle at 85% 22%,rgba(14,165,233,.18),transparent 32%)}
@@ -799,7 +819,7 @@
               <div id="tournamentPlay" class="gameLobby" style="display:none;">
                 <div class="small muted" id="tournamentMatchScore"></div>
                 <div class="gamePromptSentence" id="tournamentPrompt" style="margin-top:12px;"></div>
-                <input id="tournamentAnswerInput" class="gameAnswerInput" type="text" maxlength="300" autocomplete="off" style="margin-top:14px;">
+                <input id="tournamentAnswerInput" class="tournamentAnswerInput" type="text" maxlength="300" autocomplete="off" spellcheck="false" placeholder="{{ T.game_type_answer }}" aria-label="{{ T.game_answer }}">
                 <button id="tournamentSubmitBtn" class="primary" type="button" style="margin-top:10px;">{{ T.game_check_answer }}</button>
                 <div id="tournamentFeedback" class="gameFeedback"></div>
               </div>
