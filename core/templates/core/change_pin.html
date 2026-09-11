@@ -1,6 +1,6 @@
 {% load static %}
 <!doctype html>
-<html lang="{{ ui_lang|default:'en' }}">
+<html lang="{{ ui_lang|default:'en' }}" data-theme-role="{{ role|default:'student' }}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -15,6 +15,7 @@
     .actions{display:flex;gap:9px;margin-top:18px}.btn{flex:1;border:1px solid var(--line);border-radius:11px;padding:10px 12px;background:#fff;color:var(--ink);font:inherit;font-weight:800;text-align:center;text-decoration:none;cursor:pointer}.btn.primary{background:var(--blue);border-color:var(--blue);color:#fff}
     .message{border-radius:10px;padding:10px 12px;margin:12px 0;font-size:13px}.message.error{background:#fef2f2;color:#991b1b}.message.success{background:#ecfdf5;color:#065f46}
   </style>
+  {% include "core/_theme_support.html" %}
 </head>
 <body>
   <main class="card">

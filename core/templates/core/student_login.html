@@ -1,6 +1,6 @@
 {% load static %}
 <!doctype html>
-<html lang="{{ ui_lang|default:'en' }}">
+<html lang="{{ ui_lang|default:'en' }}" data-theme-role="student">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -68,8 +68,9 @@
       background:#fff;
     }
   </style>
+  {% include "core/_theme_support.html" %}
 </head>
-<body>
+<body class="auth-page">
   <div class="wrap">
     <form method="post" action="/set-ui-language/" class="lang-form">
       {% csrf_token %}

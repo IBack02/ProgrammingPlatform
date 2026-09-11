@@ -1,7 +1,7 @@
 {% load static %}
 
 <!doctype html>
-<html lang="{{ ui_lang|default:'en' }}">
+<html lang="{{ ui_lang|default:'en' }}" data-theme-role="student">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -592,6 +592,7 @@
     @media (max-width:700px){.tournamentBracketGrid{gap:52px;padding:14px 18px 22px}.tournamentStage{min-width:200px}.tournamentStageTitle{font-size:14px}}
     @media (max-width:520px){.wonderKeyboard{grid-template-columns:repeat(5,minmax(34px,1fr))}.wonderAnswerCell{width:32px;height:42px;font-size:21px}.wonderPlayArea{padding:12px}}
   </style>
+  {% include "core/_theme_support.html" %}
 </head>
 <body class="module-bg-coding">
 <div class="layout">

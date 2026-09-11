@@ -1,6 +1,6 @@
 {% load static %}
 <!doctype html>
-<html lang="{{ ui_lang|default:'en' }}">
+<html lang="{{ ui_lang|default:'en' }}" data-theme-role="teacher">
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
@@ -14,8 +14,9 @@
     .err{color:#b91c1c;font-size:12px;margin-top:6px}
     .muted{color:#6b7280;font-size:12px}
   </style>
+  {% include "core/_theme_support.html" %}
 </head>
-<body>
+<body class="auth-page">
   <div class="wrap">
     <div class="title">{{ T.teacher_login_title|default:"Teacher Login" }}</div>
     <div class="muted">{{ T.teacher_login_hint|default:"Use your name and password (6-15 characters)." }}</div>

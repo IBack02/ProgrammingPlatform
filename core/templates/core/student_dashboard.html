@@ -1,6 +1,6 @@
 {% load static %}
 <!doctype html>
-<html lang="{{ ui_lang|default:'en' }}">
+<html lang="{{ ui_lang|default:'en' }}" data-theme-role="student">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -60,6 +60,7 @@
     #chartEmpty{position:absolute;inset:48px 18px 18px;display:none;align-items:center;justify-content:center;text-align:center;color:var(--muted);font-size:13px;pointer-events:none;}
     @media (max-width:1100px){ .grid{grid-template-columns:1fr;} }
   </style>
+  {% include "core/_theme_support.html" %}
 </head>
 <body>
   <div class="wrap">

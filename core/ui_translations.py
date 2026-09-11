@@ -1935,3 +1935,22 @@ _STUDENT_EXAM_RESULTS_I18N = {
 
 for _lang_code, _extra in _STUDENT_EXAM_RESULTS_I18N.items():
     UI_TRANSLATIONS.setdefault(_lang_code, {}).update(_extra)
+
+
+_THEME_I18N_KEYS = {
+    "ru": {
+        "enable_dark_theme": "Включить ночной режим",
+        "enable_light_theme": "Включить дневной режим",
+    },
+    "kk": {
+        "enable_dark_theme": "Түнгі режимді қосу",
+        "enable_light_theme": "Күндізгі режимді қосу",
+    },
+    "en": {
+        "enable_dark_theme": "Enable dark mode",
+        "enable_light_theme": "Enable light mode",
+    },
+}
+
+for _lang_code, _extra in _THEME_I18N_KEYS.items():
+    UI_TRANSLATIONS.setdefault(_lang_code, {}).update(_extra)

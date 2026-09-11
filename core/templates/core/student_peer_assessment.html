@@ -1,6 +1,6 @@
 {% load static %}
 <!doctype html>
-<html lang="{{ ui_lang|default:'en' }}">
+<html lang="{{ ui_lang|default:'en' }}" data-theme-role="student">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -55,6 +55,7 @@
     .empty{max-width:620px;margin:70px auto;padding:24px;text-align:center;color:var(--muted);border:1px dashed #94a3b8;border-radius:14px;background:rgba(255,255,255,.75)}
     @media(max-width:760px){.app{height:auto;min-height:100%}.workspace{grid-template-columns:1fr}.sidebar{border-right:0;border-bottom:1px solid var(--line);max-height:220px}.main{min-height:70vh}.scroll{padding:10px}.paper{padding:15px;border-radius:13px}.topbar{align-items:flex-start}.pair{grid-template-columns:1fr}.pair span:nth-child(2){display:none}}
   </style>
+  {% include "core/_theme_support.html" %}
 </head>
 <body>
 <div class="app">

@@ -1,6 +1,6 @@
 {% load static %}
 <!doctype html>
-<html lang="{{ ui_lang }}">
+<html lang="{{ ui_lang }}" data-theme-role="teacher">
 <head>
 <style>
   :root{
@@ -46,6 +46,7 @@
     .lang-select{padding:7px 10px;border-radius:10px;border:1px solid #e5e7eb;background:#fff}
     .lang-label{font-size:12px;color:#6b7280}
   </style>
+  {% include "core/_theme_support.html" %}
 </head>
 <body class="lang-{{ ui_lang }}">
   <div class="wrap">
