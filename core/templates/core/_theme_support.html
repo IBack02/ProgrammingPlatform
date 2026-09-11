@@ -98,16 +98,40 @@
     .question-card,
     .summary-card,
     .profile-card,
+    .avatar,
+    .chart-card,
+    .chart-frame,
     .stat-card,
     .session-item,
     .session-card,
+    .class-card,
+    .class-head,
+    .class-row,
+    .class-student-badge,
+    .class-pill,
     .exam-card,
+    .exam-item,
+    .attempt,
+    .answer-review,
+    .answer-body,
+    .check,
+    .grade-box,
+    .diagram-link,
+    .diagram-frame,
     .item-btn,
     .attempt-btn,
     .taskbtn,
     .task-item,
     .module-item,
+    .block-item,
     .question-item,
+    .legacy-box,
+    .media-preview,
+    .game-host,
+    .game-prompt-row,
+    .gameLobby,
+    .gameRankRow,
+    .teacher-race-track,
     .review-card,
     .result-work,
     .peer-session,
@@ -120,7 +144,10 @@
     .work-btn,
     .question-btn,
     .theoryContent,
+    .theoryBlock.media,
     .quizQuestion,
+    .muted-box,
+    .empty-box,
     .editor-panel,
     .list-panel,
     .flipCard,
@@ -128,9 +155,15 @@
     .wonder-log,
     .wonderPlayArea,
     .wonderStudentLog,
+    .wonderAnswerCell,
+    .wonderLetterBtn,
+    .wonderQueueItem,
+    .wonder-cell,
+    .wonder-key,
+    .wonder-queue-item,
     #metricsChartWrap
   ){
-    background-color:rgba(18,23,29,.94) !important;
+    background:rgba(18,23,29,.94) !important;
     border-color:var(--theme-surface-soft) !important;
     color:var(--theme-text) !important;
     box-shadow:0 16px 38px rgba(0,0,0,.28);
@@ -143,6 +176,42 @@
   }
   html[data-theme="dark"] body :where(.workspace,.main,.scroll,.layout,.content,.app){
     color:var(--theme-text);
+  }
+  html[data-theme="dark"] body :where(
+    h1,h2,h3,h4,h5,h6,
+    legend,
+    .title,
+    .title-lg,
+    .class-title,
+    .student-name,
+    .stat-value,
+    .question-title,
+    .question-text,
+    .session-item-title,
+    .task-item-title,
+    .module-head,
+    .wonderQuestion,
+    .theoryBlock:not(.code)
+  ){
+    color:var(--theme-text) !important;
+  }
+  html[data-theme="dark"] body :where(
+    .stat-label,
+    .bar-label,
+    .class-meta,
+    .student-meta,
+    .session-item-meta,
+    .task-item-meta,
+    .review-meta,
+    .field > span,
+    .chart-empty,
+    .chart-switch button,
+    .score-label,
+    .score-percent,
+    .barLabel,
+    .wonderGuesser
+  ){
+    color:var(--theme-muted) !important;
   }
   html[data-theme="dark"] body :where(input,textarea,select,.input-ui,.select-ui,.textarea-ui){
     background:#10151a !important;
@@ -194,7 +263,7 @@
   html[data-theme="dark"] body a:not(.btn):not(.primary):not(.ghost):not(.link){
     color:var(--theme-accent-soft);
   }
-  html[data-theme="dark"] body :where(.pill,.badge,.points,.status-chip,.moderation,.peer-pill,.reviewer-pill){
+  html[data-theme="dark"] body :where(.pill,.badge,.points,.status-chip,.module-pill,.moderation,.peer-pill,.reviewer-pill){
     background:rgba(200,155,99,.13) !important;
     border-color:var(--theme-surface-soft) !important;
     color:var(--theme-text) !important;
@@ -217,6 +286,42 @@
     background:rgba(18,23,29,.94) !important;
     border-color:var(--theme-surface-soft) !important;
     color:var(--theme-text) !important;
+  }
+  html[data-theme="dark"] body :where(.bar-track,.barTrack){
+    background:var(--theme-surface) !important;
+    border-color:var(--theme-surface-soft) !important;
+  }
+  html[data-theme="dark"] body :where(.bar-fill,.barFill){
+    background:linear-gradient(90deg,#78909f,#c89b63) !important;
+  }
+  html[data-theme="dark"] body .scores > .score{
+    background:rgba(18,23,29,.94) !important;
+    border-color:var(--theme-surface-soft) !important;
+    color:var(--theme-text) !important;
+  }
+  html[data-theme="dark"] body :where(.review-table .given,.review-table .correct){
+    background:rgba(71,91,80,.45) !important;
+    color:var(--theme-text) !important;
+  }
+  html[data-theme="dark"] body :where(.class-student-badge,.module-pill.gray,.module-pill.gold){
+    background:rgba(200,155,99,.12) !important;
+    border-color:rgba(200,155,99,.38) !important;
+    color:var(--theme-accent-soft) !important;
+  }
+  html[data-theme="dark"] body :where(.theoryContent,.theoryBlock:not(.code)){
+    color:var(--theme-text) !important;
+  }
+  html[data-theme="dark"] body :where(.theoryBlock.code,pre,code){
+    color:#f2f4f7 !important;
+  }
+  html[data-theme="dark"] body :where(.wonderLetterBtn.selected,.wonderQueueItem.current,.wonder-queue-item.current){
+    background:var(--theme-accent) !important;
+    border-color:var(--theme-accent-soft) !important;
+    color:var(--theme-deep) !important;
+  }
+  html[data-theme="dark"] body :where(.wonder-key.used,.wonderLetterBtn:disabled){
+    background:var(--theme-deep-soft) !important;
+    color:var(--theme-muted) !important;
   }
   html[data-theme="dark"] body :where(.message.info,.section.mark-scheme,.block.mark,.block.scheme,.teacher-note){
     background:var(--theme-surface) !important;
@@ -321,7 +426,15 @@
     const darkLabel = "{{ T.enable_dark_theme|default:'Enable dark theme'|escapejs }}";
     const lightLabel = "{{ T.enable_light_theme|default:'Enable light theme'|escapejs }}";
     const chartColorState = new WeakMap();
-    const redChartColor = /#(?:dc2626|b91c1c|ef4444|e11d48|be123c|f43f5e)/i;
+    const darkChartSeries = ["#8fa7b5", "#c89b63", "#8fa58f", "#b49aad"];
+    const chartColorProperties = [
+      "borderColor",
+      "backgroundColor",
+      "pointBackgroundColor",
+      "pointBorderColor",
+      "pointHoverBackgroundColor",
+      "pointHoverBorderColor"
+    ];
 
     function currentTheme(){
       return document.documentElement.dataset.theme === "dark" ? "dark" : "light";
@@ -334,18 +447,21 @@
       const grid = dark ? "rgba(168,176,183,.18)" : "rgba(0,0,0,.1)";
       Object.values(window.Chart.instances).forEach((chart) => {
         if (!chart?.options) return;
-        (chart.data?.datasets || []).forEach((dataset) => {
+        (chart.data?.datasets || []).forEach((dataset, index) => {
           let original = chartColorState.get(dataset);
           if (!original) {
-            original = {borderColor:dataset.borderColor,backgroundColor:dataset.backgroundColor};
+            original = Object.fromEntries(
+              chartColorProperties.map((property) => [property, dataset[property]])
+            );
             chartColorState.set(dataset, original);
           }
-          for (const property of ["borderColor", "backgroundColor"]) {
-            const source = original[property];
-            dataset[property] = dark && typeof source === "string" && redChartColor.test(source)
-              ? "#c89b63"
-              : source;
-          }
+          const seriesColor = darkChartSeries[index % darkChartSeries.length];
+          dataset.borderColor = dark ? seriesColor : original.borderColor;
+          dataset.backgroundColor = dark ? seriesColor : original.backgroundColor;
+          dataset.pointBackgroundColor = dark ? seriesColor : original.pointBackgroundColor;
+          dataset.pointBorderColor = dark ? "#12171d" : original.pointBorderColor;
+          dataset.pointHoverBackgroundColor = dark ? "#efd6b0" : original.pointHoverBackgroundColor;
+          dataset.pointHoverBorderColor = dark ? seriesColor : original.pointHoverBorderColor;
         });
         chart.options.color = text;
         if (chart.options.plugins?.legend?.labels) chart.options.plugins.legend.labels.color = text;

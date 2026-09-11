@@ -3,6 +3,10 @@
 {% block subtitle %}{{ T.classes_subtitle }}{% endblock %}
 
 {% block content %}
+<style>
+  .class-row{margin:10px 0;padding:10px;border:1px solid #eef2f7;border-radius:12px;background:#fafafa}
+  .class-student-badge{display:inline-block;padding:8px 12px;border-radius:999px;background:#eef6ff;border:1px solid #bfdbfe;color:#1e3a8a;font-size:13px;font-weight:700}
+</style>
 <div class="card" style="margin-bottom:12px;">
   <div style="font-weight:900;margin-bottom:8px;">{{ T.create_new_class }}</div>
   <div style="display:flex;gap:10px;flex-wrap:wrap;">
@@ -113,16 +117,7 @@
     return `
       <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px;">
         ${students.map(s => `
-          <div style="
-            display:inline-block;
-            padding:8px 12px;
-            border-radius:999px;
-            background:#eef6ff;
-            border:1px solid #bfdbfe;
-            color:#1e3a8a;
-            font-size:13px;
-            font-weight:700;
-          ">
+          <div class="class-student-badge">
             ${escapeHtml(s.full_name)}
           </div>
         `).join("")}
@@ -141,11 +136,7 @@
 
     items.forEach(c => {
       const wrapper = document.createElement("div");
-      wrapper.style.margin = "10px 0";
-      wrapper.style.padding = "10px";
-      wrapper.style.border = "1px solid #eef2f7";
-      wrapper.style.borderRadius = "12px";
-      wrapper.style.background = "#fafafa";
+      wrapper.className = "class-row";
 
       const isExpanded = expandedClassId === c.id;
 
