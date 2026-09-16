@@ -434,6 +434,33 @@
       border-radius:10px;
       background:#000;
     }
+    .theoryAttachment{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:14px;
+      padding:14px 16px;
+      border:1px solid var(--border);
+      border-radius:12px;
+      background:var(--card);
+    }
+    .theoryAttachmentText{min-width:0}
+    .theoryAttachmentUrl{font-size:11px;color:var(--muted);word-break:break-all;margin-top:4px}
+    .theoryAttachmentLink{
+      flex:0 0 auto;
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      padding:10px 13px;
+      border-radius:10px;
+      border:1px solid var(--primary);
+      background:var(--primary);
+      color:#fff;
+      font-weight:800;
+      text-decoration:none;
+    }
+    .theoryAttachmentLink svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+    @media(max-width:620px){.theoryAttachment{align-items:stretch;flex-direction:column}.theoryAttachmentLink{justify-content:center}}
     .imageViewerOverlay{
       position:fixed;
       inset:0;
@@ -936,6 +963,8 @@
     ,tournamentWaitingMatch: "{{ T.tournament_waiting_match|escapejs }}"
     ,tournamentEliminated: "{{ T.tournament_eliminated|escapejs }}"
     ,tournamentChampion: "{{ T.tournament_champion|escapejs }}"
+    ,downloadAttachment: "{{ T.download_attachment|escapejs }}"
+    ,invalidAttachment: "{{ T.invalid_attachment_url|escapejs }}"
   };
 
   let currentTaskId = null;
@@ -1093,6 +1122,23 @@
     }
   }
 
+  function googleDriveDownloadUrl(rawUrl){
+    const value = String(rawUrl || "").trim();
+    if (!value) return "";
+    try{
+      const url = new URL(value);
+      const host = url.hostname.toLowerCase();
+      if (url.protocol !== "https:" || !["drive.google.com", "docs.google.com"].includes(host)) return "";
+      const fileMatch = url.pathname.match(/\/file\/d\/([A-Za-z0-9_-]+)/);
+      const fileId = fileMatch?.[1] || url.searchParams.get("id") || "";
+      return fileId
+        ? `https://drive.google.com/uc?export=download&id=${encodeURIComponent(fileId)}`
+        : value;
+    }catch(error){
+      return "";
+    }
+  }
+
   const imageViewer = {
     open: false,
     scale: 1.5,
@@ -1227,6 +1273,25 @@
           wrap.innerHTML = `
             <div class="theoryMediaFrame">
               <iframe class="theoryVideo" src="${escapeHtml(embedUrl)}" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe>
+            </div>
+          `;
+        }
+      } else if (block.block_type === "attachment"){
+        const downloadUrl = googleDriveDownloadUrl(block.content);
+        wrap.className = "theoryBlock";
+        if (!downloadUrl){
+          wrap.innerHTML = `<div class="small muted">${escapeHtml(UI.invalidAttachment)}</div>`;
+        } else {
+          wrap.innerHTML = `
+            <div class="theoryAttachment">
+              <div class="theoryAttachmentText">
+                <b>${escapeHtml(UI.downloadAttachment)}</b>
+                <div class="theoryAttachmentUrl">${escapeHtml(block.content)}</div>
+              </div>
+              <a class="theoryAttachmentLink primary" href="${escapeHtml(downloadUrl)}" target="_blank" rel="noopener noreferrer">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m0 0 4-4m-4 4-4-4M5 20h14"></path></svg>
+                <span>${escapeHtml(UI.downloadAttachment)}</span>
+              </a>
             </div>
           `;
         }

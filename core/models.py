@@ -193,6 +193,7 @@ class TheoryMaterialBlock(models.Model):
         CODE = "code", "Code"
         IMAGE = "image", "Image"
         VIDEO = "video", "Video"
+        ATTACHMENT = "attachment", "Attachment"
 
     class HeadingLevel(models.TextChoices):
         H1 = "h1", "H1"

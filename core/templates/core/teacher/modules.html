@@ -64,7 +64,12 @@
   .tournament-player.winner{background:rgba(250,204,21,.14);color:#fde68a}
   .tournament-player.tbd,.tournament-player.bye{color:#94a3b8;font-style:italic}
   .tournament-match-meta{padding:5px 9px;border-top:1px solid #29344e;color:#94a3b8;font-size:10px;text-transform:uppercase;letter-spacing:.04em}
+  .module-json-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px;margin-top:12px}
+  .module-json-area{width:100%;min-height:260px;resize:vertical;font-family:Consolas,"Courier New",monospace;font-size:12px;line-height:1.45}
+  .attachment-link{display:inline-flex;align-items:center;gap:8px;padding:10px 13px;border:1px solid #bfdbfe;border-radius:10px;background:#eff6ff;color:#075985;font-weight:800;text-decoration:none}
+  .attachment-link:hover{border-color:#0ea5e9;transform:translateY(-1px)}
   @media(max-width:800px){.game-host .row>*{width:100%}}
+  @media(max-width:900px){.module-json-grid{grid-template-columns:1fr}}
   @media(max-width:900px){.wonder-board{grid-template-columns:1fr}.wonder-log{max-height:220px}}
   @media(max-width:700px){.tournament-bracket-grid{gap:52px;padding:14px 18px 22px}.tournament-stage{min-width:205px}.tournament-stage-title{font-size:15px}}
 </style>
@@ -76,6 +81,36 @@
     <div id="msg" class="muted"></div>
   </div>
 </div>
+
+<details class="card" style="margin-bottom:12px;">
+  <summary style="cursor:pointer;font-weight:900;">{{ T.module_json_import }}</summary>
+  <div class="muted" style="margin-top:8px;">{{ T.module_json_help }}</div>
+  <div class="row" style="margin-top:12px;">
+    <label class="muted" for="modulePromptType">{{ T.module_json_prompt_type }}</label>
+    <select id="modulePromptType" class="select-ui" style="min-width:220px;">
+      <option value="all">{{ T.module_json_prompt_all }}</option>
+      <option value="coding_task">{{ T.module_json_prompt_coding }}</option>
+      <option value="theory_material">{{ T.module_json_prompt_theory }}</option>
+      <option value="theory_quiz">{{ T.module_json_prompt_quiz }}</option>
+      <option value="game">{{ T.module_json_prompt_game }}</option>
+    </select>
+    <button id="copyModulePromptBtn" class="btn" type="button">{{ T.copy_ai_prompt }}</button>
+  </div>
+  <div class="module-json-grid">
+    <label>
+      <span class="muted">{{ T.module_json_prompt_preview }}</span>
+      <textarea id="modulePromptPreview" class="textarea-ui module-json-area" readonly></textarea>
+    </label>
+    <label>
+      <span class="muted">{{ T.module_json_payload }}</span>
+      <textarea id="moduleJsonInput" class="textarea-ui module-json-area" spellcheck="false"></textarea>
+    </label>
+  </div>
+  <div class="row" style="margin-top:10px;">
+    <button id="applyModuleJsonBtn" class="btn" type="button">{{ T.apply_json }}</button>
+    <span id="moduleJsonStatus" class="muted"></span>
+  </div>
+</details>
 
 <div style="display:grid;grid-template-columns:1fr 1.25fr;gap:12px;">
   <div class="card">
@@ -147,6 +182,7 @@
             <option value="code">code</option>
             <option value="image">image</option>
             <option value="video">video</option>
+            <option value="attachment">{{ T.attachment_block }}</option>
           </select>
           <select id="headingLevel" class="select-ui">
             <option value="h1">h1</option>
@@ -293,12 +329,236 @@
     questionAdded: "{{ T.question_added|escapejs }}",
     questionDeleted: "{{ T.question_deleted|escapejs }}",
     pairLeft: "{{ T.matching|default:'Match'|escapejs }}",
-    pairRight: "{{ T.matching|default:'Match'|escapejs }}"
+    pairRight: "{{ T.matching|default:'Match'|escapejs }}",
+    promptCopied: "{{ T.prompt_copied|escapejs }}",
+    jsonApplied: "{{ T.json_applied|escapejs }}",
+    jsonSessionRequired: "{{ T.module_json_session_required|escapejs }}",
+    jsonRequired: "{{ T.module_json_required|escapejs }}",
+    jsonInvalid: "{{ T.module_json_invalid|escapejs }}",
+    jsonCreated: "{{ T.module_json_created|escapejs }}",
+    attachmentUrlHelp: "{{ T.attachment_url_help|escapejs }}",
+    downloadAttachment: "{{ T.download_attachment|escapejs }}",
+    invalidAttachment: "{{ T.invalid_attachment_url|escapejs }}"
+  };
+
+  const MODULE_JSON_EXAMPLES = {
+    coding_task: [{
+      module_type: "coding_task",
+      position: "auto",
+      title: "Sum of two numbers",
+      statement: "Read two integers and print their sum.",
+      constraints: "-10^9 <= a, b <= 10^9",
+      programming_language: "python",
+      hints: {
+        enabled: true,
+        level_1: {enabled: true, unlock_attempts: 2},
+        level_2: {enabled: true, unlock_attempts: 3},
+        level_3: {enabled: true, unlock_attempts: 3}
+      },
+      testcases: [
+        {ordinal: 1, stdin: "2 3\n", expected_stdout: "5\n", is_visible: true},
+        {ordinal: 2, stdin: "-4 9\n", expected_stdout: "5\n", is_visible: false}
+      ],
+      fragments: [
+        {position: "top", title: "Required import", code: "import sys", is_active: true},
+        {position: "bottom", title: "Required call", code: "solve()", is_active: true}
+      ]
+    }],
+    theory_material: [{
+      module_type: "theory_material",
+      position: "auto",
+      title: "Data types",
+      topic: "Python data types",
+      is_active: true,
+      blocks: [
+        {ordinal: 1, block_type: "heading", heading_level: "h1", content: "Data types"},
+        {ordinal: 2, block_type: "text", content: "Explain the topic in clear student-friendly language."},
+        {ordinal: 3, block_type: "code", content: "value = 10\nprint(type(value))"},
+        {ordinal: 4, block_type: "image", content: "https://example.com/diagram.png"},
+        {ordinal: 5, block_type: "video", content: "https://www.youtube.com/watch?v=VIDEO_ID"},
+        {ordinal: 6, block_type: "attachment", content: "https://drive.google.com/file/d/FILE_ID/view"}
+      ]
+    }],
+    theory_quiz: [{
+      module_type: "theory_quiz",
+      position: "auto",
+      title: "Data types quiz",
+      topic: "Python data types",
+      instructions: "Answer every question.",
+      is_active: true,
+      questions: [
+        {
+          ordinal: 1,
+          question_type: "single_choice",
+          prompt: "Which value is an integer?",
+          choices: [
+            {ordinal: 1, text: "42", is_correct: true},
+            {ordinal: 2, text: "4.2", is_correct: false},
+            {ordinal: 3, text: "'42'", is_correct: false}
+          ]
+        },
+        {
+          ordinal: 2,
+          question_type: "open_answer",
+          prompt: "Explain the difference between int and float.",
+          model_answer: "int stores whole numbers; float stores numbers with a fractional part.",
+          accept_suitable_answer: true
+        },
+        {
+          ordinal: 3,
+          question_type: "matching",
+          prompt: "Match each value to its type.",
+          pairs: [
+            {ordinal: 1, left_text: "True", right_text: "bool"},
+            {ordinal: 2, left_text: "3.14", right_text: "float"}
+          ]
+        }
+      ]
+    }],
+    game: [
+      {
+        module_type: "game",
+        position: "auto",
+        title: "Syntax race",
+        topic: "Python syntax",
+        rubric: "mind_race",
+        prompts: [
+          {ordinal: 1, sentence: "A Python function is declared with the def keyword.", missing_text: "def"}
+        ]
+      },
+      {
+        module_type: "game",
+        position: "auto",
+        title: "Wonder field",
+        topic: "Programming terms",
+        rubric: "wonder_field",
+        questions: [
+          {ordinal: 1, prompt: "A named reusable block of code", answer: "FUNCTION"}
+        ]
+      },
+      {
+        module_type: "game",
+        position: "auto",
+        title: "Knowledge tournament",
+        topic: "Python review",
+        rubric: "tournament",
+        stages: [
+          {
+            ordinal: 1,
+            title: "Round 1",
+            question_count: 3,
+            questions: [
+              {ordinal: 1, prompt: "Keyword for a condition?", answer: "if"},
+              {ordinal: 2, prompt: "Keyword for a loop over a sequence?", answer: "for"},
+              {ordinal: 3, prompt: "Function that displays output?", answer: "print"}
+            ]
+          }
+        ]
+      }
+    ]
   };
 
   function qs(id){ return document.getElementById(id); }
 
   function setMsg(text){ qs("msg").textContent = text || ""; }
+
+  function setModuleJsonStatus(text){ qs("moduleJsonStatus").textContent = text || ""; }
+
+  function buildModuleAgentPrompt(){
+    const type = qs("modulePromptType").value || "all";
+    const sessionLabel = qs("sessionSelect").selectedOptions[0]?.textContent || "not selected";
+    const modules = type === "all"
+      ? Object.values(MODULE_JSON_EXAMPLES).flat()
+      : (MODULE_JSON_EXAMPLES[type] || []);
+    const example = {action: "create_modules", modules};
+    return `Create valid JSON for ProgrammingPlatform lesson-module import. Return exactly one JSON object without markdown fences, comments, or explanations.
+
+TARGET SESSION: ${sessionLabel}
+The JSON is applied to the session selected in the teacher interface. Do not include session_id.
+
+REQUIRED ROOT FORMAT:
+${JSON.stringify(example, null, 2)}
+
+GENERAL RULES:
+- action must be "create_modules" and modules must be a non-empty array.
+- module_type must be "coding_task", "theory_material", "theory_quiz", or "game".
+- position must be a positive integer unique across every module type in the session, or the string "auto" to use the first free position.
+- title is required. Do not add fields that are not shown by the schemas.
+- The complete request is atomic: one invalid nested item prevents every module in the request from being created.
+
+CODING_TASK RULES:
+- programming_language is "python" or "cpp". statement is required; constraints may be empty.
+- testcases contain ordinal, stdin, expected_stdout, and is_visible. Keep exact newlines in test data.
+- fragments contain position "top" or "bottom", title, code, and is_active. Fragments are mandatory read-only code and must complement the student's code.
+- hints.enabled controls all hints. Each level uses enabled and unlock_attempts.
+
+THEORY_MATERIAL RULES:
+- block_type is "heading", "text", "code", "image", "video", or "attachment".
+- heading requires heading_level "h1" or "h2"; omit heading_level for every other block.
+- image content must be an HTTPS image URL. video content must be a YouTube HTTPS URL.
+- attachment content must be an existing HTTPS Google Drive file URL. Never invent a Drive URL.
+
+THEORY_QUIZ RULES:
+- question_type is "single_choice", "open_answer", or "matching".
+- single_choice requires 3 or 4 choices and exactly one is_correct=true.
+- open_answer requires model_answer and may set accept_suitable_answer.
+- matching requires at least two pairs with left_text and right_text.
+
+GAME RULES:
+- rubric is "mind_race", "wonder_field", or "tournament".
+- mind_race uses prompts; missing_text must occur verbatim in sentence.
+- wonder_field uses questions with prompt and answer.
+- tournament uses stages. question_count must be odd and between 1 and 19; each stage question requires prompt and answer.
+
+Replace example content with the requested educational material while preserving the exact schema.`;
+  }
+
+  function refreshModulePrompt(){
+    qs("modulePromptPreview").value = buildModuleAgentPrompt();
+  }
+
+  async function copyModulePrompt(){
+    const text = buildModuleAgentPrompt();
+    qs("modulePromptPreview").value = text;
+    try{
+      await navigator.clipboard.writeText(text);
+    }catch(error){
+      qs("modulePromptPreview").focus();
+      qs("modulePromptPreview").select();
+      document.execCommand("copy");
+    }
+    setModuleJsonStatus(UI.promptCopied);
+  }
+
+  async function applyModuleJson(){
+    if (!selectedSessionId) return setModuleJsonStatus(UI.jsonSessionRequired);
+    const raw = qs("moduleJsonInput").value.trim();
+    if (!raw) return setModuleJsonStatus(UI.jsonRequired);
+    let payload;
+    try{
+      payload = JSON.parse(raw);
+    }catch(error){
+      return setModuleJsonStatus(`${UI.jsonInvalid}: ${error.message}`);
+    }
+    qs("applyModuleJsonBtn").disabled = true;
+    try{
+      const res = await api(
+        `/api/teacher/sessions/${selectedSessionId}/modules/import-json/`,
+        "POST",
+        payload
+      );
+      if (!res.data.ok) return setModuleJsonStatus(res.data.error || UI.createFailed);
+      selectedModuleId = null;
+      selectedModuleType = null;
+      qs("editor").style.display = "none";
+      setModuleJsonStatus(`${UI.jsonApplied} ${UI.jsonCreated}: ${res.data.created_count}.`);
+      await loadModules();
+    }catch(error){
+      setModuleJsonStatus(error?.message || UI.createFailed);
+    }finally{
+      qs("applyModuleJsonBtn").disabled = false;
+    }
+  }
 
   function escapeHtml(s){
     return String(s || "")
@@ -333,6 +593,23 @@
     }
   }
 
+  function googleDriveDownloadUrl(rawUrl){
+    const value = String(rawUrl || "").trim();
+    if (!value) return "";
+    try{
+      const url = new URL(value);
+      const host = url.hostname.toLowerCase();
+      if (url.protocol !== "https:" || !["drive.google.com", "docs.google.com"].includes(host)) return "";
+      const fileMatch = url.pathname.match(/\/file\/d\/([A-Za-z0-9_-]+)/);
+      const fileId = fileMatch?.[1] || url.searchParams.get("id") || "";
+      return fileId
+        ? `https://drive.google.com/uc?export=download&id=${encodeURIComponent(fileId)}`
+        : value;
+    }catch(error){
+      return "";
+    }
+  }
+
   function currentSelectedItem(){
     if (!selectedModuleId || !selectedModuleType) return null;
     return { id: selectedModuleId, module_type: selectedModuleType };
@@ -358,6 +635,7 @@
   function syncBlockTypeFields(){
     const type = qs("blockType").value;
     qs("headingLevel").style.display = type === "heading" ? "inline-block" : "none";
+    qs("blockContent").placeholder = type === "attachment" ? UI.attachmentUrlHelp : "";
   }
 
   function syncQuestionTypeFields(){
@@ -473,6 +751,7 @@
       opt.textContent = `${s.title} (#${s.id})`;
       select.appendChild(opt);
     });
+    refreshModulePrompt();
   }
 
   async function loadModules(){
@@ -984,6 +1263,11 @@
           } else {
             contentHtml = `<pre class="code-like" style="white-space:pre-wrap;">${escapeHtml(b.content || "")}</pre>`;
           }
+        } else if (b.block_type === "attachment"){
+          const downloadUrl = googleDriveDownloadUrl(b.content || "");
+          contentHtml = downloadUrl
+            ? `<div class="media-preview"><div class="small muted" style="word-break:break-all;margin-bottom:8px;">${escapeHtml(b.content || "")}</div><a class="attachment-link primary" href="${escapeHtml(downloadUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(UI.downloadAttachment)}</a></div>`
+            : `<div class="media-preview"><div class="muted">${escapeHtml(UI.invalidAttachment)}</div></div>`;
         }
         div.innerHTML = `
           <div><b>#${escapeHtml(b.ordinal)}</b> ${escapeHtml(b.block_type)} ${b.heading_level ? "(" + escapeHtml(b.heading_level) + ")" : ""}</div>
@@ -1180,8 +1464,13 @@
     selectedModuleId = null;
     selectedModuleType = null;
     qs("editor").style.display = "none";
+    refreshModulePrompt();
     await loadModules();
   });
+  qs("sessionSelect").addEventListener("change", refreshModulePrompt);
+  qs("modulePromptType").addEventListener("change", refreshModulePrompt);
+  qs("copyModulePromptBtn").addEventListener("click", copyModulePrompt);
+  qs("applyModuleJsonBtn").addEventListener("click", applyModuleJson);
   qs("questionType").addEventListener("change", syncQuestionTypeFields);
   qs("newModuleType").addEventListener("change", syncCreateTypeFields);
   qs("gameRubric").addEventListener("change", () => {
@@ -1217,6 +1506,7 @@
   syncCreateTypeFields();
   syncBlockTypeFields();
   resetMatchingPairs();
+  refreshModulePrompt();
   loadSessions();
 </script>
 {% endblock %}

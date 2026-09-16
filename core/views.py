@@ -538,6 +538,7 @@ def _theory_media_error(block_type: str, content: str) -> str:
     if block_type not in {
         TheoryMaterialBlock.BlockType.IMAGE,
         TheoryMaterialBlock.BlockType.VIDEO,
+        TheoryMaterialBlock.BlockType.ATTACHMENT,
     }:
         return ""
 
@@ -557,6 +558,11 @@ def _theory_media_error(block_type: str, content: str) -> str:
         }
         if hostname not in allowed_hosts:
             return "video content must be a YouTube HTTPS URL"
+
+    if block_type == TheoryMaterialBlock.BlockType.ATTACHMENT:
+        hostname = (parsed.hostname or "").lower()
+        if hostname not in {"drive.google.com", "docs.google.com"}:
+            return "attachment content must be a Google Drive HTTPS URL"
 
     return ""
 
@@ -3303,6 +3309,7 @@ def teacher_theory_blocks_api(request: HttpRequest, module_id: int):
             TheoryMaterialBlock.BlockType.CODE,
             TheoryMaterialBlock.BlockType.IMAGE,
             TheoryMaterialBlock.BlockType.VIDEO,
+            TheoryMaterialBlock.BlockType.ATTACHMENT,
         }:
             return JsonResponse({"ok": False, "error": "invalid block_type"}, status=400)
 
@@ -3382,6 +3389,7 @@ def teacher_theory_block_detail_api(request: HttpRequest, block_id: int):
                 TheoryMaterialBlock.BlockType.CODE,
                 TheoryMaterialBlock.BlockType.IMAGE,
                 TheoryMaterialBlock.BlockType.VIDEO,
+                TheoryMaterialBlock.BlockType.ATTACHMENT,
             }:
                 return JsonResponse({"ok": False, "error": "invalid block_type"}, status=400)
             block.block_type = block_type
@@ -3476,7 +3484,7 @@ def teacher_generate_theory_module_api(request: HttpRequest, module_id: int):
                 if ordinal < 1 or ordinal in used_ordinals or not content:
                     continue
 
-                if block_type not in {"heading", "text", "code", "image", "video"}:
+                if block_type not in {"heading", "text", "code", "image", "video", "attachment"}:
                     continue
 
                 if block_type == "heading" and heading_level not in {"h1", "h2"}:

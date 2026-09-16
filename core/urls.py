@@ -1,6 +1,6 @@
 from django.urls import path
 from django.views.generic import RedirectView
-from . import exam_views, game_views, peer_views, views
+from . import exam_views, game_views, module_import, peer_views, views
 
 urlpatterns = [
     # Student auth API
@@ -65,6 +65,11 @@ urlpatterns = [
     path("api/teacher/sessions/<int:session_id>/clone/", views.teacher_session_clone_api, name="teacher_session_clone_api"),
     path("api/teacher/sessions/<int:session_id>/classes/", views.teacher_session_classes_api, name="teacher_session_classes_api"),
     path("api/teacher/sessions/<int:session_id>/assign-classes/", views.teacher_session_assign_classes_api, name="teacher_session_assign_classes_api"),
+    path(
+        "api/teacher/sessions/<int:session_id>/modules/import-json/",
+        module_import.teacher_session_modules_import_api,
+        name="teacher_session_modules_import_api",
+    ),
 
     # Teacher tasks API
     path("api/teacher/sessions/<int:session_id>/tasks/", views.teacher_session_tasks_api, name="teacher_session_tasks_api"),

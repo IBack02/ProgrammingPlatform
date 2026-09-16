@@ -1954,3 +1954,70 @@ _THEME_I18N_KEYS = {
 
 for _lang_code, _extra in _THEME_I18N_KEYS.items():
     UI_TRANSLATIONS.setdefault(_lang_code, {}).update(_extra)
+
+
+_MODULE_JSON_I18N = {
+    "ru": {
+        "module_json_import": "Создание модулей через JSON",
+        "module_json_help": "Выберите сессию, вставьте JSON и примените его. Все модули и вложенные элементы создаются атомарно.",
+        "module_json_prompt_type": "Промпт для типа модуля",
+        "module_json_prompt_all": "Все типы модулей",
+        "module_json_prompt_coding": "Задача по программированию",
+        "module_json_prompt_theory": "Теоретический материал",
+        "module_json_prompt_quiz": "Теоретический квиз",
+        "module_json_prompt_game": "Игровой модуль",
+        "module_json_prompt_preview": "Промпт для ИИ-агента",
+        "module_json_payload": "JSON для создания модулей",
+        "module_json_session_required": "Сначала выберите и загрузите сессию.",
+        "module_json_required": "Вставьте JSON-команду.",
+        "module_json_invalid": "Некорректный JSON",
+        "module_json_created": "Создано модулей",
+        "attachment_block": "Вложение",
+        "attachment_url_help": "Вставьте HTTPS-ссылку на файл в Google Drive.",
+        "download_attachment": "Скачать вложение",
+        "invalid_attachment_url": "Некорректная ссылка на вложение",
+    },
+    "kk": {
+        "module_json_import": "JSON арқылы модуль жасау",
+        "module_json_help": "Сессияны таңдаңыз, JSON енгізіп, қолданыңыз. Барлық модульдер мен ішкі элементтер бір транзакцияда жасалады.",
+        "module_json_prompt_type": "Модуль түріне арналған промпт",
+        "module_json_prompt_all": "Барлық модуль түрлері",
+        "module_json_prompt_coding": "Бағдарламалау тапсырмасы",
+        "module_json_prompt_theory": "Теориялық материал",
+        "module_json_prompt_quiz": "Теориялық квиз",
+        "module_json_prompt_game": "Ойын модулі",
+        "module_json_prompt_preview": "ЖИ агентіне арналған промпт",
+        "module_json_payload": "Модуль жасауға арналған JSON",
+        "module_json_session_required": "Алдымен сессияны таңдап, жүктеңіз.",
+        "module_json_required": "JSON командасын енгізіңіз.",
+        "module_json_invalid": "JSON пішімі қате",
+        "module_json_created": "Жасалған модульдер саны",
+        "attachment_block": "Тіркеме",
+        "attachment_url_help": "Google Drive файлындағы HTTPS сілтемесін енгізіңіз.",
+        "download_attachment": "Тіркемені жүктеп алу",
+        "invalid_attachment_url": "Тіркеме сілтемесі қате",
+    },
+    "en": {
+        "module_json_import": "Create modules from JSON",
+        "module_json_help": "Select a session, paste JSON, and apply it. Modules and all nested items are created atomically.",
+        "module_json_prompt_type": "Prompt for module type",
+        "module_json_prompt_all": "All module types",
+        "module_json_prompt_coding": "Coding task",
+        "module_json_prompt_theory": "Theory material",
+        "module_json_prompt_quiz": "Theory quiz",
+        "module_json_prompt_game": "Game module",
+        "module_json_prompt_preview": "Prompt for the AI agent",
+        "module_json_payload": "Module creation JSON",
+        "module_json_session_required": "Select and load a session first.",
+        "module_json_required": "Paste a JSON command.",
+        "module_json_invalid": "Invalid JSON",
+        "module_json_created": "Modules created",
+        "attachment_block": "Attachment",
+        "attachment_url_help": "Paste an HTTPS link to a Google Drive file.",
+        "download_attachment": "Download attachment",
+        "invalid_attachment_url": "Invalid attachment link",
+    },
+}
+
+for _lang_code, _extra in _MODULE_JSON_I18N.items():
+    UI_TRANSLATIONS.setdefault(_lang_code, {}).update(_extra)

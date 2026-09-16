@@ -7,8 +7,19 @@ from .models import (
     ExamAnswer,
     ExamIntegrityEvent,
     ExamAttempt,
+    GameModule,
+    MindRacePrompt,
+    Session,
+    SessionTask,
     Student,
+    TaskCodeFragment,
+    TaskTestCase,
     Teacher,
+    TheoryMaterialBlock,
+    TheoryMaterialModule,
+    TheoryQuizModule,
+    TournamentStage,
+    WonderFieldQuestion,
 )
 from .security import auth_version
 
@@ -519,3 +530,234 @@ class ExamFlowTests(TestCase):
         self.assertFalse(
             self.teacher.exams.filter(title="Broken import").exists()
         )
+
+
+class ModuleJsonImportTests(TestCase):
+    def setUp(self):
+        self.teacher = Teacher.objects.create(
+            full_name="Module Teacher",
+            pin_hash="!",
+            is_active=True,
+        )
+        self.session = Session.objects.create(
+            title="JSON module session",
+            author=self.teacher,
+        )
+        self.client = Client()
+        teacher_session = self.client.session
+        teacher_session["teacher_id"] = self.teacher.id
+        teacher_session["teacher_auth_version"] = auth_version(self.teacher.pin_hash)
+        teacher_session.save()
+
+    def _import(self, payload, session=None):
+        session = session or self.session
+        return self.client.post(
+            f"/api/teacher/sessions/{session.id}/modules/import-json/",
+            data=json.dumps(payload),
+            content_type="application/json",
+        )
+
+    def test_imports_every_module_shape_with_nested_content(self):
+        payload = {
+            "action": "create_modules",
+            "modules": [
+                {
+                    "module_type": "coding_task",
+                    "position": 1,
+                    "title": "Coding",
+                    "statement": "Read and print a value.",
+                    "programming_language": "cpp",
+                    "hints": {
+                        "enabled": True,
+                        "level_1": {"enabled": True, "unlock_attempts": 2},
+                        "level_2": {"enabled": True, "unlock_attempts": 3},
+                        "level_3": {"enabled": False, "unlock_attempts": 4},
+                    },
+                    "testcases": [
+                        {
+                            "ordinal": 1,
+                            "stdin": "7\n",
+                            "expected_stdout": "7\n",
+                            "is_visible": True,
+                        }
+                    ],
+                    "fragments": [
+                        {
+                            "position": "top",
+                            "title": "Header",
+                            "code": "#include <iostream>",
+                            "is_active": True,
+                        }
+                    ],
+                },
+                {
+                    "module_type": "theory_material",
+                    "position": 2,
+                    "title": "Theory",
+                    "blocks": [
+                        {
+                            "ordinal": 1,
+                            "block_type": "heading",
+                            "heading_level": "h1",
+                            "content": "Files",
+                        },
+                        {
+                            "ordinal": 2,
+                            "block_type": "attachment",
+                            "content": "https://drive.google.com/file/d/test_file_id/view",
+                        },
+                    ],
+                },
+                {
+                    "module_type": "theory_quiz",
+                    "position": 3,
+                    "title": "Quiz",
+                    "questions": [
+                        {
+                            "ordinal": 1,
+                            "question_type": "single_choice",
+                            "prompt": "Choose one",
+                            "choices": [
+                                {"ordinal": 1, "text": "A", "is_correct": True},
+                                {"ordinal": 2, "text": "B", "is_correct": False},
+                                {"ordinal": 3, "text": "C", "is_correct": False},
+                            ],
+                        },
+                        {
+                            "ordinal": 2,
+                            "question_type": "open_answer",
+                            "prompt": "Explain",
+                            "model_answer": "Explanation",
+                            "accept_suitable_answer": True,
+                        },
+                        {
+                            "ordinal": 3,
+                            "question_type": "matching",
+                            "prompt": "Match",
+                            "pairs": [
+                                {"ordinal": 1, "left_text": "A", "right_text": "1"},
+                                {"ordinal": 2, "left_text": "B", "right_text": "2"},
+                            ],
+                        },
+                    ],
+                },
+                {
+                    "module_type": "game",
+                    "position": 4,
+                    "title": "Race",
+                    "rubric": "mind_race",
+                    "prompts": [
+                        {
+                            "ordinal": 1,
+                            "sentence": "Functions use the def keyword.",
+                            "missing_text": "def",
+                        }
+                    ],
+                },
+                {
+                    "module_type": "game",
+                    "position": "auto",
+                    "title": "Wonder",
+                    "rubric": "wonder_field",
+                    "questions": [
+                        {"ordinal": 1, "prompt": "Reusable code", "answer": "function"}
+                    ],
+                },
+                {
+                    "module_type": "game",
+                    "position": "auto",
+                    "title": "Tournament",
+                    "rubric": "tournament",
+                    "stages": [
+                        {
+                            "ordinal": 1,
+                            "title": "Final",
+                            "question_count": 1,
+                            "questions": [
+                                {"ordinal": 1, "prompt": "Output function", "answer": "print"}
+                            ],
+                        }
+                    ],
+                },
+            ],
+        }
+        response = self._import(payload)
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertEqual(response.json()["created_count"], 6)
+
+        task = SessionTask.objects.get(session=self.session)
+        self.assertEqual(task.programming_language, "cpp")
+        self.assertTrue(task.hints_enabled)
+        self.assertFalse(task.hint3_enabled)
+        self.assertEqual(TaskTestCase.objects.filter(task=task).count(), 1)
+        self.assertEqual(TaskCodeFragment.objects.filter(task=task).count(), 1)
+
+        theory = TheoryMaterialModule.objects.get(session=self.session)
+        attachment = theory.blocks.get(block_type=TheoryMaterialBlock.BlockType.ATTACHMENT)
+        self.assertIn("drive.google.com", attachment.content)
+
+        quiz = TheoryQuizModule.objects.get(session=self.session)
+        self.assertEqual(quiz.questions.count(), 3)
+        self.assertEqual(quiz.questions.get(ordinal=1).choices.count(), 3)
+        self.assertEqual(quiz.questions.get(ordinal=3).pairs.count(), 2)
+
+        self.assertEqual(GameModule.objects.filter(session=self.session).count(), 3)
+        self.assertEqual(MindRacePrompt.objects.count(), 1)
+        self.assertEqual(WonderFieldQuestion.objects.count(), 1)
+        self.assertEqual(TournamentStage.objects.count(), 1)
+        self.assertEqual(
+            list(GameModule.objects.filter(session=self.session).values_list("position", flat=True)),
+            [4, 5, 6],
+        )
+
+    def test_invalid_nested_item_rolls_back_entire_import(self):
+        response = self._import(
+            {
+                "action": "create_modules",
+                "modules": [
+                    {
+                        "module_type": "theory_material",
+                        "position": 1,
+                        "title": "Would otherwise be valid",
+                        "blocks": [{"ordinal": 1, "block_type": "text", "content": "Text"}],
+                    },
+                    {
+                        "module_type": "theory_material",
+                        "position": 2,
+                        "title": "Invalid attachment",
+                        "blocks": [
+                            {
+                                "ordinal": 1,
+                                "block_type": "attachment",
+                                "content": "https://example.com/not-drive.pdf",
+                            }
+                        ],
+                    },
+                ],
+            }
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(TheoryMaterialModule.objects.filter(session=self.session).count(), 0)
+
+    def test_cannot_import_into_another_teachers_session(self):
+        other_teacher = Teacher.objects.create(
+            full_name="Other Module Teacher",
+            pin_hash="!",
+            is_active=True,
+        )
+        other_session = Session.objects.create(title="Private", author=other_teacher)
+        response = self._import(
+            {
+                "action": "create_modules",
+                "modules": [
+                    {
+                        "module_type": "theory_material",
+                        "title": "Forbidden",
+                        "blocks": [],
+                    }
+                ],
+            },
+            session=other_session,
+        )
+        self.assertEqual(response.status_code, 404)
+        self.assertFalse(TheoryMaterialModule.objects.filter(session=other_session).exists())
