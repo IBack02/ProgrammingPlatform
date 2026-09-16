@@ -557,6 +557,64 @@ class ModuleJsonImportTests(TestCase):
             content_type="application/json",
         )
 
+    def test_imports_medium_image_url_with_encoded_path_and_markdown_links(self):
+        image_url = (
+            "https://miro.medium.com/v2/resize%3Afit%3A2000/"
+            "1%2AvLjmhZ9CRzOSl7X4--KdEg.png"
+        )
+        response = self._import(
+            {
+                "action": "create_modules",
+                "modules": [
+                    {
+                        "module_type": "theory_material",
+                        "title": "Images",
+                        "blocks": [
+                            {"ordinal": 1, "block_type": "image", "content": image_url},
+                            {
+                                "ordinal": 2,
+                                "block_type": "image",
+                                "content": f"![diagram]({image_url})",
+                            },
+                            {
+                                "ordinal": 3,
+                                "block_type": "image",
+                                "content": f"[{image_url}]({image_url})",
+                            },
+                        ],
+                    }
+                ],
+            }
+        )
+        self.assertEqual(response.status_code, 200, response.content)
+        module = TheoryMaterialModule.objects.get(session=self.session)
+        self.assertEqual(
+            list(module.blocks.order_by("ordinal").values_list("content", flat=True)),
+            [image_url, image_url, image_url],
+        )
+
+    def test_rejects_non_https_image_inside_markdown(self):
+        response = self._import(
+            {
+                "action": "create_modules",
+                "modules": [
+                    {
+                        "module_type": "theory_material",
+                        "title": "Invalid image",
+                        "blocks": [
+                            {
+                                "ordinal": 1,
+                                "block_type": "image",
+                                "content": "![image](javascript:alert(1))",
+                            }
+                        ],
+                    }
+                ],
+            }
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertFalse(TheoryMaterialModule.objects.filter(session=self.session).exists())
+
     def test_imports_every_module_shape_with_nested_content(self):
         payload = {
             "action": "create_modules",

@@ -127,6 +127,9 @@ def _ordinal_rows(value, field_name: str) -> list[tuple[int, dict]]:
 
 def _https_url(value, field_name: str, *, allowed_hosts: set[str] | None = None) -> str:
     url = _text(value, field_name, maximum=2_000, required=True)
+    markdown_link = re.fullmatch(r"!?\[[^\]\r\n]{0,200}\]\((https://[^)\s]+)\)", url)
+    if markdown_link:
+        url = markdown_link.group(1)
     parsed = urlparse(url)
     has_unsafe_chars = any(ord(char) < 32 or char in '"<>\\' for char in url)
     hostname = (parsed.hostname or "").lower()
