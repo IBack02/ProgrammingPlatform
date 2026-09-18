@@ -2,6 +2,7 @@ UI_TRANSLATIONS = {
     "ru": {
         "teacher_portal": "Портал учителя",
         "dashboard": "Панель",
+        "teacher_guide": "Справочник учителя (PDF)",
         "sessions": "Сессии",
         "classes": "Классы",
         "students": "Ученики",
@@ -322,6 +323,7 @@ UI_TRANSLATIONS = {
     "kk": {
         "teacher_portal": "Мұғалім порталы",
         "dashboard": "Басқару панелі",
+        "teacher_guide": "Мұғалімге арналған нұсқаулық (PDF)",
         "sessions": "Сессиялар",
         "classes": "Сыныптар",
         "students": "Оқушылар",
@@ -643,6 +645,7 @@ UI_TRANSLATIONS = {
     "en": {
         "teacher_portal": "Teacher Portal",
         "dashboard": "Dashboard",
+        "teacher_guide": "Teacher guide (PDF)",
         "sessions": "Sessions",
         "classes": "Classes",
         "students": "Students",
