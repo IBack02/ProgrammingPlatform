@@ -322,8 +322,6 @@ def call_openai_hint(level: int, prompt_snapshot: str) -> dict:
         parsed = resp.output_parsed
         if parsed is None:
             raise RuntimeError("OpenAI returned no parsed output for hint level 2")
-
-
         data = {
             "text": (parsed.text or "").strip(),
             "no_code_confirmed": bool(parsed.no_code_confirmed),
