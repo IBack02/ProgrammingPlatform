@@ -16,6 +16,7 @@ from .models import (
     SessionTask,
     Student,
     Teacher,
+    TournamentAnswerAttempt,
     TournamentMatch,
     WonderFieldQuestion,
 )
@@ -691,6 +692,15 @@ class MindRaceGameTests(TestCase):
         winner_student_id = active_match["player_one"]["student_id"]
         loser_student_id = active_match["player_two"]["student_id"]
 
+        wrong_answer = self._json(
+            clients[loser_student_id],
+            "post",
+            f"/api/student/game-rounds/{round_row['id']}/tournament-answer/",
+            {"match_id": active_match["id"], "question_index": 0, "answer": "Wrong"},
+        )
+        self.assertEqual(wrong_answer.status_code, 200)
+        self.assertFalse(wrong_answer.json()["correct"])
+
         won_question = self._json(
             clients[winner_student_id],
             "post",
@@ -737,6 +747,21 @@ class MindRaceGameTests(TestCase):
         )
         self.assertEqual(stale_match["current_question"]["index"], 1)
         self.assertEqual(stale_match["score_one"] + stale_match["score_two"], 1)
+        self.assertNotIn("tournament_answer_attempts", stale_answer.json()["round"])
+        self.assertNotIn("Answer 1", stale_answer.content.decode("utf-8"))
+
+        teacher_state = self.teacher_client.get(
+            f"/api/teacher/game-rounds/{round_row['id']}/state/"
+        )
+        self.assertEqual(teacher_state.status_code, 200)
+        answer_rows = teacher_state.json()["round"]["tournament_answer_attempts"]
+        self.assertEqual(len(answer_rows), 3)
+        self.assertEqual(answer_rows[0]["answer"], "Wrong")
+        self.assertFalse(answer_rows[0]["is_correct"])
+        self.assertTrue(answer_rows[1]["won_question"])
+        self.assertEqual(answer_rows[1]["correct_answer"], "Answer 1")
+        self.assertFalse(answer_rows[2]["was_current"])
+        self.assertEqual(TournamentAnswerAttempt.objects.filter(match_id=active_match["id"]).count(), 3)
 
     def test_tournament_with_five_players_creates_only_one_first_round_bye(self):
         extra_students = [

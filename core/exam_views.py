@@ -611,6 +611,7 @@ def _student_exam_attempts(student):
         .prefetch_related(
             "exam__questions",
             "answers__question",
+            "peer_assessment_assignments__session",
             "peer_assessment_assignments__reviews__question",
         )
     )
@@ -622,13 +623,14 @@ def _percent_of_max(score, maximum):
     return round(float(Decimal(score) * Decimal("100") / Decimal(maximum)), 2)
 
 
-def _exam_attempt_score_summary(attempt):
-    questions = list(
-        attempt.exam.questions.prefetch_related("matching_pairs").order_by(
-            "position",
-            "id",
+def _exam_attempt_score_summary(attempt, questions=None):
+    if questions is None:
+        questions = list(
+            attempt.exam.questions.prefetch_related("matching_pairs").order_by(
+                "position",
+                "id",
+            )
         )
-    )
     question_ids = {question.id for question in questions}
     maximum = sum((question.max_score for question in questions), Decimal("0"))
     answers = list(attempt.answers.all())
@@ -663,7 +665,7 @@ def _exam_attempt_score_summary(attempt):
     }
 
 
-def build_student_exam_chart(student, teacher=None):
+def build_student_exam_history(student, teacher=None):
     attempts_qs = _student_exam_attempts(student)
     if teacher is not None:
         attempts_qs = attempts_qs.filter(exam__owner=teacher)
@@ -671,17 +673,39 @@ def build_student_exam_chart(student, teacher=None):
     rows = []
     for attempt in attempts:
         summary = _exam_attempt_score_summary(attempt)
+        peer_result_links = []
+        seen_session_ids = set()
+        for assignment in attempt.peer_assessment_assignments.all():
+            if assignment.session_id in seen_session_ids:
+                continue
+            seen_session_ids.add(assignment.session_id)
+            peer_result_links.append({
+                "session_id": assignment.session_id,
+                "session_title": assignment.session.title,
+                "attempt_id": attempt.id,
+            })
         rows.append({
             "attempt_id": attempt.id,
             "exam_id": attempt.exam_id,
             "label": attempt.exam.title,
+            "status": attempt.status,
             "submitted_at": attempt.submitted_at.isoformat() if attempt.submitted_at else None,
+            "submitted_at_value": attempt.submitted_at,
             "maximum": float(summary["maximum"]),
             "teacher_score": float(summary["teacher_score"]) if summary["teacher_score"] is not None else None,
             "teacher_percent": summary["teacher_percent"],
             "peer_score": float(summary["peer_score"]) if summary["peer_score"] is not None else None,
             "peer_percent": summary["peer_percent"],
+            "graded_answer_count": summary["graded_answer_count"],
+            "question_count": summary["question_count"],
+            "completed_peer_reviews": summary["completed_peer_reviews"],
+            "peer_result_links": peer_result_links,
         })
+    return rows
+
+
+def build_student_exam_chart(student, teacher=None):
+    rows = build_student_exam_history(student, teacher=teacher)
     return {
         "labels": [row["label"] for row in rows],
         "attempt_ids": [row["attempt_id"] for row in rows],
@@ -720,6 +744,7 @@ def build_teacher_exam_analytics(teacher, class_id=None):
     for attempt in attempts:
         summary = _exam_attempt_score_summary(attempt)
         exam_row = exam_rows.setdefault(attempt.exam_id, {
+            "id": attempt.exam_id,
             "label": attempt.exam.title,
             "maximum": float(summary["maximum"]),
             "teacher": [],
@@ -744,6 +769,7 @@ def build_teacher_exam_analytics(teacher, class_id=None):
     chart_rows = list(exam_rows.values())
     return {
         "chart": {
+            "exam_ids": [row["id"] for row in chart_rows],
             "labels": [row["label"] for row in chart_rows],
             "max_scores": [row["maximum"] for row in chart_rows],
             "teacher_percentages": [average(row["teacher"]) for row in chart_rows],
@@ -811,6 +837,103 @@ def _save_answer(attempt: ExamAttempt, question: ExamQuestion, data: dict) -> tu
 @ensure_csrf_cookie
 def teacher_exams_page(request: HttpRequest):
     return render(request, "core/teacher/exams.html", {"active": "exams"})
+
+
+@_teacher_required
+@ensure_csrf_cookie
+def teacher_exam_analytics_page(request: HttpRequest, exam_id: int):
+    teacher = _teacher(request)
+    exam = get_object_or_404(
+        Exam.objects.prefetch_related("allowed_classes", "questions__matching_pairs"),
+        id=exam_id,
+        owner=teacher,
+    )
+    questions = list(exam.questions.all())
+    attempts_qs = exam.attempts.select_related("student__class_group")
+    selected_class = None
+    class_id = str(request.GET.get("class_id") or "")
+    if class_id.isdigit():
+        selected_class = get_object_or_404(ClassGroup, id=int(class_id), owner=teacher)
+        attempts_qs = attempts_qs.filter(
+            Q(student__class_group=selected_class)
+            | Q(student__class_memberships__class_group=selected_class)
+        ).distinct()
+    attempts = list(
+        attempts_qs
+        .prefetch_related(
+            "answers__question",
+            "peer_assessment_assignments__session",
+            "peer_assessment_assignments__reviews__question",
+        )
+        .annotate(integrity_event_count=Count("integrity_events", distinct=True))
+        .order_by("student__class_group__name", "student__full_name", "id")
+    )
+    rows = []
+    teacher_percentages = []
+    peer_percentages = []
+    for attempt in attempts:
+        _expire_if_needed(attempt)
+        summary = _exam_attempt_score_summary(attempt, questions=questions)
+        if summary["teacher_percent"] is not None:
+            teacher_percentages.append(summary["teacher_percent"])
+        if summary["peer_percent"] is not None:
+            peer_percentages.append(summary["peer_percent"])
+        peer_links = []
+        seen_sessions = set()
+        for assignment in attempt.peer_assessment_assignments.all():
+            if assignment.session_id in seen_sessions:
+                continue
+            seen_sessions.add(assignment.session_id)
+            peer_links.append({
+                "session_id": assignment.session_id,
+                "session_title": assignment.session.title,
+                "attempt_id": attempt.id,
+            })
+        rows.append({
+            "attempt_id": attempt.id,
+            "student_id": attempt.student_id,
+            "student_name": attempt.student.full_name,
+            "class_name": attempt.student.class_group.name,
+            "status": attempt.status,
+            "submitted_at": attempt.submitted_at,
+            "maximum": float(summary["maximum"]),
+            "teacher_score": float(summary["teacher_score"]) if summary["teacher_score"] is not None else None,
+            "teacher_percent": summary["teacher_percent"],
+            "peer_score": float(summary["peer_score"]) if summary["peer_score"] is not None else None,
+            "peer_percent": summary["peer_percent"],
+            "graded_answer_count": summary["graded_answer_count"],
+            "question_count": summary["question_count"],
+            "completed_peer_reviews": summary["completed_peer_reviews"],
+            "integrity_event_count": attempt.integrity_event_count,
+            "fully_graded": bool(
+                summary["question_count"]
+                and summary["graded_answer_count"] == summary["question_count"]
+            ),
+            "peer_links": peer_links,
+        })
+
+    def average(values):
+        return round(sum(values) / len(values), 2) if values else None
+
+    context = {
+        "active": "dashboard",
+        "exam": exam,
+        "classes": list(exam.allowed_classes.order_by("name", "id")),
+        "selected_class": selected_class,
+        "attempt_rows": rows,
+        "summary": {
+            "participants": len(rows),
+            "submitted": sum(
+                row["status"] in {ExamAttempt.Status.SUBMITTED, ExamAttempt.Status.EXPIRED}
+                for row in rows
+            ),
+            "fully_graded": sum(row["fully_graded"] for row in rows),
+            "peer_graded": sum(row["peer_percent"] is not None for row in rows),
+            "average_teacher_percent": average(teacher_percentages),
+            "average_peer_percent": average(peer_percentages),
+        },
+    }
+    return render(request, "core/teacher/exam_analytics.html", context)
 
 
 @_teacher_required

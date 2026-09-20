@@ -61,6 +61,7 @@ from .models import (
     GameRound,
     GameParticipant,
     MindRacePrompt,
+    PeerAssessmentReview,
 
 )
 from .ui_translations import SUPPORTED_UI_LANGS, UI_TRANSLATIONS, get_ui_lang
@@ -2344,14 +2345,110 @@ def _build_student_profile_context(
         "total_attempts": total_attempts,
     }
 
-    from .exam_views import build_student_exam_chart
+    from .exam_views import build_student_exam_chart, build_student_exam_history
+
+    exam_history = build_student_exam_history(student, teacher=exam_teacher)
+    received_reviews_qs = PeerAssessmentReview.objects.filter(
+        assignment__exam_attempt__student=student,
+    ).select_related(
+        "assignment__reviewer",
+        "assignment__session",
+        "assignment__exam_attempt__exam",
+        "question",
+    )
+    given_reviews_qs = PeerAssessmentReview.objects.filter(
+        assignment__reviewer=student,
+    ).select_related(
+        "assignment__exam_attempt__student",
+        "assignment__exam_attempt__exam",
+        "assignment__session",
+        "question",
+    )
+    if exam_teacher is not None:
+        received_reviews_qs = received_reviews_qs.filter(assignment__session__owner=exam_teacher)
+        given_reviews_qs = given_reviews_qs.filter(assignment__session__owner=exam_teacher)
+
+    received_peer_reviews = [
+        {
+            "id": review.id,
+            "exam_title": review.assignment.exam_attempt.exam.title,
+            "attempt_id": review.assignment.exam_attempt_id,
+            "session_id": review.assignment.session_id,
+            "session_title": review.assignment.session.title,
+            "reviewer_name": review.assignment.reviewer.full_name,
+            "question_position": review.question.position,
+            "question_prompt": review.question.prompt,
+            "score": float(review.score),
+            "max_score": float(review.question.max_score),
+            "comment": review.comment,
+            "moderation_status": review.moderation_status,
+            "teacher_comment": review.teacher_comment,
+            "updated_at": review.updated_at,
+        }
+        for review in received_reviews_qs.order_by("-updated_at", "-id")
+    ]
+    given_peer_reviews = [
+        {
+            "id": review.id,
+            "exam_title": review.assignment.exam_attempt.exam.title,
+            "attempt_id": review.assignment.exam_attempt_id,
+            "session_id": review.assignment.session_id,
+            "session_title": review.assignment.session.title,
+            "author_name": review.assignment.exam_attempt.student.full_name,
+            "question_position": review.question.position,
+            "question_prompt": review.question.prompt,
+            "score": float(review.score),
+            "max_score": float(review.question.max_score),
+            "comment": review.comment,
+            "moderation_status": review.moderation_status,
+            "teacher_comment": review.teacher_comment,
+            "updated_at": review.updated_at,
+        }
+        for review in given_reviews_qs.order_by("-updated_at", "-id")
+    ]
+
+    teacher_exam_percentages = [
+        row["teacher_percent"] for row in exam_history if row["teacher_percent"] is not None
+    ]
+    peer_exam_percentages = [
+        row["peer_percent"] for row in exam_history if row["peer_percent"] is not None
+    ]
+    programming_attempt_count = sum(total_attempts)
+    programming_accepted_count = sum(accepted_counts)
+    total_task_count = sum(total_tasks)
+    solved_task_count = sum(solved_counts)
 
     return {
         "student": student,
         "chart_json": chart,
         "exam_chart_json": build_student_exam_chart(student, teacher=exam_teacher),
+        "exam_history": exam_history,
+        "received_peer_reviews": received_peer_reviews,
+        "given_peer_reviews": given_peer_reviews,
+        "profile_stats": {
+            "session_count": len(labels),
+            "solved_tasks": solved_task_count,
+            "total_tasks": total_task_count,
+            "programming_attempts": programming_attempt_count,
+            "programming_success_percent": round(
+                programming_accepted_count * 100 / programming_attempt_count,
+                2,
+            ) if programming_attempt_count else None,
+            "exam_count": len(exam_history),
+            "average_teacher_percent": round(
+                sum(teacher_exam_percentages) / len(teacher_exam_percentages),
+                2,
+            ) if teacher_exam_percentages else None,
+            "average_peer_percent": round(
+                sum(peer_exam_percentages) / len(peer_exam_percentages),
+                2,
+            ) if peer_exam_percentages else None,
+            "received_peer_reviews": len(received_peer_reviews),
+            "given_peer_reviews": len(given_peer_reviews),
+        },
         "initial_chart_mode": "programming" if initial_chart_mode == "programming" else "exam",
         "profile_back_url": back_url,
+        "profile_is_teacher": exam_teacher is not None,
         "active": active,
     }
 
@@ -2376,10 +2473,12 @@ def admin_student_profile(request: HttpRequest, student_id: int) -> HttpResponse
 def teacher_student_profile(request: HttpRequest, student_id: int) -> HttpResponse:
     teacher = _get_logged_in_teacher(request)
     student = get_object_or_404(
-        Student.objects.select_related("class_group"),
+        Student.objects.select_related("class_group").filter(
+            Q(class_group__owner=teacher)
+            | Q(class_memberships__class_group__owner=teacher)
+        ).distinct(),
         id=student_id,
         is_active=True,
-        class_group__owner=teacher,
     )
     context = _build_student_profile_context(
         student,

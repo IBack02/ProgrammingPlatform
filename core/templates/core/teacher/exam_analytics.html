@@ -1,0 +1,88 @@
+{% extends "core/teacher/_base.html" %}
+{% block title %}{{ T.exam_summary_title }}{% endblock %}
+{% block subtitle %}{{ T.exam_summary_subtitle }}{% endblock %}
+
+{% block content %}
+<style>
+  .exam-summary-top{display:flex;justify-content:space-between;gap:14px;align-items:flex-start;flex-wrap:wrap;margin-bottom:12px}
+  .exam-summary-title{font-size:clamp(24px,3vw,38px);font-weight:950;line-height:1.08;margin:4px 0 8px}
+  .exam-summary-meta{display:flex;gap:7px;flex-wrap:wrap}
+  .exam-summary-pill{display:inline-flex;padding:6px 10px;border-radius:999px;background:#eef6ff;border:1px solid #bfdbfe;color:#1e3a5f;font-size:12px;font-weight:800}
+  .summary-grid{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px;margin-bottom:12px}
+  .summary-card{padding:14px;border-radius:15px;border:1px solid #dbe4ee;background:linear-gradient(160deg,#fff,#f6f9fc);box-shadow:0 10px 24px rgba(15,23,42,.06)}
+  .summary-label{font-size:11px;font-weight:850;text-transform:uppercase;letter-spacing:.04em;color:#64748b}
+  .summary-value{margin-top:6px;font-size:25px;font-weight:950;color:#0f172a}
+  .attempt-table-wrap{overflow:auto;border:1px solid #dbe4ee;border-radius:16px;background:#fff}
+  .attempt-table{width:100%;min-width:1080px;border-collapse:collapse}
+  .attempt-table th{padding:11px 12px;background:#f1f5f9;color:#475569;text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.04em;position:sticky;top:0;z-index:1}
+  .attempt-table td{padding:13px 12px;border-top:1px solid #e2e8f0;vertical-align:top}
+  .student-link{font-weight:900;color:#0f4c81;text-decoration:none}.student-link:hover{text-decoration:underline}
+  .attempt-sub{margin-top:3px;color:#64748b;font-size:12px}
+  .score-line{display:flex;justify-content:space-between;gap:8px;font-weight:850}
+  .score-bar{width:150px;max-width:100%;height:7px;margin-top:7px;border-radius:999px;background:#e2e8f0;overflow:hidden}
+  .score-fill{height:100%;border-radius:inherit;background:linear-gradient(90deg,#0369a1,#38bdf8)}
+  .score-fill.peer{background:linear-gradient(90deg,#8a5a20,#d8a45e)}
+  .status-chip{display:inline-flex;padding:4px 8px;border-radius:999px;background:#e2e8f0;color:#334155;font-size:11px;font-weight:900}
+  .status-chip.complete{background:#dcfce7;color:#166534}
+  .integrity-count{display:inline-flex;min-width:30px;justify-content:center;padding:5px 8px;border-radius:999px;background:#fff7ed;color:#9a3412;font-weight:900}
+  .row-actions{display:flex;gap:6px;flex-wrap:wrap}.row-actions .btn{font-size:12px;padding:6px 8px}
+  .empty-state{padding:34px;text-align:center;color:#64748b}
+  html[data-theme="dark"] .exam-summary-pill{background:#172438;border-color:#36506d;color:#dbeafe}
+  html[data-theme="dark"] .attempt-table-wrap,html[data-theme="dark"] .attempt-table td{background:#12171d;border-color:#46525e;color:#edf1f3}
+  html[data-theme="dark"] .attempt-table th{background:#1d252e;color:#a8b0b7}
+  html[data-theme="dark"] .student-link{color:#c9dcf2}
+  html[data-theme="dark"] .score-bar{background:#303b47}
+  @media(max-width:1180px){.summary-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+  @media(max-width:640px){.summary-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.exam-summary-top .btn{width:100%;text-align:center}}
+</style>
+
+<section class="card exam-summary-top">
+  <div>
+    <div class="muted">{{ T.exam_summary_title }}</div>
+    <h1 class="exam-summary-title">{{ exam.title }}</h1>
+    {% if exam.topic %}<div style="margin-bottom:10px;">{{ exam.topic }}</div>{% endif %}
+    <div class="exam-summary-meta">
+      <span class="exam-summary-pill">{{ T.duration_minutes }}: {{ exam.duration_minutes }}</span>
+      <span class="exam-summary-pill">{{ T.status }}: {% if exam.status == 'draft' %}{{ T.draft }}{% elif exam.status == 'running' %}{{ T.running }}{% else %}{{ T.stopped }}{% endif %}</span>
+      {% if selected_class %}<span class="exam-summary-pill">{{ T.class_filter }}: {{ selected_class.name }}</span>{% endif %}
+      {% for class_group in classes %}<span class="exam-summary-pill">{{ class_group.name }}</span>{% endfor %}
+    </div>
+  </div>
+  <a class="btn" href="/teacher/">{{ T.back_to_dashboard }}</a>
+</section>
+
+<section class="summary-grid">
+  <div class="summary-card"><div class="summary-label">{{ T.exam_participants }}</div><div class="summary-value">{{ summary.participants }}</div></div>
+  <div class="summary-card"><div class="summary-label">{{ T.submitted_attempts }}</div><div class="summary-value">{{ summary.submitted }}</div></div>
+  <div class="summary-card"><div class="summary-label">{{ T.fully_graded_attempts }}</div><div class="summary-value">{{ summary.fully_graded }}</div></div>
+  <div class="summary-card"><div class="summary-label">{{ T.peer_graded_attempts }}</div><div class="summary-value">{{ summary.peer_graded }}</div></div>
+  <div class="summary-card"><div class="summary-label">{{ T.average_teacher_score }}</div><div class="summary-value">{% if summary.average_teacher_percent != None %}{{ summary.average_teacher_percent }}%{% else %}—{% endif %}</div></div>
+  <div class="summary-card"><div class="summary-label">{{ T.average_peer_score }}</div><div class="summary-value">{% if summary.average_peer_percent != None %}{{ summary.average_peer_percent }}%{% else %}—{% endif %}</div></div>
+</section>
+
+<section class="card">
+  <div style="display:flex;justify-content:space-between;align-items:end;gap:10px;flex-wrap:wrap;margin-bottom:12px;">
+    <div><div style="font-size:20px;font-weight:900;">{{ T.student_results }}</div><div class="muted">{{ T.exam_student_results_help }}</div></div>
+  </div>
+  <div class="attempt-table-wrap">
+    {% if attempt_rows %}
+      <table class="attempt-table">
+        <thead><tr><th>{{ T.student }}</th><th>{{ T.status }}</th><th>{{ T.exam_teacher_score }}</th><th>{{ T.exam_peer_score }}</th><th>{{ T.grading_progress }}</th><th>{{ T.exam_violations }}</th><th>{{ T.actions }}</th></tr></thead>
+        <tbody>
+          {% for row in attempt_rows %}
+            <tr>
+              <td><a class="student-link" href="/teacher/students/{{ row.student_id }}/analytics/?mode=exam">{{ row.student_name }}</a><div class="attempt-sub">{{ row.class_name }} · #{{ row.attempt_id }}</div></td>
+              <td><span class="status-chip{% if row.fully_graded %} complete{% endif %}">{% if row.status == 'submitted' %}{{ T.attempt_submitted }}{% elif row.status == 'expired' %}{{ T.attempt_expired }}{% else %}{{ T.in_progress }}{% endif %}</span>{% if row.submitted_at %}<div class="attempt-sub">{{ row.submitted_at|date:"d.m.Y H:i" }}</div>{% endif %}</td>
+              <td>{% if row.teacher_percent != None %}<div class="score-line"><span>{{ row.teacher_score }} / {{ row.maximum }}</span><span>{{ row.teacher_percent }}%</span></div><div class="score-bar"><div class="score-fill" style="width:{{ row.teacher_percent }}%"></div></div>{% else %}<span class="muted">{{ T.exam_not_graded }}</span>{% endif %}</td>
+              <td>{% if row.peer_percent != None %}<div class="score-line"><span>{{ row.peer_score }} / {{ row.maximum }}</span><span>{{ row.peer_percent }}%</span></div><div class="score-bar"><div class="score-fill peer" style="width:{{ row.peer_percent }}%"></div></div><div class="attempt-sub">{{ T.peer_reviewers }}: {{ row.completed_peer_reviews }}</div>{% else %}<span class="muted">{{ T.exam_no_peer_grade }}</span>{% endif %}</td>
+              <td><b>{{ row.graded_answer_count }} / {{ row.question_count }}</b></td>
+              <td><span class="integrity-count">{{ row.integrity_event_count }}</span></td>
+              <td><div class="row-actions"><a class="btn" href="/teacher/exams/attempts/{{ row.attempt_id }}/grade/">{{ T.open_work }}</a>{% for peer in row.peer_links %}<a class="btn" href="/teacher/assessment/{{ peer.session_id }}/results/{{ row.attempt_id }}/" title="{{ peer.session_title }}">{{ T.peer_result_detail }}</a>{% endfor %}</div></td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}<div class="empty-state">{{ T.no_exam_attempts }}</div>{% endif %}
+  </div>
+</section>
+{% endblock %}

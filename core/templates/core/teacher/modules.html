@@ -59,11 +59,36 @@
   .tournament-stage-title{height:42px;font-size:17px;font-weight:900;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#e2e8f0}
   .tournament-stage-body{display:flex;flex-direction:column;justify-content:space-around;gap:18px}
   .tournament-match{border:1px solid #26324b;border-right:4px solid #60a5fa;border-radius:5px;background:#151d32;box-shadow:0 10px 24px rgba(2,6,23,.28);overflow:hidden}
+  .tournament-match.clickable{cursor:pointer;transition:transform .16s ease,border-color .16s ease,box-shadow .16s ease}
+  .tournament-match.clickable:hover,.tournament-match.clickable:focus-visible{transform:translateY(-2px);border-color:#7dd3fc;box-shadow:0 14px 30px rgba(2,132,199,.24);outline:none}
   .tournament-player{display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:31px;padding:5px 9px;border-bottom:1px solid #29344e;color:#f8fafc}
   .tournament-player:last-of-type{border-bottom:0}
   .tournament-player.winner{background:rgba(250,204,21,.14);color:#fde68a}
   .tournament-player.tbd,.tournament-player.bye{color:#94a3b8;font-style:italic}
   .tournament-match-meta{padding:5px 9px;border-top:1px solid #29344e;color:#94a3b8;font-size:10px;text-transform:uppercase;letter-spacing:.04em}
+  .tournament-answer-overlay{position:fixed;inset:0;z-index:3000;display:none;align-items:center;justify-content:center;padding:18px;background:rgba(2,6,23,.78);backdrop-filter:blur(5px)}
+  .tournament-answer-overlay.open{display:flex}
+  .tournament-answer-dialog{width:min(900px,100%);max-height:min(86vh,820px);overflow:auto;border:1px solid #475569;border-radius:20px;background:#f8fafc;color:#0f172a;box-shadow:0 30px 80px rgba(0,0,0,.42);padding:20px}
+  .tournament-answer-head{display:flex;justify-content:space-between;align-items:flex-start;gap:14px;position:sticky;top:-20px;z-index:2;margin:-20px -20px 16px;padding:18px 20px;background:rgba(248,250,252,.97);border-bottom:1px solid #cbd5e1;backdrop-filter:blur(8px)}
+  .tournament-answer-close{width:38px;height:38px;border:1px solid #cbd5e1;border-radius:11px;background:#fff;color:#0f172a;font-size:22px;cursor:pointer}
+  .tournament-answer-summary{display:flex;gap:8px;flex-wrap:wrap;margin-top:7px}
+  .tournament-answer-pill{padding:5px 9px;border-radius:999px;background:#e2e8f0;font-size:12px;font-weight:800}
+  .tournament-question-log{margin-top:13px;border:1px solid #cbd5e1;border-radius:15px;background:#fff;padding:14px}
+  .tournament-question-log h4{margin:0;white-space:pre-wrap;font-size:16px}
+  .tournament-expected{margin-top:9px;padding:9px 11px;border-left:3px solid #0284c7;background:#f0f9ff;white-space:pre-wrap}
+  .tournament-submission{display:grid;grid-template-columns:minmax(140px,.35fr) minmax(180px,1fr) auto;gap:10px;align-items:center;margin-top:9px;padding:10px;border-radius:11px;border:1px solid #e2e8f0;background:#f8fafc}
+  .tournament-submission.correct{border-color:#6ee7b7;background:#ecfdf5}
+  .tournament-submission.incorrect{border-color:#fbbf24;background:#fffbeb}
+  .tournament-submission.stale{border-color:#94a3b8;background:#f1f5f9}
+  .tournament-submitted-text{white-space:pre-wrap;overflow-wrap:anywhere;font-family:var(--code-font)}
+  .tournament-answer-status{padding:4px 8px;border-radius:999px;font-size:11px;font-weight:900;white-space:nowrap;background:#e2e8f0}
+  html[data-theme="dark"] .tournament-answer-dialog,html[data-theme="dark"] .tournament-answer-head,html[data-theme="dark"] .tournament-question-log{background:#12171d;color:#edf1f3;border-color:#46525e}
+  html[data-theme="dark"] .tournament-submission{background:#1d252e;border-color:#46525e}
+  html[data-theme="dark"] .tournament-submission.correct{background:#123c34;border-color:#34d399}
+  html[data-theme="dark"] .tournament-submission.incorrect{background:#3f3218;border-color:#fbbf24}
+  html[data-theme="dark"] .tournament-submission.stale{background:#202832;border-color:#64748b}
+  html[data-theme="dark"] .tournament-expected{background:#172438;color:#dbeafe}
+  @media(max-width:680px){.tournament-submission{grid-template-columns:1fr}.tournament-answer-dialog{padding:15px}.tournament-answer-head{top:-15px;margin:-15px -15px 14px;padding:15px}}
   .module-json-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px;margin-top:12px}
   .module-json-area{width:100%;min-height:260px;resize:vertical;font-family:Consolas,"Courier New",monospace;font-size:12px;line-height:1.45}
   .attachment-link{display:inline-flex;align-items:center;gap:8px;padding:10px 13px;border:1px solid #bfdbfe;border-radius:10px;background:#eff6ff;color:#075985;font-weight:800;text-decoration:none}
@@ -302,6 +327,19 @@
   </div>
 </div>
 
+<div id="tournamentAnswersModal" class="tournament-answer-overlay" aria-hidden="true">
+  <section class="tournament-answer-dialog" role="dialog" aria-modal="true" aria-labelledby="tournamentAnswersTitle">
+    <div class="tournament-answer-head">
+      <div>
+        <div id="tournamentAnswersTitle" style="font-size:20px;font-weight:900;">{{ T.tournament_answers_title }}</div>
+        <div id="tournamentAnswersSubtitle" class="muted"></div>
+      </div>
+      <button id="tournamentAnswersClose" class="tournament-answer-close" type="button" aria-label="{{ T.close }}">×</button>
+    </div>
+    <div id="tournamentAnswersBody"></div>
+  </section>
+</div>
+
 <script>
   let selectedSessionId = null;
   let selectedModuleId = null;
@@ -311,6 +349,7 @@
   let currentGameRound = null;
   let gamePollTimer = null;
   let gamePollToken = 0;
+  let selectedTournamentMatchId = null;
 
   const UI = {
     selectSessionFirst: "{{ T.select_session|escapejs }}",
@@ -977,11 +1016,54 @@ Replace example content with the requested educational material while preserving
         if(!match)return `<div class="tournament-match" data-bracket-stage="${stage.number}" data-bracket-slot="${index}"><div class="tournament-player tbd"><span>{{ T.tournament_tbd|escapejs }}</span></div><div class="tournament-player tbd"><span>{{ T.tournament_tbd|escapejs }}</span></div></div>`;
         const oneWinner=Number(match.winner_id)===Number(match.player_one?.id);
         const twoWinner=Number(match.winner_id)===Number(match.player_two?.id);
-        return `<div class="tournament-match" data-bracket-stage="${stage.number}" data-bracket-slot="${index}"><div class="tournament-player ${oneWinner?"winner":""}"><span>${escapeHtml(match.player_one?.student_name||"{{ T.tournament_tbd|escapejs }}")}</span><b>${match.score_one}</b></div><div class="tournament-player ${match.player_two?(twoWinner?"winner":""):"bye"}"><span>${escapeHtml(match.player_two?.student_name||"{{ T.tournament_bye|escapejs }}")}</span><b>${match.player_two?match.score_two:""}</b></div><div class="tournament-match-meta">${escapeHtml(match.status)} · {{ T.tournament_wins_required|escapejs }} ${match.wins_required}</div></div>`;
+        return `<div class="tournament-match clickable" data-bracket-stage="${stage.number}" data-bracket-slot="${index}" data-match-id="${match.id}" role="button" tabindex="0"><div class="tournament-player ${oneWinner?"winner":""}"><span>${escapeHtml(match.player_one?.student_name||"{{ T.tournament_tbd|escapejs }}")}</span><b>${match.score_one}</b></div><div class="tournament-player ${match.player_two?(twoWinner?"winner":""):"bye"}"><span>${escapeHtml(match.player_two?.student_name||"{{ T.tournament_bye|escapejs }}")}</span><b>${match.player_two?match.score_two:""}</b></div><div class="tournament-match-meta">${escapeHtml(match.status)} · {{ T.tournament_wins_required|escapejs }} ${match.wins_required}</div></div>`;
       }).join("")}</div></section>`;
     }).join("");
     qs("gameParticipants").innerHTML=`<div class="tournament-bracket-viewport"><div id="teacherTournamentGrid" class="tournament-bracket-grid" style="grid-template-columns:repeat(${stages.length},230px);min-width:${Math.max(1,stages.length)*230+Math.max(0,stages.length-1)*72+56}px"><svg class="tournament-bracket-lines" aria-hidden="true"></svg>${stageHtml}</div></div>`;
+    qs("gameParticipants").querySelectorAll("[data-match-id]").forEach(card=>{
+      const open=()=>openTournamentMatchDetails(Number(card.dataset.matchId));
+      card.addEventListener("click",open);
+      card.addEventListener("keydown",event=>{if(event.key==="Enter"||event.key===" "){event.preventDefault();open();}});
+    });
+    if(selectedTournamentMatchId)renderTournamentMatchDetails(selectedTournamentMatchId);
     requestAnimationFrame(()=>drawTournamentConnectors("teacherTournamentGrid"));
+  }
+
+  function renderTournamentMatchDetails(matchId){
+    const round=currentGameRound;
+    const match=(round?.tournament_matches||[]).find(row=>Number(row.id)===Number(matchId));
+    if(!match){closeTournamentMatchDetails();return;}
+    const attempts=(round.tournament_answer_attempts||[]).filter(row=>Number(row.match_id)===Number(matchId));
+    qs("tournamentAnswersSubtitle").textContent=`${match.stage_title} · #${match.match_number} · ${match.player_one?.student_name||"{{ T.tournament_tbd|escapejs }}"} ${match.score_one}:${match.score_two} ${match.player_two?.student_name||"{{ T.tournament_bye|escapejs }}"}`;
+    const groups=new Map();
+    attempts.forEach(row=>{if(!groups.has(row.question_index))groups.set(row.question_index,[]);groups.get(row.question_index).push(row);});
+    const groupHtml=Array.from(groups.entries()).sort((a,b)=>a[0]-b[0]).map(([,rows])=>{
+      const first=rows[0];
+      const submissions=rows.map(row=>{
+        const kind=!row.was_current?"stale":(row.is_correct?"correct":"incorrect");
+        const label=!row.was_current?"{{ T.tournament_answer_stale|escapejs }}":(row.is_correct?"{{ T.tournament_answer_correct|escapejs }}":"{{ T.tournament_answer_incorrect|escapejs }}");
+        const winner=row.won_question?` · {{ T.tournament_question_winner|escapejs }}`:"";
+        return `<div class="tournament-submission ${kind}"><div><b>${escapeHtml(row.student_name)}</b><div class="muted">${escapeHtml(new Date(row.submitted_at).toLocaleTimeString())}</div></div><div class="tournament-submitted-text">${escapeHtml(row.answer)}</div><span class="tournament-answer-status">${escapeHtml(label+winner)}</span></div>`;
+      }).join("");
+      return `<article class="tournament-question-log"><h4>#${first.question_ordinal} · ${escapeHtml(first.question_prompt)}</h4><div class="tournament-expected"><b>{{ T.tournament_expected_answer|escapejs }}:</b> ${escapeHtml(first.correct_answer)}</div>${submissions}</article>`;
+    }).join("");
+    qs("tournamentAnswersBody").innerHTML=`<div class="tournament-answer-summary"><span class="tournament-answer-pill">{{ T.tournament_submissions|escapejs }}: ${attempts.length}</span><span class="tournament-answer-pill">{{ T.tournament_correct_count|escapejs }}: ${attempts.filter(row=>row.won_question).length}</span></div>${groupHtml||`<div class="muted" style="padding:24px 0;text-align:center;">{{ T.tournament_no_answers|escapejs }}</div>`}`;
+  }
+
+  function openTournamentMatchDetails(matchId){
+    selectedTournamentMatchId=matchId;
+    renderTournamentMatchDetails(matchId);
+    const modal=qs("tournamentAnswersModal");
+    modal.classList.add("open");
+    modal.setAttribute("aria-hidden","false");
+    qs("tournamentAnswersClose").focus();
+  }
+
+  function closeTournamentMatchDetails(){
+    selectedTournamentMatchId=null;
+    const modal=qs("tournamentAnswersModal");
+    modal.classList.remove("open");
+    modal.setAttribute("aria-hidden","true");
   }
 
   function drawTournamentConnectors(gridId){
@@ -1510,6 +1592,15 @@ Replace example content with the requested educational material while preserving
   qs("gameFinishBtn").addEventListener("click", finishGameRound);
   qs("gamePenaltyBtn").addEventListener("click", penalizeGameRound);
   qs("gameRemovePenaltyBtn").addEventListener("click", removeGameRoundPenalty);
+  qs("tournamentAnswersClose").addEventListener("click", closeTournamentMatchDetails);
+  qs("tournamentAnswersModal").addEventListener("click", event => {
+    if (event.target === qs("tournamentAnswersModal")) closeTournamentMatchDetails();
+  });
+  document.addEventListener("keydown", event => {
+    if (event.key === "Escape" && qs("tournamentAnswersModal").classList.contains("open")) {
+      closeTournamentMatchDetails();
+    }
+  });
 
   syncQuestionTypeFields();
   syncCreateTypeFields();

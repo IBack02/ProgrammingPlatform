@@ -178,6 +178,11 @@ path(
     # Exams
     path("teacher/exams/", exam_views.teacher_exams_page, name="teacher_exams_page"),
     path(
+        "teacher/exams/<int:exam_id>/analytics/",
+        exam_views.teacher_exam_analytics_page,
+        name="teacher_exam_analytics_page",
+    ),
+    path(
         "teacher/exams/attempts/<int:attempt_id>/grade/",
         exam_views.teacher_exam_attempt_grade_page,
         name="teacher_exam_attempt_grade_page",

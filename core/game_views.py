@@ -26,6 +26,7 @@ from .models import (
     StudentClassMembership,
     TheoryMaterialModule,
     TheoryQuizModule,
+    TournamentAnswerAttempt,
     TournamentMatch,
     TournamentQuestion,
     TournamentStage,
@@ -317,6 +318,44 @@ def _tournament_round_data(round_obj):
     }
 
 
+def _tournament_answer_attempt_rows(round_obj):
+    snapshot = round_obj.prompt_snapshot or []
+    attempts = (
+        TournamentAnswerAttempt.objects.filter(match__round=round_obj)
+        .select_related("match", "participant__student")
+        .order_by("submitted_at", "id")
+    )
+    rows = []
+    for attempt in attempts:
+        stage_index = attempt.match.stage_number - 1
+        stage = snapshot[stage_index] if 0 <= stage_index < len(snapshot) else {}
+        questions = stage.get("questions", [])
+        question = (
+            questions[attempt.question_index]
+            if 0 <= attempt.question_index < len(questions)
+            else {}
+        )
+        rows.append({
+            "id": attempt.id,
+            "match_id": attempt.match_id,
+            "stage_number": attempt.match.stage_number,
+            "stage_title": stage.get("title") or f"Round {attempt.match.stage_number}",
+            "question_index": attempt.question_index,
+            "question_ordinal": question.get("ordinal", attempt.question_index + 1),
+            "question_prompt": question.get("prompt", ""),
+            "correct_answer": question.get("answer", ""),
+            "participant_id": attempt.participant_id,
+            "student_id": attempt.participant.student_id,
+            "student_name": attempt.participant.student.full_name,
+            "answer": attempt.answer,
+            "is_correct": attempt.is_correct,
+            "was_current": attempt.was_current,
+            "won_question": attempt.won_question,
+            "submitted_at": attempt.submitted_at.isoformat(),
+        })
+    return rows
+
+
 def _participant_row(participant):
     return {
         "id": participant.id,
@@ -442,6 +481,13 @@ def _round_row(round_obj, include_participants=True):
         data.update(_wonder_round_data(round_obj))
     elif round_obj.module.rubric == GameModule.Rubric.TOURNAMENT:
         data.update(_tournament_round_data(round_obj))
+    return data
+
+
+def _teacher_round_row(round_obj, include_participants=True):
+    data = _round_row(round_obj, include_participants=include_participants)
+    if round_obj.module.rubric == GameModule.Rubric.TOURNAMENT:
+        data["tournament_answer_attempts"] = _tournament_answer_attempt_rows(round_obj)
     return data
 
 
@@ -966,7 +1012,7 @@ def teacher_game_open_round_api(request: HttpRequest, module_id: int):
         if existing:
             if existing.status == GameRound.Status.RUNNING:
                 return _api_error("this class already has a running round", 409)
-            return JsonResponse({"ok": True, "round": _round_row(existing)})
+            return JsonResponse({"ok": True, "round": _teacher_round_row(existing)})
         run_number = (
             module.rounds.filter(class_group=class_group).aggregate(value=Max("run_number"))["value"] or 0
         ) + 1
@@ -976,7 +1022,7 @@ def teacher_game_open_round_api(request: HttpRequest, module_id: int):
             moderator=teacher,
             run_number=run_number,
         )
-    return JsonResponse({"ok": True, "round": _round_row(round_obj)}, status=201)
+    return JsonResponse({"ok": True, "round": _teacher_round_row(round_obj)}, status=201)
 
 
 def _create_tournament_matches(round_obj, stage_number, participants):
@@ -1119,7 +1165,7 @@ def teacher_game_start_round_api(request: HttpRequest, round_id: int):
         if round_obj.module.rubric == GameModule.Rubric.TOURNAMENT:
             _create_tournament_matches(round_obj, 1, participants)
             _advance_tournament(round_obj)
-    return JsonResponse({"ok": True, "round": _round_row(round_obj)})
+    return JsonResponse({"ok": True, "round": _teacher_round_row(round_obj)})
 
 
 @_json_errors
@@ -1131,20 +1177,20 @@ def teacher_game_finish_round_api(request: HttpRequest, round_id: int):
     with transaction.atomic():
         round_obj = _owned_round(teacher, round_id, lock=True)
         if round_obj.status == GameRound.Status.FINISHED:
-            return JsonResponse({"ok": True, "round": _round_row(round_obj)})
+            return JsonResponse({"ok": True, "round": _teacher_round_row(round_obj)})
         if round_obj.module.rubric == GameModule.Rubric.WONDER_FIELD:
             _finish_wonder_round(
                 round_obj,
                 GameRound.Outcome.STOPPED,
                 GameRoundEvent.EventType.GAME_STOPPED,
             )
-            return JsonResponse({"ok": True, "round": _round_row(round_obj)})
+            return JsonResponse({"ok": True, "round": _teacher_round_row(round_obj)})
         if round_obj.module.rubric == GameModule.Rubric.TOURNAMENT:
             round_obj.status = GameRound.Status.FINISHED
             round_obj.outcome = GameRound.Outcome.STOPPED
             round_obj.finished_at = timezone.now()
             round_obj.save(update_fields=["status", "outcome", "finished_at"])
-            return JsonResponse({"ok": True, "round": _round_row(round_obj)})
+            return JsonResponse({"ok": True, "round": _teacher_round_row(round_obj)})
         next_place = (
             round_obj.participants.filter(finish_place__isnull=False)
             .aggregate(value=Max("finish_place"))["value"] or 0
@@ -1164,7 +1210,7 @@ def teacher_game_finish_round_api(request: HttpRequest, round_id: int):
         round_obj.status = GameRound.Status.FINISHED
         round_obj.finished_at = finished_at
         round_obj.save(update_fields=["status", "finished_at"])
-    return JsonResponse({"ok": True, "round": _round_row(round_obj)})
+    return JsonResponse({"ok": True, "round": _teacher_round_row(round_obj)})
 
 
 @_json_errors
@@ -1176,7 +1222,7 @@ def teacher_game_round_state_api(request: HttpRequest, round_id: int):
     round_obj = _owned_round(teacher, round_id)
     if round_obj.module.rubric == GameModule.Rubric.WONDER_FIELD:
         round_obj = _refresh_wonder_round(round_obj.id)
-    return JsonResponse({"ok": True, "round": _round_row(round_obj)})
+    return JsonResponse({"ok": True, "round": _teacher_round_row(round_obj)})
 
 
 @_json_errors
@@ -1207,7 +1253,7 @@ def teacher_game_round_penalty_api(request: HttpRequest, round_id: int):
             )
         else:
             round_obj.save(update_fields=["strikes"])
-    return JsonResponse({"ok": True, "round": _round_row(round_obj)})
+    return JsonResponse({"ok": True, "round": _teacher_round_row(round_obj)})
 
 
 @_json_errors
@@ -1224,7 +1270,7 @@ def teacher_game_round_remove_penalty_api(request: HttpRequest, round_id: int):
         if round_obj.status != GameRound.Status.RUNNING:
             return _api_error("the game is not running", 409)
         if round_obj.strikes == 0:
-            return JsonResponse({"ok": True, "round": _round_row(round_obj)})
+            return JsonResponse({"ok": True, "round": _teacher_round_row(round_obj)})
         round_obj.strikes -= 1
         round_obj.save(update_fields=["strikes"])
         GameRoundEvent.objects.create(
@@ -1232,7 +1278,7 @@ def teacher_game_round_remove_penalty_api(request: HttpRequest, round_id: int):
             event_type=GameRoundEvent.EventType.PENALTY_REMOVED,
             question_index=round_obj.current_question_index,
         )
-    return JsonResponse({"ok": True, "round": _round_row(round_obj)})
+    return JsonResponse({"ok": True, "round": _teacher_round_row(round_obj)})
 
 
 @_json_errors
@@ -1440,19 +1486,38 @@ def student_tournament_answer_api(request: HttpRequest, round_id: int):
             return _api_error("this tournament match is not running", 409)
         if participant.id not in {match.player_one_id, match.player_two_id}:
             return _api_error("student is not assigned to this match", 403)
-        if question_index != match.current_question_index:
-            return JsonResponse({"ok": True, "correct": False, "stale": True, "round": _student_round_state(round_obj, student)})
         stage = round_obj.prompt_snapshot[match.stage_number - 1]
         questions = stage.get("questions", [])
-        if question_index >= len(questions):
+        if question_index < 0 or question_index >= len(questions):
             return _api_error("tournament question is unavailable", 409)
+        is_current = question_index == match.current_question_index
+        is_correct = _normalize_answer(answer) == _normalize_answer(
+            questions[question_index]["answer"]
+        )
+        answer_attempt = TournamentAnswerAttempt.objects.create(
+            match=match,
+            participant=participant,
+            question_index=question_index,
+            answer=answer,
+            is_correct=is_correct,
+            was_current=is_current,
+        )
+        if not is_current:
+            return JsonResponse({
+                "ok": True,
+                "correct": False,
+                "stale": True,
+                "round": _student_round_state(round_obj, student),
+            })
         resolved_at = timezone.now()
         participant.last_answer_at = resolved_at
-        if _normalize_answer(answer) != _normalize_answer(questions[question_index]["answer"]):
+        if not is_correct:
             participant.wrong_answers += 1
             participant.save(update_fields=["wrong_answers", "last_answer_at"])
             return JsonResponse({"ok": True, "correct": False, "round": _student_round_state(round_obj, student)})
 
+        answer_attempt.won_question = True
+        answer_attempt.save(update_fields=["won_question"])
         if participant.id == match.player_one_id:
             match.score_one += 1
         else:

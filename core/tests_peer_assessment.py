@@ -161,6 +161,61 @@ class PeerAssessmentFlowTests(TestCase):
         self.assertEqual(review.moderation_status, PeerAssessmentReview.ModerationStatus.PENDING)
         self.assertEqual(review.teacher_comment, "")
 
+    def test_exam_summary_and_student_profiles_include_peer_scores(self):
+        session, assignment = self._create_assignment()
+        answer = ExamAnswer.objects.get(attempt=self.attempt, question=self.question)
+        answer.awarded_score = Decimal("4")
+        answer.teacher_feedback = "Strong answer"
+        answer.save(update_fields=["awarded_score", "teacher_feedback", "updated_at"])
+        review = PeerAssessmentReview.objects.create(
+            assignment=assignment,
+            question=self.question,
+            score=Decimal("3"),
+            comment="Clear but incomplete",
+            moderation_status=PeerAssessmentReview.ModerationStatus.OBJECTIVE,
+            teacher_comment="Fair score",
+        )
+
+        summary = self.teacher_client.get(f"/teacher/exams/{self.exam.id}/analytics/")
+        self.assertEqual(summary.status_code, 200)
+        self.assertContains(summary, self.author.full_name)
+        self.assertContains(summary, "80.0%")
+        self.assertContains(summary, "60.0%")
+        self.assertContains(summary, f"/teacher/exams/attempts/{self.attempt.id}/grade/")
+        self.assertContains(
+            summary,
+            f"/teacher/assessment/{session.id}/results/{self.attempt.id}/",
+        )
+
+        author_profile = self.teacher_client.get(
+            f"/teacher/students/{self.author.id}/analytics/?mode=exam"
+        )
+        self.assertEqual(author_profile.status_code, 200)
+        self.assertContains(author_profile, self.reviewer.full_name)
+        self.assertContains(author_profile, review.comment)
+        self.assertContains(author_profile, review.teacher_comment)
+
+        reviewer_profile = self.teacher_client.get(
+            f"/teacher/students/{self.reviewer.id}/analytics/?mode=exam"
+        )
+        self.assertEqual(reviewer_profile.status_code, 200)
+        self.assertContains(reviewer_profile, self.author.full_name)
+        self.assertContains(reviewer_profile, review.comment)
+
+        dashboard = self.teacher_client.get("/teacher/")
+        self.assertEqual(dashboard.status_code, 200)
+        self.assertIn(
+            f'"exam_ids": [{self.exam.id}]',
+            dashboard.content.decode("utf-8"),
+        )
+
+        other_teacher = Teacher.objects.create(full_name="Analytics Outsider", pin_hash="!", is_active=True)
+        other_client = self._teacher_client(other_teacher)
+        self.assertEqual(
+            other_client.get(f"/teacher/exams/{self.exam.id}/analytics/").status_code,
+            404,
+        )
+
     def test_manual_assignment_rejects_self_and_unowned_data(self):
         session = PeerAssessmentSession.objects.create(
             owner=self.teacher,

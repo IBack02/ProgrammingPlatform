@@ -622,6 +622,32 @@ class TournamentMatch(models.Model):
         indexes = [models.Index(fields=["round", "status"], name="tournament_match_status_idx")]
 
 
+class TournamentAnswerAttempt(models.Model):
+    match = models.ForeignKey(
+        TournamentMatch,
+        on_delete=models.CASCADE,
+        related_name="answer_attempts",
+    )
+    participant = models.ForeignKey(
+        GameParticipant,
+        on_delete=models.CASCADE,
+        related_name="tournament_answer_attempts",
+    )
+    question_index = models.PositiveSmallIntegerField()
+    answer = models.CharField(max_length=300)
+    is_correct = models.BooleanField(default=False)
+    was_current = models.BooleanField(default=True)
+    won_question = models.BooleanField(default=False)
+    submitted_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["submitted_at", "id"]
+        indexes = [
+            models.Index(fields=["match", "question_index"], name="tour_answer_match_q_idx"),
+            models.Index(fields=["participant", "submitted_at"], name="tour_answer_player_idx"),
+        ]
+
+
 class GameRoundEvent(models.Model):
     class EventType(models.TextChoices):
         CORRECT = "correct", "Correct letter"

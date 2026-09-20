@@ -67,7 +67,32 @@
   .chart-switch button.active{background:#0f172a;color:#fff;box-shadow:0 4px 12px rgba(15,23,42,.2)}
   .chart-frame{height:clamp(340px,48vh,520px);margin-top:14px}
   .chart-empty{display:none;height:100%;place-items:center;border:1px dashed #cbd5e1;border-radius:12px;color:#64748b;text-align:center;padding:20px;box-sizing:border-box}
-  @media(max-width:600px){.chart-switch{width:100%}.chart-switch button{flex:1}.chart-frame{height:390px}}
+  .profile-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:12px}
+  .profile-kpi{background:linear-gradient(155deg,#fff,#f6f9fc);border:1px solid #dbe4ee;border-radius:14px;padding:13px}
+  .profile-kpi-label{font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:#64748b;font-weight:850}
+  .profile-kpi-value{font-size:23px;font-weight:950;margin-top:6px}
+  .profile-section{margin-top:12px}
+  .profile-section-head{display:flex;justify-content:space-between;gap:10px;align-items:end;flex-wrap:wrap;margin-bottom:10px}
+  .profile-section-title{font-size:19px;font-weight:900}
+  .profile-table-wrap{overflow:auto;border:1px solid #dbe4ee;border-radius:13px}
+  .profile-table{width:100%;min-width:820px;border-collapse:collapse;background:#fff}
+  .profile-table th{padding:10px;background:#f1f5f9;color:#475569;text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.04em}
+  .profile-table td{padding:11px;border-top:1px solid #e2e8f0;vertical-align:top}
+  .score-chip{display:inline-flex;padding:5px 8px;border-radius:999px;background:#e0f2fe;color:#075985;font-weight:900;font-size:12px}
+  .score-chip.peer{background:#fef3c7;color:#854d0e}
+  .peer-review-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+  .peer-review-card{border:1px solid #dbe4ee;border-radius:13px;background:#fff;padding:12px}
+  .peer-review-head{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
+  .peer-review-comment{margin-top:8px;padding:9px;border-radius:9px;background:#f8fafc;white-space:pre-wrap;color:#334155}
+  .peer-review-meta{margin-top:5px;color:#64748b;font-size:12px}
+  .moderation{display:inline-flex;padding:3px 7px;border-radius:999px;background:#e2e8f0;font-size:11px;font-weight:850}
+  .moderation.objective{background:#dcfce7;color:#166534}.moderation.incorrect,.moderation.insufficient{background:#fef3c7;color:#854d0e}
+  .profile-empty{padding:18px;border:1px dashed #cbd5e1;border-radius:12px;color:#64748b;text-align:center}
+  html[data-theme="dark"] .profile-kpi,html[data-theme="dark"] .peer-review-card,html[data-theme="dark"] .profile-table,html[data-theme="dark"] .profile-table td{background:#12171d;color:#edf1f3;border-color:#46525e}
+  html[data-theme="dark"] .profile-table th{background:#1d252e;color:#a8b0b7}
+  html[data-theme="dark"] .peer-review-comment{background:#1d252e;color:#edf1f3}
+  @media(max-width:900px){.profile-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.peer-review-grid{grid-template-columns:1fr}}
+  @media(max-width:600px){.chart-switch{width:100%}.chart-switch button{flex:1}.chart-frame{height:390px}.profile-kpis{grid-template-columns:1fr 1fr}}
 </style>
 
 <div class="profile-top">
@@ -76,7 +101,7 @@
 
 <div class="profile-card" style="margin-bottom:12px;">
   <div class="row">
-    <div class="avatar">👤</div>
+    <div class="avatar">{{ student.full_name|slice:":1"|upper }}</div>
     <div>
       <div class="title-lg">{{ student.full_name }}</div>
       <div class="small">{{ T.class_label }}: {{ student.class_group.name }}</div>
@@ -84,6 +109,17 @@
     </div>
   </div>
 </div>
+
+<section class="profile-kpis">
+  <div class="profile-kpi"><div class="profile-kpi-label">{{ T.sessions }}</div><div class="profile-kpi-value">{{ profile_stats.session_count }}</div></div>
+  <div class="profile-kpi"><div class="profile-kpi-label">{{ T.tasks_solved }}</div><div class="profile-kpi-value">{{ profile_stats.solved_tasks }} / {{ profile_stats.total_tasks }}</div></div>
+  <div class="profile-kpi"><div class="profile-kpi-label">{{ T.successful_answers_percent }}</div><div class="profile-kpi-value">{% if profile_stats.programming_success_percent != None %}{{ profile_stats.programming_success_percent }}%{% else %}—{% endif %}</div></div>
+  <div class="profile-kpi"><div class="profile-kpi-label">{{ T.exams }}</div><div class="profile-kpi-value">{{ profile_stats.exam_count }}</div></div>
+  <div class="profile-kpi"><div class="profile-kpi-label">{{ T.average_teacher_score }}</div><div class="profile-kpi-value">{% if profile_stats.average_teacher_percent != None %}{{ profile_stats.average_teacher_percent }}%{% else %}—{% endif %}</div></div>
+  <div class="profile-kpi"><div class="profile-kpi-label">{{ T.average_peer_score }}</div><div class="profile-kpi-value">{% if profile_stats.average_peer_percent != None %}{{ profile_stats.average_peer_percent }}%{% else %}—{% endif %}</div></div>
+  <div class="profile-kpi"><div class="profile-kpi-label">{{ T.peer_scores_received }}</div><div class="profile-kpi-value">{{ profile_stats.received_peer_reviews }}</div></div>
+  <div class="profile-kpi"><div class="profile-kpi-label">{{ T.peer_scores_given }}</div><div class="profile-kpi-value">{{ profile_stats.given_peer_reviews }}</div></div>
+</section>
 
 <div class="chart-card">
   <div class="chart-head">
@@ -101,6 +137,62 @@
     <div id="profileChartEmpty" class="chart-empty"></div>
   </div>
 </div>
+
+<section class="profile-card profile-section">
+  <div class="profile-section-head"><div><div class="profile-section-title">{{ T.exam_history }}</div><div class="small">{{ T.exam_history_help }}</div></div></div>
+  {% if exam_history %}
+    <div class="profile-table-wrap">
+      <table class="profile-table">
+        <thead><tr><th>{{ T.exam }}</th><th>{{ T.exam_teacher_score }}</th><th>{{ T.exam_peer_score }}</th><th>{{ T.grading_progress }}</th><th>{{ T.submitted_at }}</th><th>{{ T.actions }}</th></tr></thead>
+        <tbody>
+          {% for row in exam_history %}
+            <tr>
+              <td><b>{{ row.label }}</b><div class="small">#{{ row.attempt_id }} · {% if row.status == 'submitted' %}{{ T.attempt_submitted }}{% elif row.status == 'expired' %}{{ T.attempt_expired }}{% else %}{{ T.in_progress }}{% endif %}</div></td>
+              <td>{% if row.teacher_score != None %}<span class="score-chip">{{ row.teacher_score }} / {{ row.maximum }} · {{ row.teacher_percent }}%</span>{% else %}<span class="small">{{ T.exam_not_graded }}</span>{% endif %}</td>
+              <td>{% if row.peer_score != None %}<span class="score-chip peer">{{ row.peer_score }} / {{ row.maximum }} · {{ row.peer_percent }}%</span><div class="small">{{ T.peer_reviewers }}: {{ row.completed_peer_reviews }}</div>{% else %}<span class="small">{{ T.exam_no_peer_grade }}</span>{% endif %}</td>
+              <td>{{ row.graded_answer_count }} / {{ row.question_count }}</td>
+              <td class="small">{% if row.submitted_at_value %}{{ row.submitted_at_value|date:"d.m.Y H:i" }}{% else %}—{% endif %}</td>
+              <td>{% if profile_is_teacher %}<a class="btn" href="/teacher/exams/attempts/{{ row.attempt_id }}/grade/">{{ T.open_work }}</a>{% for peer in row.peer_result_links %}<a class="btn" href="/teacher/assessment/{{ peer.session_id }}/results/{{ row.attempt_id }}/">{{ T.peer_result_detail }}</a>{% endfor %}{% else %}—{% endif %}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}<div class="profile-empty">{{ T.no_exam_attempts }}</div>{% endif %}
+</section>
+
+<section class="profile-card profile-section">
+  <div class="profile-section-head"><div><div class="profile-section-title">{{ T.peer_scores_received }}</div><div class="small">{{ T.peer_scores_received_help }}</div></div><span class="score-chip peer">{{ received_peer_reviews|length }}</span></div>
+  {% if received_peer_reviews %}
+    <div class="peer-review-grid">
+      {% for review in received_peer_reviews %}
+        <article class="peer-review-card">
+          <div class="peer-review-head"><div><b>{{ review.exam_title }} · {{ T.question }} #{{ review.question_position }}</b><div class="peer-review-meta">{{ T.peer_reviewer }}: {{ review.reviewer_name }} · {{ review.session_title }}</div></div><span class="score-chip peer">{{ review.score }} / {{ review.max_score }}</span></div>
+          <div class="peer-review-meta">{{ review.question_prompt|truncatechars:150 }}</div>
+          <div class="peer-review-comment">{% if review.comment %}{{ review.comment }}{% else %}{{ T.no_comment }}{% endif %}</div>
+          <div class="peer-review-meta"><span class="moderation {{ review.moderation_status }}">{% if review.moderation_status == 'objective' %}{{ T.objective }}{% elif review.moderation_status == 'incorrect' %}{{ T.incorrect }}{% elif review.moderation_status == 'insufficient' %}{{ T.insufficient_reasoning }}{% else %}{{ T.pending }}{% endif %}</span>{% if review.teacher_comment %} · {{ T.teacher_comment }}: {{ review.teacher_comment }}{% endif %}</div>
+          {% if profile_is_teacher %}<div style="margin-top:9px;"><a class="btn" href="/teacher/assessment/{{ review.session_id }}/results/{{ review.attempt_id }}/">{{ T.open_work }}</a></div>{% endif %}
+        </article>
+      {% endfor %}
+    </div>
+  {% else %}<div class="profile-empty">{{ T.no_peer_reviews }}</div>{% endif %}
+</section>
+
+<section class="profile-card profile-section">
+  <div class="profile-section-head"><div><div class="profile-section-title">{{ T.peer_scores_given }}</div><div class="small">{{ T.peer_scores_given_help }}</div></div><span class="score-chip">{{ given_peer_reviews|length }}</span></div>
+  {% if given_peer_reviews %}
+    <div class="peer-review-grid">
+      {% for review in given_peer_reviews %}
+        <article class="peer-review-card">
+          <div class="peer-review-head"><div><b>{{ review.exam_title }} · {{ T.question }} #{{ review.question_position }}</b><div class="peer-review-meta">{{ T.work_author }}: {{ review.author_name }} · {{ review.session_title }}</div></div><span class="score-chip">{{ review.score }} / {{ review.max_score }}</span></div>
+          <div class="peer-review-meta">{{ review.question_prompt|truncatechars:150 }}</div>
+          <div class="peer-review-comment">{% if review.comment %}{{ review.comment }}{% else %}{{ T.no_comment }}{% endif %}</div>
+          <div class="peer-review-meta"><span class="moderation {{ review.moderation_status }}">{% if review.moderation_status == 'objective' %}{{ T.objective }}{% elif review.moderation_status == 'incorrect' %}{{ T.incorrect }}{% elif review.moderation_status == 'insufficient' %}{{ T.insufficient_reasoning }}{% else %}{{ T.pending }}{% endif %}</span>{% if review.teacher_comment %} · {{ T.teacher_comment }}: {{ review.teacher_comment }}{% endif %}</div>
+        </article>
+      {% endfor %}
+    </div>
+  {% else %}<div class="profile-empty">{{ T.no_peer_reviews }}</div>{% endif %}
+</section>
 
 {{ chart_json|json_script:"student-chart-data" }}
 {{ exam_chart_json|json_script:"student-exam-chart-data" }}
@@ -124,6 +216,7 @@
 
   const programmingData = JSON.parse(document.getElementById("student-chart-data").textContent);
   const examData = JSON.parse(document.getElementById("student-exam-chart-data").textContent);
+  const canOpenExamAttempts = {{ profile_is_teacher|yesno:"true,false" }};
   const shortChartLabel = value => { const text=String(value||""); return text.length>22 ? `${text.slice(0,21)}…` : text; };
   const ctx = document.getElementById("rateChart");
   let profileChart = null;
@@ -192,6 +285,14 @@
         responsive: true,
         maintainAspectRatio: false,
         interaction: {mode: "index", intersect: false},
+        onClick: (_event, elements) => {
+          if (!isExam || !canOpenExamAttempts || !elements.length) return;
+          const attemptId = data.attempt_ids?.[elements[0].index];
+          if (attemptId) window.location.href = `/teacher/exams/attempts/${attemptId}/grade/`;
+        },
+        onHover: (event, elements) => {
+          if (event.native?.target) event.native.target.style.cursor = isExam && canOpenExamAttempts && elements.length ? "pointer" : "default";
+        },
         plugins: {
           legend: {position: "top"},
           tooltip: {

@@ -266,6 +266,7 @@
 
   const chartData = JSON.parse(document.getElementById("teacher-session-chart-data").textContent);
   const examChartData = JSON.parse(document.getElementById("teacher-exam-chart-data").textContent);
+  const selectedClassId = "{{ selected_class_id|default_if_none:''|escapejs }}";
   let dashboardChart = null;
   let chartMode = "exam";
   const shortLabel = value => { const text=String(value||""); return text.length>22 ? `${text.slice(0,21)}…` : text; };
@@ -324,6 +325,14 @@
         responsive: true,
         maintainAspectRatio:false,
         interaction:{mode:"index",intersect:false},
+        onClick:(_event,elements)=>{
+          if(!isExam||!elements.length)return;
+          const examId=source.exam_ids?.[elements[0].index];
+          if(!examId)return;
+          const classQuery=selectedClassId?`?class_id=${encodeURIComponent(selectedClassId)}`:"";
+          window.location.href=`/teacher/exams/${examId}/analytics/${classQuery}`;
+        },
+        onHover:(event,elements)=>{if(event.native?.target)event.native.target.style.cursor=isExam&&elements.length?"pointer":"default";},
         plugins: {
           legend: { position: "top" },
           tooltip: { mode: "index", intersect: false,
