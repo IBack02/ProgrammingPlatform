@@ -558,6 +558,27 @@
     }
     .tournamentAnswerInput::placeholder{color:#94a3b8;font-weight:500}
     .tournamentAnswerInput:focus{border-color:#0284c7;box-shadow:0 0 0 4px rgba(14,165,233,.2),0 10px 24px rgba(14,165,233,.18)}
+    .tournamentMiniNotice{
+      display:none;
+      width:min(100%,680px);
+      box-sizing:border-box;
+      margin:0 auto 14px;
+      padding:12px 16px;
+      border:1px solid transparent;
+      border-radius:13px;
+      font-weight:900;
+      text-align:center;
+      box-shadow:0 12px 28px rgba(15,23,42,.16);
+    }
+    .tournamentMiniNotice.show{display:block;animation:tournamentNoticeIn .32s ease both}
+    .tournamentMiniNotice.won{background:#ecfdf5;border-color:#34d399;color:#065f46}
+    .tournamentMiniNotice.lost{background:#fffbeb;border-color:#fbbf24;color:#92400e}
+    html[data-theme="dark"] .tournamentMiniNotice.won{background:#123c34;border-color:#34d399;color:#d1fae5}
+    html[data-theme="dark"] .tournamentMiniNotice.lost{background:#3f3218;border-color:#fbbf24;color:#fef3c7}
+    @keyframes tournamentNoticeIn{
+      from{opacity:0;transform:translateY(-8px) scale(.98)}
+      to{opacity:1;transform:translateY(0) scale(1)}
+    }
 
     .gameArenaCard{position:relative;overflow:hidden;background:linear-gradient(160deg,rgba(255,255,255,.98),rgba(240,249,255,.96));border:1px solid #7dd3fc;min-height:calc(100vh - 64px)}
     .gameArenaCard:before{content:"";position:absolute;inset:0;pointer-events:none;background:radial-gradient(circle at 12% 10%,rgba(250,204,21,.18),transparent 28%),radial-gradient(circle at 85% 22%,rgba(14,165,233,.18),transparent 32%)}
@@ -845,6 +866,7 @@
             <div id="tournamentBoard" style="display:none;">
               <div id="tournamentBracket" style="padding:8px 0 16px;"></div>
               <div id="tournamentPlay" class="gameLobby" style="display:none;">
+                <div id="tournamentMiniNotice" class="tournamentMiniNotice" role="status" aria-live="polite"></div>
                 <div class="small muted" id="tournamentMatchScore"></div>
                 <div class="gamePromptSentence" id="tournamentPrompt" style="margin-top:12px;"></div>
                 <input id="tournamentAnswerInput" class="tournamentAnswerInput" type="text" maxlength="300" autocomplete="off" spellcheck="false" placeholder="{{ T.game_type_answer }}" aria-label="{{ T.game_answer }}">
@@ -963,6 +985,9 @@
     ,tournamentWaitingMatch: "{{ T.tournament_waiting_match|escapejs }}"
     ,tournamentEliminated: "{{ T.tournament_eliminated|escapejs }}"
     ,tournamentChampion: "{{ T.tournament_champion|escapejs }}"
+    ,tournamentMiniWon: "{{ T.tournament_mini_won|escapejs }}"
+    ,tournamentMiniLost: "{{ T.tournament_mini_lost|escapejs }}"
+    ,tournamentNextQuestion: "{{ T.tournament_next_question|escapejs }}"
     ,downloadAttachment: "{{ T.download_attachment|escapejs }}"
     ,invalidAttachment: "{{ T.invalid_attachment_url|escapejs }}"
   };
@@ -985,6 +1010,10 @@
   let gameCharRenderToken = 0;
   let selectedWonderLetter = "";
   let wonderSelectionContext = "";
+  let lastTournamentResultKey = "";
+  let tournamentNoticeRoundId = null;
+  let tournamentNoticeTimer = null;
+  let gameStateEpoch = 0;
 
   function qs(id){ return document.getElementById(id); }
 
@@ -1892,6 +1921,7 @@
 
   function renderStudentTournament(round){
     const board=qs("tournamentBoard");board.style.display="block";
+    renderTournamentQuestionResult(round);
     const stages=round.tournament_stages||[];const matches=round.tournament_matches||[];
     const firstMatchCount=Math.max(1,Number(stages[0]?.match_count||1));const bracketHeight=Math.max(360,firstMatchCount*104);
     const stageHtml=stages.map(stage=>{const stageMatches=matches.filter(match=>Number(match.stage_number)===Number(stage.number)).sort((a,b)=>Number(a.match_number)-Number(b.match_number));const slots=Array.from({length:Math.max(1,Number(stage.match_count||stageMatches.length||1))},(_,index)=>stageMatches.find(match=>Number(match.match_number)===index+1)||null);return `<section class="tournamentStage"><div class="tournamentStageTitle" title="${escapeHtml(stage.title||"")}">${escapeHtml(stage.title||`${UI.tournamentRound} ${stage.number}`)}</div><div class="tournamentStageBody" style="height:${bracketHeight}px">${slots.map((match,index)=>{if(!match)return `<div class="tournamentMatch" data-student-bracket-stage="${stage.number}" data-student-bracket-slot="${index}"><div class="tournamentPlayer tbd"><span>${escapeHtml(UI.tournamentTbd)}</span></div><div class="tournamentPlayer tbd"><span>${escapeHtml(UI.tournamentTbd)}</span></div></div>`;const oneWinner=Number(match.winner_id)===Number(match.player_one?.id);const twoWinner=Number(match.winner_id)===Number(match.player_two?.id);return `<div class="tournamentMatch" data-student-bracket-stage="${stage.number}" data-student-bracket-slot="${index}"><div class="tournamentPlayer ${oneWinner?"winner":""}"><span>${escapeHtml(match.player_one?.student_name||UI.tournamentTbd)}</span><b>${match.score_one}</b></div><div class="tournamentPlayer ${match.player_two?(twoWinner?"winner":""):"bye"}"><span>${escapeHtml(match.player_two?.student_name||UI.tournamentBye)}</span><b>${match.player_two?match.score_two:""}</b></div><div class="tournamentMatchMeta">${escapeHtml(match.status)} · ${escapeHtml(UI.tournamentWinsRequired)} ${match.wins_required}</div></div>`}).join("")}</div></section>`}).join("");
@@ -1902,11 +1932,64 @@
     if(match?.current_question&&round.can_answer_tournament){play.style.display="block";qs("tournamentMatchScore").textContent=`${match.player_one.student_name} ${match.score_one} : ${match.score_two} ${match.player_two.student_name} · ${match.wins_required}`;qs("tournamentPrompt").textContent=match.current_question.prompt;if(play.dataset.question!==`${match.id}:${match.current_question.index}`){play.dataset.question=`${match.id}:${match.current_question.index}`;qs("tournamentAnswerInput").value="";qs("tournamentFeedback").textContent="";setTimeout(()=>qs("tournamentAnswerInput").focus(),20)}}else{play.style.display="block";qs("tournamentMatchScore").textContent=round.me?.finish_place===1?UI.tournamentChampion:(round.tournament_eliminated?UI.tournamentEliminated:UI.tournamentWaitingMatch);qs("tournamentPrompt").textContent="";qs("tournamentAnswerInput").style.display="none";qs("tournamentSubmitBtn").style.display="none";}
   }
 
+  function renderTournamentQuestionResult(round){
+    const notice = qs("tournamentMiniNotice");
+    if (tournamentNoticeRoundId !== Number(round.id)){
+      tournamentNoticeRoundId = Number(round.id);
+      lastTournamentResultKey = "";
+      if (tournamentNoticeTimer) clearTimeout(tournamentNoticeTimer);
+      notice.className = "tournamentMiniNotice";
+      notice.textContent = "";
+    }
+    const result = round.tournament_question_result;
+    if (!result?.key) return;
+    const resultKey = `${round.id}:${result.key}`;
+    if (resultKey === lastTournamentResultKey) return;
+    lastTournamentResultKey = resultKey;
+    const message = result.won
+      ? UI.tournamentMiniWon
+      : UI.tournamentMiniLost.replace("{winner}", result.winner_name || "-");
+    const suffix = round.can_answer_tournament ? ` ${UI.tournamentNextQuestion}` : "";
+    notice.textContent = `${message}${suffix}`;
+    notice.className = `tournamentMiniNotice ${result.won ? "won" : "lost"} show`;
+    if (tournamentNoticeTimer) clearTimeout(tournamentNoticeTimer);
+    tournamentNoticeTimer = setTimeout(() => notice.classList.remove("show"), 3200);
+  }
+
   function drawStudentTournamentConnectors(){
     const grid=qs("studentTournamentGrid");if(!grid)return;const svg=grid.querySelector(".tournamentBracketLines");if(!svg)return;const gridRect=grid.getBoundingClientRect();svg.setAttribute("width",grid.scrollWidth);svg.setAttribute("height",grid.scrollHeight);svg.setAttribute("viewBox",`0 0 ${grid.scrollWidth} ${grid.scrollHeight}`);const stageCount=grid.querySelectorAll(".tournamentStage").length;const paths=[];for(let stageNumber=1;stageNumber<stageCount;stageNumber+=1){const sources=Array.from(grid.querySelectorAll(`[data-student-bracket-stage="${stageNumber}"]`));const targets=Array.from(grid.querySelectorAll(`[data-student-bracket-stage="${stageNumber+1}"]`));sources.forEach((source,index)=>{const target=targets[Math.floor(index/2)];if(!target)return;const from=source.getBoundingClientRect();const to=target.getBoundingClientRect();const x1=from.right-gridRect.left;const y1=from.top-gridRect.top+from.height/2;const x2=to.left-gridRect.left;const y2=to.top-gridRect.top+to.height/2;const middle=x1+(x2-x1)/2;paths.push(`<path d="M ${x1} ${y1} H ${middle} V ${y2} H ${x2}" fill="none" stroke="#60a5fa" stroke-width="2"/>`)})}svg.innerHTML=paths.join("");
   }
 
-  async function submitTournamentAnswer(){const match=(currentGameRound?.tournament_matches||[]).find(row=>Number(row.id)===Number(currentGameRound.my_tournament_match_id));if(!match?.current_question)return;const button=qs("tournamentSubmitBtn");button.disabled=true;const res=await apiPost(`/api/student/game-rounds/${currentGameRound.id}/tournament-answer/`,{match_id:match.id,question_index:match.current_question.index,answer:qs("tournamentAnswerInput").value});button.disabled=false;if(!res.data.ok){qs("tournamentFeedback").textContent=res.data.error||UI.gameIncorrect;return}qs("tournamentFeedback").textContent=res.data.correct?UI.gameCorrect:UI.gameIncorrect;renderStudentGameRound(res.data.round)}
+  async function submitTournamentAnswer(){
+    const match = (currentGameRound?.tournament_matches || []).find(
+      row => Number(row.id) === Number(currentGameRound.my_tournament_match_id)
+    );
+    const answer = qs("tournamentAnswerInput").value;
+    if (!match?.current_question || gameAnswerPending || !answer.trim()) return;
+    const roundId = currentGameRound.id;
+    const stateEpoch = ++gameStateEpoch;
+    const button = qs("tournamentSubmitBtn");
+    gameAnswerPending = true;
+    stopStudentGamePolling();
+    button.disabled = true;
+    const res = await apiPost(`/api/student/game-rounds/${roundId}/tournament-answer/`, {
+      match_id: match.id,
+      question_index: match.current_question.index,
+      answer
+    });
+    gameAnswerPending = false;
+    button.disabled = false;
+    if (stateEpoch !== gameStateEpoch || currentModuleType !== "game") return;
+    if (!res.data.ok){
+      qs("tournamentFeedback").textContent = res.data.error || UI.gameIncorrect;
+      scheduleStudentGamePoll(roundId);
+      return;
+    }
+    qs("tournamentFeedback").textContent = res.data.stale
+      ? ""
+      : (res.data.correct ? UI.gameCorrect : UI.gameIncorrect);
+    renderStudentGameRound(res.data.round);
+  }
 
   async function submitWonderLetter(){
     if (gameAnswerPending || !currentGameRound?.is_my_turn || !selectedWonderLetter || !currentGameRound.current_question) return;
@@ -1935,8 +2018,14 @@
 
   async function pollStudentGame(roundId){
     if (currentModuleType !== "game" || currentGameRound?.id !== roundId) return;
+    const stateEpoch = gameStateEpoch;
     const res = await apiGet(`/api/student/game-rounds/${roundId}/state/`);
-    if (res.data.ok && currentModuleType === "game" && currentGameRound?.id === roundId) renderStudentGameRound(res.data.round);
+    if (
+      res.data.ok &&
+      stateEpoch === gameStateEpoch &&
+      currentModuleType === "game" &&
+      currentGameRound?.id === roundId
+    ) renderStudentGameRound(res.data.round);
   }
 
   function renderStudentGameRound(round){

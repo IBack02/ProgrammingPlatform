@@ -274,6 +274,16 @@ def _tournament_match_row(match, snapshot):
             "ordinal": current.get("ordinal", match.current_question_index + 1),
             "prompt": current.get("prompt", ""),
         } if current and match.status == TournamentMatch.Status.RUNNING else None,
+        "last_question_result": {
+            "question_index": match.last_question_index,
+            "winner_id": match.last_question_winner_id,
+            "winner_name": (
+                match.last_question_winner.student.full_name
+                if match.last_question_winner_id
+                else ""
+            ),
+            "resolved_at": match.last_question_resolved_at.isoformat(),
+        } if match.last_question_index is not None and match.last_question_resolved_at else None,
     }
 
 
@@ -281,7 +291,10 @@ def _tournament_round_data(round_obj):
     snapshot = round_obj.prompt_snapshot or []
     matches = list(
         round_obj.tournament_matches.select_related(
-            "player_one__student", "player_two__student", "winner__student"
+            "player_one__student",
+            "player_two__student",
+            "winner__student",
+            "last_question_winner__student",
         )
     )
     entrants = round_obj.participants.count()
@@ -519,6 +532,33 @@ def _student_round_state(round_obj, student):
             Q(player_one=participant) | Q(player_two=participant),
             status=TournamentMatch.Status.FINISHED,
         ).exclude(winner=participant).exists()
+        last_resolved_match = (
+            round_obj.tournament_matches.filter(
+                Q(player_one=participant) | Q(player_two=participant),
+                last_question_index__isnull=False,
+                last_question_resolved_at__isnull=False,
+            )
+            .select_related("last_question_winner__student")
+            .order_by("-last_question_resolved_at", "-id")
+            .first()
+        )
+        if last_resolved_match:
+            data["tournament_question_result"] = {
+                "key": (
+                    f"{last_resolved_match.id}:"
+                    f"{last_resolved_match.last_question_index}:"
+                    f"{last_resolved_match.last_question_resolved_at.isoformat()}"
+                ),
+                "match_id": last_resolved_match.id,
+                "question_index": last_resolved_match.last_question_index,
+                "won": last_resolved_match.last_question_winner_id == participant.id,
+                "winner_name": (
+                    last_resolved_match.last_question_winner.student.full_name
+                    if last_resolved_match.last_question_winner_id
+                    else ""
+                ),
+                "resolved_at": last_resolved_match.last_question_resolved_at.isoformat(),
+            }
     if (
         participant
         and round_obj.module.rubric == GameModule.Rubric.MIND_RACE
@@ -1406,7 +1446,8 @@ def student_tournament_answer_api(request: HttpRequest, round_id: int):
         questions = stage.get("questions", [])
         if question_index >= len(questions):
             return _api_error("tournament question is unavailable", 409)
-        participant.last_answer_at = timezone.now()
+        resolved_at = timezone.now()
+        participant.last_answer_at = resolved_at
         if _normalize_answer(answer) != _normalize_answer(questions[question_index]["answer"]):
             participant.wrong_answers += 1
             participant.save(update_fields=["wrong_answers", "last_answer_at"])
@@ -1417,15 +1458,18 @@ def student_tournament_answer_api(request: HttpRequest, round_id: int):
         else:
             match.score_two += 1
         participant.correct_answers += 1
-        participant.last_answer_at = timezone.now()
+        participant.last_answer_at = resolved_at
         participant.progress = max(participant.progress, match.stage_number)
         participant.save(update_fields=["correct_answers", "last_answer_at", "progress"])
+        match.last_question_index = question_index
+        match.last_question_winner = participant
+        match.last_question_resolved_at = resolved_at
         wins_required = (int(stage["question_count"]) // 2) + 1
         won = match.score_one >= wins_required or match.score_two >= wins_required
         if won:
             match.winner = participant
             match.status = TournamentMatch.Status.FINISHED
-            match.finished_at = timezone.now()
+            match.finished_at = resolved_at
         else:
             match.current_question_index += 1
         match.save()

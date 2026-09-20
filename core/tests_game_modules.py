@@ -643,6 +643,101 @@ class MindRaceGameTests(TestCase):
         self.assertEqual(response.json()["round"]["status"], GameRound.Status.FINISHED)
         self.assertEqual(response.json()["round"]["me"]["finish_place"], 1)
 
+    def test_tournament_correct_answer_advances_both_players_to_next_question(self):
+        created = self._json(
+            self.teacher_client,
+            "post",
+            f"/api/teacher/sessions/{self.session.id}/game-modules/",
+            {"title": "Synchronized cup", "position": 1, "rubric": "tournament"},
+        )
+        self.assertEqual(created.status_code, 201)
+        module_id = created.json()["module"]["id"]
+        stage_response = self._json(
+            self.teacher_client,
+            "post",
+            f"/api/teacher/game-modules/{module_id}/tournament-stages/",
+            {"ordinal": 1, "title": "Final", "question_count": 3},
+        )
+        self.assertEqual(stage_response.status_code, 201)
+        stage_id = stage_response.json()["stage"]["id"]
+        for ordinal in (1, 2, 3):
+            question = self._json(
+                self.teacher_client,
+                "post",
+                f"/api/teacher/tournament-stages/{stage_id}/questions/",
+                {"ordinal": ordinal, "prompt": f"Question {ordinal}", "answer": f"Answer {ordinal}"},
+            )
+            self.assertEqual(question.status_code, 201)
+
+        round_row = self._open_round(module_id, self.class_a)
+        clients = {
+            self.student_a.id: self.client_a,
+            self.student_a2.id: self.client_a2,
+        }
+        for client in clients.values():
+            ready = self._json(client, "post", f"/api/student/game-module/{module_id}/ready/")
+            self.assertEqual(ready.status_code, 200)
+        started = self._json(
+            self.teacher_client,
+            "post",
+            f"/api/teacher/game-rounds/{round_row['id']}/start/",
+        )
+        self.assertEqual(started.status_code, 200)
+        active_match = next(
+            row
+            for row in started.json()["round"]["tournament_matches"]
+            if row["status"] == TournamentMatch.Status.RUNNING
+        )
+        winner_student_id = active_match["player_one"]["student_id"]
+        loser_student_id = active_match["player_two"]["student_id"]
+
+        won_question = self._json(
+            clients[winner_student_id],
+            "post",
+            f"/api/student/game-rounds/{round_row['id']}/tournament-answer/",
+            {"match_id": active_match["id"], "question_index": 0, "answer": "Answer 1"},
+        )
+        self.assertEqual(won_question.status_code, 200)
+        self.assertTrue(won_question.json()["correct"])
+        winner_state = won_question.json()["round"]
+        winner_match = next(
+            row for row in winner_state["tournament_matches"] if row["id"] == active_match["id"]
+        )
+        self.assertEqual(winner_match["current_question"]["index"], 1)
+        self.assertTrue(winner_state["tournament_question_result"]["won"])
+
+        opponent_state = clients[loser_student_id].get(
+            f"/api/student/game-rounds/{round_row['id']}/state/"
+        )
+        self.assertEqual(opponent_state.status_code, 200)
+        opponent_round = opponent_state.json()["round"]
+        opponent_match = next(
+            row for row in opponent_round["tournament_matches"] if row["id"] == active_match["id"]
+        )
+        self.assertEqual(opponent_match["current_question"]["index"], 1)
+        self.assertEqual(opponent_match["current_question"]["prompt"], "Question 2")
+        self.assertFalse(opponent_round["tournament_question_result"]["won"])
+        self.assertEqual(
+            opponent_round["tournament_question_result"]["winner_name"],
+            active_match["player_one"]["student_name"],
+        )
+
+        stale_answer = self._json(
+            clients[loser_student_id],
+            "post",
+            f"/api/student/game-rounds/{round_row['id']}/tournament-answer/",
+            {"match_id": active_match["id"], "question_index": 0, "answer": "Answer 1"},
+        )
+        self.assertEqual(stale_answer.status_code, 200)
+        self.assertTrue(stale_answer.json()["stale"])
+        stale_match = next(
+            row
+            for row in stale_answer.json()["round"]["tournament_matches"]
+            if row["id"] == active_match["id"]
+        )
+        self.assertEqual(stale_match["current_question"]["index"], 1)
+        self.assertEqual(stale_match["score_one"] + stale_match["score_two"], 1)
+
     def test_tournament_with_five_players_creates_only_one_first_round_bye(self):
         extra_students = [
             Student.objects.create(

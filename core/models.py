@@ -598,6 +598,15 @@ class TournamentMatch(models.Model):
     score_one = models.PositiveSmallIntegerField(default=0)
     score_two = models.PositiveSmallIntegerField(default=0)
     current_question_index = models.PositiveSmallIntegerField(default=0)
+    last_question_index = models.PositiveSmallIntegerField(null=True, blank=True)
+    last_question_winner = models.ForeignKey(
+        GameParticipant,
+        on_delete=models.SET_NULL,
+        related_name="tournament_question_wins",
+        null=True,
+        blank=True,
+    )
+    last_question_resolved_at = models.DateTimeField(null=True, blank=True)
     status = models.CharField(max_length=12, choices=Status.choices, default=Status.PENDING)
     started_at = models.DateTimeField(null=True, blank=True)
     finished_at = models.DateTimeField(null=True, blank=True)
