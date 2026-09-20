@@ -116,6 +116,7 @@
 <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
   <div class="card">
     <div style="font-weight:900;margin-bottom:8px;">{{ T.sessions_list }}</div>
+    <input id="sessionSearch" class="input-ui" type="search" placeholder="{{ T.search_sessions }}" style="width:100%;margin-bottom:8px;">
     <div id="sessionList"></div>
     <div style="font-weight:900;margin:16px 0 8px;">{{ T.shared_sessions_list|default:"Shared sessions" }}</div>
     <div id="publicSessionList"></div>
@@ -303,8 +304,7 @@
     }
     sessionsCache = res.data.sessions || [];
     publicSessionsCache = res.data.public_sessions || [];
-    renderSessionList(sessionsCache);
-    renderPublicSessionList(publicSessionsCache);
+    applySessionSearch();
 
     if (keepSelection && oldSelected && sessionsCache.some(x => x.id === oldSelected)){
       await selectSession(oldSelected, false);
@@ -339,6 +339,19 @@
       btn.onclick = () => selectSession(s.id);
       root.appendChild(btn);
     });
+  }
+
+  function normalizedSearch(value){
+    return String(value || "").trim().toLocaleLowerCase();
+  }
+
+  function applySessionSearch(){
+    const query = normalizedSearch(document.getElementById("sessionSearch").value);
+    const matches = row => !query || normalizedSearch(
+      `${row.title || ""} ${row.description || ""} ${row.author_name || ""}`
+    ).includes(query);
+    renderSessionList(sessionsCache.filter(matches));
+    renderPublicSessionList(publicSessionsCache.filter(matches));
   }
 
   function renderPublicSessionList(items){
@@ -401,7 +414,7 @@
 
   async function selectSession(id, showMessage=false){
     selectedId = id;
-    renderSessionList(sessionsCache);
+    applySessionSearch();
 
     const s = sessionsCache.find(x => x.id === id);
     if (!s) return;
@@ -449,6 +462,8 @@
     setMsg(UI.sessionCreated, "ok");
     await loadSessions(false);
   });
+
+  document.getElementById("sessionSearch").addEventListener("input", applySessionSearch);
 
   document.getElementById("saveBtn").addEventListener("click", async () => {
     if (!selectedId){

@@ -23,6 +23,7 @@
   .btn.primary{background:#0284c7;color:#fff;border-color:#0284c7}.btn.danger{color:#b91c1c;border-color:#fecaca}.btn.success{background:#16a34a;color:#fff;border-color:#16a34a}
   .json-area{min-height:220px;font-family:Consolas,"Courier New",monospace;font-size:12px}
   .attempt{border:1px solid #e2e8f0;border-radius:10px;padding:9px;cursor:pointer;background:#fff}.attempt:hover{border-color:#7dd3fc}
+  .shared-exam{border:1px solid #dbe2ea;border-radius:12px;background:#f8fafc;padding:10px}.shared-exam+.shared-exam{margin-top:7px}
   .answer-review{border:1px solid #e2e8f0;border-radius:12px;padding:11px;margin-top:9px}.answer-body{white-space:pre-wrap;background:#f8fafc;border-radius:8px;padding:9px;margin:8px 0}
   .table-builder-wrap,.review-table-wrap{overflow:auto;border:1px solid #e2e8f0;border-radius:12px;margin-top:9px}.table-builder,.review-table{border-collapse:collapse;width:100%;min-width:560px}.table-builder th,.table-builder td,.review-table th,.review-table td{border:1px solid #dbe2ea;padding:7px;vertical-align:top}.table-builder th{background:#f1f5f9}.table-cell{display:grid;gap:5px;min-width:145px}.table-cell .select,.table-cell .input{padding:7px}.table-tools{display:flex;gap:7px;flex-wrap:wrap;margin:8px 0}.review-table .given{background:#f1f5f9}.review-table .correct{background:#dcfce7}.review-table .incorrect{background:#fee2e2}.integrity-badge{display:inline-flex;background:#fee2e2;color:#991b1b;border-radius:999px;padding:2px 7px;font-size:11px;font-weight:900}.integrity-panel{border:1px solid #fecaca;background:#fff7f7;border-radius:12px;padding:11px;margin-top:12px}.integrity-event{display:flex;justify-content:space-between;gap:10px;border-top:1px solid #fecaca;padding:7px 0;font-size:12px}.integrity-event:first-child{border-top:0}.integrity-empty{color:#64748b;font-size:12px}
   @media(max-width:850px){.exam-shell{grid-template-columns:1fr}.exam-list{max-height:280px}.pair-row{grid-template-columns:1fr 24px 1fr 36px}}
@@ -37,7 +38,10 @@
     </div>
     <div class="card">
       <div style="font-weight:900;margin-bottom:8px">{{ T.exams_list }}</div>
+      <input id="examSearch" class="input" type="search" placeholder="{{ T.search_exams }}" style="margin-bottom:8px">
       <div id="examList" class="exam-list"></div>
+      <div style="font-weight:900;margin:14px 0 8px">{{ T.shared_exams_list }}</div>
+      <div id="publicExamList"></div>
     </div>
   </aside>
 
@@ -50,6 +54,10 @@
         <label class="field" style="max-width:180px"><span>{{ T.duration_minutes }}</span><input id="examDuration" class="input" type="number" min="1" max="1440"></label>
       </div>
       <label class="field" style="margin-top:10px"><span>{{ T.instructions_label }}</span><textarea id="examInstructions" class="area"></textarea></label>
+      <label class="check" style="margin-top:10px">
+        <input id="examShared" type="checkbox">
+        <span>{{ T.shared_exam_template }}</span>
+      </label>
       <div class="section-title" style="font-size:14px;margin:12px 0 7px">{{ T.allowed_classes }}</div>
       <div id="classChecks" class="classes"></div>
       <div class="row" style="margin-top:12px">
@@ -154,8 +162,11 @@ const UI = {
   feedback: "{{ T.teacher_feedback|escapejs }}",
   promptCopied: "{{ T.prompt_copied|escapejs }}",
   jsonApplied: "{{ T.json_applied|escapejs }}",
+  copyExam: "{{ T.copy_exam|escapejs }}",
+  copyCreated: "{{ T.exam_copy_created|escapejs }}",
+  copyFailed: "{{ T.exam_copy_failed|escapejs }}",
 };
-let exams = [], classes = [], current = null, editingQuestionId = null, selectedAttemptId = null;
+let exams = [], publicExams = [], classes = [], current = null, editingQuestionId = null, selectedAttemptId = null;
 let tableDraft = {columns:[{label:""},{label:""},{label:""}],rows:[]};
 
 function cookie(name){ return document.cookie.split(";").map(v=>v.trim()).find(v=>v.startsWith(name+"="))?.slice(name.length+1) || ""; }
@@ -173,16 +184,39 @@ function typeLabel(type){return type==="matching"?UI.matching:type==="diagram"?U
 async function loadAll(){
   const [examData,classData]=await Promise.all([api("/api/teacher/exams/"),api("/api/teacher/classes/")]);
   if(!examData.ok||!classData.ok){message(examData.error||classData.error||UI.loadFailed);return;}
-  exams=examData.exams||[];classes=classData.classes||[];renderExamList();
+  exams=examData.exams||[];publicExams=examData.public_exams||[];classes=classData.classes||[];renderExamLists();
   if(current){const still=exams.find(e=>e.id===current.id);if(still)await selectExam(still.id);}
 }
-function renderExamList(){
+function normalizedSearch(value){return String(value||"").trim().toLocaleLowerCase();}
+function examMatches(exam,query){return !query||normalizedSearch(`${exam.title||""} ${exam.topic||""} ${exam.owner_name||""}`).includes(query);}
+function renderExamLists(){
+  const query=normalizedSearch(document.getElementById("examSearch").value);
+  renderExamList(exams.filter(exam=>examMatches(exam,query)));
+  renderPublicExamList(publicExams.filter(exam=>examMatches(exam,query)));
+}
+function renderExamList(items){
   const box=document.getElementById("examList");box.innerHTML="";
-  if(!exams.length){box.innerHTML=`<div class="muted">${esc(UI.noExams)}</div>`;return;}
-  exams.forEach(exam=>{
+  if(!items.length){box.innerHTML=`<div class="muted">${esc(UI.noExams)}</div>`;return;}
+  items.forEach(exam=>{
     const button=document.createElement("button");button.type="button";button.className="exam-item"+(current?.id===exam.id?" active":"");
     button.innerHTML=`<strong>${esc(exam.title)}</strong><div class="meta"><span class="pill ${esc(exam.status)}">${esc(exam.status)}</span> | ${exam.question_count} | ${exam.duration_minutes} min</div>`;
     button.onclick=()=>selectExam(exam.id);box.appendChild(button);
+  });
+}
+function renderPublicExamList(items){
+  const box=document.getElementById("publicExamList");box.innerHTML="";
+  if(!items.length){box.innerHTML='<div class="muted">—</div>';return;}
+  items.forEach(exam=>{
+    const row=document.createElement("div");row.className="shared-exam";
+    row.innerHTML=`<strong>${esc(exam.title)}</strong><div class="meta">${esc(exam.owner_name||"")} · ${exam.question_count} · ${exam.duration_minutes} min</div><button class="btn" type="button" data-clone-exam="${exam.id}" style="margin-top:7px">${esc(UI.copyExam)}</button>`;
+    box.appendChild(row);
+  });
+  box.querySelectorAll("button[data-clone-exam]").forEach(button=>button.onclick=async()=>{
+    button.disabled=true;
+    const data=await api(`/api/teacher/exams/${button.dataset.cloneExam}/clone/`,"POST",{});
+    button.disabled=false;
+    if(!data.ok){message(data.error||UI.copyFailed);return;}
+    message(UI.copyCreated,true);await loadAll();await selectExam(data.exam.id);
   });
 }
 async function selectExam(id){
@@ -190,8 +224,9 @@ async function selectExam(id){
   current=data.exam;editingQuestionId=null;document.getElementById("emptyState").hidden=true;document.getElementById("editor").hidden=false;
   document.getElementById("examTitle").value=current.title;document.getElementById("examTopic").value=current.topic;
   document.getElementById("examDuration").value=current.duration_minutes;document.getElementById("examInstructions").value=current.instructions;
+  document.getElementById("examShared").checked=!!current.is_shared_template;
   const status=document.getElementById("examStatus");status.textContent=current.status;status.className="pill "+current.status;
-  renderClasses();renderQuestions();resetQuestionForm();renderExamList();await loadAttempts();
+  renderClasses();renderQuestions();resetQuestionForm();renderExamLists();await loadAttempts();
 }
 function renderClasses(){
   const box=document.getElementById("classChecks");box.innerHTML="";
@@ -257,7 +292,7 @@ function editQuestion(q){
   if(q.question_type==="table")loadTableDraft(q.table_schema);else resetTableDraft();
   toggleQuestionFields();document.getElementById("saveQuestionBtn").textContent=UI.save;document.getElementById("cancelQuestionBtn").hidden=false;document.getElementById("qPrompt").scrollIntoView({behavior:"smooth",block:"center"});
 }
-async function reloadCurrent(){const data=await api(`/api/teacher/exams/${current.id}/`);if(data.ok){current=data.exam;renderQuestions();renderExamList();resetQuestionForm();}}
+async function reloadCurrent(){const data=await api(`/api/teacher/exams/${current.id}/`);if(data.ok){current=data.exam;renderQuestions();renderExamLists();resetQuestionForm();}}
 
 function normalizedCell(value){return String(value??"").trim().toLocaleLowerCase();}
 function renderTableReview(question,answer){
@@ -287,7 +322,7 @@ async function reviewAttempt(id){
 }
 async function refreshIntegrity(){if(!selectedAttemptId)return;const data=await api(`/api/teacher/exam-attempts/${selectedAttemptId}/`);if(data.ok)renderIntegrity(data);}
 document.getElementById("createExamBtn").onclick=async()=>{const title=document.getElementById("newExamTitle").value.trim();const data=await api("/api/teacher/exams/","POST",{title});if(!data.ok){message(data.error);return;}message(UI.created,true);document.getElementById("newExamTitle").value="";await loadAll();await selectExam(data.exam.id);};
-document.getElementById("saveExamBtn").onclick=async()=>{const data=await api(`/api/teacher/exams/${current.id}/`,"PATCH",{title:document.getElementById("examTitle").value,topic:document.getElementById("examTopic").value,instructions:document.getElementById("examInstructions").value,duration_minutes:Number(document.getElementById("examDuration").value),class_ids:selectedClasses()});if(!data.ok){message(data.error);return;}current=data.exam;message(UI.saved,true);await loadAll();};
+document.getElementById("saveExamBtn").onclick=async()=>{const data=await api(`/api/teacher/exams/${current.id}/`,"PATCH",{title:document.getElementById("examTitle").value,topic:document.getElementById("examTopic").value,instructions:document.getElementById("examInstructions").value,duration_minutes:Number(document.getElementById("examDuration").value),class_ids:selectedClasses(),is_shared_template:document.getElementById("examShared").checked});if(!data.ok){message(data.error);return;}current=data.exam;message(UI.saved,true);await loadAll();};
 document.getElementById("startExamBtn").onclick=async()=>{const data=await api(`/api/teacher/exams/${current.id}/`,"PATCH",{status:"running"});message(data.ok?UI.saved:data.error,data.ok);if(data.ok){current=data.exam;await loadAll();}};
 document.getElementById("stopExamBtn").onclick=async()=>{const data=await api(`/api/teacher/exams/${current.id}/`,"PATCH",{status:"stopped"});message(data.ok?UI.saved:data.error,data.ok);if(data.ok){current=data.exam;await loadAll();}};
 document.getElementById("deleteExamBtn").onclick=async()=>{if(!confirm(UI.confirmDelete))return;const data=await api(`/api/teacher/exams/${current.id}/`,"DELETE");if(!data.ok){message(data.error);return;}current=null;document.getElementById("editor").hidden=true;document.getElementById("emptyState").hidden=false;message(UI.deleted,true);await loadAll();};
@@ -303,6 +338,14 @@ function buildAgentPrompt(){
     questions:current.questions||[]
   }:null;
   return `Create valid JSON commands for ProgrammingPlatform exam import. Return exactly one JSON object, without markdown or explanations.
+
+STRICT JSON ENCODING RULES:
+- Write every key exactly as shown. Underscores are ordinary characters: use "question_type", never "question\\_type". Never put a backslash before an underscore.
+- Use double quotes around every key and string value. Inside a JSON string, escape a quote as \\" and a backslash as \\\\.
+- Encode line breaks inside string values as \\n. Never place a literal unescaped line break inside a JSON string.
+- Operators and punctuation such as *, <, >, <=, >=, /, :, and _ do not need escaping.
+- Use raw HTTPS URLs. Never wrap a URL in Markdown, never escape / or _, and never emit HTML entities such as &quot; or &#x20;.
+- Before returning the result, validate it with JSON.parse. If JSON.parse fails, fix the JSON. Output only the validated object.
 
 CURRENT_EXAM_SNAPSHOT (use these exact exam and question IDs when editing; never invent an ID):
 ${JSON.stringify(snapshot,null,2)}
@@ -346,6 +389,7 @@ To change only a table question prompt, score, image, or position, omit table_sc
 Do not expose expected table answers in prompt text fields. Do not add unknown fields. Validate that positions remain unique.`;
 }
 document.getElementById("copyPromptBtn").onclick=async()=>{await navigator.clipboard.writeText(buildAgentPrompt());message(UI.promptCopied,true);};document.getElementById("applyJsonBtn").onclick=async()=>{let payload;try{payload=JSON.parse(document.getElementById("jsonCommands").value);}catch(e){message("Invalid JSON: "+e.message);return;}const data=await api("/api/teacher/exams/import-json/","POST",payload);if(!data.ok){message(data.error);return;}message(UI.jsonApplied,true);await loadAll();await selectExam(data.exam.id);};
+document.getElementById("examSearch").addEventListener("input",renderExamLists);
 loadAll();
 setInterval(()=>{if(current){loadAttempts();refreshIntegrity();}},5000);
 </script>

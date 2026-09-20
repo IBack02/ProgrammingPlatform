@@ -29,6 +29,7 @@ from .models import (
     PeerAssessmentReview,
     PeerAssessmentSession,
     Student,
+    StudentClassMembership,
 )
 
 
@@ -51,6 +52,17 @@ def _json_errors(view_func):
 
 def _owned_class(teacher, class_id):
     return get_object_or_404(ClassGroup, id=class_id, owner=teacher)
+
+
+def _student_class_ids(student):
+    class_ids = set(
+        StudentClassMembership.objects.filter(student=student).values_list(
+            "class_group_id", flat=True
+        )
+    )
+    if student.class_group_id:
+        class_ids.add(student.class_group_id)
+    return sorted(class_ids)
 
 
 def _owned_session(teacher, session_id):
@@ -706,7 +718,7 @@ def student_peer_sessions_api(request: HttpRequest):
     if not student:
         return _api_error("not authenticated", 401)
     sessions = PeerAssessmentSession.objects.filter(
-        reviewer_class=student.class_group,
+        reviewer_class_id__in=_student_class_ids(student),
         assignments__reviewer=student,
     ).select_related("reviewer_class").distinct()
     rows = []
@@ -731,7 +743,7 @@ def student_peer_assignment_detail_api(request: HttpRequest, assignment_id: int)
         PeerAssessmentAssignment.objects.select_related("session", "exam_attempt__exam"),
         id=assignment_id,
         reviewer=student,
-        session__reviewer_class=student.class_group,
+        session__reviewer_class_id__in=_student_class_ids(student),
     )
     answers = {
         answer.question_id: answer
@@ -769,7 +781,7 @@ def student_peer_review_api(request: HttpRequest, assignment_id: int, question_i
         PeerAssessmentAssignment.objects.select_related("session", "exam_attempt__exam"),
         id=assignment_id,
         reviewer=student,
-        session__reviewer_class=student.class_group,
+        session__reviewer_class_id__in=_student_class_ids(student),
     )
     if assignment.session.status != PeerAssessmentSession.Status.RUNNING:
         raise ValueError("the assessment session is not running")

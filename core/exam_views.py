@@ -3,6 +3,7 @@ import json
 import random
 import re
 import secrets
+from copy import deepcopy
 from datetime import timedelta
 from decimal import Decimal, InvalidOperation
 from functools import wraps
@@ -30,6 +31,7 @@ from .models import (
     ExamMatchPair,
     ExamQuestion,
     Student,
+    StudentClassMembership,
     Teacher,
 )
 
@@ -81,6 +83,17 @@ def _student(request: HttpRequest):
     ):
         return None
     return student
+
+
+def _student_class_ids(student: Student) -> list[int]:
+    class_ids = set(
+        StudentClassMembership.objects.filter(student=student).values_list(
+            "class_group_id", flat=True
+        )
+    )
+    if student.class_group_id:
+        class_ids.add(student.class_group_id)
+    return sorted(class_ids)
 
 
 def _teacher_required(view_func):
@@ -210,6 +223,10 @@ def _serialize_exam(exam: Exam, include_questions: bool = False) -> dict:
         "attempt_count": exam.attempts.count(),
         "created_at": exam.created_at.isoformat(),
         "updated_at": exam.updated_at.isoformat(),
+        "owner_id": exam.owner_id,
+        "owner_name": exam.owner.full_name if exam.owner_id else "",
+        "is_shared_template": bool(exam.is_shared_template),
+        "source_exam_id": exam.source_exam_id,
     }
     if include_questions:
         data["questions"] = [
@@ -220,6 +237,44 @@ def _serialize_exam(exam: Exam, include_questions: bool = False) -> dict:
             (row["position"] for row in data["questions"]), default=0
         ) + 1
     return data
+
+
+def _clone_exam(source: Exam, teacher: Teacher) -> Exam:
+    clone = Exam.objects.create(
+        owner=teacher,
+        source_exam=source,
+        is_shared_template=False,
+        title=f"{source.title} (Copy)"[:200],
+        topic=source.topic,
+        instructions=source.instructions,
+        duration_minutes=source.duration_minutes,
+        status=Exam.Status.DRAFT,
+    )
+    for question in source.questions.prefetch_related("matching_pairs").order_by(
+        "position", "id"
+    ):
+        question_clone = ExamQuestion.objects.create(
+            exam=clone,
+            position=question.position,
+            question_type=question.question_type,
+            prompt=question.prompt,
+            image_url=question.image_url,
+            model_answer=question.model_answer,
+            table_schema=deepcopy(question.table_schema),
+            max_score=question.max_score,
+        )
+        ExamMatchPair.objects.bulk_create(
+            [
+                ExamMatchPair(
+                    question=question_clone,
+                    position=pair.position,
+                    left_text=pair.left_text,
+                    right_text=pair.right_text,
+                )
+                for pair in question.matching_pairs.all().order_by("position", "id")
+            ]
+        )
+    return clone
 
 
 def _parse_pairs(raw_pairs) -> list[dict]:
@@ -655,7 +710,10 @@ def build_teacher_exam_analytics(teacher, class_id=None):
         .order_by("exam__created_at", "exam_id", "submitted_at", "id")
     )
     if class_id:
-        attempts = attempts.filter(student__class_group_id=class_id)
+        attempts = attempts.filter(
+            student__class_memberships__class_group_id=class_id,
+            exam__class_links__class_group_id=class_id,
+        )
 
     exam_rows = {}
     student_rows = {}
@@ -908,8 +966,22 @@ def teacher_exams_api(request: HttpRequest):
         return _api_error("not authenticated", 401)
     try:
         if request.method == "GET":
-            exams = Exam.objects.filter(owner=teacher).prefetch_related("allowed_classes")
-            return JsonResponse({"ok": True, "exams": [_serialize_exam(exam) for exam in exams]})
+            exams = (
+                Exam.objects.filter(owner=teacher)
+                .select_related("owner")
+                .prefetch_related("allowed_classes")
+            )
+            public_exams = (
+                Exam.objects.filter(is_shared_template=True)
+                .exclude(owner=teacher)
+                .select_related("owner")
+                .prefetch_related("allowed_classes")
+            )
+            return JsonResponse({
+                "ok": True,
+                "exams": [_serialize_exam(exam) for exam in exams],
+                "public_exams": [_serialize_exam(exam) for exam in public_exams],
+            })
         data = _json_body(request)
         title = str(data.get("title") or "").strip()
         if not title:
@@ -971,10 +1043,33 @@ def teacher_exam_detail_api(request: HttpRequest, exam_id: int):
                     if not ExamClass.objects.filter(exam=exam).exists():
                         raise ValueError("assign at least one class before starting the exam")
                 exam.status = status
+            if "is_shared_template" in data:
+                exam.is_shared_template = bool(data.get("is_shared_template"))
             exam.save()
         return JsonResponse({"ok": True, "exam": _serialize_exam(exam, True)})
     except (ValueError, IntegrityError) as exc:
         return _api_error(str(exc), 409 if "locked" in str(exc) else 400)
+
+
+@_json_errors
+@require_POST
+def teacher_exam_clone_api(request: HttpRequest, exam_id: int):
+    teacher = _teacher(request)
+    if not teacher:
+        return _api_error("not authenticated", 401)
+    source = get_object_or_404(
+        Exam.objects.select_related("owner"),
+        id=exam_id,
+        is_shared_template=True,
+    )
+    if source.owner_id == teacher.id:
+        return _api_error("cannot clone your own exam as a public template")
+    with transaction.atomic():
+        clone = _clone_exam(source, teacher)
+    return JsonResponse(
+        {"ok": True, "exam": _serialize_exam(clone, True)},
+        status=201,
+    )
 
 
 @_json_errors
@@ -1237,9 +1332,10 @@ def student_exams_api(request: HttpRequest):
     student = _student(request)
     if not student:
         return _api_error("not authenticated", 401)
+    class_ids = _student_class_ids(student)
     exams = (
         Exam.objects.filter(
-            Q(status=Exam.Status.RUNNING, allowed_classes=student.class_group)
+            Q(status=Exam.Status.RUNNING, allowed_classes__id__in=class_ids)
             | Q(attempts__student=student)
         )
         .distinct()
@@ -1280,13 +1376,18 @@ def student_exam_start_api(request: HttpRequest, exam_id: int):
     student = _student(request)
     if not student:
         return _api_error("not authenticated", 401)
+    class_ids = _student_class_ids(student)
     try:
         with transaction.atomic():
+            if not ExamClass.objects.filter(
+                exam_id=exam_id,
+                class_group_id__in=class_ids,
+            ).exists():
+                return _api_error("exam is not available", 404)
             exam = get_object_or_404(
                 Exam.objects.select_for_update(),
                 id=exam_id,
                 status=Exam.Status.RUNNING,
-                allowed_classes=student.class_group,
             )
             attempt = ExamAttempt.objects.select_for_update().filter(exam=exam, student=student).first()
             if not attempt:
@@ -1318,7 +1419,10 @@ def student_exam_detail_api(request: HttpRequest, exam_id: int):
     if not attempt:
         return _api_error("start the exam first", 409)
     exam = attempt.exam
-    if not ExamClass.objects.filter(exam=exam, class_group=student.class_group).exists():
+    if not ExamClass.objects.filter(
+        exam=exam,
+        class_group_id__in=_student_class_ids(student),
+    ).exists():
         return _api_error("exam is unavailable", 403)
     _expire_if_needed(attempt)
     answers = {answer.question_id: answer for answer in attempt.answers.all()}

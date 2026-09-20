@@ -4,6 +4,7 @@ from .forms import StudentAdminForm
 from .models import (
     ClassGroup,
     Student,
+    StudentClassMembership,
     Session,
     SessionClass,
     SessionTask,
@@ -21,6 +22,11 @@ from .models import (
 )
 
 
+class StudentClassMembershipInline(admin.TabularInline):
+    model = StudentClassMembership
+    extra = 0
+
+
 @admin.register(ClassGroup)
 class ClassGroupAdmin(admin.ModelAdmin):
     list_display = ("id", "name", "owner", "created_at")
@@ -35,6 +41,7 @@ class StudentAdmin(admin.ModelAdmin):
     search_fields = ("full_name",)
     readonly_fields = ("created_at",)
     exclude = ("pin_hash",)
+    inlines = (StudentClassMembershipInline,)
 
     def save_model(self, request, obj, form, change):
         super().save_model(request, obj, form, change)

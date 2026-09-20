@@ -473,6 +473,14 @@
     const example = {action: "create_modules", modules};
     return `Create valid JSON for ProgrammingPlatform lesson-module import. Return exactly one JSON object without markdown fences, comments, or explanations.
 
+STRICT JSON ENCODING RULES:
+- Write every key exactly as shown. Underscores are ordinary characters: use "module_type", never "module\\_type". Never put a backslash before an underscore.
+- Use double quotes around every key and string value. Inside a JSON string, escape a quote as \\" and a backslash as \\\\.
+- Encode line breaks inside string values as \\n. Never place a literal unescaped line break inside a JSON string.
+- Operators and punctuation such as *, <, >, <=, >=, /, :, and _ do not need escaping.
+- Use raw HTTPS URLs. Never wrap a URL in Markdown, never escape / or _, and never emit HTML entities such as &quot; or &#x20;.
+- Before returning the result, validate it with JSON.parse. If JSON.parse fails, fix the JSON. Output only the validated object.
+
 TARGET SESSION: ${sessionLabel}
 The JSON is applied to the session selected in the teacher interface. Do not include session_id.
 

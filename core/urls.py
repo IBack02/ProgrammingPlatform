@@ -57,6 +57,7 @@ urlpatterns = [
     # Teacher students API
     path("api/teacher/students/", views.teacher_students_api, name="teacher_students_api"),
     path("api/teacher/students/<int:student_id>/", views.teacher_student_detail_api, name="teacher_student_detail_api"),
+    path("api/teacher/students/<int:student_id>/classes/", views.teacher_student_classes_api, name="teacher_student_classes_api"),
     path("api/teacher/students/<int:student_id>/reset-pin/", views.teacher_student_reset_pin_api, name="teacher_student_reset_pin_api"),
 
     # Teacher sessions API
@@ -184,6 +185,7 @@ path(
     path("api/teacher/exams/", exam_views.teacher_exams_api, name="teacher_exams_api"),
     path("api/teacher/exams/import-json/", exam_views.teacher_exam_import_api, name="teacher_exam_import_api"),
     path("api/teacher/exams/<int:exam_id>/", exam_views.teacher_exam_detail_api, name="teacher_exam_detail_api"),
+    path("api/teacher/exams/<int:exam_id>/clone/", exam_views.teacher_exam_clone_api, name="teacher_exam_clone_api"),
     path("api/teacher/exams/<int:exam_id>/questions/", exam_views.teacher_exam_questions_api, name="teacher_exam_questions_api"),
     path("api/teacher/exam-questions/<int:question_id>/", exam_views.teacher_exam_question_detail_api, name="teacher_exam_question_detail_api"),
     path("api/teacher/exams/<int:exam_id>/attempts/", exam_views.teacher_exam_attempts_api, name="teacher_exam_attempts_api"),

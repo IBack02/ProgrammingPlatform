@@ -2024,3 +2024,58 @@ _MODULE_JSON_I18N = {
 
 for _lang_code, _extra in _MODULE_JSON_I18N.items():
     UI_TRANSLATIONS.setdefault(_lang_code, {}).update(_extra)
+
+
+_MULTICLASS_SHARED_EXAMS_I18N = {
+    "ru": {
+        "student_classes_help": "Основной класс нельзя удалить. Выберите дополнительные классы, в которых должен состоять ученик.",
+        "save_student_classes": "Сохранить классы",
+        "add_student_to_classes": "Добавить в классы",
+        "student_classes": "Классы ученика",
+        "primary_class": "основной класс",
+        "student_classes_saved": "Список классов ученика сохранён.",
+        "student_classes_save_failed": "Не удалось сохранить список классов.",
+        "search_sessions": "Поиск сессий...",
+        "search_exams": "Поиск экзаменов...",
+        "shared_exams_list": "Общедоступные экзамены",
+        "shared_exam_template": "Разрешить другим учителям копировать этот экзамен",
+        "copy_exam": "Скопировать экзамен",
+        "exam_copy_created": "Копия экзамена создана.",
+        "exam_copy_failed": "Не удалось скопировать экзамен.",
+    },
+    "kk": {
+        "student_classes_help": "Негізгі сыныпты өшіруге болмайды. Оқушы қатысатын қосымша сыныптарды таңдаңыз.",
+        "save_student_classes": "Сыныптарды сақтау",
+        "add_student_to_classes": "Сыныптарға қосу",
+        "student_classes": "Оқушының сыныптары",
+        "primary_class": "негізгі сынып",
+        "student_classes_saved": "Оқушының сыныптар тізімі сақталды.",
+        "student_classes_save_failed": "Сыныптар тізімін сақтау мүмкін болмады.",
+        "search_sessions": "Сессияларды іздеу...",
+        "search_exams": "Емтихандарды іздеу...",
+        "shared_exams_list": "Ортақ емтихандар",
+        "shared_exam_template": "Басқа мұғалімдерге осы емтиханды көшіруге рұқсат беру",
+        "copy_exam": "Емтиханды көшіру",
+        "exam_copy_created": "Емтихан көшірмесі жасалды.",
+        "exam_copy_failed": "Емтиханды көшіру мүмкін болмады.",
+    },
+    "en": {
+        "student_classes_help": "The primary class cannot be removed. Select any additional classes this student attends.",
+        "save_student_classes": "Save classes",
+        "add_student_to_classes": "Add to classes",
+        "student_classes": "Student classes",
+        "primary_class": "primary class",
+        "student_classes_saved": "The student's classes were saved.",
+        "student_classes_save_failed": "Could not save the student's classes.",
+        "search_sessions": "Search sessions...",
+        "search_exams": "Search exams...",
+        "shared_exams_list": "Shared exams",
+        "shared_exam_template": "Allow other teachers to copy this exam",
+        "copy_exam": "Copy exam",
+        "exam_copy_created": "The exam copy was created.",
+        "exam_copy_failed": "Could not copy the exam.",
+    },
+}
+
+for _lang_code, _extra in _MULTICLASS_SHARED_EXAMS_I18N.items():
+    UI_TRANSLATIONS.setdefault(_lang_code, {}).update(_extra)

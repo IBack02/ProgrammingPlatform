@@ -132,6 +132,13 @@
     color:#6b7280;
     background:#fafafa;
   }
+  .membership-summary{margin-top:6px;font-size:12px;color:#475569}
+  .membership-modal{position:fixed;inset:0;z-index:1200;display:grid;place-items:center;padding:18px;background:rgba(15,23,42,.62)}
+  .membership-modal[hidden]{display:none}
+  .membership-dialog{width:min(520px,100%);max-height:min(680px,90vh);overflow:auto;background:#fff;border:1px solid #dbe7f3;border-radius:18px;padding:18px;box-shadow:0 24px 70px rgba(15,23,42,.3)}
+  .membership-list{display:grid;gap:8px;margin:14px 0}
+  .membership-option{display:flex;align-items:center;gap:10px;border:1px solid #e2e8f0;border-radius:11px;padding:10px;background:#f8fafc}
+  .membership-option.primary{border-color:#7dd3fc;background:#f0f9ff}
 
   @media (max-width: 700px){
     .editor-row{
@@ -164,6 +171,18 @@
   <div id="list"></div>
 </div>
 
+<div id="membershipModal" class="membership-modal" hidden>
+  <div class="membership-dialog" role="dialog" aria-modal="true" aria-labelledby="membershipTitle">
+    <div id="membershipTitle" style="font-size:18px;font-weight:900;"></div>
+    <div class="muted" style="margin-top:5px;">{{ T.student_classes_help }}</div>
+    <div id="membershipList" class="membership-list"></div>
+    <div class="editor-actions">
+      <button id="cancelMembershipsBtn" class="btn" type="button">{{ T.cancel }}</button>
+      <button id="saveMembershipsBtn" class="btn" type="button">{{ T.save_student_classes }}</button>
+    </div>
+  </div>
+</div>
+
 <script>
   const UI = {
     allClasses: "{{ T.all_classes|escapejs }}",
@@ -194,13 +213,19 @@
     currentClass: "{{ T.current_class|escapejs }}",
     changeClass: "{{ T.change_class|escapejs }}",
     newPin: "{{ T.new_pin|escapejs }}",
-    selected: "{{ T.selected|escapejs }}"
+    selected: "{{ T.selected|escapejs }}",
+    addToClasses: "{{ T.add_student_to_classes|escapejs }}",
+    classesLabel: "{{ T.student_classes|escapejs }}",
+    primaryClass: "{{ T.primary_class|escapejs }}",
+    membershipsSaved: "{{ T.student_classes_saved|escapejs }}",
+    membershipsFailed: "{{ T.student_classes_save_failed|escapejs }}"
   };
 
   let editingStudentId = null;
   let classesCache = [];
   let studentsCache = [];
   let busy = false;
+  let membershipStudentId = null;
 
   function escapeHtml(text){
     return String(text || "")
@@ -302,16 +327,23 @@
       });
     });
 
+    const selectedClassId = Number(document.getElementById("classSelect").value || 0);
     students.forEach(s => {
-      const classId = s.class?.id;
-      if (!map.has(classId)){
-        map.set(classId, {
-          id: classId,
-          name: s.class?.name || "—",
-          students: []
-        });
-      }
-      map.get(classId).students.push(s);
+      const memberships = selectedClassId
+        ? (s.classes || []).filter(c => Number(c.id) === selectedClassId)
+        : ((s.classes && s.classes.length) ? s.classes : [s.class]);
+      memberships.forEach(studentClass => {
+        const classId = studentClass?.id;
+        if (!classId) return;
+        if (!map.has(classId)){
+          map.set(classId, {
+            id: classId,
+            name: studentClass?.name || "—",
+            students: []
+          });
+        }
+        map.get(classId).students.push(s);
+      });
     });
 
     return [...map.values()].filter(group => group.students.length > 0);
@@ -363,6 +395,8 @@
                 ${s.is_active ? ` • ${escapeHtml(UI.active)}` : ""}
                 • ${escapeHtml(UI.selected)}
               </div>
+              <div class="membership-summary">${escapeHtml(UI.classesLabel)}: ${escapeHtml((s.classes || []).map(c => c.name).join(", ") || s.class?.name || "—")}</div>
+              <button class="btn" type="button" data-classes="${s.id}" style="margin-top:8px">${escapeHtml(UI.addToClasses)}</button>
             `;
             studentCard.addEventListener("click", () => {
               editingStudentId = s.id;
@@ -401,6 +435,7 @@
                 </div>
 
                 <div class="editor-actions">
+                  <button class="btn" type="button" data-classes="${s.id}">${escapeHtml(UI.addToClasses)}</button>
                   <button class="btn" type="button" data-cancel="${s.id}">${escapeHtml(UI.cancel)}</button>
                   <button class="btn" type="button" data-save="${s.id}">${escapeHtml(UI.save)}</button>
                   <button class="btn" type="button" data-delete="${s.id}" style="border-color:#fca5a5;">${escapeHtml(UI.delete)}</button>
@@ -422,6 +457,13 @@
       btn.addEventListener("click", () => {
         editingStudentId = null;
         renderStudents(studentsCache);
+      });
+    });
+
+    root.querySelectorAll("button[data-classes]").forEach(btn => {
+      btn.addEventListener("click", event => {
+        event.stopPropagation();
+        openMemberships(Number(btn.getAttribute("data-classes")));
       });
     });
 
@@ -495,6 +537,54 @@
       });
     });
   }
+
+  function closeMemberships(){
+    membershipStudentId = null;
+    document.getElementById("membershipModal").hidden = true;
+  }
+
+  function openMemberships(studentId){
+    const student = studentsCache.find(row => row.id === studentId);
+    if (!student) return;
+    membershipStudentId = studentId;
+    document.getElementById("membershipTitle").textContent = `${UI.classesLabel}: ${student.full_name}`;
+    const selectedIds = new Set((student.class_ids || []).map(Number));
+    const primaryId = Number(student.class?.id);
+    document.getElementById("membershipList").innerHTML = classesCache.map(classGroup => {
+      const isPrimary = Number(classGroup.id) === primaryId;
+      return `<label class="membership-option${isPrimary ? " primary" : ""}">
+        <input type="checkbox" value="${classGroup.id}" ${selectedIds.has(Number(classGroup.id)) ? "checked" : ""} ${isPrimary ? "disabled" : ""}>
+        <span>${escapeHtml(classGroup.name)}${isPrimary ? ` · ${escapeHtml(UI.primaryClass)}` : ""}</span>
+      </label>`;
+    }).join("");
+    document.getElementById("membershipModal").hidden = false;
+  }
+
+  document.getElementById("cancelMembershipsBtn").addEventListener("click", closeMemberships);
+  document.getElementById("membershipModal").addEventListener("click", event => {
+    if (event.target.id === "membershipModal") closeMemberships();
+  });
+  document.getElementById("saveMembershipsBtn").addEventListener("click", async () => {
+    const student = studentsCache.find(row => row.id === membershipStudentId);
+    if (!student) return closeMemberships();
+    const ids = [...document.querySelectorAll("#membershipList input:checked")]
+      .map(input => Number(input.value));
+    if (!ids.includes(Number(student.class?.id))) ids.push(Number(student.class?.id));
+    setBusy(true);
+    const res = await api(
+      `/api/teacher/students/${student.id}/classes/`,
+      "PATCH",
+      {class_ids: ids}
+    );
+    setBusy(false);
+    if (!res.data.ok){
+      setMsg(res.data.error || UI.membershipsFailed, "err");
+      return;
+    }
+    closeMemberships();
+    setMsg(UI.membershipsSaved, "ok");
+    await load();
+  });
 
   async function load(){
     setMsg("");

@@ -43,6 +43,7 @@ from .models import (
     SessionClass,
     SessionTask,
     Student,
+    StudentClassMembership,
     StudentSession,
     StudentTaskProgress,
     Submission,
@@ -146,6 +147,7 @@ def _clear_student_auth(request: HttpRequest) -> None:
         "student_logged_in_at",
         "student_auth_version",
         "student_selected_session_id",
+        "student_selected_class_id",
     ]:
         request.session.pop(key, None)
 
@@ -189,7 +191,11 @@ def _get_student_from_session(request: HttpRequest):
     student = _get_logged_in_student(request)
     if not student:
         return None, None
-    return student.id, student.class_group_id
+    class_ids = _student_class_ids(student.id, primary_class_id=student.class_group_id)
+    selected_class_id = request.session.get("student_selected_class_id")
+    if selected_class_id not in class_ids:
+        selected_class_id = student.class_group_id
+    return student.id, selected_class_id
 
 
 def _get_logged_in_teacher(request: HttpRequest):
@@ -262,8 +268,49 @@ def _student_background_urls() -> dict:
     }
 
 
+def _student_class_ids(student_id: int, *, primary_class_id: int | None = None) -> list[int]:
+    class_ids = set(
+        StudentClassMembership.objects.filter(student_id=student_id).values_list(
+            "class_group_id", flat=True
+        )
+    )
+    if primary_class_id:
+        class_ids.add(primary_class_id)
+    elif not class_ids:
+        fallback = Student.objects.filter(id=student_id).values_list(
+            "class_group_id", flat=True
+        ).first()
+        if fallback:
+            class_ids.add(fallback)
+    return sorted(class_ids)
+
+
+def _student_session_class_id(
+    session: Session,
+    *,
+    student_id: int,
+    preferred_class_id: int | None = None,
+) -> int | None:
+    class_ids = _student_class_ids(student_id)
+    available = set(
+        SessionClass.objects.filter(
+            session=session,
+            class_group_id__in=class_ids,
+        ).values_list("class_group_id", flat=True)
+    )
+    if preferred_class_id in available:
+        return preferred_class_id
+    return next((class_id for class_id in class_ids if class_id in available), None)
+
+
 def _student_can_access_session(session: Session, *, class_id: int, student_id: int) -> bool:
-    has_class = SessionClass.objects.filter(session=session, class_group_id=class_id).exists()
+    has_class = bool(
+        _student_session_class_id(
+            session,
+            student_id=student_id,
+            preferred_class_id=class_id,
+        )
+    )
     if not has_class:
         return False
     if session.status == SESSION_STATUS_DRAFT:
@@ -274,9 +321,10 @@ def _student_can_access_session(session: Session, *, class_id: int, student_id: 
 
 
 def _student_accessible_sessions(*, class_id: int, student_id: int):
+    class_ids = _student_class_ids(student_id, primary_class_id=class_id)
     sessions = (
         Session.objects
-        .filter(allowed_classes__id=class_id)
+        .filter(allowed_classes__id__in=class_ids)
         .exclude(status=SESSION_STATUS_DRAFT)
         .distinct()
         .order_by("-starts_at", "-created_at")
@@ -305,6 +353,11 @@ def _resolve_student_portal_session(
 
     session = selected or sessions[0]
     request.session["student_selected_session_id"] = session.id
+    request.session["student_selected_class_id"] = _student_session_class_id(
+        session,
+        student_id=student_id,
+        preferred_class_id=request.session.get("student_selected_class_id") or class_id,
+    )
     return session, sessions
 
 
@@ -442,7 +495,8 @@ def _inc_hint_counter(progress: StudentTaskProgress, level: int) -> None:
 
 def _serialize_class_group(class_group: ClassGroup):
     students = list(
-        Student.objects.filter(class_group=class_group, is_active=True)
+        Student.objects.filter(class_groups=class_group, is_active=True)
+        .distinct()
         .order_by("full_name")
         .values("id", "full_name")
     )
@@ -455,6 +509,32 @@ def _serialize_class_group(class_group: ClassGroup):
 
 
 def _serialize_student(student: Student):
+    prefetched_memberships = getattr(student, "_prefetched_objects_cache", {}).get(
+        "class_memberships"
+    )
+    if prefetched_memberships is None:
+        class_groups = list(
+            ClassGroup.objects.filter(student_memberships__student=student)
+            .order_by("name", "id")
+            .values("id", "name")
+        )
+    else:
+        class_groups = sorted(
+            [
+                {
+                    "id": membership.class_group_id,
+                    "name": membership.class_group.name,
+                }
+                for membership in prefetched_memberships
+            ],
+            key=lambda row: (row["name"], row["id"]),
+        )
+    if student.class_group_id and not any(
+        row["id"] == student.class_group_id for row in class_groups
+    ):
+        class_groups.append(
+            {"id": student.class_group_id, "name": student.class_group.name}
+        )
     return {
         "id": student.id,
         "full_name": student.full_name,
@@ -462,6 +542,8 @@ def _serialize_student(student: Student):
             "id": student.class_group_id,
             "name": student.class_group.name if student.class_group_id else "",
         },
+        "classes": class_groups,
+        "class_ids": [row["id"] for row in class_groups],
         "is_active": student.is_active,
         "created_at": student.created_at.isoformat() if getattr(student, "created_at", None) else None,
     }
@@ -903,6 +985,15 @@ def student_active_session(request: HttpRequest):
             {"ok": True, "active": False, "message": "No available sessions"},
             status=200,
         )
+
+    class_id = _student_session_class_id(
+        session,
+        student_id=student_id,
+        preferred_class_id=request.session.get("student_selected_class_id") or class_id,
+    )
+    if not class_id:
+        return JsonResponse({"ok": False, "error": "session is not accessible"}, status=403)
+    request.session["student_selected_class_id"] = class_id
 
     ss, _ = _get_or_create_student_session(student_id, session)
 
@@ -2480,7 +2571,7 @@ def teacher_class_detail_api(request: HttpRequest, class_id: int):
         obj.save(update_fields=["name"])
         return JsonResponse({"ok": True, "class": _serialize_class_group(obj)})
 
-    if Student.objects.filter(class_group=obj).exists():
+    if StudentClassMembership.objects.filter(class_group=obj).exists():
         return JsonResponse({"ok": False, "error": "cannot delete: class has students"}, status=409)
 
     obj.delete()
@@ -2499,9 +2590,18 @@ def teacher_students_api(request: HttpRequest):
 
     if request.method == "GET":
         class_id = request.GET.get("class_id") or ""
-        qs = Student.objects.select_related("class_group").filter(class_group__owner=teacher).order_by("class_group__name", "full_name")
+        qs = (
+            Student.objects.select_related("class_group")
+            .prefetch_related("class_memberships__class_group")
+            .filter(class_group__owner=teacher)
+            .order_by("class_group__name", "full_name")
+        )
         if class_id.isdigit():
-            qs = qs.filter(class_group_id=int(class_id), class_group__owner=teacher)
+            qs = qs.filter(
+                class_memberships__class_group_id=int(class_id),
+                class_memberships__class_group__owner=teacher,
+            )
+        qs = qs.distinct()
         return JsonResponse({"ok": True, "students": [_serialize_student(s) for s in qs]})
 
     data = _json_body(request)
@@ -2547,6 +2647,7 @@ def teacher_student_detail_api(request: HttpRequest, student_id: int):
             return JsonResponse({"ok": False, "error": "student with this name already exists"}, status=409)
         st.full_name = name
 
+    previous_primary_class_id = st.class_group_id
     if "class_id" in data:
         cid = data.get("class_id")
         if not (isinstance(cid, int) or (isinstance(cid, str) and str(cid).isdigit())):
@@ -2557,7 +2658,68 @@ def teacher_student_detail_api(request: HttpRequest, student_id: int):
         st.is_active = bool(data.get("is_active"))
 
     st.save()
+    if previous_primary_class_id != st.class_group_id:
+        StudentClassMembership.objects.filter(
+            student=st,
+            class_group_id=previous_primary_class_id,
+        ).delete()
     return JsonResponse({"ok": True, "student": _serialize_student(st)})
+
+
+@require_http_methods(["GET", "PATCH"])
+def teacher_student_classes_api(request: HttpRequest, student_id: int):
+    teacher = _get_logged_in_teacher(request)
+    if not teacher:
+        return _teacher_api_unauthorized()
+
+    student = Student.objects.select_related("class_group").filter(
+        id=student_id,
+        class_group__owner=teacher,
+    ).first()
+    if not student:
+        return JsonResponse({"ok": False, "error": "student not found"}, status=404)
+    if request.method == "GET":
+        return JsonResponse({"ok": True, "student": _serialize_student(student)})
+
+    data = _json_body(request)
+    raw_ids = data.get("class_ids")
+    if not isinstance(raw_ids, list):
+        return JsonResponse({"ok": False, "error": "class_ids must be a list"}, status=400)
+    try:
+        class_ids = sorted({int(value) for value in raw_ids})
+    except (TypeError, ValueError):
+        return JsonResponse(
+            {"ok": False, "error": "class_ids must contain integers"},
+            status=400,
+        )
+    if student.class_group_id not in class_ids:
+        return JsonResponse(
+            {"ok": False, "error": "primary class cannot be removed"},
+            status=400,
+        )
+    owned_ids = set(
+        ClassGroup.objects.filter(owner=teacher, id__in=class_ids).values_list(
+            "id", flat=True
+        )
+    )
+    if owned_ids != set(class_ids):
+        return JsonResponse(
+            {"ok": False, "error": "one or more classes are unavailable"},
+            status=400,
+        )
+
+    with transaction.atomic():
+        StudentClassMembership.objects.filter(student=student).exclude(
+            class_group_id__in=class_ids
+        ).delete()
+        StudentClassMembership.objects.bulk_create(
+            [
+                StudentClassMembership(student=student, class_group_id=class_id)
+                for class_id in class_ids
+            ],
+            ignore_conflicts=True,
+        )
+    return JsonResponse({"ok": True, "student": _serialize_student(student)})
 
 
 @require_POST
@@ -3822,13 +3984,18 @@ def _build_dashboard_analytics_context(request: HttpRequest) -> dict:
     if teacher:
         students_qs = students_qs.filter(class_group_id__in=owned_class_ids)
     if class_id.isdigit():
-        students_qs = students_qs.filter(class_group_id=int(class_id))
+        students_qs = students_qs.filter(
+            class_memberships__class_group_id=int(class_id)
+        ).distinct()
 
     sub_qs = Submission.objects.select_related("progress__student_session__session", "progress__student_session__student")
     if teacher:
         sub_qs = sub_qs.filter(progress__student_session__student__class_group_id__in=owned_class_ids)
     if class_id.isdigit():
-        sub_qs = sub_qs.filter(progress__student_session__student__class_group_id=int(class_id))
+        sub_qs = sub_qs.filter(
+            progress__student_session__student__class_memberships__class_group_id=int(class_id),
+            progress__student_session__session__sessionclass__class_group_id=int(class_id),
+        )
 
     per_session = (
         sub_qs.values("progress__student_session__session_id", "progress__student_session__session__title")
@@ -3846,7 +4013,10 @@ def _build_dashboard_analytics_context(request: HttpRequest) -> dict:
     if teacher:
         agg_qs = agg_qs.filter(progress__student_session__student__class_group_id__in=owned_class_ids)
     if class_id.isdigit():
-        agg_qs = agg_qs.filter(progress__student_session__student__class_group_id=int(class_id))
+        agg_qs = agg_qs.filter(
+            progress__student_session__student__class_memberships__class_group_id=int(class_id),
+            progress__student_session__session__sessionclass__class_group_id=int(class_id),
+        )
 
     per_session_hints = (
         agg_qs.values("progress__student_session__session_id")
@@ -3887,7 +4057,10 @@ def _build_dashboard_analytics_context(request: HttpRequest) -> dict:
     if teacher:
         ss_qs = ss_qs.filter(student__class_group_id__in=owned_class_ids)
     if class_id.isdigit():
-        ss_qs = ss_qs.filter(student__class_group_id=int(class_id))
+        ss_qs = ss_qs.filter(
+            student__class_memberships__class_group_id=int(class_id),
+            session__sessionclass__class_group_id=int(class_id),
+        )
 
     sessions_count_map = {
         x["student_id"]: x["c"]

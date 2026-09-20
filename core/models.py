@@ -26,6 +26,11 @@ class ClassGroup(models.Model):
 class Student(models.Model):
     full_name = models.CharField(max_length=120)
     class_group = models.ForeignKey(ClassGroup, on_delete=models.PROTECT, related_name="students")
+    class_groups = models.ManyToManyField(
+        ClassGroup,
+        through="StudentClassMembership",
+        related_name="member_students",
+    )
     pin_hash = models.CharField(max_length=256)
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -49,6 +54,46 @@ class Student(models.Model):
 
     def check_pin(self, pin: str) -> bool:
         return check_password(pin, self.pin_hash)
+
+    def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)
+        if self.class_group_id:
+            StudentClassMembership.objects.get_or_create(
+                student_id=self.pk,
+                class_group_id=self.class_group_id,
+            )
+
+
+class StudentClassMembership(models.Model):
+    student = models.ForeignKey(
+        Student,
+        on_delete=models.CASCADE,
+        related_name="class_memberships",
+    )
+    class_group = models.ForeignKey(
+        ClassGroup,
+        on_delete=models.PROTECT,
+        related_name="student_memberships",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["class_group__name", "student__full_name"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["student", "class_group"],
+                name="uniq_student_class_membership",
+            )
+        ]
+        indexes = [
+            models.Index(
+                fields=["class_group", "student"],
+                name="student_class_member_idx",
+            )
+        ]
+
+    def __str__(self):
+        return f"{self.student} -> {self.class_group}"
 
 
 class Session(models.Model):
@@ -949,6 +994,14 @@ class Exam(models.Model):
         STOPPED = "stopped", "Stopped"
 
     owner = models.ForeignKey(Teacher, on_delete=models.CASCADE, related_name="exams")
+    is_shared_template = models.BooleanField(default=False)
+    source_exam = models.ForeignKey(
+        "self",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="cloned_exams",
+    )
     title = models.CharField(max_length=200)
     topic = models.CharField(max_length=255, blank=True, default="")
     instructions = models.TextField(blank=True, default="")

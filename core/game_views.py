@@ -23,6 +23,7 @@ from .models import (
     MindRacePrompt,
     SessionClass,
     SessionTask,
+    StudentClassMembership,
     TheoryMaterialModule,
     TheoryQuizModule,
     TournamentMatch,
@@ -61,7 +62,7 @@ def _json_errors(view_func):
 
 def _owned_module(teacher, module_id):
     return get_object_or_404(
-        GameModule.objects.select_related("session"),
+        GameModule.objects.select_related("session").distinct(),
         id=module_id,
         session__author=teacher,
     )
@@ -75,12 +76,24 @@ def _owned_round(teacher, round_id, lock=False):
 
 
 def _student_module(student, module_id):
+    class_ids = _student_class_ids(student)
     return get_object_or_404(
         GameModule.objects.select_related("session"),
         id=module_id,
         is_active=True,
-        session__sessionclass__class_group=student.class_group,
+        session__sessionclass__class_group_id__in=class_ids,
     )
+
+
+def _student_class_ids(student):
+    class_ids = set(
+        StudentClassMembership.objects.filter(student=student).values_list(
+            "class_group_id", flat=True
+        )
+    )
+    if student.class_group_id:
+        class_ids.add(student.class_group_id)
+    return sorted(class_ids)
 
 
 def _positive_int(value, field_name, maximum=10000):
@@ -470,7 +483,7 @@ def _module_row(module, include_detail=False):
 
 def _active_round_for_student(module, student):
     return (
-        module.rounds.filter(class_group=student.class_group)
+        module.rounds.filter(class_group_id__in=_student_class_ids(student))
         .select_related("class_group")
         .order_by("-run_number", "-id")
         .first()
@@ -1229,7 +1242,7 @@ def student_game_ready_api(request: HttpRequest, module_id: int):
             .select_related("class_group")
             .filter(
                 module=module,
-                class_group=student.class_group,
+                class_group_id__in=_student_class_ids(student),
                 status=GameRound.Status.LOBBY,
             )
             .order_by("-run_number", "-id")
@@ -1265,8 +1278,7 @@ def student_game_round_state_api(request: HttpRequest, round_id: int):
     round_obj = get_object_or_404(
         GameRound.objects.select_related("module", "class_group"),
         id=round_id,
-        class_group=student.class_group,
-        module__session__sessionclass__class_group=student.class_group,
+        class_group_id__in=_student_class_ids(student),
     )
     if round_obj.module.rubric == GameModule.Rubric.WONDER_FIELD:
         round_obj = _refresh_wonder_round(round_obj.id)
@@ -1299,7 +1311,7 @@ def student_game_answer_api(request: HttpRequest, round_id: int):
         round_obj = get_object_or_404(
             GameRound.objects.select_for_update().select_related("module", "class_group"),
             id=round_id,
-            class_group=student.class_group,
+            class_group_id__in=_student_class_ids(student),
         )
         participant = get_object_or_404(
             GameParticipant.objects.select_for_update().select_related("student"),
@@ -1373,7 +1385,7 @@ def student_tournament_answer_api(request: HttpRequest, round_id: int):
         round_obj = get_object_or_404(
             GameRound.objects.select_for_update().select_related("module", "class_group"),
             id=round_id,
-            class_group=student.class_group,
+            class_group_id__in=_student_class_ids(student),
             module__rubric=GameModule.Rubric.TOURNAMENT,
         )
         participant = get_object_or_404(
@@ -1454,7 +1466,7 @@ def student_game_letter_api(request: HttpRequest, round_id: int):
         round_obj = get_object_or_404(
             GameRound.objects.select_for_update().select_related("module", "class_group"),
             id=round_id,
-            class_group=student.class_group,
+            class_group_id__in=_student_class_ids(student),
         )
         participant = get_object_or_404(
             GameParticipant.objects.select_for_update().select_related("student"),
