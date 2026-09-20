@@ -319,6 +319,7 @@ def call_openai_hint(level: int, prompt_snapshot: str) -> dict:
             text_format=HintTextLevel2,
             max_output_tokens=420,
         )
+
         parsed = resp.output_parsed
         if parsed is None:
             raise RuntimeError("OpenAI returned no parsed output for hint level 2")
