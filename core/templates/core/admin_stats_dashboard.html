@@ -159,6 +159,7 @@
 
   const ctx = document.getElementById("sessionChart");
   new Chart(ctx, {
+    plugins: [window.siteThemeChartPlugin],
     type: "bar",
     data: { labels: chartData.labels, datasets },
     options: {

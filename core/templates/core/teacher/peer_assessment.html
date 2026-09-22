@@ -5,19 +5,21 @@
 <style>
   :root{--peer-blue:#075985;--peer-sky:#e0f2fe;--peer-ink:#172033;--peer-warm:#fff8ed}
   *{box-sizing:border-box}
-  .peer-create{display:grid;grid-template-columns:minmax(220px,1fr) minmax(180px,.55fr) minmax(220px,.8fr) auto;gap:10px;align-items:end;margin-bottom:12px}
+  .peer-create{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,.55fr) minmax(0,.8fr) auto;gap:10px;align-items:end;margin-bottom:12px}
   .peer-layout{display:grid;grid-template-columns:290px minmax(0,1fr);gap:12px;min-height:660px}
+  .peer-layout > .card{min-width:0}
   .peer-list{display:flex;flex-direction:column;gap:8px;max-height:720px;overflow:auto}
   .peer-session{border:1px solid #dbe2ea;border-radius:12px;padding:11px;background:#fff;text-align:left;cursor:pointer}
   .peer-session.active{border-color:#0284c7;background:var(--peer-sky)}
   .peer-editor{display:none}
   .peer-editor.visible{display:block}
-  .field{display:flex;flex-direction:column;gap:5px}
+  .field{display:flex;flex-direction:column;gap:5px;min-width:0}
   .field label{font-size:12px;font-weight:800;color:#526075}
-  input,select,textarea{width:100%;border:1px solid #cfd8e3;border-radius:10px;padding:9px 10px;font:inherit;background:#fff}
+  input,select,textarea{width:100%;min-width:0;border:1px solid #cfd8e3;border-radius:10px;padding:9px 10px;font:inherit;background:#fff}
   textarea{resize:vertical;min-height:78px}
   select[multiple]{min-height:92px;padding:5px}
-  .editor-head{display:grid;grid-template-columns:minmax(220px,1fr) minmax(180px,.5fr) minmax(220px,.8fr) auto;gap:10px;align-items:end}
+  .editor-head{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;align-items:end}
+  .editor-head > .toolbar{grid-column:1/-1}
   .toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
   button{font:inherit}
   .action{border:0;border-radius:10px;padding:9px 13px;background:var(--peer-blue);color:#fff;font-weight:800;cursor:pointer}

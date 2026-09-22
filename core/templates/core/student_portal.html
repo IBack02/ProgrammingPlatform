@@ -595,7 +595,10 @@
     .gameAvatar{width:46px;height:46px;position:relative;filter:drop-shadow(0 5px 5px rgba(15,23,42,.25))}
     .gameAvatarBody{position:absolute;inset:0;background:var(--runner-color);border-radius:10px}
     .gameAvatarBody.triangle{clip-path:polygon(50% 0,100% 100%,0 100%);border-radius:0}.gameAvatarBody.diamond{transform:rotate(45deg);inset:7px;border-radius:6px}.gameAvatarBody.pentagon{clip-path:polygon(50% 0,100% 38%,82% 100%,18% 100%,0 38%);border-radius:0}.gameAvatarBody.hexagon{clip-path:polygon(25% 0,75% 0,100% 50%,75% 100%,25% 100%,0 50%);border-radius:0}
-    .gameEye{position:absolute;z-index:3;top:14px;width:13px;height:15px;background:#fff;border:2px solid #0f172a;border-radius:50%}.gameEye.left{left:8px}.gameEye.right{right:8px}.gameEye:after{content:"";position:absolute;width:5px;height:5px;background:#0f172a;border-radius:50%;left:3px;top:4px;animation:gameLook 2.2s ease-in-out infinite alternate}
+    .gameEye{position:absolute;z-index:3;top:14px;width:13px;height:15px;background:#fff;border:2px solid #0f172a;border-radius:50%;overflow:hidden;transform-origin:center}.gameEye.left{left:8px}.gameEye.right{right:8px}.gameEye:after{content:"";position:absolute;width:5px;height:5px;background:#0f172a;border-radius:50%;left:3px;top:4px;transform:translateX(var(--gaze-x,-2px))}
+    .gameAvatar.blinking .gameEye{animation:gameBlink .18s ease-in-out}
+    @keyframes gameBlink{0%,100%{transform:scaleY(1)}50%{transform:scaleY(.08)}}
+    @media(prefers-reduced-motion:reduce){.gameEye:after{transform:none}.gameAvatar.blinking .gameEye{animation:none}}
     .gameRunnerName{position:relative;z-index:3;white-space:nowrap;font-size:11px;font-weight:900;background:rgba(255,255,255,.9);padding:3px 6px;border-radius:7px;max-width:150px;overflow:hidden;text-overflow:ellipsis}
     .gamePromptStage{margin:22px auto 0;max-width:860px;padding:22px;border-radius:18px;background:#0f172a;color:#f8fafc;box-shadow:0 20px 45px rgba(15,23,42,.25);animation:gamePromptIn .38s ease}
     .gamePromptSentence{font-size:clamp(19px,3vw,30px);line-height:1.45;text-align:center;white-space:pre-wrap}
@@ -624,7 +627,7 @@
     .wonderQueue{display:flex;gap:6px;flex-wrap:wrap;justify-content:center;margin:12px 0}.wonderQueueItem{padding:6px 9px;border-radius:999px;background:#e2e8f0;font-size:11px}.wonderQueueItem.current{background:#facc15;color:#422006;font-weight:900;box-shadow:0 0 0 3px rgba(250,204,21,.25)}
     .wonderLogRow{padding:9px 0;border-bottom:1px solid #e2e8f0;font-size:12px;line-height:1.35}.wonderTeamResult{text-align:center;padding:44px 18px;border-radius:18px;margin-top:20px}.wonderTeamResult.won{background:linear-gradient(135deg,#dcfce7,#fef9c3);color:#14532d}.wonderTeamResult.lost{background:linear-gradient(135deg,#fee2e2,#ffedd5);color:#7f1d1d}
     @keyframes wonderPulse{to{transform:scale(1.08);box-shadow:0 0 0 5px rgba(220,38,38,.18)}}
-    @keyframes gameLook{from{transform:translateX(-2px)}to{transform:translateX(2px)}}@keyframes gameCharIn{from{opacity:0;transform:translateY(12px) scale(.7)}to{opacity:1;transform:none}}@keyframes gameCharOut{to{opacity:0;transform:translateY(-12px) rotate(12deg) scale(.5)}}@keyframes gamePromptIn{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}@keyframes gameCorrect{50%{transform:scale(1.018);box-shadow:0 0 0 5px rgba(34,197,94,.35)}}@keyframes gameWrong{20%,60%{transform:translateX(-10px)}40%,80%{transform:translateX(10px)}}@keyframes gameCelebrate{from{transform:translateY(0) rotate(-4deg)}to{transform:translateY(-16px) rotate(4deg)}}
+    @keyframes gameCharIn{from{opacity:0;transform:translateY(12px) scale(.7)}to{opacity:1;transform:none}}@keyframes gameCharOut{to{opacity:0;transform:translateY(-12px) rotate(12deg) scale(.5)}}@keyframes gamePromptIn{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}@keyframes gameCorrect{50%{transform:scale(1.018);box-shadow:0 0 0 5px rgba(34,197,94,.35)}}@keyframes gameWrong{20%,60%{transform:translateX(-10px)}40%,80%{transform:translateX(10px)}}@keyframes gameCelebrate{from{transform:translateY(0) rotate(-4deg)}to{transform:translateY(-16px) rotate(4deg)}}
 
     @media (max-width: 900px){
       .content{
@@ -1786,6 +1789,28 @@
     return `<div class="gameAvatar" style="--runner-color:${escapeHtml(player.avatar_color)}"><div class="gameAvatarBody ${escapeHtml(player.avatar_shape)}"></div><span class="gameEye left"></span><span class="gameEye right"></span></div>`;
   }
 
+  function animateGameAvatars(container){
+    container.querySelectorAll(".gameAvatar:not([data-animated])").forEach(avatar => {
+      avatar.dataset.animated = "true";
+      let lookingLeft = true;
+      function changeGaze(){
+        if (!avatar.isConnected) return;
+        lookingLeft = !lookingLeft;
+        avatar.style.setProperty("--gaze-x", lookingLeft ? "-2px" : "2px");
+        // Pick a new hold duration each time so participants do not move in unison.
+        setTimeout(changeGaze, 2700 + Math.random() * 300);
+      }
+      function blink(){
+        if (!avatar.isConnected) return;
+        avatar.classList.add("blinking");
+        setTimeout(() => avatar.classList.remove("blinking"), 180);
+        setTimeout(blink, 8000 + Math.random() * 1000);
+      }
+      setTimeout(changeGaze, 2700 + Math.random() * 300);
+      setTimeout(blink, 8000 + Math.random() * 1000);
+    });
+  }
+
   function renderGameTracks(round){
     const box = qs("gameTracks");
     const players = round?.participants || [];
@@ -1794,7 +1819,7 @@
     Array.from(box.children).forEach(child => {
       if (!liveIds.has(child.id)) child.remove();
     });
-    players.forEach(player => {
+    players.forEach((player, index) => {
       const ratio = Math.max(0, Math.min(1, Number(player.progress || 0) / total));
       let track = qs(`game_track_${player.id}`);
       if (!track){
@@ -1806,8 +1831,9 @@
       track.style.setProperty("--runner-color", player.avatar_color);
       track.querySelector(".gameRunner").style.left = `calc(7px + ${ratio * 100}% - ${ratio * 76}px)`;
       track.querySelector(".gameRunnerName").textContent = `${player.student_name} · ${player.progress}/${total}${player.finish_place ? ` · #${player.finish_place}` : ""}`;
-      box.appendChild(track);
+      if (box.children[index] !== track) box.insertBefore(track, box.children[index] || null);
     });
+    animateGameAvatars(box);
   }
 
   function renderGameCharacters(value, force=false){
@@ -1849,6 +1875,7 @@
       return `<div class="podiumPlace ${classes[place]}">${gameAvatarHtml(player)}<b>#${place}</b><div>${escapeHtml(player.student_name)}</div></div>`;
     }).join("");
     box.innerHTML = `<div class="title" style="text-align:center;margin-top:22px;">${escapeHtml(UI.gameResults)}</div><div class="gamePodium">${podium}</div><div class="gameRanking">${ranked.map(player => `<div class="gameRankRow"><b>#${player.finish_place} ${escapeHtml(player.student_name)}</b><span>${player.progress}/${round.total_prompts}</span></div>`).join("")}</div>`;
+    animateGameAvatars(box);
   }
 
   function wonderStudentEventText(event){
@@ -1928,8 +1955,31 @@
     qs("tournamentBracket").innerHTML=stages.length?`<div class="tournamentBracketViewport"><div id="studentTournamentGrid" class="tournamentBracketGrid" style="grid-template-columns:repeat(${stages.length},220px);min-width:${Math.max(1,stages.length)*220+Math.max(0,stages.length-1)*72+56}px"><svg class="tournamentBracketLines" aria-hidden="true"></svg>${stageHtml}</div></div>`:"";
     requestAnimationFrame(drawStudentTournamentConnectors);
     const match=(round.tournament_matches||[]).find(row=>Number(row.id)===Number(round.my_tournament_match_id));
-    const play=qs("tournamentPlay");
-    if(match?.current_question&&round.can_answer_tournament){play.style.display="block";qs("tournamentMatchScore").textContent=`${match.player_one.student_name} ${match.score_one} : ${match.score_two} ${match.player_two.student_name} · ${match.wins_required}`;qs("tournamentPrompt").textContent=match.current_question.prompt;if(play.dataset.question!==`${match.id}:${match.current_question.index}`){play.dataset.question=`${match.id}:${match.current_question.index}`;qs("tournamentAnswerInput").value="";qs("tournamentFeedback").textContent="";setTimeout(()=>qs("tournamentAnswerInput").focus(),20)}}else{play.style.display="block";qs("tournamentMatchScore").textContent=round.me?.finish_place===1?UI.tournamentChampion:(round.tournament_eliminated?UI.tournamentEliminated:UI.tournamentWaitingMatch);qs("tournamentPrompt").textContent="";qs("tournamentAnswerInput").style.display="none";qs("tournamentSubmitBtn").style.display="none";}
+    renderTournamentAnswer(round, match);
+  }
+
+  function renderTournamentAnswer(round, match){
+    const play = qs("tournamentPlay");
+    const input = qs("tournamentAnswerInput");
+    const canAnswer = Boolean(match?.current_question && round.can_answer_tournament);
+    const questionKey = canAnswer ? `${round.id}:${match.id}:${match.current_question.index}` : "";
+    const questionChanged = play.dataset.question !== questionKey;
+    if (questionChanged){
+      play.dataset.question = questionKey;
+      input.value = "";
+      qs("tournamentFeedback").textContent = "";
+    }
+    play.style.display = "block";
+    input.style.display = canAnswer ? "block" : "none";
+    qs("tournamentSubmitBtn").style.display = canAnswer ? "inline-block" : "none";
+    if (canAnswer){
+      qs("tournamentMatchScore").textContent = `${match.player_one.student_name} ${match.score_one} : ${match.score_two} ${match.player_two.student_name} · ${match.wins_required}`;
+      qs("tournamentPrompt").textContent = match.current_question.prompt;
+      if (questionChanged) input.focus({preventScroll: true});
+    } else {
+      qs("tournamentMatchScore").textContent = round.me?.finish_place === 1 ? UI.tournamentChampion : (round.tournament_eliminated ? UI.tournamentEliminated : UI.tournamentWaitingMatch);
+      qs("tournamentPrompt").textContent = "";
+    }
   }
 
   function renderTournamentQuestionResult(round){
@@ -2038,8 +2088,9 @@
     const results = qs("gameResults");
     results.style.display = "none";
     wonderBoard.style.display = "none";
-    tournamentBoard.style.display = "none";
-    qs("tournamentAnswerInput").style.display="block";qs("tournamentSubmitBtn").style.display="inline-block";
+    // Keep the active answer field visible and focused between polling updates.
+    tournamentBoard.style.display = round?.rubric === "tournament" &&
+      (round.status === "finished" || (round.status === "running" && round.registered)) ? "block" : "none";
     qs("gameTracks").style.display = ["wonder_field","tournament"].includes(round?.rubric) ? "none" : "grid";
     qs("gameStatus").textContent = round ? `${round.class.name} · #${round.run_number} · ${round.status}` : UI.gameWaiting;
     renderGameTracks(round);

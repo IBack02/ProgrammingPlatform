@@ -134,7 +134,6 @@
     .game-prompt-row,
     .gameLobby,
     .gameRankRow,
-    .teacher-race-track,
     .review-card,
     .result-work,
     .peer-session,
@@ -297,6 +296,19 @@
   html[data-theme="dark"] body :where(.bar-fill,.barFill){
     background:linear-gradient(90deg,#78909f,#c89b63) !important;
   }
+  html[data-theme="dark"] body :where(.raceTrack,.teacher-race-track){
+    background:repeating-linear-gradient(90deg,#12171d 0 42px,#26323e 43px 44px) !important;
+    border-left-color:var(--runner-color);
+    border-right-color:var(--theme-muted);
+    color:var(--theme-text);
+  }
+  html[data-theme="dark"] body .raceTrack:after{
+    border-top-color:rgba(168,176,183,.3);
+  }
+  html[data-theme="dark"] body .gameRunnerName{
+    background:rgba(18,23,29,.94);
+    color:var(--theme-text);
+  }
   html[data-theme="dark"] body .scores > .score{
     background:rgba(18,23,29,.94) !important;
     border-color:var(--theme-surface-soft) !important;
@@ -443,38 +455,42 @@
       return document.documentElement.dataset.theme === "dark" ? "dark" : "light";
     }
 
-    function syncCharts(){
-      if (!window.Chart || !window.Chart.instances) return;
+    function applyChartTheme(chart){
+      if (!chart?.options) return;
       const dark = currentTheme() === "dark";
       const text = dark ? "#edf1f3" : "#666666";
       const grid = dark ? "rgba(168,176,183,.18)" : "rgba(0,0,0,.1)";
-      Object.values(window.Chart.instances).forEach((chart) => {
-        if (!chart?.options) return;
-        (chart.data?.datasets || []).forEach((dataset, index) => {
-          let original = chartColorState.get(dataset);
-          if (!original) {
-            original = Object.fromEntries(
-              chartColorProperties.map((property) => [property, dataset[property]])
-            );
-            chartColorState.set(dataset, original);
-          }
-          const seriesColor = darkChartSeries[index % darkChartSeries.length];
-          dataset.borderColor = dark ? seriesColor : original.borderColor;
-          dataset.backgroundColor = dark ? seriesColor : original.backgroundColor;
-          dataset.pointBackgroundColor = dark ? seriesColor : original.pointBackgroundColor;
-          dataset.pointBorderColor = dark ? "#12171d" : original.pointBorderColor;
-          dataset.pointHoverBackgroundColor = dark ? "#efd6b0" : original.pointHoverBackgroundColor;
-          dataset.pointHoverBorderColor = dark ? seriesColor : original.pointHoverBorderColor;
-        });
-        chart.options.color = text;
-        if (chart.options.plugins?.legend?.labels) chart.options.plugins.legend.labels.color = text;
-        Object.values(chart.options.scales || {}).forEach((scale) => {
-          if (scale.ticks) scale.ticks.color = text;
-          if (scale.grid) scale.grid.color = grid;
-          if (scale.title) scale.title.color = text;
-        });
-        chart.update("none");
+      (chart.data?.datasets || []).forEach((dataset, index) => {
+        let original = chartColorState.get(dataset);
+        if (!original) {
+          original = Object.fromEntries(
+            chartColorProperties.map((property) => [property, dataset[property]])
+          );
+          chartColorState.set(dataset, original);
+        }
+        const seriesColor = darkChartSeries[index % darkChartSeries.length];
+        dataset.borderColor = dark ? seriesColor : original.borderColor;
+        dataset.backgroundColor = dark ? seriesColor : original.backgroundColor;
+        dataset.pointBackgroundColor = dark ? seriesColor : original.pointBackgroundColor;
+        dataset.pointBorderColor = dark ? "#12171d" : original.pointBorderColor;
+        dataset.pointHoverBackgroundColor = dark ? "#efd6b0" : original.pointHoverBackgroundColor;
+        dataset.pointHoverBorderColor = dark ? seriesColor : original.pointHoverBorderColor;
       });
+      chart.options.color = text;
+      if (chart.options.plugins?.legend?.labels) chart.options.plugins.legend.labels.color = text;
+      Object.values(chart.options.scales || {}).forEach((scale) => {
+        if (scale.ticks) scale.ticks.color = text;
+        if (scale.grid) scale.grid.color = grid;
+        if (scale.title) scale.title.color = text;
+      });
+    }
+
+    // Apply before every render, including charts created after asynchronous data loads.
+    window.siteThemeChartPlugin = {id: "site-theme", beforeUpdate: applyChartTheme};
+
+    function syncCharts(){
+      if (!window.Chart?.instances) return;
+      Object.values(window.Chart.instances).forEach(chart => chart.update("none"));
     }
 
     function syncButton(button){
@@ -506,7 +522,6 @@
       });
       document.body.appendChild(button);
       syncCharts();
-      window.setTimeout(syncCharts, 250);
     }
 
     if (document.readyState === "loading") {

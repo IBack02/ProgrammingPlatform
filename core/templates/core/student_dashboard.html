@@ -207,6 +207,7 @@
 
       if (metricsChart) metricsChart.destroy();
       metricsChart = new Chart(document.getElementById("metricsChart"), {
+        plugins: [window.siteThemeChartPlugin],
         type: "line",
         data: { labels, datasets },
         options: {

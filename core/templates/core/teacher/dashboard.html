@@ -319,6 +319,7 @@
     applyCardBars(isExam);
     if(dashboardChart)dashboardChart.destroy();
     dashboardChart=new Chart(document.getElementById("sessionChart"), {
+      plugins: [window.siteThemeChartPlugin],
       type:isExam?"line":"bar",
       data:{labels:source.labels||[],datasets},
       options: {

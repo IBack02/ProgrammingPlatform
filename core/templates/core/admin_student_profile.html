@@ -279,6 +279,7 @@
     profileChart = null;
     if (!hasData) return;
     profileChart = new Chart(ctx, {
+      plugins: [window.siteThemeChartPlugin],
       type: "line",
       data: {labels: data.labels || [], datasets},
       options: {
