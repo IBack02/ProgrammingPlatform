@@ -40,6 +40,7 @@ WONDER_FIELD_CYRILLIC = "ЙЦУКЕНГШЩЗХЪФЫВАПРОЛДЖЭЯЧСМ�
 WONDER_FIELD_DIGITS = "1234567890"
 WONDER_FIELD_SYMBOLS = ".,!?-+*/=:%@#&()[]{}_\\|<>\"'№"
 WONDER_FIELD_TURN_SECONDS = 20
+TOURNAMENT_WRONG_ANSWER_COOLDOWN_SECONDS = 2
 
 
 def _json_errors(view_func):
@@ -549,6 +550,24 @@ def _active_round_for_student(module, student):
     )
 
 
+def _tournament_answer_cooldown_ms(participant):
+    now = timezone.now()
+    last_wrong_at = (
+        participant.tournament_answer_attempts.filter(
+            was_current=True,
+            is_correct=False,
+            submitted_at__gt=now - timedelta(seconds=TOURNAMENT_WRONG_ANSWER_COOLDOWN_SECONDS),
+        )
+        .order_by("-submitted_at")
+        .values_list("submitted_at", flat=True)
+        .first()
+    )
+    if last_wrong_at is None:
+        return 0
+    remaining = last_wrong_at + timedelta(seconds=TOURNAMENT_WRONG_ANSWER_COOLDOWN_SECONDS) - now
+    return max(0, ceil(remaining.total_seconds() * 1000))
+
+
 def _student_round_state(round_obj, student):
     participant = (
         round_obj.participants.select_related("student")
@@ -574,6 +593,9 @@ def _student_round_state(round_obj, student):
         )
         data["my_tournament_match_id"] = active_match.id if active_match else None
         data["can_answer_tournament"] = bool(active_match and round_obj.status == GameRound.Status.RUNNING)
+        data["tournament_answer_cooldown_ms"] = (
+            _tournament_answer_cooldown_ms(participant) if data["can_answer_tournament"] else 0
+        )
         data["tournament_eliminated"] = round_obj.tournament_matches.filter(
             Q(player_one=participant) | Q(player_two=participant),
             status=TournamentMatch.Status.FINISHED,
@@ -1491,6 +1513,17 @@ def student_tournament_answer_api(request: HttpRequest, round_id: int):
         if question_index < 0 or question_index >= len(questions):
             return _api_error("tournament question is unavailable", 409)
         is_current = question_index == match.current_question_index
+        cooldown_ms = _tournament_answer_cooldown_ms(participant) if is_current else 0
+        if cooldown_ms:
+            response = JsonResponse({
+                "ok": False,
+                "cooldown": True,
+                "error": "wait before answering again",
+                "retry_after_ms": cooldown_ms,
+                "round": _student_round_state(round_obj, student),
+            }, status=429)
+            response["Retry-After"] = str(ceil(cooldown_ms / 1000))
+            return response
         is_correct = _normalize_answer(answer) == _normalize_answer(
             questions[question_index]["answer"]
         )

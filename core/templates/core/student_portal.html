@@ -592,13 +592,6 @@
     .raceTrack{height:62px;position:relative;border-radius:14px;overflow:hidden;border-left:4px solid var(--runner-color);border-right:7px double #0f172a;background:repeating-linear-gradient(90deg,rgba(255,255,255,.84) 0 42px,rgba(148,163,184,.22) 43px 44px)}
     .raceTrack:after{content:"";position:absolute;left:0;right:0;top:50%;border-top:2px dashed rgba(100,116,139,.42)}
     .gameRunner{position:absolute;z-index:2;left:7px;top:7px;display:flex;align-items:center;gap:9px;transition:left .65s cubic-bezier(.18,.82,.26,1.15)}
-    .gameAvatar{width:46px;height:46px;position:relative;filter:drop-shadow(0 5px 5px rgba(15,23,42,.25))}
-    .gameAvatarBody{position:absolute;inset:0;background:var(--runner-color);border-radius:10px}
-    .gameAvatarBody.triangle{clip-path:polygon(50% 0,100% 100%,0 100%);border-radius:0}.gameAvatarBody.diamond{transform:rotate(45deg);inset:7px;border-radius:6px}.gameAvatarBody.pentagon{clip-path:polygon(50% 0,100% 38%,82% 100%,18% 100%,0 38%);border-radius:0}.gameAvatarBody.hexagon{clip-path:polygon(25% 0,75% 0,100% 50%,75% 100%,25% 100%,0 50%);border-radius:0}
-    .gameEye{position:absolute;z-index:3;top:14px;width:13px;height:15px;background:#fff;border:2px solid #0f172a;border-radius:50%;overflow:hidden;transform-origin:center}.gameEye.left{left:8px}.gameEye.right{right:8px}.gameEye:after{content:"";position:absolute;width:5px;height:5px;background:#0f172a;border-radius:50%;left:3px;top:4px;transform:translateX(var(--gaze-x,-2px))}
-    .gameAvatar.blinking .gameEye{animation:gameBlink .18s ease-in-out}
-    @keyframes gameBlink{0%,100%{transform:scaleY(1)}50%{transform:scaleY(.08)}}
-    @media(prefers-reduced-motion:reduce){.gameEye:after{transform:none}.gameAvatar.blinking .gameEye{animation:none}}
     .gameRunnerName{position:relative;z-index:3;white-space:nowrap;font-size:11px;font-weight:900;background:rgba(255,255,255,.9);padding:3px 6px;border-radius:7px;max-width:150px;overflow:hidden;text-overflow:ellipsis}
     .gamePromptStage{margin:22px auto 0;max-width:860px;padding:22px;border-radius:18px;background:#0f172a;color:#f8fafc;box-shadow:0 20px 45px rgba(15,23,42,.25);animation:gamePromptIn .38s ease}
     .gamePromptSentence{font-size:clamp(19px,3vw,30px);line-height:1.45;text-align:center;white-space:pre-wrap}
@@ -644,6 +637,7 @@
     @media (max-width:520px){.wonderKeyboard{grid-template-columns:repeat(5,minmax(34px,1fr))}.wonderAnswerCell{width:32px;height:42px;font-size:21px}.wonderPlayArea{padding:12px}}
   </style>
   {% include "core/_theme_support.html" %}
+  {% include "core/_game_avatar.html" %}
 </head>
 <body class="module-bg-coding">
 <div class="layout">
@@ -961,6 +955,7 @@
     ,gameNotRegistered: "{{ T.game_not_registered|escapejs }}"
     ,gameCorrect: "{{ T.game_correct|escapejs }}"
     ,gameIncorrect: "{{ T.game_incorrect|escapejs }}"
+    ,gameCheckAnswer: "{{ T.game_check_answer|escapejs }}"
     ,gameFinished: "{{ T.game_finished|escapejs }}"
     ,gamePlace: "{{ T.game_place|escapejs }}"
     ,gameQuestion: "{{ T.game_sentence_number|escapejs }}"
@@ -1016,6 +1011,8 @@
   let lastTournamentResultKey = "";
   let tournamentNoticeRoundId = null;
   let tournamentNoticeTimer = null;
+  let tournamentCooldownUntil = 0;
+  let tournamentCooldownTimer = null;
   let gameStateEpoch = 0;
 
   function qs(id){ return document.getElementById(id); }
@@ -1785,32 +1782,6 @@
     gamePollTimer = null;
   }
 
-  function gameAvatarHtml(player){
-    return `<div class="gameAvatar" style="--runner-color:${escapeHtml(player.avatar_color)}"><div class="gameAvatarBody ${escapeHtml(player.avatar_shape)}"></div><span class="gameEye left"></span><span class="gameEye right"></span></div>`;
-  }
-
-  function animateGameAvatars(container){
-    container.querySelectorAll(".gameAvatar:not([data-animated])").forEach(avatar => {
-      avatar.dataset.animated = "true";
-      let lookingLeft = true;
-      function changeGaze(){
-        if (!avatar.isConnected) return;
-        lookingLeft = !lookingLeft;
-        avatar.style.setProperty("--gaze-x", lookingLeft ? "-2px" : "2px");
-        // Pick a new hold duration each time so participants do not move in unison.
-        setTimeout(changeGaze, 2700 + Math.random() * 300);
-      }
-      function blink(){
-        if (!avatar.isConnected) return;
-        avatar.classList.add("blinking");
-        setTimeout(() => avatar.classList.remove("blinking"), 180);
-        setTimeout(blink, 8000 + Math.random() * 1000);
-      }
-      setTimeout(changeGaze, 2700 + Math.random() * 300);
-      setTimeout(blink, 8000 + Math.random() * 1000);
-    });
-  }
-
   function renderGameTracks(round){
     const box = qs("gameTracks");
     const players = round?.participants || [];
@@ -1980,6 +1951,19 @@
       qs("tournamentMatchScore").textContent = round.me?.finish_place === 1 ? UI.tournamentChampion : (round.tournament_eliminated ? UI.tournamentEliminated : UI.tournamentWaitingMatch);
       qs("tournamentPrompt").textContent = "";
     }
+    tournamentCooldownUntil = Date.now() + Math.max(0, Number(round.tournament_answer_cooldown_ms || 0));
+    updateTournamentSubmitButton();
+  }
+
+  function updateTournamentSubmitButton(){
+    clearTimeout(tournamentCooldownTimer);
+    tournamentCooldownTimer = null;
+    const seconds = Math.max(0, Math.ceil((tournamentCooldownUntil - Date.now()) / 1000));
+    const canAnswer = currentModuleType === "game" && currentGameRound?.can_answer_tournament;
+    const button = qs("tournamentSubmitBtn");
+    button.disabled = !canAnswer || gameAnswerPending || seconds > 0;
+    button.textContent = seconds > 0 ? formatStr(UI.statusCooldown, {seconds}) : UI.gameCheckAnswer;
+    if (canAnswer && seconds > 0) tournamentCooldownTimer = setTimeout(updateTournamentSubmitButton, 100);
   }
 
   function renderTournamentQuestionResult(round){
@@ -2015,7 +1999,7 @@
       row => Number(row.id) === Number(currentGameRound.my_tournament_match_id)
     );
     const answer = qs("tournamentAnswerInput").value;
-    if (!match?.current_question || gameAnswerPending || !answer.trim()) return;
+    if (!match?.current_question || !currentGameRound.can_answer_tournament || gameAnswerPending || Date.now() < tournamentCooldownUntil || !answer.trim()) return;
     const roundId = currentGameRound.id;
     const stateEpoch = ++gameStateEpoch;
     const button = qs("tournamentSubmitBtn");
@@ -2028,9 +2012,13 @@
       answer
     });
     gameAnswerPending = false;
-    button.disabled = false;
-    if (stateEpoch !== gameStateEpoch || currentModuleType !== "game") return;
+    updateTournamentSubmitButton();
+    if (stateEpoch !== gameStateEpoch || currentModuleType !== "game" || currentGameRound?.id !== roundId) return;
     if (!res.data.ok){
+      if (res.data.cooldown && res.data.round){
+        renderStudentGameRound(res.data.round);
+        return;
+      }
       qs("tournamentFeedback").textContent = res.data.error || UI.gameIncorrect;
       scheduleStudentGamePoll(roundId);
       return;
@@ -2257,6 +2245,8 @@
 
   async function openTask(taskId, moduleType, btn){
     stopStudentGamePolling();
+    clearTimeout(tournamentCooldownTimer);
+    tournamentCooldownUntil = 0;
     currentGameRound = null;
     qs("gameCard").style.display = "none";
     if (currentTaskId && currentModuleType === "coding_task"){

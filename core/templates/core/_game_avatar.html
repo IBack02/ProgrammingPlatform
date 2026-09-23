@@ -1,0 +1,42 @@
+<style>
+  .gameAvatar{width:46px;height:46px;flex-shrink:0;position:relative;filter:drop-shadow(0 5px 5px rgba(15,23,42,.25))}
+  .gameAvatarBody{position:absolute;inset:0;background:var(--runner-color);border-radius:10px}
+  .gameAvatarBody.triangle{clip-path:polygon(50% 0,100% 100%,0 100%);border-radius:0}
+  .gameAvatarBody.diamond{transform:rotate(45deg);inset:7px;border-radius:6px}
+  .gameAvatarBody.pentagon{clip-path:polygon(50% 0,100% 38%,82% 100%,18% 100%,0 38%);border-radius:0}
+  .gameAvatarBody.hexagon{clip-path:polygon(25% 0,75% 0,100% 50%,75% 100%,25% 100%,0 50%);border-radius:0}
+  .gameEye{position:absolute;z-index:3;top:14px;width:13px;height:15px;background:#fff;border:2px solid #0f172a;border-radius:50%;overflow:hidden;transform-origin:center}
+  .gameEye.left{left:8px}
+  .gameEye.right{right:8px}
+  .gameEye:after{content:"";position:absolute;width:5px;height:5px;background:#0f172a;border-radius:50%;left:3px;top:4px;transform:translateX(var(--gaze-x,-2px))}
+  .gameAvatar.blinking .gameEye{animation:gameBlink .18s ease-in-out}
+  @keyframes gameBlink{0%,100%{transform:scaleY(1)}50%{transform:scaleY(.08)}}
+  @media(prefers-reduced-motion:reduce){.gameEye:after{transform:none}.gameAvatar.blinking .gameEye{animation:none}}
+</style>
+<script>
+  function gameAvatarHtml(player){
+    return `<div class="gameAvatar" style="--runner-color:${escapeHtml(player.avatar_color)}"><div class="gameAvatarBody ${escapeHtml(player.avatar_shape)}"></div><span class="gameEye left"></span><span class="gameEye right"></span></div>`;
+  }
+
+  function animateGameAvatars(container){
+    container.querySelectorAll(".gameAvatar:not([data-animated])").forEach(avatar => {
+      avatar.dataset.animated = "true";
+      let lookingLeft = true;
+      function changeGaze(){
+        if (!avatar.isConnected) return;
+        lookingLeft = !lookingLeft;
+        avatar.style.setProperty("--gaze-x", lookingLeft ? "-2px" : "2px");
+        // Pick a new hold duration each time so participants do not move in unison.
+        setTimeout(changeGaze, 2700 + Math.random() * 300);
+      }
+      function blink(){
+        if (!avatar.isConnected) return;
+        avatar.classList.add("blinking");
+        setTimeout(() => avatar.classList.remove("blinking"), 180);
+        setTimeout(blink, 8000 + Math.random() * 1000);
+      }
+      setTimeout(changeGaze, 2700 + Math.random() * 300);
+      setTimeout(blink, 8000 + Math.random() * 1000);
+    });
+  }
+</script>

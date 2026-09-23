@@ -763,6 +763,110 @@ class MindRaceGameTests(TestCase):
         self.assertFalse(answer_rows[2]["was_current"])
         self.assertEqual(TournamentAnswerAttempt.objects.filter(match_id=active_match["id"]).count(), 3)
 
+    def _cooldown_tournament(self):
+        module = GameModule.objects.create(
+            session=self.session, title="Cooldown cup", position=1,
+            rubric=GameModule.Rubric.TOURNAMENT,
+        )
+        round_obj = GameRound.objects.create(
+            module=module, class_group=self.class_a, moderator=self.teacher,
+            run_number=1, status=GameRound.Status.RUNNING, total_prompts=3,
+            prompt_snapshot=[{
+                "title": "Final", "question_count": 3,
+                "questions": [
+                    {"ordinal": i, "prompt": f"Question {i}", "answer": f"Answer {i}"}
+                    for i in (1, 2, 3)
+                ],
+            }],
+        )
+        players = [
+            GameParticipant.objects.create(
+                round=round_obj, student=student,
+                avatar_shape="square", avatar_color="#38bdf8",
+            )
+            for student in (self.student_a, self.student_a2)
+        ]
+        match = TournamentMatch.objects.create(
+            round=round_obj, stage_number=1, match_number=1,
+            player_one=players[0], player_two=players[1], status=TournamentMatch.Status.RUNNING,
+        )
+        return round_obj, match, players
+
+    def test_tournament_wrong_answer_blocks_retries_for_exactly_two_seconds(self):
+        round_obj, match, players = self._cooldown_tournament()
+        url = f"/api/student/game-rounds/{round_obj.id}/tournament-answer/"
+        payload = {"match_id": match.id, "question_index": 0, "answer": "Wrong"}
+        now = timezone.now()
+        with patch("core.game_views.timezone.now", return_value=now) as clock:
+            wrong = self._json(self.client_a, "post", url, payload)
+            self.assertEqual(wrong.status_code, 200)
+            self.assertEqual(wrong.json()["round"]["tournament_answer_cooldown_ms"], 2000)
+
+            payload["answer"] = "Answer 1"
+            for elapsed, remaining in [(0, 2000), (500, 1500), (1999, 1)]:
+                clock.return_value = now + timedelta(milliseconds=elapsed)
+                blocked = self._json(self.client_a, "post", url, payload)
+                self.assertEqual(blocked.status_code, 429)
+                self.assertTrue(blocked.json()["cooldown"])
+                self.assertEqual(blocked.json()["retry_after_ms"], remaining)
+                self.assertEqual(blocked["Retry-After"], str((remaining + 999) // 1000))
+
+            self.assertEqual(TournamentAnswerAttempt.objects.filter(match=match).count(), 1)
+            players[0].refresh_from_db()
+            self.assertEqual(players[0].wrong_answers, 1)
+            self.assertEqual(players[0].correct_answers, 0)
+            clock.return_value = now + timedelta(milliseconds=500)
+            reloaded = self._student_client(self.student_a).get(
+                f"/api/student/game-rounds/{round_obj.id}/state/"
+            )
+            self.assertEqual(reloaded.json()["round"]["tournament_answer_cooldown_ms"], 1500)
+
+            clock.return_value = now + timedelta(seconds=2)
+            accepted = self._json(self.client_a, "post", url, payload)
+            self.assertEqual(accepted.status_code, 200)
+            self.assertTrue(accepted.json()["correct"])
+            self.assertEqual(accepted.json()["round"]["tournament_answer_cooldown_ms"], 0)
+            payload.update(question_index=1, answer="Answer 2")
+            next_answer = self._json(self.client_a, "post", url, payload)
+            self.assertEqual(next_answer.status_code, 200)
+            self.assertTrue(next_answer.json()["correct"])
+
+    def test_tournament_cooldown_is_personal_and_stale_answers_do_not_extend_it(self):
+        round_obj, match, players = self._cooldown_tournament()
+        url = f"/api/student/game-rounds/{round_obj.id}/tournament-answer/"
+        now = timezone.now()
+        with patch("core.game_views.timezone.now", return_value=now) as clock:
+            self._json(self.client_a, "post", url, {
+                "match_id": match.id, "question_index": 0, "answer": "Wrong",
+            })
+            opponent = self._json(self.client_a2, "post", url, {
+                "match_id": match.id, "question_index": 0, "answer": "Answer 1",
+            })
+            self.assertEqual(opponent.status_code, 200)
+            self.assertTrue(opponent.json()["correct"])
+            self.assertEqual(opponent.json()["round"]["tournament_answer_cooldown_ms"], 0)
+
+            clock.return_value = now + timedelta(seconds=1)
+            stale = self._json(self.client_a, "post", url, {
+                "match_id": match.id, "question_index": 0, "answer": "Wrong again",
+            })
+            self.assertEqual(stale.status_code, 200)
+            self.assertTrue(stale.json()["stale"])
+            self.assertEqual(stale.json()["round"]["tournament_answer_cooldown_ms"], 1000)
+            next_question = self._json(self.client_a, "post", url, {
+                "match_id": match.id, "question_index": 1, "answer": "Answer 2",
+            })
+            self.assertEqual(next_question.status_code, 429)
+
+            clock.return_value = now + timedelta(seconds=2)
+            accepted = self._json(self.client_a, "post", url, {
+                "match_id": match.id, "question_index": 1, "answer": "Answer 2",
+            })
+            self.assertEqual(accepted.status_code, 200)
+            self.assertTrue(accepted.json()["correct"])
+            players[0].refresh_from_db()
+            self.assertEqual(players[0].wrong_answers, 1)
+
     def test_tournament_with_five_players_creates_only_one_first_round_bye(self):
         extra_students = [
             Student.objects.create(

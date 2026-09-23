@@ -3,6 +3,7 @@
 {% block subtitle %}{{ T.modules_subtitle }}{% endblock %}
 
 {% block content %}
+{% include "core/_game_avatar.html" %}
 <style>
   .input-ui,.textarea-ui,.select-ui{padding:10px;border:1px solid #e5e7eb;border-radius:10px;box-sizing:border-box;background:#fff}
   .btn{cursor:pointer}
@@ -28,15 +29,8 @@
   .game-prompt-row{border:1px solid #e5e7eb;border-radius:12px;padding:12px;margin-top:10px;background:#fff}
   .game-prompt-row textarea{min-height:76px}
   .game-preview{padding:8px 10px;border-radius:9px;background:#0f172a;color:#e2e8f0;margin-top:8px;white-space:pre-wrap}
-  .teacher-race-track{position:relative;height:54px;border-radius:12px;background:repeating-linear-gradient(90deg,#f8fafc 0 36px,#e2e8f0 37px 38px);margin:8px 0;overflow:hidden;border-left:3px solid var(--runner-color,#0ea5e9);border-right:5px double #111827}
+  .teacher-race-track{position:relative;height:62px;border-radius:12px;background:repeating-linear-gradient(90deg,#f8fafc 0 36px,#e2e8f0 37px 38px);margin:8px 0;overflow:hidden;border-left:3px solid var(--runner-color,#0ea5e9);border-right:5px double #111827}
   .teacher-runner{position:absolute;left:7px;top:7px;transition:left .5s cubic-bezier(.2,.8,.2,1);display:flex;align-items:center;gap:7px}
-  .teacher-runner-shape{width:36px;height:36px;background:var(--runner-color);border-radius:9px;position:relative;box-shadow:0 4px 10px rgba(15,23,42,.2)}
-  .teacher-runner-shape:before,.teacher-runner-shape:after{content:"";position:absolute;top:10px;width:7px;height:9px;border-radius:50%;background:#fff;border:2px solid #111827}
-  .teacher-runner-shape:before{left:7px}.teacher-runner-shape:after{right:7px}
-  .teacher-runner-shape.triangle{clip-path:polygon(50% 0,100% 100%,0 100%)}
-  .teacher-runner-shape.diamond{transform:rotate(45deg);border-radius:5px}
-  .teacher-runner-shape.pentagon{clip-path:polygon(50% 0,100% 38%,82% 100%,18% 100%,0 38%)}
-  .teacher-runner-shape.hexagon{clip-path:polygon(25% 0,75% 0,100% 50%,75% 100%,25% 100%,0 50%)}
   .game-round-history{display:flex;gap:7px;flex-wrap:wrap;margin-top:10px}
   .wonder-board{display:grid;grid-template-columns:minmax(0,1fr) 280px;gap:14px;margin-top:12px}
   .wonder-main,.wonder-log{background:rgba(255,255,255,.9);border:1px solid #dbeafe;border-radius:14px;padding:14px}
@@ -999,10 +993,6 @@ Replace example content with the requested educational material while preserving
     `;
   }
 
-  function gameShapeHtml(participant){
-    return `<div class="teacher-runner-shape ${escapeHtml(participant.avatar_shape)}" style="--runner-color:${escapeHtml(participant.avatar_color)}"></div>`;
-  }
-
   function renderTeacherTournament(round){
     const stages=round.tournament_stages||[];
     if(!stages.length){qs("gameParticipants").innerHTML=(round.participants||[]).length?(round.participants||[]).map(player=>`<span class="pill" style="margin:4px">${escapeHtml(player.student_name)}</span>`).join(""):`<div class="muted">{{ T.waiting_for_players|escapejs }}</div>`;return;}
@@ -1112,13 +1102,28 @@ Replace example content with the requested educational material while preserving
       return;
     }
     const total = Number(round.total_prompts || currentGameModule?.prompt_count || 1);
-    participantsBox.innerHTML = (round.participants || []).length
-      ? round.participants.map(p => {
-          const ratio = Math.max(0, Math.min(1, Number(p.progress || 0) / Math.max(1, total)));
-          const place = p.finish_place ? ` · #${p.finish_place}` : "";
-          return `<div class="teacher-race-track" style="--runner-color:${escapeHtml(p.avatar_color)}"><div class="teacher-runner" style="left:calc(7px + ${ratio * 100}% - ${ratio * 66}px)">${gameShapeHtml(p)}<span><b>${escapeHtml(p.student_name)}</b><br><span class="muted">${p.progress}/${total}${place}</span></span></div></div>`;
-        }).join("")
-      : `<div class="muted">{{ T.waiting_for_players|escapejs }}</div>`;
+    const players = round.participants || [];
+    const liveIds = new Set(players.map(player => `teacher_game_track_${player.id}`));
+    Array.from(participantsBox.children).forEach(child => {
+      if (!liveIds.has(child.id)) child.remove();
+    });
+    players.forEach((player, index) => {
+      let track = qs(`teacher_game_track_${player.id}`);
+      if (!track){
+        track = document.createElement("div");
+        track.id = `teacher_game_track_${player.id}`;
+        track.className = "teacher-race-track";
+        track.innerHTML = `<div class="teacher-runner">${gameAvatarHtml(player)}<span><b class="teacher-runner-name"></b><br><span class="muted teacher-runner-progress"></span></span></div>`;
+      }
+      const ratio = Math.max(0, Math.min(1, Number(player.progress || 0) / Math.max(1, total)));
+      track.style.setProperty("--runner-color", player.avatar_color);
+      track.querySelector(".teacher-runner").style.left = `calc(7px + ${ratio * 100}% - ${ratio * 76}px)`;
+      track.querySelector(".teacher-runner-name").textContent = player.student_name;
+      track.querySelector(".teacher-runner-progress").textContent = `${player.progress}/${total}${player.finish_place ? ` · #${player.finish_place}` : ""}`;
+      if (participantsBox.children[index] !== track) participantsBox.insertBefore(track, participantsBox.children[index] || null);
+    });
+    if (!players.length) participantsBox.innerHTML = `<div class="muted">{{ T.waiting_for_players|escapejs }}</div>`;
+    animateGameAvatars(participantsBox);
   }
 
   function renderGameHistory(){
