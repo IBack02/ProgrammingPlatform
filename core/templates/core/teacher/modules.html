@@ -63,6 +63,7 @@
   .tournament-answer-overlay{position:fixed;inset:0;z-index:3000;display:none;align-items:center;justify-content:center;padding:18px;background:rgba(2,6,23,.78);backdrop-filter:blur(5px)}
   .tournament-answer-overlay.open{display:flex}
   .tournament-answer-dialog{width:min(900px,100%);max-height:min(86vh,820px);overflow:auto;border:1px solid #475569;border-radius:20px;background:#f8fafc;color:#0f172a;box-shadow:0 30px 80px rgba(0,0,0,.42);padding:20px}
+  .tournament-answer-dialog .muted{color:#475569}
   .tournament-answer-head{display:flex;justify-content:space-between;align-items:flex-start;gap:14px;position:sticky;top:-20px;z-index:2;margin:-20px -20px 16px;padding:18px 20px;background:rgba(248,250,252,.97);border-bottom:1px solid #cbd5e1;backdrop-filter:blur(8px)}
   .tournament-answer-close{width:38px;height:38px;border:1px solid #cbd5e1;border-radius:11px;background:#fff;color:#0f172a;font-size:22px;cursor:pointer}
   .tournament-answer-summary{display:flex;gap:8px;flex-wrap:wrap;margin-top:7px}
@@ -77,11 +78,15 @@
   .tournament-submitted-text{white-space:pre-wrap;overflow-wrap:anywhere;font-family:var(--code-font)}
   .tournament-answer-status{padding:4px 8px;border-radius:999px;font-size:11px;font-weight:900;white-space:nowrap;background:#e2e8f0}
   html[data-theme="dark"] .tournament-answer-dialog,html[data-theme="dark"] .tournament-answer-head,html[data-theme="dark"] .tournament-question-log{background:#12171d;color:#edf1f3;border-color:#46525e}
-  html[data-theme="dark"] .tournament-submission{background:#1d252e;border-color:#46525e}
+  html[data-theme="dark"] .tournament-submission{background:#1d252e;color:var(--theme-text);border-color:#46525e}
   html[data-theme="dark"] .tournament-submission.correct{background:#123c34;border-color:#34d399}
   html[data-theme="dark"] .tournament-submission.incorrect{background:#3f3218;border-color:#fbbf24}
   html[data-theme="dark"] .tournament-submission.stale{background:#202832;border-color:#64748b}
   html[data-theme="dark"] .tournament-expected{background:#172438;color:#dbeafe}
+  html[data-theme="dark"] .tournament-answer-pill,html[data-theme="dark"] .tournament-answer-status,html[data-theme="dark"] .tournament-answer-close{background:var(--theme-surface);color:var(--theme-text);border-color:var(--theme-surface-soft)}
+  html[data-theme="dark"] .tournament-submission.correct .tournament-answer-status{background:#123c34;color:#a7f3d0}
+  html[data-theme="dark"] .tournament-submission.incorrect .tournament-answer-status{background:#3f3218;color:#fde68a}
+  html[data-theme="dark"] .tournament-submission.stale .tournament-answer-status{background:#202832;color:#cbd5e1}
   @media(max-width:680px){.tournament-submission{grid-template-columns:1fr}.tournament-answer-dialog{padding:15px}.tournament-answer-head{top:-15px;margin:-15px -15px 14px;padding:15px}}
   .module-json-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px;margin-top:12px}
   .module-json-area{width:100%;min-height:260px;resize:vertical;font-family:Consolas,"Courier New",monospace;font-size:12px;line-height:1.45}
@@ -1024,6 +1029,7 @@ Replace example content with the requested educational material while preserving
     const match=(round?.tournament_matches||[]).find(row=>Number(row.id)===Number(matchId));
     if(!match){closeTournamentMatchDetails();return;}
     const attempts=(round.tournament_answer_attempts||[]).filter(row=>Number(row.match_id)===Number(matchId));
+    const showExpectedAnswer=match.status==="finished"||round.status==="finished";
     qs("tournamentAnswersSubtitle").textContent=`${match.stage_title} · #${match.match_number} · ${match.player_one?.student_name||"{{ T.tournament_tbd|escapejs }}"} ${match.score_one}:${match.score_two} ${match.player_two?.student_name||"{{ T.tournament_bye|escapejs }}"}`;
     const groups=new Map();
     attempts.forEach(row=>{if(!groups.has(row.question_index))groups.set(row.question_index,[]);groups.get(row.question_index).push(row);});
@@ -1031,11 +1037,12 @@ Replace example content with the requested educational material while preserving
       const first=rows[0];
       const submissions=rows.map(row=>{
         const kind=!row.was_current?"stale":(row.is_correct?"correct":"incorrect");
-        const label=!row.was_current?"{{ T.tournament_answer_stale|escapejs }}":(row.is_correct?"{{ T.tournament_answer_correct|escapejs }}":"{{ T.tournament_answer_incorrect|escapejs }}");
+        const label=(row.is_correct?"{{ T.tournament_answer_correct|escapejs }}":"{{ T.tournament_answer_incorrect|escapejs }}")+(!row.was_current?" · {{ T.tournament_answer_stale|escapejs }}":"");
         const winner=row.won_question?` · {{ T.tournament_question_winner|escapejs }}`:"";
         return `<div class="tournament-submission ${kind}"><div><b>${escapeHtml(row.student_name)}</b><div class="muted">${escapeHtml(new Date(row.submitted_at).toLocaleTimeString())}</div></div><div class="tournament-submitted-text">${escapeHtml(row.answer)}</div><span class="tournament-answer-status">${escapeHtml(label+winner)}</span></div>`;
       }).join("");
-      return `<article class="tournament-question-log"><h4>#${first.question_ordinal} · ${escapeHtml(first.question_prompt)}</h4><div class="tournament-expected"><b>{{ T.tournament_expected_answer|escapejs }}:</b> ${escapeHtml(first.correct_answer)}</div>${submissions}</article>`;
+      const expected=showExpectedAnswer&&first.correct_answer!==undefined?`<div class="tournament-expected"><b>{{ T.tournament_expected_answer|escapejs }}:</b> ${escapeHtml(first.correct_answer)}</div>`:"";
+      return `<article class="tournament-question-log"><h4>#${first.question_ordinal} · ${escapeHtml(first.question_prompt)}</h4>${expected}${submissions}</article>`;
     }).join("");
     qs("tournamentAnswersBody").innerHTML=`<div class="tournament-answer-summary"><span class="tournament-answer-pill">{{ T.tournament_submissions|escapejs }}: ${attempts.length}</span><span class="tournament-answer-pill">{{ T.tournament_correct_count|escapejs }}: ${attempts.filter(row=>row.won_question).length}</span></div>${groupHtml||`<div class="muted" style="padding:24px 0;text-align:center;">{{ T.tournament_no_answers|escapejs }}</div>`}`;
   }

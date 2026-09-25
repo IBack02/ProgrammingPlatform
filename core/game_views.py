@@ -344,7 +344,10 @@ def _tournament_answer_attempt_rows(round_obj):
             "question_index": attempt.question_index,
             "question_ordinal": question.get("ordinal", attempt.question_index + 1),
             "question_prompt": question.get("prompt", ""),
-            "correct_answer": question.get("answer", ""),
+            **({"correct_answer": question.get("answer", "")} if (
+                attempt.match.status == TournamentMatch.Status.FINISHED
+                or round_obj.status == GameRound.Status.FINISHED
+            ) else {}),
             "participant_id": attempt.participant_id,
             "student_id": attempt.participant.student_id,
             "student_name": attempt.participant.student.full_name,

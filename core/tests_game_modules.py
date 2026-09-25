@@ -759,9 +759,21 @@ class MindRaceGameTests(TestCase):
         self.assertEqual(answer_rows[0]["answer"], "Wrong")
         self.assertFalse(answer_rows[0]["is_correct"])
         self.assertTrue(answer_rows[1]["won_question"])
-        self.assertEqual(answer_rows[1]["correct_answer"], "Answer 1")
+        self.assertTrue(all("correct_answer" not in row for row in answer_rows))
         self.assertFalse(answer_rows[2]["was_current"])
         self.assertEqual(TournamentAnswerAttempt.objects.filter(match_id=active_match["id"]).count(), 3)
+
+        finished_question = self._json(
+            clients[winner_student_id], "post",
+            f"/api/student/game-rounds/{round_row['id']}/tournament-answer/",
+            {"match_id": active_match["id"], "question_index": 1, "answer": "Answer 2"},
+        )
+        self.assertEqual(finished_question.status_code, 200)
+        self.assertEqual(finished_question.json()["round"]["status"], GameRound.Status.FINISHED)
+        finished_state = self.teacher_client.get(
+            f"/api/teacher/game-rounds/{round_row['id']}/state/"
+        ).json()["round"]
+        self.assertEqual(finished_state["tournament_answer_attempts"][1]["correct_answer"], "Answer 1")
 
     def _cooldown_tournament(self):
         module = GameModule.objects.create(
@@ -791,6 +803,35 @@ class MindRaceGameTests(TestCase):
             player_one=players[0], player_two=players[1], status=TournamentMatch.Status.RUNNING,
         )
         return round_obj, match, players
+
+    def test_tournament_expected_answers_are_only_revealed_after_play_ends(self):
+        round_obj, match, players = self._cooldown_tournament()
+        TournamentAnswerAttempt.objects.create(
+            match=match, participant=players[0], question_index=0,
+            answer="Wrong", is_correct=False, was_current=True, won_question=False,
+        )
+        for round_status, match_status, reveal in (
+            (GameRound.Status.RUNNING, TournamentMatch.Status.RUNNING, False),
+            (GameRound.Status.RUNNING, TournamentMatch.Status.FINISHED, True),
+            (GameRound.Status.FINISHED, TournamentMatch.Status.RUNNING, True),
+        ):
+            with self.subTest(round_status=round_status, match_status=match_status):
+                round_obj.status = round_status
+                round_obj.save(update_fields=["status"])
+                match.status = match_status
+                match.save(update_fields=["status"])
+                response = self.teacher_client.get(
+                    f"/api/teacher/game-rounds/{round_obj.id}/state/"
+                )
+                self.assertEqual(response.status_code, 200)
+                attempt = response.json()["round"]["tournament_answer_attempts"][0]
+                self.assertEqual(attempt["answer"], "Wrong")
+                self.assertFalse(attempt["is_correct"])
+                if reveal:
+                    self.assertEqual(attempt["correct_answer"], "Answer 1")
+                else:
+                    self.assertNotIn("correct_answer", attempt)
+                    self.assertNotIn("Answer 1", response.content.decode())
 
     def test_tournament_wrong_answer_blocks_retries_for_exactly_two_seconds(self):
         round_obj, match, players = self._cooldown_tournament()
