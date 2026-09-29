@@ -1,0 +1,128 @@
+  function sortHandle(){
+    return `<button class="sort-handle" type="button" title="${escapeHtml(UI.dragToReorder)}" aria-label="${escapeHtml(UI.dragToReorder)}"><svg width="16" height="22" viewBox="0 0 16 22" fill="currentColor" aria-hidden="true"><circle cx="5" cy="5" r="1.6"/><circle cx="11" cy="5" r="1.6"/><circle cx="5" cy="11" r="1.6"/><circle cx="11" cy="11" r="1.6"/><circle cx="5" cy="17" r="1.6"/><circle cx="11" cy="17" r="1.6"/></svg></button>`;
+  }
+  function editorBusy(){return editorWrites || codingEditor.busy || moduleSorter.busy || blockSorter.busy || questionSorter.busy;}
+  function canSort(){return !editorWrites && !codingEditor.busy;}
+  function resetBlockForm(){
+    editingBlockId = null;
+    qs("blockFormTitle").textContent = "{{ T.add_block|escapejs }}";
+    qs("addBlockBtn").textContent = "{{ T.add_block|escapejs }}";
+    qs("cancelBlockEdit").hidden = true;
+    qs("blockContent").value = "";
+    qs("materialEditor").classList.remove("editing-content");
+    suggestNextBlockOrdinal(contentBlocks);
+  }
+  function editBlock(id){
+    if(editorWrites || blockSorter.busy) return;
+    const block = contentBlocks.find(row => row.id === id);
+    if(!block) return;
+    editingBlockId = id;
+    qs("blockType").value = block.block_type;
+    qs("headingLevel").value = block.heading_level || "h1";
+    qs("blockOrdinal").value = block.ordinal;
+    qs("blockContent").value = block.content;
+    qs("blockFormTitle").textContent = "{{ T.edit|escapejs }} · #" + block.ordinal;
+    qs("addBlockBtn").textContent = "{{ T.save|escapejs }}";
+    qs("cancelBlockEdit").hidden = false;
+    qs("materialEditor").classList.add("editing-content");
+    syncBlockTypeFields();
+    qs("blockFormTitle").scrollIntoView({block:"center",behavior:matchMedia('(prefers-reduced-motion: reduce)').matches ? "instant" : "smooth"});
+    qs("blockContent").focus({preventScroll:true});
+  }
+  function resetQuestionForm(){
+    editingQuestionId = null;
+    qs("questionFormTitle").textContent = "{{ T.add_question|escapejs }}";
+    qs("addQuestionBtn").textContent = "{{ T.add_question|escapejs }}";
+    qs("cancelQuestionEdit").hidden = true;
+    for(const id of ["questionPrompt","questionModelAnswer","questionChoices"]) qs(id).value = "";
+    qs("acceptSuitableAnswer").checked = false;
+    qs("quizEditor").classList.remove("editing-content");
+    resetMatchingPairs();
+    suggestNextQuestionOrdinal(quizQuestions);
+  }
+  function editQuestion(id){
+    if(editorWrites || questionSorter.busy) return;
+    const question = quizQuestions.find(row => row.id === id);
+    if(!question) return;
+    editingQuestionId = id;
+    qs("questionType").value = question.question_type;
+    qs("questionOrdinal").value = question.ordinal;
+    qs("questionPrompt").value = question.prompt;
+    qs("questionModelAnswer").value = question.model_answer || "";
+    qs("acceptSuitableAnswer").checked = question.accept_suitable_answer;
+    qs("questionChoices").value = (question.choices || []).map(row => (row.is_correct ? "*" : "") + row.text).join("\n");
+    qs("matchingPairsBox").replaceChildren();
+    if(question.pairs?.length) question.pairs.forEach(row => addMatchingPairRow(row.left_text,row.right_text));
+    else resetMatchingPairs();
+    qs("questionFormTitle").textContent = "{{ T.edit|escapejs }} · #" + question.ordinal;
+    qs("addQuestionBtn").textContent = "{{ T.save|escapejs }}";
+    qs("cancelQuestionEdit").hidden = false;
+    qs("quizEditor").classList.add("editing-content");
+    syncQuestionTypeFields();
+    qs("questionFormTitle").scrollIntoView({block:"center",behavior:matchMedia('(prefers-reduced-motion: reduce)').matches ? "instant" : "smooth"});
+    qs("questionPrompt").focus({preventScroll:true});
+  }
+  async function refreshModuleContent(){
+    const item = currentSelectedItem();
+    if(!item || !["theory_material","theory_quiz"].includes(item.module_type)) return;
+    const path = item.module_type === "theory_material" ? "theory-modules" : "theory-quizzes";
+    const res = await api(`/api/teacher/${path}/${item.id}/`);
+    if(item.id !== selectedModuleId || item.module_type !== selectedModuleType) return;
+    if(!res.data.ok) return setMsg(res.data.error || UI.failedLoadModules);
+    if(item.module_type === "theory_material"){
+      contentBlocks = res.data.module.blocks || [];
+      renderMaterialBlocks();
+    }else{
+      quizQuestions = res.data.module.questions || [];
+      renderQuizQuestions(quizQuestions);
+      if(!editingQuestionId) suggestNextQuestionOrdinal(quizQuestions);
+    }
+  }
+  function updateOrderLabels(list){
+    Array.from(list.children).forEach((node,index) => {const label=node.querySelector("[data-order-label]");if(label) label.textContent=index+1;});
+  }
+  const moduleSorter = ModuleSortable.attach(qs("modulesList"), async keys => {
+    const sessionId = selectedSessionId;
+    const items = keys.map(key => {const [module_type,id]=key.split(":");return {module_type,id:Number(id)};});
+    setMsg("{{ T.saving_order|escapejs }}");
+    const res = await api(`/api/teacher/sessions/${sessionId}/modules/reorder/`, "POST", {items});
+    if(!res.data.ok){setMsg(UI.orderFailed);return false;}
+    if(sessionId !== selectedSessionId) return;
+    const lookup = new Map(modulesCache.map(row => [`${row.module_type}:${row.id}`,row]));
+    modulesCache = keys.map((key,index) => ({...lookup.get(key),position:index+1}));
+    updateOrderLabels(qs("modulesList"));
+    const selected = modulesCache.find(row => row.id === selectedModuleId && row.module_type === selectedModuleType);
+    if(selected) qs("position").value = selected.position;
+    updateSuggestedPosition();
+    setMsg(UI.orderSaved);
+  }, canSort);
+  async function saveContentOrder(kind, keys){
+    const item = currentSelectedItem();
+    const path = kind === "blocks" ? "theory-modules" : "theory-quizzes";
+    setMsg("{{ T.saving_order|escapejs }}");
+    const res = await api(`/api/teacher/${path}/${item.id}/${kind}/reorder/`, "POST", {items:keys.map(Number)});
+    if(!res.data.ok){setMsg(UI.orderFailed);return false;}
+    if(item.id !== selectedModuleId || item.module_type !== selectedModuleType) return;
+    const rows = kind === "blocks" ? contentBlocks : quizQuestions;
+    const lookup = new Map(rows.map(row => [String(row.id),row]));
+    const ordered = keys.map((key,index) => ({...lookup.get(key),ordinal:index+1}));
+    if(kind === "blocks"){
+      contentBlocks = ordered;
+      if(editingBlockId){
+        const ordinal = ordered.find(row => row.id === editingBlockId).ordinal;
+        qs("blockOrdinal").value = ordinal;qs("blockFormTitle").textContent = "{{ T.edit|escapejs }} · #" + ordinal;
+      }else suggestNextBlockOrdinal(ordered);
+    }else{
+      quizQuestions = ordered;
+      if(editingQuestionId){
+        const ordinal = ordered.find(row => row.id === editingQuestionId).ordinal;
+        qs("questionOrdinal").value = ordinal;qs("questionFormTitle").textContent = "{{ T.edit|escapejs }} · #" + ordinal;
+      }else suggestNextQuestionOrdinal(ordered);
+    }
+    updateOrderLabels(qs(kind === "blocks" ? "blocksList" : "questionsList"));
+    setMsg(UI.orderSaved);
+  }
+  const blockSorter = ModuleSortable.attach(qs("blocksList"), keys => saveContentOrder("blocks",keys), canSort);
+  const questionSorter = ModuleSortable.attach(qs("questionsList"), keys => saveContentOrder("questions",keys), canSort);
+  qs("cancelBlockEdit").addEventListener("click", resetBlockForm);
+  qs("cancelQuestionEdit").addEventListener("click", resetQuestionForm);

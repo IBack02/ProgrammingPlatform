@@ -1,6 +1,6 @@
 from django.urls import path
 from django.views.generic import RedirectView
-from . import exam_views, game_views, module_import, peer_views, views
+from . import exam_views, game_views, module_import, module_order, peer_views, views
 
 urlpatterns = [
     # Student auth API
@@ -133,6 +133,9 @@ path(
     # UI language
     path("set-ui-language/", views.set_ui_language, name="set_ui_language"),
     path("teacher/modules/", views.teacher_modules_page, name="teacher_modules_page"),
+    path("api/teacher/sessions/<int:session_id>/modules/reorder/", module_order.teacher_modules_reorder_api, name="teacher_modules_reorder_api"),
+    path("api/teacher/theory-modules/<int:module_id>/blocks/reorder/", module_order.teacher_theory_blocks_reorder_api, name="teacher_theory_blocks_reorder_api"),
+    path("api/teacher/theory-quizzes/<int:module_id>/questions/reorder/", module_order.teacher_quiz_questions_reorder_api, name="teacher_quiz_questions_reorder_api"),
 path(
     "api/student/theory-module/<int:module_id>",
     views.student_theory_module_detail,

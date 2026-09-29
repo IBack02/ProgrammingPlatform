@@ -1,0 +1,76 @@
+  const codingEditor = (() => {
+    let taskId = null;
+    let busy = false;
+    function childHtml(kind, row = {}, ordinal = 1){
+      const id = row.id || "";
+      const fields = kind === "tests" ? `
+        <div class="row"><label>{{ T.ordinal|escapejs }} <input name="ordinal" class="input-ui" type="number" min="1" value="${row.ordinal || ordinal}" style="width:80px"></label>
+        <label><input name="is_visible" type="checkbox" ${row.is_visible !== false ? "checked" : ""}> {{ T.visible_for_students|escapejs }}</label></div>
+        <label class="editor-field">{{ T.input_stdin|escapejs }}<textarea name="stdin" class="textarea-ui code-like" rows="3">${escapeHtml(row.stdin || "")}</textarea></label>
+        <label class="editor-field">{{ T.expected_output|escapejs }}<textarea name="expected_stdout" class="textarea-ui code-like" rows="3">${escapeHtml(row.expected_stdout || "")}</textarea></label>` : `
+        <div class="row"><select name="position" class="select-ui" aria-label="{{ T.ordinal|escapejs }}"><option value="top" ${row.position === "top" ? "selected" : ""}>{{ T.top_prepend|escapejs }}</option><option value="bottom" ${row.position === "bottom" ? "selected" : ""}>{{ T.bottom_append|escapejs }}</option></select>
+        <label><input name="is_active" type="checkbox" ${row.is_active !== false ? "checked" : ""}> {{ T.active|escapejs }}</label></div>
+        <label class="editor-field">{{ T.fragment_title_optional|escapejs }}<input name="title" class="input-ui" value="${escapeHtml(row.title || "")}"></label>
+        <label class="editor-field">{{ T.fragment_code|escapejs }}<textarea name="code" class="textarea-ui code-like" rows="5">${escapeHtml(row.code || "")}</textarea></label>`;
+      return `<div class="panel-card" data-coding-kind="${kind}" data-record-id="${id}">${fields}<div class="row"><button class="btn" type="button" data-coding-action="save">${id ? "{{ T.save|escapejs }}" : kind === "tests" ? "{{ T.add_test|escapejs }}" : "{{ T.add_fragment|escapejs }}"}</button>${id ? `<button class="btn" type="button" data-coding-action="delete">{{ T.delete|escapejs }}</button>` : ""}</div></div>`;
+    }
+    async function loadChildren(kind){
+      const requestedId = taskId;
+      const res = await api(`/api/teacher/tasks/${requestedId}/${kind}/`);
+      if (taskId !== requestedId || selectedModuleType !== "coding_task" || Number(selectedModuleId) !== requestedId) return;
+      if (!res.data.ok) return setMsg(res.data.error || UI.failedLoadTasks);
+      const rows = res.data[kind] || [];
+      const next = Math.max(0, ...rows.map(row => row.ordinal || 0)) + 1;
+      qs(kind === "tests" ? "codingTests" : "codingFragments").innerHTML = rows.map(row => childHtml(kind, row)).join("") + childHtml(kind, {}, next);
+    }
+    async function open(task){
+      taskId = task.id;
+      qs("codingLanguage").value = task.programming_language || "python";
+      qs("codingStatement").value = task.statement || "";
+      qs("codingConstraints").value = task.constraints || "";
+      qs("codingHints").checked = task.hints_enabled;
+      qs("codingHintsConfig").hidden = !task.hints_enabled;
+      for(let n=1;n<=3;n++){
+        qs(`codingHint${n}`).checked = task[`hint${n}_enabled`];
+        qs(`codingHintAttempts${n}`).value = task[`hint${n}_unlock_attempts`];
+      }
+      qs("codingTests").replaceChildren();qs("codingFragments").replaceChildren();
+      await Promise.all([loadChildren("tests"), loadChildren("fragments")]);
+    }
+    function payload(){
+      const result = {programming_language:qs("codingLanguage").value, statement:qs("codingStatement").value, constraints:qs("codingConstraints").value, hints_enabled:qs("codingHints").checked};
+      for(let n=1;n<=3;n++){
+        result[`hint${n}_enabled`] = qs(`codingHint${n}`).checked;
+        result[`hint${n}_unlock_attempts`] = Number(qs(`codingHintAttempts${n}`).value);
+      }
+      return result;
+    }
+    qs("codingHints").addEventListener("change", () => qs("codingHintsConfig").hidden = !qs("codingHints").checked);
+    qs("codingEditor").addEventListener("click", async event => {
+      const button = event.target.closest("[data-coding-action]");
+      if (!button || busy || editorBusy() || selectedModuleType !== "coding_task") return;
+      const box = button.closest("[data-coding-kind]"), kind = box.dataset.codingKind, id = box.dataset.recordId;
+      const deleting = button.dataset.codingAction === "delete";
+      if (deleting && !confirm(kind === "tests" ? "{{ T.delete_test_confirm|escapejs }}" : "{{ T.delete_fragment_confirm|escapejs }}")) return;
+      const body = {};
+      box.querySelectorAll("[name]").forEach(input => body[input.name] = input.type === "checkbox" ? input.checked : input.type === "number" ? Number(input.value) : input.value);
+      if (!deleting && kind === "fragments" && !body.code.trim()) return setMsg("{{ T.fragment_code_required|escapejs }}");
+      const url = id ? `/api/teacher/${kind}/${id}/` : `/api/teacher/tasks/${taskId}/${kind}/`;
+      busy = true;button.disabled = true;
+      try{
+        const res = await api(url, deleting ? "DELETE" : id ? "PATCH" : "POST", deleting ? null : body);
+        if (!res.data.ok) return setMsg(res.data.error || UI.saveFailed);
+        if (deleting) box.remove();
+        else {
+          const row = res.data[kind === "tests" ? "test" : "fragment"];
+          if (id) box.outerHTML = childHtml(kind, row);
+          else {
+            box.insertAdjacentHTML("beforebegin", childHtml(kind, row));
+            box.outerHTML = childHtml(kind, {}, kind === "tests" ? row.ordinal + 1 : 1);
+          }
+        }
+        setMsg("{{ T.saved|default:'Saved'|escapejs }}");
+      }finally{busy = false;button.disabled = false;}
+    });
+    return {open, payload, get busy(){return busy;}};
+  })();

@@ -429,7 +429,7 @@
     document.getElementById("endsAt").value = isoToLocalInput(s.ends_at);
     document.getElementById("status").value = s.status || "draft";
     document.getElementById("isSharedTemplate").checked = !!s.is_shared_template;
-    document.getElementById("tasksLink").href = `/teacher/tasks/?session_id=${selectedId}`;
+    document.getElementById("tasksLink").href = `/teacher/modules/?session_id=${selectedId}`;
 
     const res = await api(`/api/teacher/sessions/${selectedId}/classes/`);
     if (!res.data.ok){

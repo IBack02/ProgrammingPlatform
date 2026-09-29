@@ -2615,7 +2615,8 @@ def teacher_students_page(request: HttpRequest):
 @teacher_required
 @ensure_csrf_cookie
 def teacher_tasks_page(request: HttpRequest):
-    return render(request, "core/teacher/tasks.html", {"active": "tasks"})
+    query = request.GET.urlencode()
+    return redirect("/teacher/modules/" + (f"?{query}" if query else ""))
 @teacher_required
 @ensure_csrf_cookie
 def teacher_modules_page(request: HttpRequest):
@@ -3110,6 +3111,8 @@ def teacher_session_tasks_api(request: HttpRequest, session_id: int):
 
         statement = data.get("statement") or ""
         constraints = data.get("constraints") or ""
+        if _is_module_position_taken(session, position):
+            return JsonResponse({"ok": False, "error": "position is already used"}, status=409)
         programming_language = str(
             data.get("programming_language") or SessionTask.ProgrammingLanguage.PYTHON
         ).strip()
@@ -3293,6 +3296,10 @@ def teacher_task_detail_api(request: HttpRequest, task_id: int):
             task.position = int(data.get("position") or 1)
         except (TypeError, ValueError):
             return JsonResponse({"ok": False, "error": "position must be integer"}, status=400)
+        if task.position < 1:
+            return JsonResponse({"ok": False, "error": "position must be >= 1"}, status=400)
+        if _is_module_position_taken(task.session, task.position, skip_type="coding_task", skip_id=task.id):
+            return JsonResponse({"ok": False, "error": "position is already used"}, status=409)
     if "title" in data:
         title = (data.get("title") or "").strip()
         if not title:

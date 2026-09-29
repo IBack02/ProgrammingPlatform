@@ -1,0 +1,15 @@
+<div id="codingEditor" class="panel" style="display:none;">
+  <label class="editor-field">{{ T.programming_language|default:"Python / C++" }}
+    <select id="codingLanguage" class="select-ui"><option value="python">Python</option><option value="cpp">C++</option></select>
+  </label>
+  <label class="editor-field">{{ T.statement }}<textarea id="codingStatement" class="textarea-ui" rows="7"></textarea></label>
+  <label class="editor-field">{{ T.constraints }}<textarea id="codingConstraints" class="textarea-ui" rows="4"></textarea></label>
+  <label class="row"><input id="codingHints" type="checkbox">{{ T.hints_enabled }}</label>
+  <div id="codingHintsConfig" class="panel-card" hidden>
+    <div class="row"><label><input id="codingHint1" type="checkbox">{{ T.hint_1 }}</label><label>{{ T.unlock_after_attempts }} <input id="codingHintAttempts1" class="input-ui" type="number" min="1" value="2" style="width:80px"></label></div>
+    <div class="row"><label><input id="codingHint2" type="checkbox">{{ T.hint_2 }}</label><label>{{ T.unlock_after_attempts }} <input id="codingHintAttempts2" class="input-ui" type="number" min="1" value="3" style="width:80px"></label></div>
+    <div class="row"><label><input id="codingHint3" type="checkbox">{{ T.hint_3 }}</label><label>{{ T.unlock_after_attempts }} <input id="codingHintAttempts3" class="input-ui" type="number" min="1" value="3" style="width:80px"></label></div>
+  </div>
+  <details class="panel" open><summary>{{ T.testcases }}</summary><div id="codingTests"></div></details>
+  <details class="panel"><summary>{{ T.code_fragments }}</summary><div id="codingFragments"></div></details>
+</div>

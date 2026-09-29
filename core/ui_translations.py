@@ -2203,3 +2203,25 @@ _ANALYTICS_TOURNAMENT_I18N = {
 
 for _lang_code, _extra in _ANALYTICS_TOURNAMENT_I18N.items():
     UI_TRANSLATIONS.setdefault(_lang_code, {}).update(_extra)
+
+for _lang_code, _extra in {
+    "ru": {
+        "drag_to_reorder": "Перетащите для изменения порядка. С клавиатуры: стрелки вверх и вниз.",
+        "saving_order": "Сохранение порядка…",
+        "order_saved": "Порядок сохранён.",
+        "order_save_failed": "Не удалось сохранить порядок. Прежний порядок восстановлен; обновите список и повторите.",
+    },
+    "kk": {
+        "drag_to_reorder": "Ретін өзгерту үшін сүйреңіз. Пернетақтада: жоғары және төмен көрсеткілері.",
+        "saving_order": "Реті сақталуда…",
+        "order_saved": "Реті сақталды.",
+        "order_save_failed": "Ретін сақтау мүмкін болмады. Алдыңғы рет қалпына келтірілді; тізімді жаңартып, қайталаңыз.",
+    },
+    "en": {
+        "drag_to_reorder": "Drag to reorder. Keyboard: Up and Down arrows.",
+        "saving_order": "Saving order…",
+        "order_saved": "Order saved.",
+        "order_save_failed": "Could not save the order. The previous order was restored; reload the list and try again.",
+    },
+}.items():
+    UI_TRANSLATIONS[_lang_code].update(_extra)

@@ -1,4 +1,5 @@
 {% extends "core/teacher/_base.html" %}
+{% load static %}
 {% block title %}{{ T.modules }}{% endblock %}
 {% block subtitle %}{{ T.modules_subtitle }}{% endblock %}
 
@@ -7,6 +8,27 @@
 <style>
   .input-ui,.textarea-ui,.select-ui{padding:10px;border:1px solid #e5e7eb;border-radius:10px;box-sizing:border-box;background:#fff}
   .btn{cursor:pointer}
+  #editor [hidden]{display:none!important}
+  .modules-layout{display:grid;grid-template-columns:minmax(240px,.8fr) minmax(0,1.4fr);gap:12px;align-items:start}
+  .modules-layout>.card{min-width:0}
+  .editor-field{display:flex;flex-direction:column;gap:6px;margin:12px 0;font-size:13px}
+  .editor-field textarea,.editor-field input,.editor-field select{width:100%;min-width:0}
+  .panel-card{margin-top:12px;padding:12px;border:1px solid #cbd5e1;border-radius:12px;background:#f8fafc}
+  .panel-card .row{margin-bottom:8px}
+  .edit-form-title{font-size:15px;font-weight:800;margin-bottom:10px}
+  .editing-content{border-top:3px solid #0ea5e9}
+  .sortable-list{position:relative}
+  [data-sort-key]{cursor:grab;user-select:none;overflow-wrap:anywhere}
+  [data-sort-key] input,[data-sort-key] textarea{user-select:text}
+  .module-item-title{flex:1;min-width:0}
+  .sort-handle{display:inline-flex;align-items:center;justify-content:center;flex:none;width:30px;height:34px;padding:0;border:1px solid #cbd5e1;border-radius:8px;color:#475569;background:#f1f5f9;cursor:grab;touch-action:none}
+  .sort-handle:hover,.sort-handle:focus-visible{color:#0369a1;border-color:#0ea5e9;outline:2px solid #bae6fd}
+  html.is-sorting,html.is-sorting *{cursor:grabbing!important;user-select:none!important}
+  .sort-source{opacity:.25;border:2px dashed #0ea5e9!important}
+  .sort-ghost{background:#fff;border:2px solid #38bdf8;box-shadow:0 18px 48px rgba(15,23,42,.28);opacity:.96;overflow:hidden}
+  .sortable-list[aria-busy="true"]{opacity:.7;pointer-events:none}
+  html[data-theme="dark"] .sort-handle,html[data-theme="dark"] .panel-card,html[data-theme="dark"] .sort-ghost{background:var(--theme-surface);color:var(--theme-text);border-color:var(--theme-surface-soft)}
+  @media(max-width:900px){.modules-layout{grid-template-columns:minmax(0,1fr)}}
   .module-item,.block-item,.question-item{border:1px solid #e5e7eb;border-radius:12px;padding:10px;margin:8px 0;background:#fff}
   .module-item.active{border-color:#0ea5e9;background:#eff6ff}
   .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
@@ -17,7 +39,6 @@
   .module-pill{font-size:11px;padding:2px 8px;border-radius:999px;border:1px solid #dbeafe;background:#eff6ff;color:#075985}
   .module-pill.gray{border-color:#e5e7eb;background:#f9fafb;color:#6b7280}
   .module-pill.gold{border-color:#fde68a;background:#fffbeb;color:#92400e}
-  .legacy-box{border:1px dashed #cbd5e1;border-radius:12px;padding:12px;background:#f8fafc}
   .panel{margin-top:14px;padding-top:14px;border-top:1px solid #e5e7eb}
   .q-section{margin-top:10px}
   .pair-row{display:flex;gap:8px;align-items:center;margin-top:8px}
@@ -136,7 +157,7 @@
   </div>
 </details>
 
-<div style="display:grid;grid-template-columns:1fr 1.25fr;gap:12px;">
+<div class="modules-layout">
   <div class="card">
     <div class="row" style="margin-bottom:10px;">
       <select id="newModuleType" class="select-ui" style="min-width:180px;">
@@ -169,8 +190,8 @@
         <input id="position" class="input-ui" type="number" style="width:90px;">
       </div>
 
-      <div class="muted" style="margin-top:10px;">{{ T.module_topic }}</div>
-      <input id="topic" class="input-ui" style="width:100%;">
+      <div id="topicField"><div class="muted" style="margin-top:10px;">{{ T.module_topic }}</div>
+      <input id="topic" class="input-ui" style="width:100%;"></div>
 
       <div id="materialFields" style="display:none;">
         <div class="muted" style="margin-top:10px;">{{ T.ai_prompt }}</div>
@@ -199,6 +220,7 @@
       </div>
 
       <div id="materialEditor" class="panel" style="display:none;">
+        <div id="blockFormTitle" class="edit-form-title">{{ T.add_block }}</div>
         <div class="row">
           <select id="blockType" class="select-ui">
             <option value="heading">heading</option>
@@ -214,12 +236,14 @@
           </select>
           <input id="blockOrdinal" class="input-ui" type="number" value="1" style="width:90px;">
           <button id="addBlockBtn" class="btn" type="button">{{ T.add_block }}</button>
+          <button id="cancelBlockEdit" class="btn" type="button" hidden>{{ T.cancel }}</button>
         </div>
         <textarea id="blockContent" class="textarea-ui code-like" style="width:100%;height:120px;margin-top:10px;"></textarea>
         <div id="blocksList" style="margin-top:12px;"></div>
       </div>
 
       <div id="quizEditor" class="panel" style="display:none;">
+        <div id="questionFormTitle" class="edit-form-title">{{ T.add_question }}</div>
         <div class="row">
           <select id="questionType" class="select-ui" style="min-width:180px;">
             <option value="single_choice">{{ T.single_choice }}</option>
@@ -228,6 +252,7 @@
           </select>
           <input id="questionOrdinal" class="input-ui" type="number" value="1" style="width:90px;">
           <button id="addQuestionBtn" class="btn" type="button">{{ T.add_question }}</button>
+          <button id="cancelQuestionEdit" class="btn" type="button" hidden>{{ T.cancel }}</button>
         </div>
 
         <div class="q-section">
@@ -321,7 +346,7 @@
         </div>
       </div>
 
-      <div id="legacyEditor" class="panel" style="display:none;"></div>
+      {% include "core/teacher/_coding_module_editor.html" %}
     </div>
   </div>
 </div>
@@ -339,11 +364,16 @@
   </section>
 </div>
 
+<script src="{% static 'core/module_sortable.js' %}"></script>
 <script>
   let selectedSessionId = null;
   let selectedModuleId = null;
   let selectedModuleType = null;
   let modulesCache = [];
+  let editorLoadToken = 0;
+  let editorWrites = 0;
+  let contentBlocks = [], quizQuestions = [];
+  let editingBlockId = null, editingQuestionId = null;
   let currentGameModule = null;
   let currentGameRound = null;
   let gamePollTimer = null;
@@ -359,8 +389,9 @@
     theoryBadge: "{{ T.theory_module_badge|escapejs }}",
     quizBadge: "{{ T.quiz_module_badge|escapejs }}",
     gameBadge: "{{ T.game_module_badge|escapejs }}",
-    openInTasks: "{{ T.open_in_tasks|escapejs }}",
-    codingNote: "{{ T.coding_module_note|escapejs }}",
+    dragToReorder: "{{ T.drag_to_reorder|escapejs }}",
+    orderSaved: "{{ T.order_saved|escapejs }}",
+    orderFailed: "{{ T.order_save_failed|escapejs }}",
     createFailed: "{{ T.create_failed|escapejs }}",
     saveFailed: "{{ T.save_failed|escapejs }}",
     deleteFailed: "{{ T.delete_failed|escapejs }}",
@@ -670,7 +701,8 @@ Replace example content with the requested educational material while preserving
     qs("gameFields").style.display = mode === "game" ? "block" : "none";
     qs("gameEditor").style.display = mode === "game" ? "block" : "none";
     qs("generateBtn").style.display = mode === "theory_material" ? "inline-block" : "none";
-    qs("legacyEditor").style.display = mode === "coding_task" ? "block" : "none";
+    qs("codingEditor").style.display = mode === "coding_task" ? "block" : "none";
+    qs("topicField").style.display = mode === "coding_task" ? "none" : "block";
   }
 
   function syncCreateTypeFields(){
@@ -747,6 +779,9 @@ Replace example content with the requested educational material while preserving
     }
   }
   async function api(url, method="GET", body=null){
+    const writing = !["GET", "HEAD"].includes(method);
+    if(writing) editorWrites += 1;
+    try{
     const opts = { method, credentials:"include", headers:{ "Accept":"application/json" } };
     if (body){
       opts.headers["Content-Type"] = "application/json";
@@ -760,6 +795,8 @@ Replace example content with the requested educational material while preserving
       return { status:r.status, data:{ok:false, error:`Non-JSON (${r.status}): ${text.slice(0,150)}`} };
     }
     return { status:r.status, data: await r.json() };
+    }catch(error){return {status:0,data:{ok:false,error:UI.saveFailed}};}
+    finally{if(writing) editorWrites -= 1;}
   }
 
   function calculateFirstFreePosition(items){
@@ -799,10 +836,19 @@ Replace example content with the requested educational material while preserving
       select.appendChild(opt);
     });
     refreshModulePrompt();
+    const params = new URLSearchParams(location.search);
+    const sessionId = params.get("session_id");
+    if(sessionId && Array.from(select.options).some(option => option.value === sessionId)){
+      select.value = sessionId;selectedSessionId = sessionId;
+      await loadModules();
+      const item = modulesCache.find(row => row.module_type === "coding_task" && (!params.get("task_id") || Number(params.get("task_id")) === row.id));
+      if(item) await openModule(item);
+    }
   }
 
   async function loadModules(){
     if (!selectedSessionId) return;
+    const requestedSession = selectedSessionId;
     const [tasksRes, theoryRes, quizRes, gameRes] = await Promise.all([
       api(`/api/teacher/sessions/${selectedSessionId}/tasks/`),
       api(`/api/teacher/sessions/${selectedSessionId}/theory-modules/`),
@@ -810,6 +856,7 @@ Replace example content with the requested educational material while preserving
       api(`/api/teacher/sessions/${selectedSessionId}/game-modules/`)
     ]);
 
+    if (requestedSession !== selectedSessionId) return;
     if (!tasksRes.data.ok) return setMsg(tasksRes.data.error || UI.failedLoadTasks);
     if (!theoryRes.data.ok) return setMsg(theoryRes.data.error || UI.failedLoadModules);
     if (!quizRes.data.ok) return setMsg(quizRes.data.error || UI.failedLoadModules);
@@ -829,9 +876,13 @@ Replace example content with the requested educational material while preserving
     modulesCache = items;
     updateSuggestedPosition();
 
+    renderModules();
+  }
+
+  function renderModules(){
     const box = qs("modulesList");
     box.innerHTML = "";
-    items.forEach(item => {
+    modulesCache.forEach(item => {
       const div = document.createElement("div");
       const isActive = item.id === selectedModuleId && item.module_type === selectedModuleType;
       let badgeText = UI.theoryBadge;
@@ -847,9 +898,10 @@ Replace example content with the requested educational material while preserving
         badgeClass = "module-pill";
       }
       div.className = "module-item" + (isActive ? " active" : "");
+      div.dataset.sortKey = `${item.module_type}:${item.id}`;
       div.innerHTML = `
         <div class="module-head">
-          <div><b>${escapeHtml(item.position)}. ${escapeHtml(item.title)}</b></div>
+          ${sortHandle()}<div class="module-item-title"><b><span data-order-label>${escapeHtml(item.position)}</span>. ${escapeHtml(item.title)}</b></div>
           <div class="module-meta"><span class="${badgeClass}">${badgeText}</span></div>
         </div>
       `;
@@ -864,6 +916,7 @@ Replace example content with the requested educational material while preserving
     (questions || []).forEach(q => {
       const div = document.createElement("div");
       div.className = "question-item";
+      div.dataset.sortKey = String(q.id);
       let extra = "";
       if (q.question_type === "single_choice"){
         extra = `<div class="muted">${(q.choices || []).map(x => `${x.is_correct ? "[+]" : "[ ]"} ${escapeHtml(x.text)}`).join("<br>")}</div>`;
@@ -873,11 +926,12 @@ Replace example content with the requested educational material while preserving
         extra = `<div class="muted">${escapeHtml(q.model_answer || "")}</div>`;
       }
       div.innerHTML = `
-        <div><b>#${escapeHtml(q.ordinal)}</b> ${escapeHtml(q.question_type)}</div>
+        <div class="row">${sortHandle()}<b>#<span data-order-label>${escapeHtml(q.ordinal)}</span></b> ${escapeHtml(q.question_type)}</div>
         <div style="margin:6px 0;">${escapeHtml(q.prompt)}</div>
         ${extra}
         <div class="row" style="margin-top:8px;">
-          <button type="button" onclick="deleteQuestion(${q.id})">{{ T.delete }}</button>
+          <button class="btn" type="button" onclick="editQuestion(${q.id})">{{ T.edit }}</button>
+          <button class="btn" type="button" onclick="deleteQuestion(${q.id})">{{ T.delete }}</button>
         </div>
       `;
       list.appendChild(div);
@@ -1300,49 +1354,13 @@ Replace example content with the requested educational material while preserving
     renderTeacherGameRound(res.data.round);
   }
 
-  async function openModule(item){
-    stopGamePolling();
-    selectedModuleId = item.id;
-    selectedModuleType = item.module_type;
-    qs("editor").style.display = "block";
-    setEditorMode(item.module_type);
-
-
-    if (item.module_type === "coding_task"){
-      qs("title").value = item.title || "";
-      qs("position").value = item.position || 1;
-      qs("topic").value = "";
-      qs("aiPrompt").value = "";
-      qs("quizInstructions").value = "";
-      qs("blocksList").innerHTML = "";
-      qs("questionsList").innerHTML = "";
-      qs("legacyEditor").innerHTML = `
-        <div class="legacy-box">
-          <div style="font-weight:700;margin-bottom:6px;">${UI.codingBadge}</div>
-          <div class="muted" style="margin-bottom:10px;">${UI.codingNote}</div>
-          <a class="btn" href="/teacher/tasks/">${UI.openInTasks}</a>
-        </div>
-      `;
-      await loadModules();
-      return;
-    }
-
-    if (item.module_type === "theory_material"){
-      const res = await api(`/api/teacher/theory-modules/${item.id}/`);
-      if (!res.data.ok) return setMsg(res.data.error || UI.failedLoadModules);
-      const m = res.data.module;
-      qs("title").value = m.title || "";
-      qs("position").value = m.position || 1;
-      qs("topic").value = m.topic || "";
-      qs("aiPrompt").value = m.ai_prompt || "";
-      qs("quizInstructions").value = "";
-      qs("legacyEditor").innerHTML = "";
-      qs("questionsList").innerHTML = "";
+  function renderMaterialBlocks(){
       const list = qs("blocksList");
       list.innerHTML = "";
-      (m.blocks || []).forEach(b => {
+      contentBlocks.forEach(b => {
         const div = document.createElement("div");
         div.className = "block-item";
+        div.dataset.sortKey = String(b.id);
         let contentHtml = `<pre class="code-like" style="white-space:pre-wrap;">${escapeHtml(b.content || "")}</pre>`;
         if (b.block_type === "image"){
           const imageUrl = String(b.content || "").trim();
@@ -1373,31 +1391,72 @@ Replace example content with the requested educational material while preserving
             : `<div class="media-preview"><div class="muted">${escapeHtml(UI.invalidAttachment)}</div></div>`;
         }
         div.innerHTML = `
-          <div><b>#${escapeHtml(b.ordinal)}</b> ${escapeHtml(b.block_type)} ${b.heading_level ? "(" + escapeHtml(b.heading_level) + ")" : ""}</div>
+          <div class="row">${sortHandle()}<b>#<span data-order-label>${escapeHtml(b.ordinal)}</span></b> ${escapeHtml(b.block_type)} ${b.heading_level ? "(" + escapeHtml(b.heading_level) + ")" : ""}</div>
           ${contentHtml}
           <div class="row">
-            <button type="button" onclick="deleteBlock(${b.id})">{{ T.delete }}</button>
+            <button class="btn" type="button" onclick="editBlock(${b.id})">{{ T.edit }}</button>
+            <button class="btn" type="button" onclick="deleteBlock(${b.id})">{{ T.delete }}</button>
           </div>
         `;
         list.appendChild(div);
       });
-      suggestNextBlockOrdinal(m.blocks || []);
+      if(!editingBlockId) suggestNextBlockOrdinal(contentBlocks);
+  }
+
+  async function openModule(item){
+    if(editorWrites || codingEditor.busy || moduleSorter.busy || blockSorter.busy || questionSorter.busy) return;
+    const token = ++editorLoadToken;
+    resetBlockForm(); resetQuestionForm();
+    stopGamePolling();
+    selectedModuleId = item.id;
+    selectedModuleType = item.module_type;
+    qs("editor").style.display = "block";
+    setEditorMode(item.module_type);
+
+
+    if (item.module_type === "coding_task"){
+      const res = await api(`/api/teacher/tasks/${item.id}/`);
+      if(token !== editorLoadToken) return;
+      if(!res.data.ok) return setMsg(res.data.error || UI.failedLoadTasks);
+      const task = res.data.task;
+      qs("title").value = task.title;
+      qs("position").value = task.position;
+      await codingEditor.open(task);
+      if(token === editorLoadToken) renderModules();
+      return;
+    }
+
+    if (item.module_type === "theory_material"){
+      const res = await api(`/api/teacher/theory-modules/${item.id}/`);
+      if (!res.data.ok) return setMsg(res.data.error || UI.failedLoadModules);
+      if(token !== editorLoadToken) return;
+      const m = res.data.module;
+      qs("title").value = m.title || "";
+      qs("position").value = m.position || 1;
+      qs("topic").value = m.topic || "";
+      qs("aiPrompt").value = m.ai_prompt || "";
+      qs("quizInstructions").value = "";
+      qs("questionsList").innerHTML = "";
+      contentBlocks = m.blocks || [];
+      renderMaterialBlocks();
     } else if (item.module_type === "theory_quiz"){
       const res = await api(`/api/teacher/theory-quizzes/${item.id}/`);
       if (!res.data.ok) return setMsg(res.data.error || UI.failedLoadModules);
+      if(token !== editorLoadToken) return;
       const m = res.data.module;
       qs("title").value = m.title || "";
       qs("position").value = m.position || 1;
       qs("topic").value = m.topic || "";
       qs("aiPrompt").value = "";
       qs("quizInstructions").value = m.instructions || "";
-      qs("legacyEditor").innerHTML = "";
       qs("blocksList").innerHTML = "";
-      renderQuizQuestions(m.questions || []);
+      quizQuestions = m.questions || [];
+      renderQuizQuestions(quizQuestions);
       suggestNextQuestionOrdinal(m.questions || []);
     } else if (item.module_type === "game"){
       const res = await api(`/api/teacher/game-modules/${item.id}/`);
       if (!res.data.ok) return setMsg(res.data.error || UI.failedLoadModules);
+      if(token !== editorLoadToken) return;
       const m = res.data.module;
       qs("title").value = m.title || "";
       qs("position").value = m.position || 1;
@@ -1405,16 +1464,16 @@ Replace example content with the requested educational material while preserving
       qs("gameRubric").value = m.rubric || "mind_race";
       qs("aiPrompt").value = "";
       qs("quizInstructions").value = "";
-      qs("legacyEditor").innerHTML = "";
       qs("blocksList").innerHTML = "";
       qs("questionsList").innerHTML = "";
       renderGameModule(m);
     }
 
-    await loadModules();
+    renderModules();
   }
 
   async function createModule(){
+    if(editorBusy()) return;
     if (!selectedSessionId) return setMsg(UI.selectSessionFirst);
     const type = qs("newModuleType").value;
     const body = {
@@ -1454,6 +1513,7 @@ Replace example content with the requested educational material while preserving
   }
 
   async function saveModule(){
+    if(editorBusy()) return;
     const item = currentSelectedItem();
     if (!item) return;
     let url = "";
@@ -1472,21 +1532,24 @@ Replace example content with the requested educational material while preserving
     } else if (item.module_type === "game"){
       url = `/api/teacher/game-modules/${item.id}/`;
       body.rubric = qs("gameRubric").value;
-    } else {
-      return;
-    }
+    } else if (item.module_type === "coding_task"){
+      url = `/api/teacher/tasks/${item.id}/`;
+      Object.assign(body, codingEditor.payload());
+    } else {return;}
 
     const res = await api(url, "PATCH", body);
     if (!res.data.ok) return setMsg(res.data.error || UI.saveFailed);
-    setMsg("Saved");
-    await openModule(item);
+    setMsg("{{ T.saved|default:'Saved'|escapejs }}");
+    await loadModules();
+    if(item.module_type === "game") await openModule(item);
   }
 
   async function deleteModule(){
     const item = currentSelectedItem();
-    if (!item || item.module_type === "coding_task") return;
+    if (!item || editorBusy()) return;
+    if(item.module_type === "coding_task" && !confirm("{{ T.delete_task_confirm|escapejs }}")) return;
 
-    const url = item.module_type === "theory_quiz"
+    const url = item.module_type === "coding_task" ? `/api/teacher/tasks/${item.id}/` : item.module_type === "theory_quiz"
       ? `/api/teacher/theory-quizzes/${item.id}/`
       : item.module_type === "game"
         ? `/api/teacher/game-modules/${item.id}/`
@@ -1502,28 +1565,35 @@ Replace example content with the requested educational material while preserving
   }
 
   async function addBlock(){
+    if(editorBusy()) return;
     if (selectedModuleType !== "theory_material" || !selectedModuleId) return;
     const blockType = qs("blockType").value;
-    const res = await api(`/api/teacher/theory-modules/${selectedModuleId}/blocks/`, "POST", {
+    if(editorWrites) return;
+    const item = currentSelectedItem();
+    const res = await api(editingBlockId ? `/api/teacher/theory-blocks/${editingBlockId}/` : `/api/teacher/theory-modules/${item.id}/blocks/`, editingBlockId ? "PATCH" : "POST", {
       ordinal: qs("blockOrdinal").value,
       block_type: blockType,
       heading_level: blockType === "heading" ? qs("headingLevel").value : "",
       content: qs("blockContent").value
     });
     if (!res.data.ok) return setMsg(res.data.error || "Add block failed");
-    setMsg("Block added");
+    setMsg("{{ T.saved|default:'Saved'|escapejs }}");
     qs("blockContent").value = "";
-    await openModule(currentSelectedItem());
+    resetBlockForm();
+    await refreshModuleContent();
   }
 
   async function deleteBlock(blockId){
+    if(editorBusy()) return;
     const res = await api(`/api/teacher/theory-blocks/${blockId}/`, "DELETE");
     if (!res.data.ok) return setMsg(res.data.error || "Delete block failed");
     setMsg("Block deleted");
-    await openModule(currentSelectedItem());
+    if(editingBlockId === blockId) resetBlockForm();
+    await refreshModuleContent();
   }
 
   async function generateModule(){
+    if(editorBusy()) return;
     if (selectedModuleType !== "theory_material" || !selectedModuleId) return;
     const res = await api(`/api/teacher/theory-modules/${selectedModuleId}/generate/`, "POST", {
       prompt: qs("aiPrompt").value
@@ -1534,8 +1604,11 @@ Replace example content with the requested educational material while preserving
   }
 
   async function addQuestion(){
+    if(editorBusy()) return;
     if (selectedModuleType !== "theory_quiz" || !selectedModuleId) return;
-    const res = await api(`/api/teacher/theory-quizzes/${selectedModuleId}/questions/`, "POST", {
+    if(editorWrites) return;
+    const item = currentSelectedItem();
+    const res = await api(editingQuestionId ? `/api/teacher/theory-quiz-questions/${editingQuestionId}/` : `/api/teacher/theory-quizzes/${item.id}/questions/`, editingQuestionId ? "PATCH" : "POST", {
       ordinal: qs("questionOrdinal").value,
       question_type: qs("questionType").value,
       prompt: qs("questionPrompt").value,
@@ -1545,23 +1618,24 @@ Replace example content with the requested educational material while preserving
       pairs: parsePairsInput()
     });
     if (!res.data.ok) return setMsg(res.data.error || UI.createFailed);
-    setMsg(UI.questionAdded);
-    qs("questionPrompt").value = "";
-    qs("questionModelAnswer").value = "";
-    qs("questionChoices").value = "";
-    qs("acceptSuitableAnswer").checked = false;
-    resetMatchingPairs();
-    await openModule(currentSelectedItem());
+    setMsg("{{ T.saved|default:'Saved'|escapejs }}");
+    resetQuestionForm();
+    await refreshModuleContent();
   }
 
   async function deleteQuestion(questionId){
+    if(editorBusy()) return;
     const res = await api(`/api/teacher/theory-quiz-questions/${questionId}/`, "DELETE");
     if (!res.data.ok) return setMsg(res.data.error || UI.deleteFailed);
     setMsg(UI.questionDeleted);
-    await openModule(currentSelectedItem());
+    if(editingQuestionId === questionId) resetQuestionForm();
+    await refreshModuleContent();
   }
 
   qs("loadBtn").addEventListener("click", async () => {
+    if(editorWrites || codingEditor.busy || moduleSorter.busy || blockSorter.busy || questionSorter.busy) return;
+    ++editorLoadToken;
+    resetBlockForm();resetQuestionForm();
     stopGamePolling();
     selectedSessionId = qs("sessionSelect").value;
     selectedModuleId = null;
@@ -1613,6 +1687,9 @@ Replace example content with the requested educational material while preserving
       closeTournamentMatchDetails();
     }
   });
+
+  {% include "core/teacher/_coding_module_script.html" %}
+  {% include "core/teacher/_module_interactions.html" %}
 
   syncQuestionTypeFields();
   syncCreateTypeFields();
