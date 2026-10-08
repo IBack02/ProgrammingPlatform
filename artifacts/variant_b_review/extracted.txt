@@ -1,0 +1,104 @@
+P0: 1. A hospital needs software designed specifically to manage patient records, appointments and medical histories. Identify the software category that best describes this application.
+P1: A) General-purpose software
+P2: B) Utility software
+P3: C) Bespoke software
+P4: D) Open-source software
+P5: Answer: ______________________________________________________________________________________
+P6: [1]
+P7: 2. An operating system must guarantee that an industrial robot receives sensor data and responds within a strict deadline. Identify the most suitable type of operating system.
+P8: A) Batch processing operating system
+P9: B) Real-time operating system (RTOS)
+P10: C) Single-user single-tasking operating system
+P11: D) Network operating system
+P12: [1]
+P13: 3. Which is a major advantage of a Command-Line Interface (CLI) compared with a Graphical User Interface (GUI)?
+P14: A) It always requires more RAM.
+P15: B) It supports efficient scripting and automation.
+P16: C) It uses icons instead of commands.
+P17: D) It requires no knowledge of commands.
+P18: [1]
+P19: 4. Which statement correctly describes the relationship between Artificial Intelligence (AI), Machine Learning (ML) and Deep Learning (DL)?
+P20: A) AI is a subset of ML, and ML is a subset of DL.
+P21: B) ML is the broadest field, while AI is a subset of ML.
+P22: C) AI is the broadest field, ML is a subset of AI, and DL is a subset of ML.
+P23: D) AI, ML and DL are unrelated fields.
+P24: [1]
+P25: 5. A smartphone application places virtual arrows and labels over the user's live camera view of a building. This is an example of:
+P26: A) Virtual Reality
+P27: B) Augmented Reality
+P28: C) Batch Processing
+P29: D) Natural Language Processing
+P30: [1]
+P32: 6. A programmer describes the required result of a database query without specifying the exact sequence of operations used to obtain it. Identify the programming paradigm.
+P33: A) Imperative programming
+P34: B) Declarative programming
+P35: C) Assembly programming
+P36: D) Procedural machine code
+P37: [1]
+P38: 7a. State the primary purpose of a utility program.
+P39: ______________________________________________________________________________________ ______________________________________________________________________________________ [1]
+P40: 7b. State the primary purpose of a software library.
+P41: ______________________________________________________________________________________ ______________________________________________________________________________________ [1]
+P42: 7c. Explain what a translator does to source code before it can be executed by the CPU.
+P43: ______________________________________________________________________________________ ______________________________________________________________________________________ [1]
+P44: 8a. Describe the main difference between a single-user operating system and a multi-user operating system.
+P45: ______________________________________________________________________________________ ______________________________________________________________________________________ [1]
+P46: 8b. Explain one resource-management or security challenge that can occur in a multi-user operating system.
+P47: ______________________________________________________________________________________ ______________________________________________________________________________________ ______________________________________________________________________________________ ______________________________________________________________________________________ [2]
+P48: 8c. A company collects all payroll transactions during the day and processes them together at midnight without user interaction. Identify the processing mode.
+P49: ______________________________________________________________________________________ ______________________________________________________________________________________ [1]
+P51: 9a. A network administrator manages remote servers through a slow connection. Justify why a CLI may be more suitable than a GUI.
+P52: ______________________________________________________________________________________ ______________________________________________________________________________________ [1]
+P53: 9b. A new employee uses a point-of-sale system and has little technical experience. Justify why a GUI may be more suitable.
+P54: ______________________________________________________________________________________ ______________________________________________________________________________________ [1]
+P55: 9c. Identify one advantage and one disadvantage of using a Voice User Interface (VUI) in an interactive system.
+P56: ________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________
+P57: [2]
+P58: 10. Compare High-Level Languages (HLL) and Low-Level Languages (LLL) in terms of hardware dependence and direct control of memory.
+P59: ________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________
+P60: [2]
+P61: 11a. State one advantage and one disadvantage of using Internal CSS compared with External CSS.
+P62: ______________________________________________________________________________________ ______________________________________________________________________________________ ______________________________________________________________________________________ ______________________________________________________________________________________ [2]
+P63: 11b. Write the exact HTML code needed inside the <head> section to connect an external stylesheet named main.css.
+P64: ______________________________________________________________________________________ ______________________________________________________________________________________ ______________________________________________________________________________________ ______________________________________________________________________________________ [2]
+P66: 12. Write HTML code to create a web form containing: Full Name (text input); Date of Birth (date input); Email Address (email input); Preferred Course (drop-down list with at least three options); Study Mode (Online and On-campus radio buttons); Personal Statement (textarea); and Clear and Send buttons.
+P67: __________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________
+P68: [10]
+P69: 13. The following SDLC stages are shown: Planning → ? → Development → Testing → Maintenance. Name the missing stage.
+P70: ______________________________________________________________________________________ ______________________________________________________________________________________ [1]
+P71: 14. A software team is creating an online learning platform. The customer expects requirements to change after each prototype. Identify the more suitable model — Agile or Waterfall — and give one reason.
+P72: ________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________
+P73: [2]
+P74: 15a. Describe one advantage and one disadvantage of using observation rather than questionnaires to collect system requirements.
+P75: ________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________
+P76: [2]
+P78: 15b. Give one example of qualitative data and one example of quantitative data that could be collected when evaluating a new school information system.
+P79: ______________________________________________________________________________________ ______________________________________________________________________________________ ______________________________________________________________________________________ ______________________________________________________________________________________ [2]
+P80: TOTAL: ______ / 40 marks
+P82: Mark Scheme — Variant B
+TABLE 83: 24 rows x 4 cols
+  R0: No. | Expected answer | Marks | Comments
+  R1: 1 | C — Bespoke software | 1 | Correct option.
+  R2: 2 | B — Real-time operating system (RTOS) | 1 | Correct option.
+  R3: 3 | B — It supports efficient scripting and automation. | 1 | Accept equivalent wording about low overhead or automation.
+  R4: 4 | C — AI is the broadest field; ML is a subset of AI; DL is a subset of ML. | 1 | All relationships must be correct.
+  R5: 5 | B — Augmented Reality | 1 | Correct option.
+  R6: 6 | B — Declarative programming | 1 | Correct paradigm.
+  R7: 7a | Performs maintenance or management tasks such as backup, compression, disk cleanup or virus scanning. | 1 | Any valid utility-program purpose.
+  R8: 7b | A collection of reusable, pre-written code modules, routines or functions. | 1 | Must mention reusable code/components.
+  R9: 7c | Converts source code into machine code or another executable/intermediate form that can be processed by the computer. | 1 | Accept a technically valid compiler/interpreter explanation.
+  R10: 8a | Single-user supports one user at a time; multi-user supports multiple users accessing system resources. | 1 | Clear contrast required.
+  R11: 8b | Examples: fair CPU/RAM allocation; preventing users from accessing or overwriting other users’ data; separate permissions or sessions. | 2 | 1 mark for challenge; 1 mark for explanation.
+  R12: 8c | Batch processing. | 1 | Correct processing mode.
+  R13: 9a | CLI transfers mainly text, uses little bandwidth and supports commands/scripts for remote administration. | 1 | Any one valid justification.
+  R14: 9b | GUI uses icons, menus and buttons, making it intuitive and requiring little command syntax knowledge. | 1 | Any one valid justification.
+  R15: 9c | Advantage: hands-free, accessible or natural interaction. Disadvantage: noise, accents, privacy concerns or recognition errors may reduce accuracy. | 2 | 1 mark each.
+  R16: 10 | HLL is generally portable and hardware-independent; LLL is tied to a processor architecture. LLL gives more direct control of registers and memory addresses; HLL abstracts memory management. | 2 | 1 mark for hardware dependence; 1 mark for memory control.
+  R17: 11a | Advantage: useful for page-specific styles and no separate file is needed. Disadvantage: styles are harder to reuse and maintain across many pages. | 2 | 1 mark each.
+  R18: 11b | <link rel="stylesheet" href="main.css"> | 2 | 1 mark for link element; 1 mark for correct attributes.
+  R19: 12 | Correct HTML form with all seven required elements: text, date, email, select list, two same-name radio buttons, textarea, reset/clear and submit/send buttons. | 10 | Award marks for each required element and correct structure.
+  R20: 13 | Analysis / Requirements analysis / System analysis | 1 | Any equivalent valid stage name.
+  R21: 14 | Agile. Requirements can change between iterations, and feedback from prototypes can be incorporated during development. | 2 | 1 mark for Agile; 1 mark for reason.
+  R22: 15a | Advantage: observes real behaviour and actual work processes. Disadvantage: time-consuming, observer effect, or activities may not occur during observation. | 2 | 1 mark each.
+  R23: 15b | Qualitative: user comments, opinions or descriptions of usability. Quantitative: number of errors, response time, rating out of 5 or number of users. | 2 | 1 mark for each valid example.
+P84: TOTAL: 40 marks

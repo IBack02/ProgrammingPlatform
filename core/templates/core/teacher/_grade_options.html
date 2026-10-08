@@ -1,0 +1,8 @@
+function gradeOptions(maximum, current){
+  const max=Number(maximum), values=new Set([0,max]);
+  for(let score=1;score<max;score++)values.add(score);
+  // Preserve fractional grades already assigned and fractional question maxima.
+  if(current!==null&&current!==undefined&&Number(current)>=0&&Number(current)<=max)values.add(Number(current));
+  return `<option value="" ${current===null||current===undefined?'selected':''}>—</option>`+
+    [...values].sort((a,b)=>a-b).map(score=>`<option value="${score}" ${current!==null&&current!==undefined&&Number(current)===score?'selected':''}>${score}</option>`).join('');
+}

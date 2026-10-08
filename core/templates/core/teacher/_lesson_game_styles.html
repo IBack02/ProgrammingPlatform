@@ -1,0 +1,61 @@
+  .teacher-race-track{position:relative;height:62px;border-radius:12px;background:repeating-linear-gradient(90deg,#f8fafc 0 36px,#e2e8f0 37px 38px);margin:8px 0;overflow:hidden;border-left:3px solid var(--runner-color,#0ea5e9);border-right:5px double #111827}
+  .teacher-runner{position:absolute;left:7px;top:7px;transition:left .5s cubic-bezier(.2,.8,.2,1);display:flex;align-items:center;gap:7px}
+  .game-round-history{display:flex;gap:7px;flex-wrap:wrap;margin-top:10px}
+  .wonder-board{display:grid;grid-template-columns:minmax(0,1fr) 280px;gap:14px;margin-top:12px}
+  .wonder-main,.wonder-log{background:rgba(255,255,255,.9);border:1px solid #dbeafe;border-radius:14px;padding:14px}
+  .wonder-cells{display:flex;gap:7px;flex-wrap:wrap;align-items:flex-end;margin:14px 0}
+  .wonder-cell{width:34px;height:42px;border:2px solid #0f172a;border-radius:7px;display:grid;place-items:center;font-size:22px;font-weight:800;background:#fff}
+  .wonder-cell.space{width:16px;border:0;background:transparent}
+  .wonder-keyboard{display:flex;gap:5px;flex-wrap:wrap}
+  .wonder-key{min-width:29px;padding:6px;border-radius:7px;background:#e0f2fe;text-align:center;font-weight:800}
+  .wonder-key.used{background:#e5e7eb;color:#9ca3af;text-decoration:line-through}
+  .wonder-queue{display:flex;gap:7px;flex-wrap:wrap;margin:10px 0}
+  .wonder-queue-item{padding:6px 9px;border-radius:999px;background:#e2e8f0;font-size:12px}
+  .wonder-queue-item.current{background:#facc15;color:#422006;font-weight:800;box-shadow:0 0 0 3px rgba(250,204,21,.24)}
+  .wonder-log{max-height:360px;overflow:auto}
+  .wonder-log-row{padding:7px 0;border-bottom:1px solid #e5e7eb;font-size:12px}
+  .wonder-strikes{font-size:25px;letter-spacing:4px;color:#dc2626;font-weight:900}
+  .tournament-bracket-viewport{margin-top:12px;overflow:auto;border:1px solid #1e293b;border-radius:16px;background:#090f1f;color:#f8fafc;box-shadow:inset 0 0 42px rgba(15,23,42,.42)}
+  .tournament-bracket-grid{position:relative;display:grid;gap:72px;padding:18px 28px 28px;isolation:isolate}
+  .tournament-bracket-lines{position:absolute;inset:0;z-index:0;pointer-events:none;overflow:visible}
+  .tournament-stage{position:relative;z-index:1;min-width:230px}
+  .tournament-stage-title{height:42px;font-size:17px;font-weight:900;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#e2e8f0}
+  .tournament-stage-body{display:flex;flex-direction:column;justify-content:space-around;gap:18px}
+  .tournament-match{border:1px solid #26324b;border-right:4px solid #60a5fa;border-radius:5px;background:#151d32;box-shadow:0 10px 24px rgba(2,6,23,.28);overflow:hidden}
+  .tournament-match.clickable{cursor:pointer;transition:transform .16s ease,border-color .16s ease,box-shadow .16s ease}
+  .tournament-match.clickable:hover,.tournament-match.clickable:focus-visible{transform:translateY(-2px);border-color:#7dd3fc;box-shadow:0 14px 30px rgba(2,132,199,.24);outline:none}
+  .tournament-player{display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:31px;padding:5px 9px;border-bottom:1px solid #29344e;color:#f8fafc}
+  .tournament-player:last-of-type{border-bottom:0}
+  .tournament-player.winner{background:rgba(250,204,21,.14);color:#fde68a}
+  .tournament-player.tbd,.tournament-player.bye{color:#94a3b8;font-style:italic}
+  .tournament-match-meta{padding:5px 9px;border-top:1px solid #29344e;color:#94a3b8;font-size:10px;text-transform:uppercase;letter-spacing:.04em}
+  .tournament-answer-overlay{position:fixed;inset:0;z-index:3000;display:none;align-items:center;justify-content:center;padding:18px;background:rgba(2,6,23,.78);backdrop-filter:blur(5px)}
+  .tournament-answer-overlay.open{display:flex}
+  .tournament-answer-dialog{width:min(900px,100%);max-height:min(86vh,820px);overflow:auto;border:1px solid #475569;border-radius:20px;background:#f8fafc;color:#0f172a;box-shadow:0 30px 80px rgba(0,0,0,.42);padding:20px}
+  .tournament-answer-dialog .muted{color:#475569}
+  .tournament-answer-head{display:flex;justify-content:space-between;align-items:flex-start;gap:14px;position:sticky;top:-20px;z-index:2;margin:-20px -20px 16px;padding:18px 20px;background:rgba(248,250,252,.97);border-bottom:1px solid #cbd5e1;backdrop-filter:blur(8px)}
+  .tournament-answer-close{width:38px;height:38px;border:1px solid #cbd5e1;border-radius:11px;background:#fff;color:#0f172a;font-size:22px;cursor:pointer}
+  .tournament-answer-summary{display:flex;gap:8px;flex-wrap:wrap;margin-top:7px}
+  .tournament-answer-pill{padding:5px 9px;border-radius:999px;background:#e2e8f0;font-size:12px;font-weight:800}
+  .tournament-question-log{margin-top:13px;border:1px solid #cbd5e1;border-radius:15px;background:#fff;padding:14px}
+  .tournament-question-log h4{margin:0;white-space:pre-wrap;font-size:16px}
+  .tournament-expected{margin-top:9px;padding:9px 11px;border-left:3px solid #0284c7;background:#f0f9ff;white-space:pre-wrap}
+  .tournament-submission{display:grid;grid-template-columns:minmax(140px,.35fr) minmax(180px,1fr) auto;gap:10px;align-items:center;margin-top:9px;padding:10px;border-radius:11px;border:1px solid #e2e8f0;background:#f8fafc}
+  .tournament-submission.correct{border-color:#6ee7b7;background:#ecfdf5}
+  .tournament-submission.incorrect{border-color:#fbbf24;background:#fffbeb}
+  .tournament-submission.stale{border-color:#94a3b8;background:#f1f5f9}
+  .tournament-submitted-text{white-space:pre-wrap;overflow-wrap:anywhere;font-family:var(--code-font)}
+  .tournament-answer-status{padding:4px 8px;border-radius:999px;font-size:11px;font-weight:900;white-space:nowrap;background:#e2e8f0}
+  html[data-theme="dark"] .tournament-answer-dialog,html[data-theme="dark"] .tournament-answer-head,html[data-theme="dark"] .tournament-question-log{background:#12171d;color:#edf1f3;border-color:#46525e}
+  html[data-theme="dark"] .tournament-submission{background:#1d252e;color:var(--theme-text);border-color:#46525e}
+  html[data-theme="dark"] .tournament-submission.correct{background:#123c34;border-color:#34d399}
+  html[data-theme="dark"] .tournament-submission.incorrect{background:#3f3218;border-color:#fbbf24}
+  html[data-theme="dark"] .tournament-submission.stale{background:#202832;border-color:#64748b}
+  html[data-theme="dark"] .tournament-expected{background:#172438;color:#dbeafe}
+  html[data-theme="dark"] .tournament-answer-pill,html[data-theme="dark"] .tournament-answer-status,html[data-theme="dark"] .tournament-answer-close{background:var(--theme-surface);color:var(--theme-text);border-color:var(--theme-surface-soft)}
+  html[data-theme="dark"] .tournament-submission.correct .tournament-answer-status{background:#123c34;color:#a7f3d0}
+  html[data-theme="dark"] .tournament-submission.incorrect .tournament-answer-status{background:#3f3218;color:#fde68a}
+  html[data-theme="dark"] .tournament-submission.stale .tournament-answer-status{background:#202832;color:#cbd5e1}
+  @media(max-width:680px){.tournament-submission{grid-template-columns:1fr}.tournament-answer-dialog{padding:15px}.tournament-answer-head{top:-15px;margin:-15px -15px 14px;padding:15px}}
+  .game-host{border:1px solid var(--border,#cbd5e1);border-radius:14px;padding:14px}
+  @media(max-width:900px){.wonder-board{grid-template-columns:1fr}}

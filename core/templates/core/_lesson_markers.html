@@ -1,0 +1,57 @@
+  function applyLessonMarkers(ranges){
+    const box = qs("moduleBlocks");
+    const signature = JSON.stringify(ranges || []);
+    if (box.dataset.markers === signature) return;
+    box.dataset.markers = signature;
+    box.querySelectorAll(".lesson-marker").forEach(mark => mark.replaceWith(document.createTextNode(mark.textContent)));
+    box.normalize();
+    box.querySelectorAll('[data-block-type="text"],[data-block-type="heading"],[data-block-type="code"]').forEach(block => {
+      const content = block.dataset.blockType === "code" ? block.querySelector("pre") : block;
+      const text = content.textContent;
+      const parts = (ranges || []).filter(r => Number(r.block_id) === Number(block.dataset.blockId) && r.text === text)
+        .sort((a,b) => a.start-b.start);
+      const merged = [];
+      parts.forEach(r => {
+        const last = merged.at(-1);
+        if (last && r.start <= last.end) last.end = Math.max(last.end, r.end);
+        else merged.push({start:r.start,end:r.end});
+      });
+      if (!merged.length) return;
+      const fragment = document.createDocumentFragment();
+      let offset = 0;
+      merged.forEach(r => {
+        fragment.append(document.createTextNode(text.slice(offset,r.start)));
+        const mark = document.createElement("mark");
+        mark.className = "lesson-marker";
+        mark.textContent = text.slice(r.start,r.end);
+        fragment.append(mark);
+        offset = r.end;
+      });
+      fragment.append(document.createTextNode(text.slice(offset)));
+      content.replaceChildren(fragment);
+    });
+  }
+
+  function selectedLessonRanges(){
+    const selection = window.getSelection();
+    if (!selection || selection.isCollapsed || !selection.rangeCount) return [];
+    const range = selection.getRangeAt(0);
+    const box = qs("moduleBlocks");
+    if (!box.contains(range.startContainer) || !box.contains(range.endContainer)) return [];
+    const rows = [];
+    box.querySelectorAll('[data-block-type="text"],[data-block-type="heading"],[data-block-type="code"]').forEach(block => {
+      const content = block.dataset.blockType === "code" ? block.querySelector("pre") : block;
+      if (!range.intersectsNode(content)) return;
+      const before = document.createRange();
+      before.selectNodeContents(content);
+      let start = 0, end = content.textContent.length;
+      if (content.contains(range.startContainer)) {
+        before.setEnd(range.startContainer, range.startOffset); start = before.toString().length;
+      }
+      if (content.contains(range.endContainer)) {
+        before.selectNodeContents(content); before.setEnd(range.endContainer, range.endOffset); end = before.toString().length;
+      }
+      if (end > start) rows.push({block_id:Number(block.dataset.blockId),start,end,text:content.textContent});
+    });
+    return rows;
+  }

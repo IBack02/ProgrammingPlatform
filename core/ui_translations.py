@@ -2225,3 +2225,17 @@ for _lang_code, _extra in {
     },
 }.items():
     UI_TRANSLATIONS[_lang_code].update(_extra)
+
+for _lang_code, _extra in {
+    'ru': {'lesson_mode': 'Вести урок', 'lesson_marker': 'Маркер', 'lesson_clear_markers': 'Очистить выделения', 'lesson_marker_hint': 'Выделите текст — ученики выбранного класса увидят его подсветку.', 'lesson_marker_saved': 'Выделения сохранены и доступны ученикам.', 'quiz_submit': 'Проверить ответы'},
+    'kk': {'lesson_mode': 'Сабақ өткізу', 'lesson_marker': 'Маркер', 'lesson_clear_markers': 'Белгілеулерді тазарту', 'lesson_marker_hint': 'Мәтінді таңдаңыз — таңдалған сынып оқушылары белгілеуді көреді.', 'lesson_marker_saved': 'Белгілеулер сақталды және оқушыларға қолжетімді.', 'quiz_submit': 'Жауаптарды тексеру'},
+    'en': {'lesson_mode': 'Teach lesson', 'lesson_marker': 'Highlighter', 'lesson_clear_markers': 'Clear highlights', 'lesson_marker_hint': 'Select text to highlight it for students in the selected class.', 'lesson_marker_saved': 'Highlights saved and shared with students.', 'quiz_submit': 'Check answers'},
+}.items():
+    UI_TRANSLATIONS[_lang_code].update(_extra)
+
+for _lang_code, _extra in {
+    'ru': {'open_modules':'Перейти к модулям','autosaving':'Сохранение изменений…','tournament_cooldown':'Пауза после неверного ответа (секунды)','bulk_students':'Добавить список учеников','bulk_students_help':'Одно имя на строку, до 200 учеников. Повторы будут пропущены.','bulk_students_pin':'Укажите класс и начальный PIN для всех учеников списка.','bulk_created':'Добавлено','bulk_skipped':'Пропущено повторов'},
+    'kk': {'open_modules':'Модульдерге өту','autosaving':'Өзгерістер сақталуда…','tournament_cooldown':'Қате жауаптан кейінгі үзіліс (секунд)','bulk_students':'Оқушылар тізімін қосу','bulk_students_help':'Әр жолға бір ат, 200 оқушыға дейін. Қайталанған аттар өткізілетін болады.','bulk_students_pin':'Сыныпты және тізімдегі барлық оқушының бастапқы PIN кодын көрсетіңіз.','bulk_created':'Қосылды','bulk_skipped':'Қайталанғандар өткізілді'},
+    'en': {'open_modules':'Go to modules','autosaving':'Saving changes…','tournament_cooldown':'Delay after an incorrect answer (seconds)','bulk_students':'Add a list of students','bulk_students_help':'One name per line, up to 200 students. Duplicates will be skipped.','bulk_students_pin':'Choose a class and an initial PIN for all students in this list.','bulk_created':'Added','bulk_skipped':'Duplicates skipped'},
+}.items():
+    UI_TRANSLATIONS[_lang_code].update(_extra)

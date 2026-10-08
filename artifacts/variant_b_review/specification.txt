@@ -1,0 +1,1176 @@
+PAGE 1
+1 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+SPECIFICATION OF THE INTERNAL SUMMATIVE ASSESSMENT (ISA)  
+ON THE SUBJECT OF “COMPUTER SCIENCE” 
+ 
+GRADE 11 (ADVANCED LEVEL) 
+ 
+2026-2027 ACADEMIC YEARS 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+
+PAGE 2
+2 
+ 
+CONTENTS 
+ 
+1. AIM OF THE SUMMATIVE ASSESSMENT FOR THE TERM ............................................ 3 
+2. THE DOCUMENT DEFINING THE CONTENT OF THE SUMMATIVE ASSESSMENT 
+FOR THE TERM ............................................................................................................................... 3 
+3. EXPECTED OUTCOMES ON THE SUBJECT “COMPUTER SCIENCE”, GRADE 11 ... 3 
+4. LEVEL OF THINKING SKILLS ............................................................................................... 4 
+5. DISTRIBUTION(%) OF OBJECTIVES BASED ON VARIOUS THINKING SKILLS IN 
+EACH TERM ..................................................................................................................................... 5 
+6. ADMINISTRATION RULES ....................................................................................................... 6 
+7. MODERATION AND MARKING .............................................................................................. 6 
+SPECIFICATION OF SUMMATIVE ASSESSMENT FOR TERM 1 ........................................ 7 
+SPECIFICATION OF SUMMATIVE ASSESSMENT FOR TERM 2 ......Ошибка! Закладка не 
+определена. 
+SPECIFICATION OF SUMMATIVE ASSESSMENT FOR TERM 3 ......Ошибка! Закладка не 
+определена. 
+SPECIFICATION OF SUMMATIVE ASSESSMENT FOR TERM 4 ......Ошибка! Закладка не 
+определена. 
+
+PAGE 3
+3 
+ 
+1. AIM OF THE SUMMATIVE ASSESSMENT FOR THE TERM 
+ 
+Summative assessment (SA) is aimed at assessing learners’ success in terms of the 
+achievement of the learning objectives and revealing their level of knowledge and skills acquired 
+during the term. 
+Summative assessment checks the achievement of learning objectives for the term planned in 
+the course plan.  
+ 
+2. THE DOCUMENT DEFINING THE CONTENT OF THE SUMMATIVE ASSESSMENT 
+FOR THE TERM 
+ 
+Subject program for “Computer Science” (advanced level), Grades 11-12 (Issue 2.0, 2026). 
+ 
+3. EXPECTED OUTCOMES ON THE SUBJECT “COMPUTER SCIENCE”, GRADE 11 
+ 
+• 
+Data Representation & Architecture: 
+o can explain the differences between binary, decimal, and hexadecimal number 
+systems, perform arithmetic operations (addition, multiplication) in binary, and 
+convert values between base systems; 
+o understand how bitmap images and digital audio are stored, and calculate the file 
+sizes of bitmap images, text fragments (using ASCII and Unicode), and audio data; 
+o explain the impact of resolution, color depth, sampling rate, and bit depth on media 
+file size and quality; 
+ 
+• 
+Web Programming & Database Systems: 
+o can design relational databases with multiple related tables using appropriate primary 
+and foreign keys and data types; 
+o can write advanced SQL queries, including SELECT queries with JOIN operations, 
+to extract data from multiple tables; 
+o can develop responsive web interfaces using HTML tags, CSS styles, and implement 
+clear site navigation; 
+o can process user input from HTML forms using procedural server-side scripts (e.g., 
+PHP) while incorporating algorithms for data validation and verification; 
+o can manipulate one-dimensional and two-dimensional arrays using selection 
+(branching) and iterative (loop) algorithms in program code; 
+o can establish procedural script connections to databases to dynamic insert, retrieve, 
+and display records on web pages; 
+ 
+• 
+Network Technologies & Web Architecture: 
+o can distinguish between Local Area Networks (LAN) and Wide Area Networks 
+(WAN), as well as Intranet and Internet architectures; 
+o can compare client-server and peer-to-peer network models, highlighting their 
+structural advantages and operational trade-offs; 
+o can evaluate wired versus wireless connection mediums, and compare network 
+topologies (bus, ring, star, mesh); 
+o understand the purpose and operational roles of hardware networking devices 
+(repeaters, hubs, switches, routers, gateways); 
+o can explain the structure of URLs, the role of IP and MAC addresses in packet 
+routing, and the purpose of the Domain Name System (DNS); 
+o can explain the functions of standard network application protocols (HTTP, HTTPS, 
+FTP, FTPS, POP3, SMTP); 
+ 
+
+PAGE 4
+4 
+ 
+• 
+Project Implementation, Testing & Debugging: 
+o can apply standard rules of good programming style (indentation, modularity, 
+meaningful identifiers) to produce readable and maintainable code; 
+o can design test cases and evaluate software using normal, boundary, and erroneous 
+data sets; 
+o can classify, identify, trace, and resolve syntax, logical, and runtime errors in 
+program code; 
+o can evaluate systems implementation strategies (direct changeover, parallel running, 
+phased, pilot) for specific organizational deployment scenarios; 
+ 
+• 
+Data Protection & Security: 
+o can distinguish between data availability, data privacy, and data integrity; 
+o can evaluate physical risks to data storage and compare data backup strategies with 
+real-time disk mirroring for business continuity; 
+o can analyze operational threats posed by malware (viruses, worms, trojans, spyware) 
+and implement multi-layered defenses, including firewalls and access controls. 
+ 
+4. LEVEL OF THINKING SKILLS 
+Level of 
+thinking skills 
+Description 
+Recommended 
+type of tasks 
+Knowledge 
+and 
+comprehension 
+• The difference between binary, decimal, and hexadecimal 
+number systems; 
+• Advantages of using hexadecimal numbers in computer 
+systems; 
+• How bitmap images are represented in terms of number of 
+pixels, resolution, and color depth; 
+• Differences and comparison between Unicode and ASCII 
+standards; 
+• Digital representation of sound in terms of sampling rate 
+and resolution; 
+• Why analogue sound data needs to be converted into binary 
+digits; 
+• Capabilities of a local area network (LAN) and a wide area 
+network (WAN); 
+• Features of an Intranet and the Internet; 
+• Features of client-server and peer-to-peer network models; 
+• Purpose of network devices: repeater, hub, switch, router, 
+and gateway; 
+• Purpose and organization of the Domain Name System 
+(DNS) and structure of a URL; 
+• Purpose of an IP address and role of a MAC address in 
+packet routing; 
+• Role of network protocols (HTTP, FTP, POP3, SMTP, 
+HTTPS, FTPS); 
+• Difference between data availability, data privacy, and data 
+integrity; 
+• Physical risks of data loss; 
+• How a firewall protects a computer system; 
+• Rules of a good programming style when writing program 
+code; 
+• Syntax, logical, and runtime errors in program code; 
+• Methods of system implementation. 
+Short answer / 
+Long answers / 
+Multiple choice 
+tasks 
+
+PAGE 5
+5 
+ 
+Application 
+• Convert numbers between binary, decimal, and hexadecimal 
+numbering systems; 
+• Perform addition and multiplication operations with binary 
+numbers; 
+• Calculate the size of a bitmap image file; 
+• Calculate the number of bytes required to store a text 
+fragment; 
+• Calculate the size of an audio data file; 
+• Write program code using a one-dimensional array and a 
+two-dimensional array; 
+• Use selection algorithms (branching) and iterative 
+algorithms (loops) in a scripting language; 
+• Apply data verification and validation in program code; 
+• Use a procedural scripting language to connect to a 
+database; 
+• Write program code to add data to a database and extract 
+data from a database; 
+• Create a database with multiple tables for a new system; 
+• Create a user interface using HTML and CSS and 
+implement site navigation; 
+• Use a procedural scripting language to process HTML form 
+data; 
+• Perform testing using normal, boundary, and erroneous 
+data. 
+Short answer / 
+Long answers 
+Higher-order 
+thinking skills 
+• Compare advantages and disadvantages of wireless and 
+wired connections; 
+• Compare advantages and disadvantages of network 
+topologies: bus, ring, star, and mesh; 
+• Compare the use of data backup and disk mirroring for data 
+protection; 
+• Analyze problems caused by malware and evaluate data 
+protection measures against malware; 
+• Use the SELECT command to extract and synthesize data 
+from multiple related tables; 
+• Analyze code snippets to identify, trace, and debug complex 
+logical errors (including operator precedence and infinite 
+loops); 
+• Compare the advantages and disadvantages of system 
+implementation methods (e.g., Direct changeover vs. Parallel 
+running) for specific organization scenarios. 
+Short answer / 
+Longs answers 
+ 
+5. DISTRIBUTION(%) OF OBJECTIVES BASED ON VARIOUS THINKING SKILLS IN 
+EACH TERM 
+ 
+Term 
+Knowledge and 
+comprehension 
+Application 
+Higher-order thinking 
+skills 
+I 
+37,5% 
+30% 
+32,5% 
+II 
+% 
+% 
+% 
+III 
+% 
+% 
+% 
+IV 
+% 
+% 
+% 
+Total 
+% 
+% 
+% 
+
+PAGE 6
+6 
+ 
+ 
+6. ADMINISTRATION RULES  
+During the Assessment cover all visual materials like diagrams, schemes, posters, and maps 
+that can serve as prompts for the learners. 
+At the beginning of the Assessment read out the instructions and inform the learners about the 
+assessment duration. Remind learners that they are not allowed to talk with each other during the 
+Summative Assessment. After the instructions, make sure they have understood the given 
+instructions and ask if they have any questions before the start of the assessment. 
+Ensure that the learners are working individually and not helping each other. During the 
+Summative Assessment, learners should not have any access to additional resources that can help 
+them, for example, dictionaries (excluding the cases when it is allowed in the specification). 
+Recommend learners to cross the wrong answers instead of using an eraser.  
+During the assessment, you can answer learners’ questions regarding the instructions and the 
+assessment duration. You should not spell, paraphrase, or provide any information that could give 
+the learner an advantage.  
+Always tell the learners that they have 5 minutes left before the end of the Summative 
+Assessment. 
+Tell the learners to stop writing and put down their pens/pencils on the desks at the end of the 
+Summative Assessment. 
+ 
+7. MODERATION AND MARKING 
+All teachers use the same version of the mark scheme. During the moderation process it is 
+necessary to check learner sample papers with the marks awarded to ensure there are no deviations 
+from the standardized mark scheme. 
+ 
+ 
+
+PAGE 7
+7 
+ 
+SPECIFICATION OF SUMMATIVE ASSESSMENT FOR TERM 1 
+Review of summative assessment for Term 1 
+ 
+Duration of the summative assessment – 80 minutes 
+Total marks - 40 
+ 
+Type of tasks: 
+MCT – multiple choice tasks. 
+SA – tasks that require a short answer; 
+EA – tasks requiring an extended answer. 
+ 
+The structure of the summative assessment 
+ 
+This option consists of 22 tasks, including structured tasks with brief and detailed answers. 
+ 
+In multiple-choice questions, you must select only one answer option. 
+ 
+In questions requiring a short answer, the student writes down the answer in the form of a 
+numerical value, a word, or a short sentence. 
+ 
+In questions that require a detailed answer, the trainee must demonstrate the entire sequence 
+of actions taken to solve tasks to obtain the maximum score. A task can contain several structural 
+parts / sub-questions.
+
+PAGE 8
+8 
+ 
+Characteristics of tasks for summative assessment for Term 1 
+ 
+Unit 
+Topic 
+Learning objective 
+Level of 
+thinking skills 
+*Total 
+number 
+of tasks 
+*Questi
+on № 
+*Type of 
+question 
+*Time 
+*Total 
+marks 
+Mark 
+for Units 
+11.1A 
+Computer 
+systems 
+Software 
+classification 
+11.3.1.3 describe the purpose of 
+applications in the following 
+subcategories: general purpose, 
+special purpose, and bespoke 
+Knowledge 
+and 
+comprehension 
+1 
+1 
+MCT 
+1 
+1 
+18 
+11.3.1.2 describe the purpose of the 
+OS, utilities, libraries, and 
+translators 
+Knowledge 
+and 
+comprehension 
+3 
+7a, 7b, 
+7c 
+EA 
+6 
+3 
+Operating 
+systems 
+11.3.1.6 compare single-user and 
+multi-user operating systems 
+Knowledge 
+and 
+comprehension 
+1 
+8b 
+EA 
+2 
+1 
+11.3.1.7 compare single-tasking 
+and multitasking operating systems 
+Higher-order 
+thinking skills 
+1 
+8a 
+EA 
+4 
+2 
+11.3.1.8 describe the features of a 
+real-time operating system 
+Knowledge 
+and 
+comprehension 
+1 
+2 
+MCT 
+1 
+1 
+User 
+Interfaces 
+11.3.1.12 identify the advantages 
+and disadvantages of command line 
+interfaces (CLI) 
+Knowledge 
+and 
+comprehension 
+1 
+3 
+MCT 
+1 
+1 
+11.3.1.13 compare graphical user 
+interfaces (GUI) and command line 
+interfaces (CLI) 
+Higher-order 
+thinking skills 
+2 
+9a, 9b 
+EA 
+5 
+2 
+11.3.1.14 explain the advantages 
+and disadvantages of Natural 
+Language Interfaces (NLI) and 
+Gesture Recognition Interfaces 
+(GRI) 
+Knowledge 
+and 
+comprehension 
+1 
+9c 
+EA 
+3 
+2 
+
+PAGE 9
+9 
+ 
+Areas of AI 
+application 
+11.4.3.3 identify the differences 
+between artificial intelligence, 
+machine learning, and deep 
+learning 
+Higher-order 
+thinking skills 
+1 
+4 
+MCT 
+1 
+1 
+11.4.3.2 explain the purpose of 
+virtual and augmented reality 
+Knowledge 
+and 
+comprehension 
+1 
+5 
+MCT 
+1 
+1 
+Classification 
+of 
+Programming 
+Languages 
+11.5.1.2 compare high-level and 
+low-level programming languages 
+Higher-order 
+thinking skills 
+1 
+10 
+EA 
+4 
+2 
+11.5.1.3 compare imperative and 
+declarative programming languages 
+Knowledge 
+and 
+comprehension 
+1 
+6 
+MCT 
+1 
+1 
+11.1В 
+Web 
+design 
+Cascading 
+style sheets 
+11.5.3.5 compare CSS 
+implementation types 
+Higher-order 
+thinking skills 
+2 
+11a, 
+11b 
+EA, 
+SA 
+10 
+4 
+14 
+Web page 
+design 
+11.5.3.4 create HTML forms for 
+data entry 
+Application 
+1 
+12 
+SA 
+22 
+10 
+11.1 С 
+Project 
+developm
+ent 
+SDLC 
+models 
+11.2.1.1 define the main stages of 
+the system development lifecycle 
+Knowledge 
+and 
+comprehension 
+1 
+13 
+SA 
+2 
+1 
+8 
+11.2.1.2 emphasise the advantages 
+and disadvantages of system 
+development models: waterfall, 
+agile and spiral 
+Higher-order 
+thinking skills 
+1 
+14 
+SA, 
+EA 
+6 
+2 
+Data analysis 
+11.2.1.3 describe data collection 
+methods 
+Knowledge 
+and 
+comprehension 
+1 
+15 
+EA 
+4 
+2 
+11.2.1.4 compare qualitative and 
+quantitative methods of data 
+analysis 
+Application 
+1 
+16 
+EA 
+6 
+2 
+Total: 
+ 
+ 
+ 
+22* 
+ 
+ 
+80 
+40 
+40 
+
+PAGE 10
+10 
+ 
+Sample questions and marking scheme 
+Tasks for the Summative Assessment for the Term 1. 
+ 
+1 A bank requires software specifically custom-built to handle its unique internal loan approval process 
+and securely interface with legacy hardware. Identify the software category that best describes this 
+application. 
+A) General-purpose software 
+B) Special-purpose software 
+C) Bespoke software 
+D) System utility software 
+[1] 
+ 
+2 An operating system must process sensor inputs and trigger an immediate physical response within 
+a guaranteed microsecond timeframe. Determine the type of OS required. 
+A) Batch processing operating system 
+B) Real-time operating system (RTOS) 
+C) Network operating system (NOS) 
+D) Single-user single-tasking operating system 
+[1] 
+ 
+3 Choose a statement that accurately describes a major advantage of a Command Line Interface (CLI) 
+over a Graphical User Interface (GUI). 
+A) It requires intuitive visual indicators such as icons and windows. 
+B) It requires significantly less memory (RAM) and system processing overhead. 
+C) It requires no prior knowledge of syntax commands. 
+D) It allows interaction using natural voice input and physical gestures. 
+[1] 
+ 
+4 Define option correctly identifies the relationship between Artificial Intelligence (AI), Machine 
+Learning (ML), and Deep Learning (DL). 
+A) DL is the overarching field; ML is a subfield of DL; AI is a subset of ML. 
+B) AI is the overarching field; ML is a subfield of AI; DL is a subset of ML using artificial 
+neural networks. 
+C) ML is the overarching field; DL and AI are separate, unrelated sub-branches. 
+D) AI, ML, and DL are identical terms with no structural or functional differences. 
+[1] 
+ 
+5 A flight training simulator overlaying interactive digital flight indicators onto a pilot's real-world 
+view during actual flight is an example of: 
+A) Virtual Reality (VR) 
+B) Augmented Reality (AR) 
+C) Natural Language Processing (NLP) 
+D) Batch Processing 
+[1] 
+ 
+6 A developer writes code by stating WHAT result is required rather than specifying the exact step-
+by-step sequence of HOW to compute it (e.g., SQL queries). Identify the programming paradigm that 
+is being used. 
+A) Imperative programming 
+B) Declarative programming 
+C) Assembly programming 
+D) Low-level machine code 
+[1] 
+
+PAGE 11
+11 
+ 
+7 System software consists of various components that support hardware management and program 
+execution. State the primary purpose of the following components: 
+ 
+a) Utility program _________________________________________________________________ 
+________________________________________________________________________________  
+[1] 
+ 
+b) Software library ________________________________________________________________ 
+________________________________________________________________________________  
+[1] 
+ 
+c) Translator (Compiler/Interpreter) ___________________________________________________ 
+________________________________________________________________________________  
+[1] 
+ 
+8 Operating systems are classified according to how they manage users and running tasks. 
+ 
+a) Describe the main difference between a single-tasking OS and a multitasking OS.  
+________________________________________________________________________________  
+________________________________________________________________________________  
+[1] 
+ 
+b) Explain one resource management challenge that arises specifically in a multi-user operating 
+system compared to a single-user system.  
+________________________________________________________________________________  
+________________________________________________________________________________  
+________________________________________________________________________________  
+[2] 
+ 
+c) A commercial bank processes millions of customer credit card transactions every night between 
+01:00 AM and 04:00 AM without any human interaction. All transaction requests collected during 
+the day are grouped together and executed sequentially.  Identify the type of operating system 
+processing mode used for this task.  
+________________________________________________________________________________  
+[1] 
+ 
+9 A system administrator needs to manage and configure remote servers over low-bandwidth network 
+connections, while a frontline retail employee needs to process customer sales quickly with minimal 
+technical training. 
+ 
+a) Justify why a CLI is more suitable for the system administrator.  
+________________________________________________________________________________  
+________________________________________________________________________________  
+[1] 
+b) Justify why a GUI is more suitable for the retail employee.  
+________________________________________________________________________________  
+________________________________________________________________________________  
+[1] 
+
+PAGE 12
+12 
+ 
+c) Identify one advantage and one disadvantage of using a Gesture Recognition Interface (GRI) in 
+interactive systems.  
+Advantage _______________________________________________________________________  
+________________________________________________________________________________  
+Disadvantage _____________________________________________________________________  
+________________________________________________________________________________  
+[2] 
+ 
+10 Low-level and high-level programming languages provide different levels of abstraction from 
+computer hardware. Compare High-Level Languages (HLL) and Low-Level Languages (LLL) in 
+terms of hardware independence and memory management directness.  
+________________________________________________________________________________  
+________________________________________________________________________________  
+________________________________________________________________________________  
+________________________________________________________________________________  
+[2] 
+ 
+Total Unit 11.1A Computer systems_____/19 marks 
+ 
+11 CSS can be implemented in three ways: Inline CSS, Internal CSS, and External CSS. 
+ 
+a) Describe one advantage and one disadvantage of using External CSS compared to Inline CSS. 
+Advantage _______________________________________________________________________  
+________________________________________________________________________________  
+Disadvantage _____________________________________________________________________  
+________________________________________________________________________________  
+[2] 
+ 
+b) Write the exact HTML code needed inside the <head> section of a web page to connect an 
+external stylesheet named styles.css. 
+________________________________________________________________________________  
+[2] 
+ 
+12 Write HTML code for creating the next web form: 
+ 
+ 
+
+PAGE 13
+13 
+ 
+________________________________________________________________________________  
+________________________________________________________________________________  
+________________________________________________________________________________  
+________________________________________________________________________________  
+________________________________________________________________________________  
+________________________________________________________________________________  
+________________________________________________________________________________  
+________________________________________________________________________________  
+________________________________________________________________________________  
+________________________________________________________________________________  
+________________________________________________________________________________  
+________________________________________________________________________________  
+________________________________________________________________________________  
+________________________________________________________________________________  
+________________________________________________________________________________  
+________________________________________________________________________________  
+________________________________________________________________________________  
+________________________________________________________________________________  
+________________________________________________________________________________  
+________________________________________________________________________________  
+________________________________________________________________________________  
+________________________________________________________________________________  
+[10] 
+ 
+Total Unit 11.1В Web design_____/14 marks 
+ 
+13 SDLC is represented in the next diagram. 
+ 
+Name the missing stage. 
+________________________________________________________________________________  
+[1] 
+
+PAGE 14
+14 
+ 
+14 A software company is developing a mobile gaming application where user preferences and 
+requirements change frequently during development. Compare the Waterfall model and the Agile 
+model for this project. State which model is more suitable and give one reason for your choice based 
+on how each model handles changes to requirements.  
+Suitable Model: ___________________________________________________________________ 
+Reason: _________________________________________________________________________ 
+________________________________________________________________________________ 
+________________________________________________________________________________ 
+[2] 
+15 System analysts use various data collection methods when investigating an existing system. 
+ 
+a) Describe one advantage and one disadvantage of using Questionnaires (surveys) compared to 
+face-to-face Interviews for gathering user requirements.  
+Advantage _______________________________________________________________________  
+________________________________________________________________________________  
+Disadvantage _____________________________________________________________________ 
+________________________________________________________________________________  
+[2] 
+ 
+b) Distinguish between qualitative and quantitative data collected during system analysis by giving 
+one example of each.  
+Qualitative data example: ___________________________________________________________ 
+________________________________________________________________________________ 
+Quantitative data example: __________________________________________________________ 
+________________________________________________________________________________ 
+[2] 
+ 
+ 
+Total Unit 11.1 С System lifecycle _____/7 marks 
+ 
+ 
+ 
+ 
+ 
+ 
+
+PAGE 15
+15 
+ 
+Mark scheme 
+ 
+№ 
+Answer 
+Marks 
+Comments 
+1 
+C (Bespoke software) 
+[1] 
+ 
+2 
+B (Real-time operating system) 
+[1] 
+ 
+3 
+B (It requires significantly less memory and system 
+processing overhead) 
+[1] 
+ 
+4 
+B (AI is overarching; ML is subfield of AI; DL is 
+subset of ML using neural networks) 
+[1] 
+ 
+5 
+B (Augmented Reality) 
+[1] 
+ 
+6 
+B (Declarative programming) 
+[1] 
+ 
+7a 
+Performs system maintenance tasks (e.g., disk 
+defragmentation, virus scanning, file 
+compression/backup). 
+ 
+[1] 
+Accept any valid 
+maintenance 
+example/definition. 
+7b 
+A collection of pre-compiled routines/code modules 
+that can be reused by other programs. 
+[1] 
+Allow reference to 
+reusable, ready-made 
+code/functions. 
+7c 
+Converts source code written by a programmer into 
+executable machine code (binary) that the CPU can 
+execute. 
+[1] 
+Accept only machine 
+code/binary format 
+translation instructions. 
+8a 
+Single-tasking allows execution of only one process at 
+a time; Multitasking allows multiple processes to run 
+concurrently by sharing CPU time slices. 
+[1] 
+Must contrast single 
+task vs concurrent 
+multi-tasking. 
+8b 
+Resource allocation / Scheduling / Security: 
+• Must allocate CPU processing time/RAM fairly 
+among concurrent user sessions. 
+• Must implement strict access rights and file 
+separation so users cannot view/overwrite each 
+other’s data in memory. 
+ 
+1 
+ 
+1 
+ 
+[2] 
+1 mark for identifying a 
+valid challenge 
+(memory protection, 
+security, CPU 
+allocation). 
+ 
+1 mark for a brief 
+explanation. 
+8c 
+Batch processing OS 
+[1] 
+ 
+9a 
+CLI requires minimal bandwidth (sends text only)  
+consumes very low RAM / allows rapid script 
+automation. 
+ 
+[1] 
+Accept low bandwidth, 
+scripting capability, or 
+low memory usage. 
+9b 
+GUI relies on visual WIMP elements (icons, buttons), 
+making it intuitive with a low learning curve / 
+requiring no command syntax memorization. 
+[1] 
+Accept visual interface, 
+intuitive navigation, no 
+syntax to learn. 
+9c 
+Advantage:  
+Touchless/hands-free operation, highly 
+intuitive/natural. 
+ 
+Disadvantage:  
+Subject to input errors from ambient lighting/camera 
+angles, high computational overhead for gesture 
+parsing, and physical fatigue. 
+ 
+1 
+ 
+ 
+ 
+ 
+1 
+ 
+[2] 
+ 
+Accept any correct 
+answer 
+
+PAGE 16
+16 
+ 
+10 
+• Hardware independence:  
+HLL code is portable across different CPU 
+architectures; LLL is machine-specific (tied to 
+particular CPU registers/architecture). 
+ 
+• Memory management:  
+LLL allows direct control over memory addresses 
+and registers; HLL abstracts memory management 
+away via automated garbage collection/variables. 
+ 
+1 
+ 
+ 
+ 
+ 
+1 
+ 
+[2] 
+1 mark for hardware 
+independence 
+comparison. 
+ 
+1 mark for memory 
+management 
+comparison. 
+11a 
+Advantage: 
+• Separation of content and presentation / Easier 
+maintenance. 
+• Styles can be reused across multiple HTML pages. 
+• Faster loading time after initial cache. 
+ 
+Disadvantage: 
+• Requires an extra HTTP request to fetch the CSS file. 
+• The web page may render unstyled if the external file 
+fails to load or path is wrong. 
+ 
+1 
+ 
+1 
+1 
+ 
+ 
+1 
+1 
+ 
+[max 2] 
+1 mark for any valid 
+advantage. 
+ 
+1 mark for any valid 
+disadvantage. 
+11b 
+<link  
+rel="stylesheet" href="styles.css"> 
+1 
+1 
+[2] 
+ 
+12 
+<form> 
+  Full Name:<br> 
+  <input type="text"><br> 
+ 
+  Age:<br> 
+  <input type="number"  
+min="15" max="19"><br> 
+ 
+  Preferred Major:<br> 
+  <select> 
+    <option>Computer Science</option> 
+    <option></option> 
+    … 
+  </select><br> 
+ 
+  Study Mode:<br> 
+  <input type="radio" name="name1" 
+value="fulltime" checked> 
+  Full-time 
+  <input type="radio" name="name1" 
+value="parttime"> 
+  Part-time<br> 
+ 
+  Motivation Letter:<br> 
+  <textarea></textarea><br> 
+ 
+  <input type="reset" value="Reset"> 
+  <input type="submit" value="Submit 
+Application"> 
+ 
+1 
+1 
+ 
+ 
+1 
+1 
+ 
+ 
+1 
+ 
+ 
+ 
+ 
+ 
+ 
+1 
+ 
+ 
+1 
+ 
+ 
+ 
+ 
+1 
+ 
+1 
+1 
+ 
+1 mark for new lines 
+ 
+1 mark for input text 
+ 
+1 mark for input 
+number 
+ 
+1 mark for range of age 
+ 
+1 mark for drop down 
+list 
+ 
+1 mark for radio 
+elements 
+ 
+1 mark for same name 
+for radio elements 
+ 
+1 mark for textarea 
+element 
+ 
+1 mark for input reset 
+ 
+1 mark for input submit 
+
+PAGE 17
+17 
+ 
+</form> 
+[10] 
+13 
+Design 
+[1] 
+ 
+14 
+Agile   
+Reason: Agile is iterative and welcomes changing 
+requirements at any stage of development. / 
+Waterfall making changes once development has 
+started is difficult, costly, and time-consuming.  
+1 
+1 
+ 
+[2] 
+Accept the other correct 
+answer 
+15a 
+Advantage: 
+• Can collect data from a large number of respondents 
+quickly and cost-effectively.    
+• Respondents can complete it anonymously, leading to 
+more honest feedback.    
+ 
+Disadvantage: 
+• Low response/return rate.    
+• Questions cannot be clarified if misunderstood by 
+respondents.    
+• Lack of deep follow-up questions compared to 
+interviews.   
+ 
+1 
+ 
+1 
+ 
+ 
+ 
+1 
+1 
+ 
+1 
+[max 2] 
+Accept other correct 
+answer 
+15b 
+Qualitative Data Example: 
+User feedback comments, opinions on interface 
+usability, interview transcripts, and descriptive user 
+preferences.    
+ 
+Quantitative Data Example (1 mark): 
+System response times, error rates, number of active 
+users per hour, and survey ratings on a 1–5 scale.  
+ 
+1 
+ 
+ 
+ 
+1 
+ 
+ 
+[2] 
+1 mark for a valid 
+qualitative example 
+(non-
+numerical/descriptive).    
+ 
+1 mark for a valid 
+quantitative example 
+(measurable/numerical).  
+Total  
+40 
+ 
+ 

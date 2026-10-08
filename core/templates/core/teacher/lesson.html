@@ -1,0 +1,176 @@
+{% extends "core/teacher/_base.html" %}
+{% block title %}{{ T.lesson_mode }} — {{ lesson_session.title }}{% endblock %}
+{% block subtitle %}{{ T.lesson_mode }}{% endblock %}
+{% block content %}
+{% include "core/_game_avatar.html" %}
+<style>
+  :root{--border:#dbe3ee;--card:#fff;--primary:#0284c7;--muted:#64748b}
+  body{font-family:{% if ui_lang == 'kk' %}var(--ui-font-kk){% else %}var(--ui-font-default){% endif %}}
+  .row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .lesson-layout{display:grid;grid-template-columns:240px minmax(0,1fr);gap:16px;margin-top:16px;align-items:start}
+  .lesson-layout>*{min-width:0}
+  .lesson-module{display:block;width:100%;text-align:left;margin:0 0 8px;cursor:pointer}
+  .lesson-module.active{border-color:#0284c7;box-shadow:0 0 0 2px #0284c733}
+  .lesson-content{padding:24px;min-height:380px}
+  .lesson-content h2{margin-top:0}
+  .lesson-content textarea{width:100%;box-sizing:border-box}
+  .lesson-content textarea,.lesson-content select,.select-ui{padding:10px;border:1px solid var(--border);border-radius:10px;background:var(--card)}
+  button{cursor:pointer}button:disabled{cursor:default;opacity:.5}
+  [hidden]{display:none!important}
+  #lessonStatus{min-height:18px;margin-top:10px}
+  .marker-tools{padding:10px 0;border-bottom:1px solid var(--border);margin-bottom:18px}
+  html[data-theme="dark"]{--border:#46525e;--card:#202832;--muted:#aab7c5}
+  @media(max-width:800px){.lesson-layout{grid-template-columns:1fr}.lesson-content{padding:16px}}
+  {% include "core/_learning_styles.html" %}
+  {% include "core/teacher/_lesson_game_styles.html" %}
+</style>
+<div class="card">
+  <div class="row" style="justify-content:space-between">
+    <div><h1 style="margin:0;font-size:24px">{{ lesson_session.title }}</h1><div class="muted">{{ T.lesson_mode }}</div></div>
+    <label>{{ T.class_label }}
+      <select id="gameClassSelect" class="select-ui">
+        {% for group in lesson_classes %}<option value="{{ group.id }}">{{ group.name }}</option>{% empty %}<option value="">{{ T.no_classes }}</option>{% endfor %}
+      </select>
+    </label>
+  </div>
+  <div id="msg" class="muted" role="status" aria-live="polite"></div>
+</div>
+<div class="lesson-layout">
+  <nav id="lessonModules" class="card" aria-label="{{ T.modules }}"></nav>
+  <main class="card lesson-content">
+    <h2 id="lessonTitle">{{ T.loading }}</h2>
+    <p id="lessonTopic" class="muted"></p>
+    <section id="theoryPane" hidden>
+      <div class="row marker-tools">
+        <label><input type="checkbox" id="markerEnabled" checked> {{ T.lesson_marker }}</label>
+        <button type="button" class="btn" id="clearMarkers">{{ T.lesson_clear_markers }}</button>
+        <span class="muted">{{ T.lesson_marker_hint }}</span>
+      </div>
+      <div id="moduleBlocks" class="theoryContent"></div>
+    </section>
+    <section id="quizPane" hidden>
+      <p id="quizInstructions" style="white-space:pre-wrap"></p>
+      <div id="quizQuestions"></div>
+      <button type="button" id="submitQuiz" class="btn">{{ T.quiz_submit }}</button>
+      <div id="quizScore" role="status" style="margin:12px 0;font-weight:800"></div>
+      <div id="quizResultsList"></div>
+    </section>
+    <section id="gamePane" hidden>{% include "core/teacher/_lesson_game_host.html" %}</section>
+    <section id="codingPane" hidden><div id="codingStatement" style="white-space:pre-wrap"></div><pre id="codingConstraints" style="white-space:pre-wrap"></pre></section>
+  </main>
+</div>
+<script>
+  const selectedSessionId = {{ lesson_session.id }};
+  let selectedModuleId = null, selectedModuleType = null, currentGameModule = null;
+  let modulesCache = [], loadToken = 0, lessonRanges = [], questions = [], markerSaving = false;
+  const quizDrafts = new Map();
+  const UI = {
+    failedLoadModules:"{{ T.failed_load_tasks|escapejs }}",createFailed:"{{ T.create_failed|escapejs }}",saveFailed:"{{ T.save_failed|escapejs }}",
+    quizQuestion:"{{ T.quiz_question|escapejs }}",quizCorrect:"{{ T.quiz_correct|escapejs }}",quizIncorrect:"{{ T.quiz_incorrect|escapejs }}",
+    invalidAttachment:"{{ T.invalid_attachment_url|escapejs }}",downloadAttachment:"{{ T.download_attachment|escapejs }}"
+  };
+  function qs(id){return document.getElementById(id)}
+  function setMsg(text){qs("msg").textContent=text||""}
+  function escapeHtml(value){return String(value??"").replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+  async function api(url,method="GET",body=null){
+    try{
+      const opts={method,headers:{"Content-Type":"application/json"},credentials:"same-origin"};
+      if(method!=="GET") opts.headers["X-CSRFToken"]=(document.cookie.match(/(?:^|; )csrftoken=([^;]*)/)||[])[1]||"";
+      if(body!==null)opts.body=JSON.stringify(body);
+      const res=await fetch(url,opts);return {status:res.status,data:await res.json()};
+    }catch(error){return {status:0,data:{ok:false,error:UI.failedLoadModules}}}
+  }
+  function openImageViewer(url){window.open(url,"_blank","noopener,noreferrer")}
+  function persistQuizAnswers(rows){quizDrafts.set(selectedModuleId,collectQuizAnswers(rows))}
+  {% include "core/_learning_renderers.html" %}
+  {% include "core/_lesson_markers.html" %}
+  {% include "core/teacher/_lesson_game_script.html" %}
+
+  async function refreshLessonGame(){
+    const id=selectedModuleId,token=loadToken;
+    const res=await api(`/api/teacher/game-modules/${id}/`);
+    if(token!==loadToken)return;
+    if(!res.data.ok)return setMsg(res.data.error);
+    currentGameModule=res.data.module;
+    await selectGameClass();
+  }
+  async function loadMarkers(){
+    const token=loadToken,id=selectedModuleId,classId=qs("gameClassSelect").value;
+    lessonRanges=[]; delete qs("moduleBlocks").dataset.markers; applyLessonMarkers([]);
+    qs("markerEnabled").disabled=!classId; qs("clearMarkers").disabled=!classId;
+    if(!classId)return;
+    const res=await api(`/api/teacher/theory-modules/${id}/highlights/?class_id=${classId}`);
+    if(token!==loadToken || classId!==qs("gameClassSelect").value)return;
+    if(!res.data.ok)return setMsg(res.data.error);
+    lessonRanges=res.data.ranges.filter(r=>qs("moduleBlocks").querySelector(`[data-block-id="${r.block_id}"]`)?.textContent===r.text);
+    applyLessonMarkers(lessonRanges);
+  }
+  async function saveMarkers(clear=false){
+    if(markerSaving || selectedModuleType!=="theory_material" || !qs("gameClassSelect").value)return;
+    if(!clear && !qs("markerEnabled").checked)return;
+    const added=clear?[]:selectedLessonRanges();
+    if(!clear&&!added.length)return;
+    const token=loadToken,classId=qs("gameClassSelect").value;
+    const ranges=clear?[]:lessonRanges.concat(added);
+    // Merge overlapping selections before persisting repeated marker strokes.
+    ranges.sort((a,b)=>a.block_id-b.block_id||a.start-b.start);
+    const merged=[];
+    ranges.forEach(r=>{const last=merged.at(-1);if(last&&last.block_id===r.block_id&&last.text===r.text&&r.start<=last.end)last.end=Math.max(last.end,r.end);else merged.push({...r})});
+    markerSaving=true;
+    const res=await api(`/api/teacher/theory-modules/${selectedModuleId}/highlights/?class_id=${classId}`,"PUT",{ranges:merged});
+    markerSaving=false;
+    if(token!==loadToken||classId!==qs("gameClassSelect").value)return;
+    if(!res.data.ok)return setMsg(res.data.error);
+    lessonRanges=res.data.ranges;window.getSelection()?.removeAllRanges();applyLessonMarkers(lessonRanges);
+    setMsg("{{ T.lesson_marker_saved|escapejs }}");
+  }
+  async function openLessonModule(item){
+    const token=++loadToken;stopGamePolling();closeTournamentMatchDetails();
+    selectedModuleId=item.id;selectedModuleType=item.module_type;currentGameModule=null;currentGameRound=null;
+    setMsg(""); qs("lessonTitle").textContent=item.title;qs("lessonTopic").textContent="";
+    ["theoryPane","quizPane","gamePane","codingPane"].forEach(id=>qs(id).hidden=true);
+    qs("lessonModules").querySelectorAll("button").forEach(b=>b.classList.toggle("active",b.dataset.key===`${item.module_type}:${item.id}`));
+    const paths={theory_material:"theory-modules",theory_quiz:"theory-quizzes",game:"game-modules",coding_task:"tasks"};
+    const suffix=item.module_type==="theory_quiz"?"practice/":"";
+    const res=await api(`/api/teacher/${paths[item.module_type]}/${item.id}/${suffix}`);
+    if(token!==loadToken)return;
+    if(!res.data.ok)return setMsg(res.data.error);
+    const module=res.data.module||res.data.task;
+    qs("lessonTopic").textContent=module.topic||"";
+    if(item.module_type==="theory_material"){
+      qs("theoryPane").hidden=false;renderTheoryBlocks(module.blocks);await loadMarkers();
+    }else if(item.module_type==="theory_quiz"){
+      questions=module.questions;qs("quizPane").hidden=false;qs("quizInstructions").textContent=module.instructions;
+      renderQuizQuestionsStudent(questions,quizDrafts.get(item.id));qs("quizScore").textContent="";renderQuizResults([]);
+    }else if(item.module_type==="game"){
+      qs("gamePane").hidden=false;currentGameModule=module;await selectGameClass();
+    }else{
+      qs("codingPane").hidden=false;qs("codingStatement").textContent=module.statement;qs("codingConstraints").textContent=module.constraints||"";
+    }
+  }
+  qs("submitQuiz").addEventListener("click",async()=>{
+    const token=loadToken;qs("submitQuiz").disabled=true;
+    const res=await api(`/api/teacher/theory-quizzes/${selectedModuleId}/practice/`,"POST",{answers:collectQuizAnswers(questions)});
+    qs("submitQuiz").disabled=false;if(token!==loadToken)return;
+    if(!res.data.ok)return setMsg(res.data.error);
+    qs("quizScore").textContent=`${res.data.attempt.score_percent}% · ${res.data.attempt.correct_answers}/${res.data.attempt.total_questions}`;
+    renderQuizResults(res.data.attempt.results);
+  });
+  qs("gameClassSelect").addEventListener("change",async()=>{
+    if(selectedModuleType==="game")await selectGameClass();
+    if(selectedModuleType==="theory_material")await loadMarkers();
+  });
+  qs("moduleBlocks").addEventListener("pointerup",()=>saveMarkers());
+  qs("moduleBlocks").addEventListener("keyup",event=>{if(event.key==="Shift")saveMarkers()});
+  qs("clearMarkers").addEventListener("click",()=>saveMarkers(true));
+  window.addEventListener("pagehide",stopGamePolling);
+  (async()=>{
+    const types=[["tasks","coding_task"],["theory-modules","theory_material"],["theory-quizzes","theory_quiz"],["game-modules","game"]];
+    const results=await Promise.all(types.map(([path])=>api(`/api/teacher/sessions/${selectedSessionId}/${path}/`)));
+    if(results.some(r=>!r.data.ok))return setMsg(UI.failedLoadModules);
+    modulesCache=results.flatMap((r,i)=>(r.data.modules||r.data.tasks||[]).map(m=>({...m,module_type:types[i][1]}))).sort((a,b)=>a.position-b.position);
+    modulesCache.forEach(m=>{const button=document.createElement("button");button.className="btn lesson-module";button.type="button";button.dataset.key=`${m.module_type}:${m.id}`;button.textContent=`${m.position}. ${m.title}`;button.onclick=()=>openLessonModule(m);qs("lessonModules").append(button)});
+    if(modulesCache.length)await openLessonModule(modulesCache[0]);else qs("lessonTitle").textContent="{{ T.no_modules|default:'—'|escapejs }}";
+  })();
+</script>
+{% endblock %}

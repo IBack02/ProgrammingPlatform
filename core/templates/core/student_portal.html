@@ -369,98 +369,7 @@
     a { color:var(--primary); text-decoration:none; }
     hr { border:none; border-top:1px solid var(--border); margin:12px 0; }
     .tiny { font-size:11px; color:var(--muted); }
-    .theoryContent{
-      margin-top:12px;
-      white-space:normal;
-    }
-    .theoryBlock{
-      margin:0 0 14px 0;
-      line-height:1.65;
-      color:#111827;
-      white-space:pre-wrap;
-    }
-    .theoryBlock.h1{
-      font-size:24px;
-      font-weight:800;
-      line-height:1.25;
-      margin-top:8px;
-    }
-    .theoryBlock.h2{
-      font-size:18px;
-      font-weight:700;
-      line-height:1.35;
-      margin-top:18px;
-    }
-    .theoryBlock.code{
-      margin:16px 0;
-    }
-    .theoryBlock.code pre{
-      margin:0;
-      background:#0b1020;
-      color:#d1d5db;
-      border-radius:12px;
-      padding:14px;
-      overflow:auto;
-    }
-    .theoryBlock.media{
-      margin:16px 0;
-      border:1px solid var(--border);
-      border-radius:12px;
-      background:#fff;
-      padding:10px;
-    }
-    .theoryMediaFrame{
-      height:340px;
-      max-height:58vh;
-      display:flex;
-      justify-content:center;
-      align-items:center;
-      border-radius:10px;
-      overflow:hidden;
-      background:#111827;
-    }
-    .theoryImage{
-      max-height:100%;
-      max-width:100%;
-      width:auto;
-      object-fit:contain;
-      cursor:zoom-in;
-      display:block;
-    }
-    .theoryVideo{
-      width:100%;
-      height:100%;
-      border:0;
-      border-radius:10px;
-      background:#000;
-    }
-    .theoryAttachment{
-      display:flex;
-      align-items:center;
-      justify-content:space-between;
-      gap:14px;
-      padding:14px 16px;
-      border:1px solid var(--border);
-      border-radius:12px;
-      background:var(--card);
-    }
-    .theoryAttachmentText{min-width:0}
-    .theoryAttachmentUrl{font-size:11px;color:var(--muted);word-break:break-all;margin-top:4px}
-    .theoryAttachmentLink{
-      flex:0 0 auto;
-      display:inline-flex;
-      align-items:center;
-      gap:8px;
-      padding:10px 13px;
-      border-radius:10px;
-      border:1px solid var(--primary);
-      background:var(--primary);
-      color:#fff;
-      font-weight:800;
-      text-decoration:none;
-    }
-    .theoryAttachmentLink svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
-    @media(max-width:620px){.theoryAttachment{align-items:stretch;flex-direction:column}.theoryAttachmentLink{justify-content:center}}
+    {% include "core/_learning_styles.html" %}
     .imageViewerOverlay{
       position:fixed;
       inset:0;
@@ -505,27 +414,6 @@
       white-space: pre-wrap;
       word-break: break-word;
     }
-    .quizQuestion{
-      border:1px solid var(--border);
-      border-radius:12px;
-      padding:12px;
-      margin:0 0 12px 0;
-      background:#fff;
-    }
-    .quizOption{
-      display:flex;
-      gap:8px;
-      align-items:flex-start;
-      margin:8px 0;
-    }
-    .quizMatchRow{
-      display:flex;
-      gap:10px;
-      align-items:center;
-      margin:8px 0;
-      flex-wrap:wrap;
-    }
-
     .tournamentBracketViewport{width:100%;overflow:auto;border:1px solid #1e293b;border-radius:16px;background:#090f1f;color:#f8fafc;box-shadow:inset 0 0 42px rgba(15,23,42,.42)}
     .tournamentBracketGrid{position:relative;display:grid;gap:72px;padding:18px 28px 28px;isolation:isolate}
     .tournamentBracketLines{position:absolute;inset:0;z-index:0;pointer-events:none;overflow:visible}
@@ -1113,62 +1001,6 @@
       .replaceAll("'","&#039;");
   }
 
-  function sanitizeHttpUrl(rawUrl){
-    const v = String(rawUrl || "").trim();
-    if (!v) return "";
-    try{
-      const u = new URL(v);
-      if (u.protocol !== "http:" && u.protocol !== "https:"){
-        return "";
-      }
-      return u.toString();
-    }catch(e){
-      return "";
-    }
-  }
-
-  function toYouTubeEmbedUrl(rawUrl){
-    const v = String(rawUrl || "").trim();
-    if (!v) return "";
-    try{
-      const u = new URL(v);
-      const host = u.hostname.replace(/^www\./, "");
-      let videoId = "";
-      if (host === "youtu.be"){
-        videoId = u.pathname.replace("/", "").trim();
-      } else if (host === "youtube.com" || host === "m.youtube.com"){
-        if (u.pathname === "/watch"){
-          videoId = (u.searchParams.get("v") || "").trim();
-        } else if (u.pathname.startsWith("/shorts/")){
-          videoId = u.pathname.split("/")[2] || "";
-        } else if (u.pathname.startsWith("/embed/")){
-          videoId = u.pathname.split("/")[2] || "";
-        }
-      }
-      if (!videoId) return "";
-      return `https://www.youtube.com/embed/${encodeURIComponent(videoId)}`;
-    }catch(e){
-      return "";
-    }
-  }
-
-  function googleDriveDownloadUrl(rawUrl){
-    const value = String(rawUrl || "").trim();
-    if (!value) return "";
-    try{
-      const url = new URL(value);
-      const host = url.hostname.toLowerCase();
-      if (url.protocol !== "https:" || !["drive.google.com", "docs.google.com"].includes(host)) return "";
-      const fileMatch = url.pathname.match(/\/file\/d\/([A-Za-z0-9_-]+)/);
-      const fileId = fileMatch?.[1] || url.searchParams.get("id") || "";
-      return fileId
-        ? `https://drive.google.com/uc?export=download&id=${encodeURIComponent(fileId)}`
-        : value;
-    }catch(error){
-      return "";
-    }
-  }
-
   const imageViewer = {
     open: false,
     scale: 1.5,
@@ -1267,73 +1099,6 @@
     });
   }
 
-  function renderTheoryBlocks(blocks){
-    const box = qs("moduleBlocks");
-    box.innerHTML = "";
-
-    (blocks || []).forEach(block => {
-      const wrap = document.createElement("div");
-
-      if (block.block_type === "heading"){
-        wrap.className = `theoryBlock ${block.heading_level === "h1" ? "h1" : "h2"}`;
-        wrap.textContent = block.content || "";
-      } else if (block.block_type === "code"){
-        wrap.className = "theoryBlock code";
-        wrap.innerHTML = `<pre>${escapeHtml(block.content)}</pre>`;
-      } else if (block.block_type === "image"){
-        const imageUrl = sanitizeHttpUrl(block.content);
-        wrap.className = "theoryBlock media";
-        if (!imageUrl){
-          wrap.innerHTML = `<div class="small muted">Invalid image URL</div>`;
-        } else {
-          wrap.innerHTML = `
-            <div class="theoryMediaFrame">
-              <img class="theoryImage" src="${escapeHtml(imageUrl)}" alt="theory image" loading="lazy">
-            </div>
-          `;
-          const img = wrap.querySelector(".theoryImage");
-          img?.addEventListener("click", () => openImageViewer(imageUrl));
-        }
-      } else if (block.block_type === "video"){
-        const embedUrl = toYouTubeEmbedUrl(block.content);
-        wrap.className = "theoryBlock media";
-        if (!embedUrl){
-          wrap.innerHTML = `<div class="small muted">Invalid YouTube URL</div>`;
-        } else {
-          wrap.innerHTML = `
-            <div class="theoryMediaFrame">
-              <iframe class="theoryVideo" src="${escapeHtml(embedUrl)}" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe>
-            </div>
-          `;
-        }
-      } else if (block.block_type === "attachment"){
-        const downloadUrl = googleDriveDownloadUrl(block.content);
-        wrap.className = "theoryBlock";
-        if (!downloadUrl){
-          wrap.innerHTML = `<div class="small muted">${escapeHtml(UI.invalidAttachment)}</div>`;
-        } else {
-          wrap.innerHTML = `
-            <div class="theoryAttachment">
-              <div class="theoryAttachmentText">
-                <b>${escapeHtml(UI.downloadAttachment)}</b>
-                <div class="theoryAttachmentUrl">${escapeHtml(block.content)}</div>
-              </div>
-              <a class="theoryAttachmentLink primary" href="${escapeHtml(downloadUrl)}" target="_blank" rel="noopener noreferrer">
-                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m0 0 4-4m-4 4-4-4M5 20h14"></path></svg>
-                <span>${escapeHtml(UI.downloadAttachment)}</span>
-              </a>
-            </div>
-          `;
-        }
-      } else {
-        wrap.className = "theoryBlock";
-        wrap.textContent = block.content || "";
-      }
-
-      box.appendChild(wrap);
-    });
-  }
-
   function setModuleBackground(moduleType){
     document.body.classList.remove("module-bg-coding", "module-bg-theory", "module-bg-quiz", "module-bg-game");
     if (moduleType === "theory_material"){
@@ -1383,103 +1148,26 @@
     }
   }
 
-  function renderQuizQuestionsStudent(questions, initialAnswers){
-    const box = qs("quizQuestions");
-    box.innerHTML = "";
-    const seed = initialAnswers || {};
-
-    (questions || []).forEach(question => {
-      const wrap = document.createElement("div");
-      wrap.className = "quizQuestion";
-      const answerKey = String(question.id);
-      const initialValue = seed[answerKey];
-
-      let inner = `
-        <div><b>${escapeHtml(UI.quizQuestion)} ${question.ordinal}</b></div>
-        <div style="margin-top:6px;white-space:pre-wrap;">${escapeHtml(question.prompt)}</div>
-      `;
-
-      if (question.question_type === "single_choice"){
-        inner += `<div style="margin-top:10px;">`;
-        (question.choices || []).forEach(choice => {
-          const checked = String(initialValue || "") === String(choice.id) ? "checked" : "";
-          inner += `
-            <label class="quizOption">
-              <input type="radio" name="quiz_q_${question.id}" value="${choice.id}" ${checked}>
-              <span>${escapeHtml(choice.text)}</span>
-            </label>
-          `;
-        });
-        inner += `</div>`;
-      } else if (question.question_type === "open_answer"){
-        inner += `<textarea id="quiz_open_${question.id}" style="margin-top:10px;height:110px;">${escapeHtml(initialValue || "")}</textarea>`;
-      } else if (question.question_type === "matching"){
-        inner += `<div style="margin-top:10px;">`;
-        (question.left_items || []).forEach(left => {
-          const preselected = typeof initialValue === "object" ? String(initialValue[String(left.id)] || "") : "";
-          inner += `
-            <div class="quizMatchRow">
-              <div style="min-width:180px;">${escapeHtml(left.text)}</div>
-              <select id="quiz_match_${question.id}_${left.id}" class="langSelect">
-                <option value=""></option>
-                ${(question.right_items || []).map(right => {
-                  const selected = preselected === String(right.id) ? "selected" : "";
-                  return `<option value="${right.id}" ${selected}>${escapeHtml(right.text)}</option>`;
-                }).join("")}
-              </select>
-            </div>
-          `;
-        });
-        inner += `</div>`;
-      }
-
-      wrap.innerHTML = inner;
-      box.appendChild(wrap);
-    });
-
-    box.querySelectorAll("input, textarea, select").forEach(el => {
-      const persist = () => {
-        if (!currentTaskId || currentModuleType !== "theory_quiz") return;
-        saveCachedQuizAnswers(currentTaskId, collectQuizAnswers(questions), currentModuleType);
-      };
-      el.addEventListener("input", persist);
-      el.addEventListener("change", persist);
-    });
+  {% include "core/_learning_renderers.html" %}
+  {% include "core/_lesson_markers.html" %}
+  let lessonHighlightTimer = null, lessonHighlightToken = 0;
+  function stopLessonHighlights(){ clearTimeout(lessonHighlightTimer); lessonHighlightToken++; }
+  async function pollLessonHighlights(moduleId){
+    const token = lessonHighlightToken;
+    try {
+      const res = await apiGet(`/api/student/theory-module/${moduleId}/highlights/`);
+      if (token !== lessonHighlightToken) return;
+      if (res.data.ok) applyLessonMarkers(res.data.ranges);
+    } catch (error) {
+      // Keep the current content during a temporary network interruption.
+    } finally {
+      if (token === lessonHighlightToken) lessonHighlightTimer = setTimeout(() => pollLessonHighlights(moduleId), 1000);
+    }
   }
-
-  function collectQuizAnswers(questions){
-    const answers = {};
-    (questions || []).forEach(question => {
-      if (question.question_type === "single_choice"){
-        const checked = document.querySelector(`input[name="quiz_q_${question.id}"]:checked`);
-        answers[String(question.id)] = checked ? checked.value : "";
-      } else if (question.question_type === "open_answer"){
-        answers[String(question.id)] = qs(`quiz_open_${question.id}`)?.value || "";
-      } else if (question.question_type === "matching"){
-        const map = {};
-        (question.left_items || []).forEach(left => {
-          map[String(left.id)] = qs(`quiz_match_${question.id}_${left.id}`)?.value || "";
-        });
-        answers[String(question.id)] = map;
-      }
-    });
-    return answers;
+  function persistQuizAnswers(questions){
+    if (currentTaskId && currentModuleType === "theory_quiz")
+      saveCachedQuizAnswers(currentTaskId, collectQuizAnswers(questions), currentModuleType);
   }
-
-  function renderQuizResults(results){
-    const box = qs("quizResultsList");
-    box.innerHTML = "";
-    (results || []).forEach(row => {
-      const item = document.createElement("div");
-      item.className = "card";
-      item.innerHTML = `
-        <div><b>${escapeHtml(UI.quizQuestion)} ${row.ordinal}</b> - ${escapeHtml(row.is_correct ? UI.quizCorrect : UI.quizIncorrect)}</div>
-        ${row.feedback ? `<div class="small muted" style="margin-top:6px;white-space:pre-wrap;">${escapeHtml(row.feedback)}</div>` : ""}
-      `;
-      box.appendChild(item);
-    });
-  }
-
   function makeResizer(resizerEl, leftEl, opts){
     let dragging = false;
     const min = opts.min ?? 240;
@@ -1965,7 +1653,7 @@
   function updateTournamentSubmitButton(){
     clearTimeout(tournamentCooldownTimer);
     tournamentCooldownTimer = null;
-    const seconds = Math.max(0, Math.ceil((tournamentCooldownUntil - Date.now()) / 1000));
+    const seconds = Math.max(0, Math.ceil((tournamentCooldownUntil - Date.now()) / 100) / 10);
     const canAnswer = currentModuleType === "game" && currentGameRound?.can_answer_tournament;
     const button = qs("tournamentSubmitBtn");
     button.disabled = !canAnswer || gameAnswerPending || seconds > 0;
@@ -2260,6 +1948,7 @@
       saveCachedCode(currentTaskId, qs("codeArea").value || "", currentModuleType);
     }
 
+    stopLessonHighlights();
     currentTaskId = taskId;
     currentModuleType = moduleType || "coding_task";
     currentReadOnlyMode = false;
@@ -2292,6 +1981,7 @@
       qs("constraintsSection").style.display = "none";
       qs("visibleTests").innerHTML = "";
       renderTheoryBlocks(res.data.module.blocks || []);
+      pollLessonHighlights(taskId);
 
       lastProgress = null;
       currentReadOnlyMode = false;

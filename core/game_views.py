@@ -40,7 +40,15 @@ WONDER_FIELD_CYRILLIC = "ЙЦУКЕНГШЩЗХЪФЫВАПРОЛДЖЭЯЧСМ�
 WONDER_FIELD_DIGITS = "1234567890"
 WONDER_FIELD_SYMBOLS = ".,!?-+*/=:%@#&()[]{}_\\|<>\"'№"
 WONDER_FIELD_TURN_SECONDS = 20
-TOURNAMENT_WRONG_ANSWER_COOLDOWN_SECONDS = 2
+def validate_tournament_cooldown(value):
+    from decimal import Decimal, InvalidOperation
+    try:
+        seconds = Decimal(str(value))
+        if not seconds.is_finite() or not 0 <= seconds <= 60 or seconds.as_tuple().exponent < -2:
+            raise ValueError("cooldown must be between 0 and 60 seconds, with at most two decimal places")
+        return seconds
+    except InvalidOperation as exc:
+        raise ValueError("cooldown must be a number") from exc
 
 
 def _json_errors(view_func):
@@ -509,6 +517,7 @@ def _module_row(module, include_detail=False):
         "title": module.title,
         "topic": module.topic,
         "rubric": module.rubric,
+        "tournament_cooldown_seconds": float(module.tournament_cooldown_seconds),
         "is_active": module.is_active,
         "prompt_count": prompt_count,
     }
@@ -554,12 +563,15 @@ def _active_round_for_student(module, student):
 
 
 def _tournament_answer_cooldown_ms(participant):
+    cooldown_seconds = float(participant.round.module.tournament_cooldown_seconds)
+    if cooldown_seconds <= 0:
+        return 0
     now = timezone.now()
     last_wrong_at = (
         participant.tournament_answer_attempts.filter(
             was_current=True,
             is_correct=False,
-            submitted_at__gt=now - timedelta(seconds=TOURNAMENT_WRONG_ANSWER_COOLDOWN_SECONDS),
+            submitted_at__gt=now - timedelta(seconds=cooldown_seconds),
         )
         .order_by("-submitted_at")
         .values_list("submitted_at", flat=True)
@@ -567,7 +579,7 @@ def _tournament_answer_cooldown_ms(participant):
     )
     if last_wrong_at is None:
         return 0
-    remaining = last_wrong_at + timedelta(seconds=TOURNAMENT_WRONG_ANSWER_COOLDOWN_SECONDS) - now
+    remaining = last_wrong_at + timedelta(seconds=cooldown_seconds) - now
     return max(0, ceil(remaining.total_seconds() * 1000))
 
 
@@ -743,6 +755,7 @@ def teacher_game_modules_api(request: HttpRequest, session_id: int):
         title=title[:200],
         topic=str(data.get("topic") or "").strip()[:255],
         rubric=rubric,
+        tournament_cooldown_seconds=validate_tournament_cooldown(data.get("tournament_cooldown_seconds", 1.5)),
     )
     return JsonResponse({"ok": True, "module": _module_row(module, True)}, status=201)
 
@@ -791,6 +804,8 @@ def teacher_game_module_detail_api(request: HttpRequest, module_id: int):
         module.position = position
     if "is_active" in data:
         module.is_active = bool(data["is_active"])
+    if "tournament_cooldown_seconds" in data:
+        module.tournament_cooldown_seconds = validate_tournament_cooldown(data["tournament_cooldown_seconds"])
     module.save()
     return JsonResponse({"ok": True, "module": _module_row(module, True)})
 

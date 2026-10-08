@@ -4,7 +4,7 @@
 {% block subtitle %}{{ T.modules_subtitle }}{% endblock %}
 
 {% block content %}
-{% include "core/_game_avatar.html" %}
+
 <style>
   .input-ui,.textarea-ui,.select-ui{padding:10px;border:1px solid #e5e7eb;border-radius:10px;box-sizing:border-box;background:#fff}
   .btn{cursor:pointer}
@@ -50,65 +50,6 @@
   .game-prompt-row{border:1px solid #e5e7eb;border-radius:12px;padding:12px;margin-top:10px;background:#fff}
   .game-prompt-row textarea{min-height:76px}
   .game-preview{padding:8px 10px;border-radius:9px;background:#0f172a;color:#e2e8f0;margin-top:8px;white-space:pre-wrap}
-  .teacher-race-track{position:relative;height:62px;border-radius:12px;background:repeating-linear-gradient(90deg,#f8fafc 0 36px,#e2e8f0 37px 38px);margin:8px 0;overflow:hidden;border-left:3px solid var(--runner-color,#0ea5e9);border-right:5px double #111827}
-  .teacher-runner{position:absolute;left:7px;top:7px;transition:left .5s cubic-bezier(.2,.8,.2,1);display:flex;align-items:center;gap:7px}
-  .game-round-history{display:flex;gap:7px;flex-wrap:wrap;margin-top:10px}
-  .wonder-board{display:grid;grid-template-columns:minmax(0,1fr) 280px;gap:14px;margin-top:12px}
-  .wonder-main,.wonder-log{background:rgba(255,255,255,.9);border:1px solid #dbeafe;border-radius:14px;padding:14px}
-  .wonder-cells{display:flex;gap:7px;flex-wrap:wrap;align-items:flex-end;margin:14px 0}
-  .wonder-cell{width:34px;height:42px;border:2px solid #0f172a;border-radius:7px;display:grid;place-items:center;font-size:22px;font-weight:800;background:#fff}
-  .wonder-cell.space{width:16px;border:0;background:transparent}
-  .wonder-keyboard{display:flex;gap:5px;flex-wrap:wrap}
-  .wonder-key{min-width:29px;padding:6px;border-radius:7px;background:#e0f2fe;text-align:center;font-weight:800}
-  .wonder-key.used{background:#e5e7eb;color:#9ca3af;text-decoration:line-through}
-  .wonder-queue{display:flex;gap:7px;flex-wrap:wrap;margin:10px 0}
-  .wonder-queue-item{padding:6px 9px;border-radius:999px;background:#e2e8f0;font-size:12px}
-  .wonder-queue-item.current{background:#facc15;color:#422006;font-weight:800;box-shadow:0 0 0 3px rgba(250,204,21,.24)}
-  .wonder-log{max-height:360px;overflow:auto}
-  .wonder-log-row{padding:7px 0;border-bottom:1px solid #e5e7eb;font-size:12px}
-  .wonder-strikes{font-size:25px;letter-spacing:4px;color:#dc2626;font-weight:900}
-  .tournament-bracket-viewport{margin-top:12px;overflow:auto;border:1px solid #1e293b;border-radius:16px;background:#090f1f;color:#f8fafc;box-shadow:inset 0 0 42px rgba(15,23,42,.42)}
-  .tournament-bracket-grid{position:relative;display:grid;gap:72px;padding:18px 28px 28px;isolation:isolate}
-  .tournament-bracket-lines{position:absolute;inset:0;z-index:0;pointer-events:none;overflow:visible}
-  .tournament-stage{position:relative;z-index:1;min-width:230px}
-  .tournament-stage-title{height:42px;font-size:17px;font-weight:900;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#e2e8f0}
-  .tournament-stage-body{display:flex;flex-direction:column;justify-content:space-around;gap:18px}
-  .tournament-match{border:1px solid #26324b;border-right:4px solid #60a5fa;border-radius:5px;background:#151d32;box-shadow:0 10px 24px rgba(2,6,23,.28);overflow:hidden}
-  .tournament-match.clickable{cursor:pointer;transition:transform .16s ease,border-color .16s ease,box-shadow .16s ease}
-  .tournament-match.clickable:hover,.tournament-match.clickable:focus-visible{transform:translateY(-2px);border-color:#7dd3fc;box-shadow:0 14px 30px rgba(2,132,199,.24);outline:none}
-  .tournament-player{display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:31px;padding:5px 9px;border-bottom:1px solid #29344e;color:#f8fafc}
-  .tournament-player:last-of-type{border-bottom:0}
-  .tournament-player.winner{background:rgba(250,204,21,.14);color:#fde68a}
-  .tournament-player.tbd,.tournament-player.bye{color:#94a3b8;font-style:italic}
-  .tournament-match-meta{padding:5px 9px;border-top:1px solid #29344e;color:#94a3b8;font-size:10px;text-transform:uppercase;letter-spacing:.04em}
-  .tournament-answer-overlay{position:fixed;inset:0;z-index:3000;display:none;align-items:center;justify-content:center;padding:18px;background:rgba(2,6,23,.78);backdrop-filter:blur(5px)}
-  .tournament-answer-overlay.open{display:flex}
-  .tournament-answer-dialog{width:min(900px,100%);max-height:min(86vh,820px);overflow:auto;border:1px solid #475569;border-radius:20px;background:#f8fafc;color:#0f172a;box-shadow:0 30px 80px rgba(0,0,0,.42);padding:20px}
-  .tournament-answer-dialog .muted{color:#475569}
-  .tournament-answer-head{display:flex;justify-content:space-between;align-items:flex-start;gap:14px;position:sticky;top:-20px;z-index:2;margin:-20px -20px 16px;padding:18px 20px;background:rgba(248,250,252,.97);border-bottom:1px solid #cbd5e1;backdrop-filter:blur(8px)}
-  .tournament-answer-close{width:38px;height:38px;border:1px solid #cbd5e1;border-radius:11px;background:#fff;color:#0f172a;font-size:22px;cursor:pointer}
-  .tournament-answer-summary{display:flex;gap:8px;flex-wrap:wrap;margin-top:7px}
-  .tournament-answer-pill{padding:5px 9px;border-radius:999px;background:#e2e8f0;font-size:12px;font-weight:800}
-  .tournament-question-log{margin-top:13px;border:1px solid #cbd5e1;border-radius:15px;background:#fff;padding:14px}
-  .tournament-question-log h4{margin:0;white-space:pre-wrap;font-size:16px}
-  .tournament-expected{margin-top:9px;padding:9px 11px;border-left:3px solid #0284c7;background:#f0f9ff;white-space:pre-wrap}
-  .tournament-submission{display:grid;grid-template-columns:minmax(140px,.35fr) minmax(180px,1fr) auto;gap:10px;align-items:center;margin-top:9px;padding:10px;border-radius:11px;border:1px solid #e2e8f0;background:#f8fafc}
-  .tournament-submission.correct{border-color:#6ee7b7;background:#ecfdf5}
-  .tournament-submission.incorrect{border-color:#fbbf24;background:#fffbeb}
-  .tournament-submission.stale{border-color:#94a3b8;background:#f1f5f9}
-  .tournament-submitted-text{white-space:pre-wrap;overflow-wrap:anywhere;font-family:var(--code-font)}
-  .tournament-answer-status{padding:4px 8px;border-radius:999px;font-size:11px;font-weight:900;white-space:nowrap;background:#e2e8f0}
-  html[data-theme="dark"] .tournament-answer-dialog,html[data-theme="dark"] .tournament-answer-head,html[data-theme="dark"] .tournament-question-log{background:#12171d;color:#edf1f3;border-color:#46525e}
-  html[data-theme="dark"] .tournament-submission{background:#1d252e;color:var(--theme-text);border-color:#46525e}
-  html[data-theme="dark"] .tournament-submission.correct{background:#123c34;border-color:#34d399}
-  html[data-theme="dark"] .tournament-submission.incorrect{background:#3f3218;border-color:#fbbf24}
-  html[data-theme="dark"] .tournament-submission.stale{background:#202832;border-color:#64748b}
-  html[data-theme="dark"] .tournament-expected{background:#172438;color:#dbeafe}
-  html[data-theme="dark"] .tournament-answer-pill,html[data-theme="dark"] .tournament-answer-status,html[data-theme="dark"] .tournament-answer-close{background:var(--theme-surface);color:var(--theme-text);border-color:var(--theme-surface-soft)}
-  html[data-theme="dark"] .tournament-submission.correct .tournament-answer-status{background:#123c34;color:#a7f3d0}
-  html[data-theme="dark"] .tournament-submission.incorrect .tournament-answer-status{background:#3f3218;color:#fde68a}
-  html[data-theme="dark"] .tournament-submission.stale .tournament-answer-status{background:#202832;color:#cbd5e1}
-  @media(max-width:680px){.tournament-submission{grid-template-columns:1fr}.tournament-answer-dialog{padding:15px}.tournament-answer-head{top:-15px;margin:-15px -15px 14px;padding:15px}}
   .module-json-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px;margin-top:12px}
   .module-json-area{width:100%;min-height:260px;resize:vertical;font-family:Consolas,"Courier New",monospace;font-size:12px;line-height:1.45}
   .attachment-link{display:inline-flex;align-items:center;gap:8px;padding:10px 13px;border:1px solid #bfdbfe;border-radius:10px;background:#eff6ff;color:#075985;font-weight:800;text-decoration:none}
@@ -284,21 +225,6 @@
       </div>
 
       <div id="gameEditor" class="panel" style="display:none;">
-        <div class="game-host">
-          <div><b>{{ T.game_hosting }}</b></div>
-          <div class="row" style="margin-top:10px;">
-            <select id="gameClassSelect" class="select-ui" style="min-width:190px;"></select>
-            <button id="gameOpenLobbyBtn" class="btn" type="button">{{ T.open_game_registration }}</button>
-            <button id="gameStartBtn" class="btn" type="button">{{ T.start_game }}</button>
-            <button id="gameFinishBtn" class="btn" type="button">{{ T.finish_game }}</button>
-            <button id="gamePenaltyBtn" class="btn" type="button" style="display:none;">{{ T.wonder_penalty }}</button>
-            <button id="gameRemovePenaltyBtn" class="btn" type="button" style="display:none;">{{ T.wonder_remove_penalty }}</button>
-            <span id="gameRoundStatus" class="muted"></span>
-          </div>
-          <div id="gameParticipants" style="margin-top:12px;"></div>
-          <div id="gameRoundHistory" class="game-round-history"></div>
-        </div>
-
         <div id="mindRaceEditor">
           <div style="margin-top:16px;"><b>{{ T.mind_race_sentences }}</b></div>
           <div class="muted">{{ T.mind_race_sentence_help }}</div>
@@ -326,6 +252,9 @@
           <div id="wonderQuestionsList"></div>
         </div>
         <div id="tournamentEditor" style="display:none;">
+          <label class="editor-field">{{ T.tournament_cooldown }}
+            <input id="tournamentCooldown" class="input-ui" type="number" min="0" max="60" step="0.01" value="1.5">
+          </label>
           <div style="margin-top:16px;"><b>{{ T.tournament_rounds }}</b></div>
           <div class="muted">{{ T.tournament_rounds_help }}</div>
           <div class="row" style="margin-top:10px;">
@@ -351,19 +280,6 @@
   </div>
 </div>
 
-<div id="tournamentAnswersModal" class="tournament-answer-overlay" aria-hidden="true">
-  <section class="tournament-answer-dialog" role="dialog" aria-modal="true" aria-labelledby="tournamentAnswersTitle">
-    <div class="tournament-answer-head">
-      <div>
-        <div id="tournamentAnswersTitle" style="font-size:20px;font-weight:900;">{{ T.tournament_answers_title }}</div>
-        <div id="tournamentAnswersSubtitle" class="muted"></div>
-      </div>
-      <button id="tournamentAnswersClose" class="tournament-answer-close" type="button" aria-label="{{ T.close }}">×</button>
-    </div>
-    <div id="tournamentAnswersBody"></div>
-  </section>
-</div>
-
 <script src="{% static 'core/module_sortable.js' %}"></script>
 <script>
   let selectedSessionId = null;
@@ -375,11 +291,6 @@
   let contentBlocks = [], quizQuestions = [];
   let editingBlockId = null, editingQuestionId = null;
   let currentGameModule = null;
-  let currentGameRound = null;
-  let gamePollTimer = null;
-  let gamePollToken = 0;
-  let selectedTournamentMatchId = null;
-
   const UI = {
     selectSessionFirst: "{{ T.select_session|escapejs }}",
     failedLoadSessions: "{{ T.failed_load_sessions|escapejs }}",
@@ -938,12 +849,6 @@ Replace example content with the requested educational material while preserving
     });
   }
 
-  function stopGamePolling(){
-    gamePollToken += 1;
-    if (gamePollTimer) clearTimeout(gamePollTimer);
-    gamePollTimer = null;
-  }
-
   function renderGamePrompts(prompts){
     const list = qs("gamePromptsList");
     list.innerHTML = "";
@@ -1011,217 +916,9 @@ Replace example content with the requested educational material while preserving
   async function saveTournamentQuestion(id){const res=await api(`/api/teacher/tournament-questions/${id}/`,"PATCH",{ordinal:qs(`tour_q_ord_${id}`).value,prompt:qs(`tour_q_prompt_${id}`).value,answer:qs(`tour_q_answer_${id}`).value});if(!res.data.ok)return setMsg(res.data.error);await openModule(currentSelectedItem())}
   async function deleteTournamentQuestion(id){const res=await api(`/api/teacher/tournament-questions/${id}/`,"DELETE");if(!res.data.ok)return setMsg(res.data.error);await openModule(currentSelectedItem())}
 
-  function wonderEventText(event){
-    const name = event.student_name || "{{ T.teacher_label|default:'Teacher'|escapejs }}";
-    if (event.event_type === "correct") return `${name}: ${event.letter} · {{ T.wonder_log_correct|escapejs }}`;
-    if (event.event_type === "wrong") return `${name}: ${event.letter} · {{ T.wonder_log_wrong|escapejs }}`;
-    if (event.event_type === "timeout") return `${name} · {{ T.wonder_log_timeout|escapejs }}`;
-    if (event.event_type === "penalty") return `{{ T.wonder_log_penalty|escapejs }}`;
-    if (event.event_type === "penalty_removed") return `{{ T.wonder_log_penalty_removed|escapejs }}`;
-    if (event.event_type === "question_complete") return `{{ T.wonder_log_question_complete|escapejs }}`;
-    if (event.event_type === "game_won") return `{{ T.wonder_team_won|escapejs }}`;
-    if (event.event_type === "game_lost") return `{{ T.wonder_team_lost|escapejs }}`;
-    return `{{ T.wonder_game_stopped|escapejs }}`;
-  }
-
-  function renderTeacherWonderRound(round){
-    const question = round.current_question;
-    const currentStudentId = Number(round.current_turn_student_id || 0);
-    const queue = (round.turn_order || []).map((row, index) => `
-      <span class="wonder-queue-item ${Number(row.student_id) === currentStudentId ? "current" : ""}">${index + 1}. ${escapeHtml(row.student_name)}</span>
-    `).join("");
-    const cells = question ? (question.cells || []).map(cell => {
-      if (cell.kind === "space") return `<span class="wonder-cell space"></span>`;
-      const names = (cell.guessed_by || []).map(escapeHtml).join(", ");
-      return `<span style="display:flex;flex-direction:column;align-items:center;gap:3px;"><span class="wonder-cell">${escapeHtml(cell.value || "")}</span><small class="muted" style="max-width:74px;text-align:center;">${names}</small></span>`;
-    }).join("") : "";
-    const used = new Set(round.used_letters || []);
-    const keys = (round.keyboard_characters || []).map(character => `<span class="wonder-key ${used.has(character) ? "used" : ""}">${escapeHtml(character)}</span>`).join("");
-    const logs = (round.events || []).slice().reverse().map(event => `<div class="wonder-log-row">${escapeHtml(wonderEventText(event))}</div>`).join("");
-    qs("gameParticipants").innerHTML = `
-      <div class="wonder-board">
-        <div class="wonder-main">
-          <div class="row" style="justify-content:space-between;"><b>${question ? `#${question.question_index + 1}/${round.total_prompts} · ${escapeHtml(question.prompt)}` : "{{ T.wonder_no_question|escapejs }}"}</b><span><span class="wonder-strikes">${"✕".repeat(Number(round.strikes || 0))}${"○".repeat(Math.max(0, 3 - Number(round.strikes || 0)))}</span> · ${round.seconds_left || 0}s</span></div>
-          <div class="wonder-cells">${cells}</div>
-          <div class="wonder-keyboard">${keys}</div>
-          <div style="margin-top:14px;"><b>{{ T.wonder_turn_queue }}</b></div>
-          <div class="wonder-queue">${queue || `<span class="muted">{{ T.waiting_for_players|escapejs }}</span>`}</div>
-        </div>
-        <aside class="wonder-log"><b>{{ T.wonder_logs }}</b>${logs || `<div class="muted" style="margin-top:8px;">{{ T.wonder_no_logs|escapejs }}</div>`}</aside>
-      </div>
-    `;
-  }
-
-  function renderTeacherTournament(round){
-    const stages=round.tournament_stages||[];
-    if(!stages.length){qs("gameParticipants").innerHTML=(round.participants||[]).length?(round.participants||[]).map(player=>`<span class="pill" style="margin:4px">${escapeHtml(player.student_name)}</span>`).join(""):`<div class="muted">{{ T.waiting_for_players|escapejs }}</div>`;return;}
-    const matches=round.tournament_matches||[];
-    const firstMatchCount=Math.max(1,Number(stages[0]?.match_count||1));
-    const bracketHeight=Math.max(360,firstMatchCount*104);
-    const stageHtml=stages.map(stage=>{
-      const stageMatches=matches.filter(match=>Number(match.stage_number)===Number(stage.number)).sort((a,b)=>Number(a.match_number)-Number(b.match_number));
-      const slots=Array.from({length:Math.max(1,Number(stage.match_count||stageMatches.length||1))},(_,index)=>stageMatches.find(match=>Number(match.match_number)===index+1)||null);
-      return `<section class="tournament-stage"><div class="tournament-stage-title" title="${escapeHtml(stage.title||"")}">${escapeHtml(stage.title||`{{ T.tournament_round|escapejs }} ${stage.number}`)}</div><div class="tournament-stage-body" style="height:${bracketHeight}px">${slots.map((match,index)=>{
-        if(!match)return `<div class="tournament-match" data-bracket-stage="${stage.number}" data-bracket-slot="${index}"><div class="tournament-player tbd"><span>{{ T.tournament_tbd|escapejs }}</span></div><div class="tournament-player tbd"><span>{{ T.tournament_tbd|escapejs }}</span></div></div>`;
-        const oneWinner=Number(match.winner_id)===Number(match.player_one?.id);
-        const twoWinner=Number(match.winner_id)===Number(match.player_two?.id);
-        return `<div class="tournament-match clickable" data-bracket-stage="${stage.number}" data-bracket-slot="${index}" data-match-id="${match.id}" role="button" tabindex="0"><div class="tournament-player ${oneWinner?"winner":""}"><span>${escapeHtml(match.player_one?.student_name||"{{ T.tournament_tbd|escapejs }}")}</span><b>${match.score_one}</b></div><div class="tournament-player ${match.player_two?(twoWinner?"winner":""):"bye"}"><span>${escapeHtml(match.player_two?.student_name||"{{ T.tournament_bye|escapejs }}")}</span><b>${match.player_two?match.score_two:""}</b></div><div class="tournament-match-meta">${escapeHtml(match.status)} · {{ T.tournament_wins_required|escapejs }} ${match.wins_required}</div></div>`;
-      }).join("")}</div></section>`;
-    }).join("");
-    qs("gameParticipants").innerHTML=`<div class="tournament-bracket-viewport"><div id="teacherTournamentGrid" class="tournament-bracket-grid" style="grid-template-columns:repeat(${stages.length},230px);min-width:${Math.max(1,stages.length)*230+Math.max(0,stages.length-1)*72+56}px"><svg class="tournament-bracket-lines" aria-hidden="true"></svg>${stageHtml}</div></div>`;
-    qs("gameParticipants").querySelectorAll("[data-match-id]").forEach(card=>{
-      const open=()=>openTournamentMatchDetails(Number(card.dataset.matchId));
-      card.addEventListener("click",open);
-      card.addEventListener("keydown",event=>{if(event.key==="Enter"||event.key===" "){event.preventDefault();open();}});
-    });
-    if(selectedTournamentMatchId)renderTournamentMatchDetails(selectedTournamentMatchId);
-    requestAnimationFrame(()=>drawTournamentConnectors("teacherTournamentGrid"));
-  }
-
-  function renderTournamentMatchDetails(matchId){
-    const round=currentGameRound;
-    const match=(round?.tournament_matches||[]).find(row=>Number(row.id)===Number(matchId));
-    if(!match){closeTournamentMatchDetails();return;}
-    const attempts=(round.tournament_answer_attempts||[]).filter(row=>Number(row.match_id)===Number(matchId));
-    const showExpectedAnswer=match.status==="finished"||round.status==="finished";
-    qs("tournamentAnswersSubtitle").textContent=`${match.stage_title} · #${match.match_number} · ${match.player_one?.student_name||"{{ T.tournament_tbd|escapejs }}"} ${match.score_one}:${match.score_two} ${match.player_two?.student_name||"{{ T.tournament_bye|escapejs }}"}`;
-    const groups=new Map();
-    attempts.forEach(row=>{if(!groups.has(row.question_index))groups.set(row.question_index,[]);groups.get(row.question_index).push(row);});
-    const groupHtml=Array.from(groups.entries()).sort((a,b)=>a[0]-b[0]).map(([,rows])=>{
-      const first=rows[0];
-      const submissions=rows.map(row=>{
-        const kind=!row.was_current?"stale":(row.is_correct?"correct":"incorrect");
-        const label=(row.is_correct?"{{ T.tournament_answer_correct|escapejs }}":"{{ T.tournament_answer_incorrect|escapejs }}")+(!row.was_current?" · {{ T.tournament_answer_stale|escapejs }}":"");
-        const winner=row.won_question?` · {{ T.tournament_question_winner|escapejs }}`:"";
-        return `<div class="tournament-submission ${kind}"><div><b>${escapeHtml(row.student_name)}</b><div class="muted">${escapeHtml(new Date(row.submitted_at).toLocaleTimeString())}</div></div><div class="tournament-submitted-text">${escapeHtml(row.answer)}</div><span class="tournament-answer-status">${escapeHtml(label+winner)}</span></div>`;
-      }).join("");
-      const expected=showExpectedAnswer&&first.correct_answer!==undefined?`<div class="tournament-expected"><b>{{ T.tournament_expected_answer|escapejs }}:</b> ${escapeHtml(first.correct_answer)}</div>`:"";
-      return `<article class="tournament-question-log"><h4>#${first.question_ordinal} · ${escapeHtml(first.question_prompt)}</h4>${expected}${submissions}</article>`;
-    }).join("");
-    qs("tournamentAnswersBody").innerHTML=`<div class="tournament-answer-summary"><span class="tournament-answer-pill">{{ T.tournament_submissions|escapejs }}: ${attempts.length}</span><span class="tournament-answer-pill">{{ T.tournament_correct_count|escapejs }}: ${attempts.filter(row=>row.won_question).length}</span></div>${groupHtml||`<div class="muted" style="padding:24px 0;text-align:center;">{{ T.tournament_no_answers|escapejs }}</div>`}`;
-  }
-
-  function openTournamentMatchDetails(matchId){
-    selectedTournamentMatchId=matchId;
-    renderTournamentMatchDetails(matchId);
-    const modal=qs("tournamentAnswersModal");
-    modal.classList.add("open");
-    modal.setAttribute("aria-hidden","false");
-    qs("tournamentAnswersClose").focus();
-  }
-
-  function closeTournamentMatchDetails(){
-    selectedTournamentMatchId=null;
-    const modal=qs("tournamentAnswersModal");
-    modal.classList.remove("open");
-    modal.setAttribute("aria-hidden","true");
-  }
-
-  function drawTournamentConnectors(gridId){
-    const grid=document.getElementById(gridId);if(!grid)return;
-    const svg=grid.querySelector(".tournament-bracket-lines");if(!svg)return;
-    const gridRect=grid.getBoundingClientRect();
-    svg.setAttribute("width",grid.scrollWidth);svg.setAttribute("height",grid.scrollHeight);svg.setAttribute("viewBox",`0 0 ${grid.scrollWidth} ${grid.scrollHeight}`);
-    const stageNumbers=Array.from(grid.querySelectorAll(".tournament-stage")).map((_,index)=>index+1);
-    const paths=[];
-    stageNumbers.slice(0,-1).forEach(stageNumber=>{
-      const sources=Array.from(grid.querySelectorAll(`[data-bracket-stage="${stageNumber}"]`));
-      const targets=Array.from(grid.querySelectorAll(`[data-bracket-stage="${stageNumber+1}"]`));
-      sources.forEach((source,index)=>{const target=targets[Math.floor(index/2)];if(!target)return;const from=source.getBoundingClientRect();const to=target.getBoundingClientRect();const x1=from.right-gridRect.left;const y1=from.top-gridRect.top+from.height/2;const x2=to.left-gridRect.left;const y2=to.top-gridRect.top+to.height/2;const middle=x1+(x2-x1)/2;paths.push(`<path d="M ${x1} ${y1} H ${middle} V ${y2} H ${x2}" fill="none" stroke="#60a5fa" stroke-width="2"/>`)});
-    });
-    svg.innerHTML=paths.join("");
-  }
-
-  function renderTeacherGameRound(round){
-    currentGameRound = round || null;
-    const hasRunningRound = (currentGameModule?.rounds || []).some(item => item.status === "running");
-    qs("shuffleWonderQuestionsBtn").disabled = (currentGameModule?.wonder_questions || []).length < 2 || hasRunningRound || round?.status === "running";
-    const status = qs("gameRoundStatus");
-    const participantsBox = qs("gameParticipants");
-    if (!round){
-      status.textContent = "{{ T.no_game_round|escapejs }}";
-      participantsBox.innerHTML = `<div class="muted">{{ T.open_registration_hint|escapejs }}</div>`;
-      qs("gameStartBtn").disabled = true;
-      qs("gameFinishBtn").disabled = true;
-      qs("gamePenaltyBtn").style.display = "none";
-      qs("gameRemovePenaltyBtn").style.display = "none";
-      return;
-    }
-    status.textContent = `#${round.run_number} · ${round.class.name} · ${round.status}`;
-    qs("gameStartBtn").disabled = round.status !== "lobby";
-    qs("gameFinishBtn").disabled = round.status === "finished";
-    qs("gamePenaltyBtn").style.display = round.rubric === "wonder_field" ? "inline-block" : "none";
-    qs("gamePenaltyBtn").disabled = round.status !== "running";
-    qs("gameRemovePenaltyBtn").style.display = round.rubric === "wonder_field" ? "inline-block" : "none";
-    qs("gameRemovePenaltyBtn").disabled = round.status !== "running" || Number(round.strikes || 0) === 0;
-    if (round.rubric === "wonder_field"){
-      renderTeacherWonderRound(round);
-      return;
-    }
-    if (round.rubric === "tournament"){
-      renderTeacherTournament(round);
-      return;
-    }
-    const total = Number(round.total_prompts || currentGameModule?.prompt_count || 1);
-    const players = round.participants || [];
-    const liveIds = new Set(players.map(player => `teacher_game_track_${player.id}`));
-    Array.from(participantsBox.children).forEach(child => {
-      if (!liveIds.has(child.id)) child.remove();
-    });
-    players.forEach((player, index) => {
-      let track = qs(`teacher_game_track_${player.id}`);
-      if (!track){
-        track = document.createElement("div");
-        track.id = `teacher_game_track_${player.id}`;
-        track.className = "teacher-race-track";
-        track.innerHTML = `<div class="teacher-runner">${gameAvatarHtml(player)}<span><b class="teacher-runner-name"></b><br><span class="muted teacher-runner-progress"></span></span></div>`;
-      }
-      const ratio = Math.max(0, Math.min(1, Number(player.progress || 0) / Math.max(1, total)));
-      track.style.setProperty("--runner-color", player.avatar_color);
-      track.querySelector(".teacher-runner").style.left = `calc(7px + ${ratio * 100}% - ${ratio * 76}px)`;
-      track.querySelector(".teacher-runner-name").textContent = player.student_name;
-      track.querySelector(".teacher-runner-progress").textContent = `${player.progress}/${total}${player.finish_place ? ` · #${player.finish_place}` : ""}`;
-      if (participantsBox.children[index] !== track) participantsBox.insertBefore(track, participantsBox.children[index] || null);
-    });
-    if (!players.length) participantsBox.innerHTML = `<div class="muted">{{ T.waiting_for_players|escapejs }}</div>`;
-    animateGameAvatars(participantsBox);
-  }
-
-  function renderGameHistory(){
-    if (!currentGameModule) return;
-    const classId = Number(qs("gameClassSelect").value || 0);
-    const rounds = (currentGameModule.rounds || []).filter(row => Number(row.class.id) === classId);
-    qs("gameRoundHistory").innerHTML = rounds.length
-      ? rounds.map(row => `<button type="button" class="btn" onclick="selectGameRound(${row.id})">#${row.run_number} · ${escapeHtml(row.status)} · ${row.participant_count}</button>`).join("")
-      : `<span class="muted">{{ T.no_game_history|escapejs }}</span>`;
-  }
-
-  async function selectGameRound(roundId, schedulePoll=true){
-    stopGamePolling();
-    const pollToken = gamePollToken;
-    if (!roundId){
-      renderTeacherGameRound(null);
-      return;
-    }
-    const res = await api(`/api/teacher/game-rounds/${roundId}/state/`);
-    if (pollToken !== gamePollToken) return;
-    if (!res.data.ok) return setMsg(res.data.error || UI.failedLoadModules);
-    renderTeacherGameRound(res.data.round);
-    if (schedulePoll && ["lobby", "running"].includes(res.data.round.status) && selectedModuleType === "game"){
-      gamePollTimer = setTimeout(() => selectGameRound(roundId, true), 1000);
-    }
-  }
-
-  async function selectGameClass(){
-    stopGamePolling();
-    renderGameHistory();
-    const classId = Number(qs("gameClassSelect").value || 0);
-    const latest = (currentGameModule?.rounds || []).find(row => Number(row.class.id) === classId);
-    await selectGameRound(latest?.id || null);
-  }
-
   function renderGameModule(module){
     currentGameModule = module;
+    qs("tournamentCooldown").value = module.tournament_cooldown_seconds ?? 1.5;
     const isWonder = module.rubric === "wonder_field";
     const isTournament = module.rubric === "tournament";
     qs("mindRaceEditor").style.display = !isWonder && !isTournament ? "block" : "none";
@@ -1231,13 +928,7 @@ Replace example content with the requested educational material while preserving
     renderGamePrompts(module.prompts || []);
     renderWonderQuestions(module.wonder_questions || []);
     renderTournamentStages(module.tournament_stages || []);
-    const classSelect = qs("gameClassSelect");
-    const previous = Number(classSelect.value || 0);
-    classSelect.innerHTML = (module.classes || []).map(row => `<option value="${row.id}">${escapeHtml(row.name)}</option>`).join("");
-    const ids = (module.classes || []).map(row => row.id);
-    classSelect.value = ids.includes(previous) ? String(previous) : String(ids.at(-1) || "");
-    renderGameHistory();
-    selectGameClass();
+    qs("shuffleWonderQuestionsBtn").disabled = (module.wonder_questions || []).length < 2 || (module.rounds || []).some(row => row.status === "running");
   }
 
   async function addGamePrompt(){
@@ -1316,44 +1007,6 @@ Replace example content with the requested educational material while preserving
     setMsg("{{ T.wonder_questions_shuffled|escapejs }}");
   }
 
-  async function openGameLobby(){
-    if (!selectedModuleId || !qs("gameClassSelect").value) return;
-    const res = await api(`/api/teacher/game-modules/${selectedModuleId}/rounds/open/`, "POST", {class_id:Number(qs("gameClassSelect").value)});
-    if (!res.data.ok) return setMsg(res.data.error || UI.createFailed);
-    await openModule(currentSelectedItem());
-    await selectGameRound(res.data.round.id);
-  }
-
-  async function startGameRound(){
-    if (!currentGameRound) return;
-    const res = await api(`/api/teacher/game-rounds/${currentGameRound.id}/start/`, "POST", {});
-    if (!res.data.ok) return setMsg(res.data.error || UI.saveFailed);
-    renderTeacherGameRound(res.data.round);
-    await openModule(currentSelectedItem());
-  }
-
-  async function finishGameRound(){
-    if (!currentGameRound) return;
-    const res = await api(`/api/teacher/game-rounds/${currentGameRound.id}/finish/`, "POST", {});
-    if (!res.data.ok) return setMsg(res.data.error || UI.saveFailed);
-    renderTeacherGameRound(res.data.round);
-    await openModule(currentSelectedItem());
-  }
-
-  async function penalizeGameRound(){
-    if (!currentGameRound || currentGameRound.rubric !== "wonder_field") return;
-    const res = await api(`/api/teacher/game-rounds/${currentGameRound.id}/penalty/`, "POST", {});
-    if (!res.data.ok) return setMsg(res.data.error || UI.saveFailed);
-    renderTeacherGameRound(res.data.round);
-  }
-
-  async function removeGameRoundPenalty(){
-    if (!currentGameRound || currentGameRound.rubric !== "wonder_field") return;
-    const res = await api(`/api/teacher/game-rounds/${currentGameRound.id}/penalty/remove/`, "POST", {});
-    if (!res.data.ok) return setMsg(res.data.error || UI.saveFailed);
-    renderTeacherGameRound(res.data.round);
-  }
-
   function renderMaterialBlocks(){
       const list = qs("blocksList");
       list.innerHTML = "";
@@ -1407,7 +1060,6 @@ Replace example content with the requested educational material while preserving
     if(editorWrites || codingEditor.busy || moduleSorter.busy || blockSorter.busy || questionSorter.busy) return;
     const token = ++editorLoadToken;
     resetBlockForm(); resetQuestionForm();
-    stopGamePolling();
     selectedModuleId = item.id;
     selectedModuleType = item.module_type;
     qs("editor").style.display = "block";
@@ -1532,6 +1184,7 @@ Replace example content with the requested educational material while preserving
     } else if (item.module_type === "game"){
       url = `/api/teacher/game-modules/${item.id}/`;
       body.rubric = qs("gameRubric").value;
+      body.tournament_cooldown_seconds = qs("tournamentCooldown").value;
     } else if (item.module_type === "coding_task"){
       url = `/api/teacher/tasks/${item.id}/`;
       Object.assign(body, codingEditor.payload());
@@ -1636,7 +1289,6 @@ Replace example content with the requested educational material while preserving
     if(editorWrites || codingEditor.busy || moduleSorter.busy || blockSorter.busy || questionSorter.busy) return;
     ++editorLoadToken;
     resetBlockForm();resetQuestionForm();
-    stopGamePolling();
     selectedSessionId = qs("sessionSelect").value;
     selectedModuleId = null;
     selectedModuleType = null;
@@ -1672,22 +1324,6 @@ Replace example content with the requested educational material while preserving
   qs("tournamentAddStageBtn").addEventListener("click", addTournamentStage);
   qs("tournamentAddQuestionBtn").addEventListener("click", addTournamentQuestion);
   qs("tournamentQuestionStage").addEventListener("change",()=>renderTournamentStages(currentGameModule?.tournament_stages||[]));
-  qs("gameClassSelect").addEventListener("change", selectGameClass);
-  qs("gameOpenLobbyBtn").addEventListener("click", openGameLobby);
-  qs("gameStartBtn").addEventListener("click", startGameRound);
-  qs("gameFinishBtn").addEventListener("click", finishGameRound);
-  qs("gamePenaltyBtn").addEventListener("click", penalizeGameRound);
-  qs("gameRemovePenaltyBtn").addEventListener("click", removeGameRoundPenalty);
-  qs("tournamentAnswersClose").addEventListener("click", closeTournamentMatchDetails);
-  qs("tournamentAnswersModal").addEventListener("click", event => {
-    if (event.target === qs("tournamentAnswersModal")) closeTournamentMatchDetails();
-  });
-  document.addEventListener("keydown", event => {
-    if (event.key === "Escape" && qs("tournamentAnswersModal").classList.contains("open")) {
-      closeTournamentMatchDetails();
-    }
-  });
-
   {% include "core/teacher/_coding_module_script.html" %}
   {% include "core/teacher/_module_interactions.html" %}
 

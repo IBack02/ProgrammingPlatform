@@ -1,0 +1,27 @@
+        <div class="game-host">
+          <div><b>{{ T.game_hosting }}</b></div>
+          <div class="row" style="margin-top:10px;">
+            <button id="gameOpenLobbyBtn" class="btn" type="button">{{ T.open_game_registration }}</button>
+            <button id="gameStartBtn" class="btn" type="button">{{ T.start_game }}</button>
+            <button id="gameFinishBtn" class="btn" type="button">{{ T.finish_game }}</button>
+            <button id="gamePenaltyBtn" class="btn" type="button" style="display:none;">{{ T.wonder_penalty }}</button>
+            <button id="gameRemovePenaltyBtn" class="btn" type="button" style="display:none;">{{ T.wonder_remove_penalty }}</button>
+            <span id="gameRoundStatus" class="muted"></span>
+          </div>
+          <div id="gameParticipants" style="margin-top:12px;"></div>
+          <div id="gameRoundHistory" class="game-round-history"></div>
+        </div>
+
+<div id="tournamentAnswersModal" class="tournament-answer-overlay" aria-hidden="true">
+  <section class="tournament-answer-dialog" role="dialog" aria-modal="true" aria-labelledby="tournamentAnswersTitle">
+    <div class="tournament-answer-head">
+      <div>
+        <div id="tournamentAnswersTitle" style="font-size:20px;font-weight:900;">{{ T.tournament_answers_title }}</div>
+        <div id="tournamentAnswersSubtitle" class="muted"></div>
+      </div>
+      <button id="tournamentAnswersClose" class="tournament-answer-close" type="button" aria-label="{{ T.close }}">×</button>
+    </div>
+    <div id="tournamentAnswersBody"></div>
+  </section>
+</div>
+

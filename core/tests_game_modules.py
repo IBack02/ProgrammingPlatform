@@ -775,10 +775,11 @@ class MindRaceGameTests(TestCase):
         ).json()["round"]
         self.assertEqual(finished_state["tournament_answer_attempts"][1]["correct_answer"], "Answer 1")
 
-    def _cooldown_tournament(self):
+    def _cooldown_tournament(self, cooldown=2):
         module = GameModule.objects.create(
             session=self.session, title="Cooldown cup", position=1,
             rubric=GameModule.Rubric.TOURNAMENT,
+            tournament_cooldown_seconds=cooldown,
         )
         round_obj = GameRound.objects.create(
             module=module, class_group=self.class_a, moderator=self.teacher,
@@ -871,6 +872,29 @@ class MindRaceGameTests(TestCase):
             next_answer = self._json(self.client_a, "post", url, payload)
             self.assertEqual(next_answer.status_code, 200)
             self.assertTrue(next_answer.json()["correct"])
+
+    def test_fractional_cooldown_and_module_configuration(self):
+        round_obj, match, players = self._cooldown_tournament(cooldown=1.5)
+        url = f"/api/student/game-rounds/{round_obj.id}/tournament-answer/"
+        payload = {"match_id": match.id, "question_index": 0, "answer": "Wrong"}
+        now = timezone.now()
+        with patch("core.game_views.timezone.now", return_value=now) as clock:
+            wrong = self._json(self.client_a, "post", url, payload)
+            self.assertEqual(wrong.json()["round"]["tournament_answer_cooldown_ms"], 1500)
+            clock.return_value = now + timedelta(milliseconds=1499)
+            self.assertEqual(self._json(self.client_a, "post", url, payload).status_code, 429)
+            clock.return_value = now + timedelta(milliseconds=1500)
+            self.assertEqual(self._json(self.client_a, "post", url, payload).status_code, 200)
+        module_url = f"/api/teacher/game-modules/{round_obj.module_id}/"
+        for value in (-1, 61, "NaN", "abc", 1.001):
+            self.assertEqual(self._json(self.teacher_client, "patch", module_url, {"tournament_cooldown_seconds": value}).status_code, 400)
+        updated = self._json(self.teacher_client, "patch", module_url, {"tournament_cooldown_seconds": 0})
+        self.assertEqual(updated.json()["module"]["tournament_cooldown_seconds"], 0)
+        self.assertEqual(self._json(self.client_a, "post", url, payload).status_code, 200)
+        created = self._json(self.teacher_client, "post", f"/api/teacher/sessions/{self.session.id}/game-modules/", {
+            "title": "Default cooldown", "position": 2, "rubric": "tournament",
+        })
+        self.assertEqual(created.json()["module"]["tournament_cooldown_seconds"], 1.5)
 
     def test_tournament_cooldown_is_personal_and_stale_answers_do_not_extend_it(self):
         round_obj, match, players = self._cooldown_tournament()

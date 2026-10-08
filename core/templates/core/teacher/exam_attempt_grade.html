@@ -26,8 +26,8 @@
   table{width:100%;border-collapse:collapse}th,td{border:1px solid #cbd5e1;padding:8px;text-align:left}th{background:#edf2f7}
   .grading-grid{display:grid;grid-template-columns:minmax(130px,.32fr) minmax(240px,1fr) auto;gap:9px;align-items:end}
   .field{display:flex;flex-direction:column;gap:5px}.field>span{font-size:12px;font-weight:800;color:var(--grade-muted)}
-  input,textarea,button{font:inherit}input,textarea{width:100%;border:1px solid #cbd5e1;border-radius:9px;padding:9px;background:#fff}textarea{min-height:78px;resize:vertical}
-  input:focus,textarea:focus{outline:3px solid rgba(14,165,233,.18);border-color:#0284c7}
+  input,select,textarea,button{font:inherit}input,select,textarea{width:100%;border:1px solid #cbd5e1;border-radius:9px;padding:9px;background:#fff}textarea{min-height:78px;resize:vertical}
+  input:focus,select:focus,textarea:focus{outline:3px solid rgba(14,165,233,.18);border-color:#0284c7}
   .save-grade{border:0;border-radius:9px;padding:10px 13px;background:var(--grade-blue);color:#fff;font-weight:850;cursor:pointer}
   .save-grade:disabled{opacity:.5;cursor:not-allowed}
   .status{min-height:18px;margin-top:7px;color:#075985;font-size:12px;font-weight:800}
@@ -55,6 +55,7 @@
 <div id="questionList"></div>
 
 <script>
+{% include "core/teacher/_grade_options.html" %}
   const attemptId={{ attempt.id }};
   const UI={
     answer:"{{ T.student_answer|escapejs }}",
@@ -126,7 +127,7 @@
 
   function renderQuestions(){
     const box=document.getElementById("questionList");
-    box.innerHTML=(pageData.answers||[]).map(row=>{const q=row.question;const imageUrl=safeHttps(q.image_url);return `<article class="question-card" data-question="${q.id}"><div class="question-head"><div class="question-title">${q.position}. ${esc(q.prompt)}</div><span class="points">${q.max_score} {{ T.points|escapejs }}</span></div>${imageUrl?`<img src="${esc(imageUrl)}" alt="" style="display:block;max-width:100%;max-height:420px;margin:12px auto;border-radius:10px">`:""}<section class="block"><h3>${esc(UI.answer)}</h3>${answer(row)}</section><section class="block scheme"><h3>${esc(UI.markScheme)}</h3>${scheme(q)}</section><section class="block"><div class="grading-grid"><label class="field"><span>${esc(UI.grading)}</span><input class="score" type="number" min="0" max="${q.max_score}" step="0.01" value="${row.awarded_score??""}" ${row.answer_id?"":"disabled"}></label><label class="field"><span>${esc(UI.feedback)}</span><textarea class="feedback" maxlength="10000" ${row.answer_id?"":"disabled"}>${esc(row.teacher_feedback||"")}</textarea></label><button class="save-grade" type="button" data-answer="${row.answer_id||""}" ${row.answer_id?"":"disabled"}>${esc(UI.save)}</button></div><div class="status"></div></section></article>`}).join("");
+    box.innerHTML=(pageData.answers||[]).map(row=>{const q=row.question;const imageUrl=safeHttps(q.image_url);return `<article class="question-card" data-question="${q.id}"><div class="question-head"><div class="question-title">${q.position}. ${esc(q.prompt)}</div><span class="points">${q.max_score} {{ T.points|escapejs }}</span></div>${imageUrl?`<img src="${esc(imageUrl)}" alt="" style="display:block;max-width:100%;max-height:420px;margin:12px auto;border-radius:10px">`:""}<section class="block"><h3>${esc(UI.answer)}</h3>${answer(row)}</section><section class="block scheme"><h3>${esc(UI.markScheme)}</h3>${scheme(q)}</section><section class="block"><div class="grading-grid"><label class="field"><span>${esc(UI.grading)}</span><select class="score" ${row.answer_id?"":"disabled"}>${gradeOptions(q.max_score,row.awarded_score)}</select></label><label class="field"><span>${esc(UI.feedback)}</span><textarea class="feedback" maxlength="10000" ${row.answer_id?"":"disabled"}>${esc(row.teacher_feedback||"")}</textarea></label><button class="save-grade" type="button" data-answer="${row.answer_id||""}" ${row.answer_id?"":"disabled"}>${esc(UI.save)}</button></div><div class="status"></div></section></article>`}).join("");
     box.querySelectorAll("[data-answer]").forEach(button=>button.onclick=()=>saveGrade(button));
   }
 

@@ -274,6 +274,16 @@ class TheoryMaterialBlock(models.Model):
         return f"Module {self.module_id} block #{self.ordinal} ({self.block_type})"
 
 
+class LessonHighlight(models.Model):
+    module = models.ForeignKey(TheoryMaterialModule, on_delete=models.CASCADE, related_name="lesson_highlights")
+    class_group = models.ForeignKey(ClassGroup, on_delete=models.CASCADE)
+    ranges = models.JSONField(default=list)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=["module", "class_group"], name="unique_lesson_highlight")]
+
+
 class TheoryQuizModule(models.Model):
     session = models.ForeignKey(Session, on_delete=models.CASCADE, related_name="theory_quiz_modules")
     position = models.PositiveIntegerField()
@@ -391,6 +401,7 @@ class GameModule(models.Model):
     title = models.CharField(max_length=200)
     topic = models.CharField(max_length=255, blank=True, default="")
     rubric = models.CharField(max_length=24, choices=Rubric.choices, default=Rubric.MIND_RACE)
+    tournament_cooldown_seconds = models.DecimalField(max_digits=4, decimal_places=2, default="1.50")
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

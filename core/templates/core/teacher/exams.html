@@ -129,6 +129,7 @@
 </div>
 
 <script>
+{% include "core/teacher/_grade_options.html" %}
 const UI = {
   loadFailed: "{{ T.failed_load_exams|escapejs }}",
   saved: "{{ T.exam_saved|escapejs }}",
@@ -316,7 +317,7 @@ async function reviewAttempt(id){
   const data=await api(`/api/teacher/exam-attempts/${id}/`);if(!data.ok){message(data.error);return;}selectedAttemptId=id;const box=document.getElementById("attemptReview");box.innerHTML=`<div class="section-title" style="margin-top:14px">${esc(data.attempt.student_name)}</div><div id="integrityPanel" class="integrity-panel"></div>`;renderIntegrity(data);
   data.answers.forEach(row=>{const q=row.question,a=row.answer;const div=document.createElement("div");div.className="answer-review";let body;
     if(q.question_type==="open_text")body=esc(a.text_answer);else if(q.question_type==="diagram")body=a.diagram_file_url?`<a href="${esc(a.diagram_file_url)}" target="_blank" rel="noopener">Google Drive</a>`:"Diagram XML saved";else if(q.question_type==="table")body=renderTableReview(q,a);else body=(row.matching_rows||[]).map(x=>`${esc(x.left_text)} -> ${esc(x.selected_right_text||"-")}`).join("<br>");
-    div.innerHTML=`<b>${q.position}. ${esc(q.prompt)}</b><div class="meta">${q.max_score} ${esc(UI.points)}</div><div class="answer-body">${body||"-"}</div><div class="row"><label class="field" style="max-width:150px"><span>${esc(UI.grading)}</span><input class="input grade" type="number" min="0" max="${q.max_score}" step="0.01" value="${row.awarded_score??""}"></label><label class="field"><span>${esc(UI.feedback)}</span><input class="input feedback" value="${esc(row.teacher_feedback||"")}"></label><button class="btn primary save-grade" type="button" ${row.answer_id?"":"disabled"}>${esc(UI.save)}</button></div>`;
+    div.innerHTML=`<b>${q.position}. ${esc(q.prompt)}</b><div class="meta">${q.max_score} ${esc(UI.points)}</div><div class="answer-body">${body||"-"}</div><div class="row"><label class="field" style="max-width:150px"><span>${esc(UI.grading)}</span><select class="input grade">${gradeOptions(q.max_score,row.awarded_score)}</select></label><label class="field"><span>${esc(UI.feedback)}</span><input class="input feedback" value="${esc(row.teacher_feedback||"")}"></label><button class="btn primary save-grade" type="button" ${row.answer_id?"":"disabled"}>${esc(UI.save)}</button></div>`;
     div.querySelector(".save-grade").onclick=async()=>{const result=await api(`/api/teacher/exam-answers/${row.answer_id}/grade/`,"PATCH",{awarded_score:div.querySelector(".grade").value,teacher_feedback:div.querySelector(".feedback").value});message(result.ok?UI.saved:result.error,result.ok);if(result.ok)loadAttempts();};box.appendChild(div);
   });
 }

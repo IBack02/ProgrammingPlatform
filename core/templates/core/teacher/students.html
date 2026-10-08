@@ -158,6 +158,12 @@
 
 <div class="card" style="margin-bottom:12px;">
   <div style="font-weight:900;margin-bottom:8px;">{{ T.create_student }}</div>
+  <label style="display:block;margin-bottom:10px"><input id="bulkMode" type="checkbox"> {{ T.bulk_students }}</label>
+  <div id="bulkFields" hidden style="margin-bottom:10px">
+    <label for="bulkNames">{{ T.bulk_students_help }}</label>
+    <textarea id="bulkNames" class="input-ui" rows="8" style="display:block;width:100%;margin-top:8px" maxlength="50000"></textarea>
+    <div class="muted">{{ T.bulk_students_pin }}</div>
+  </div>
   <div style="display:flex; gap:10px; flex-wrap:wrap;">
     <input id="newName" class="input-ui" placeholder="{{ T.full_name_unique }}" style="min-width:240px;"/>
     <input id="newPin" class="input-ui" type="password" placeholder="{{ T.pin_6_digits }}" inputmode="numeric" style="min-width:180px;"/>
@@ -606,12 +612,18 @@
   document.getElementById("reloadBtn").addEventListener("click", load);
   document.getElementById("classSelect").addEventListener("change", load);
 
+  document.getElementById("bulkMode").addEventListener("change",event=>{
+    document.getElementById("bulkFields").hidden=!event.target.checked;
+    document.getElementById("newName").hidden=event.target.checked;
+  });
   document.getElementById("createBtn").addEventListener("click", async () => {
+    const bulk = document.getElementById("bulkMode").checked;
+    const names = document.getElementById("bulkNames").value.trim();
     const full_name = (document.getElementById("newName").value || "").trim();
     const pin = (document.getElementById("newPin").value || "").trim();
     const classId = document.getElementById("classSelect").value;
 
-    if (!full_name){
+    if (bulk ? !names : !full_name){
       setMsg(UI.enterStudentName, "err");
       return;
     }
@@ -626,7 +638,8 @@
 
     setBusy(true);
     setMsg("...", "info");
-    const res = await api("/api/teacher/students/", "POST", {
+    const res = await api(bulk ? "/api/teacher/students/bulk/" : "/api/teacher/students/", "POST", {
+      names,
       full_name,
       pin,
       class_id: parseInt(classId)
@@ -639,8 +652,9 @@
     }
 
     document.getElementById("newName").value = "";
+    document.getElementById("bulkNames").value = "";
     document.getElementById("newPin").value = "";
-    setMsg(UI.studentCreated, "ok");
+    setMsg(bulk ? `{{ T.bulk_created|escapejs }}: ${res.data.created_count}. {{ T.bulk_skipped|escapejs }}: ${res.data.skipped_count}` : UI.studentCreated, "ok");
     await load();
   });
 

@@ -1,8 +1,13 @@
 from django.urls import path
 from django.views.generic import RedirectView
-from . import exam_views, game_views, module_import, module_order, peer_views, views
+from . import exam_views, game_views, lesson_views, module_import, module_order, peer_views, views
 
 urlpatterns = [
+    path("api/teacher/students/bulk/", views.teacher_students_bulk_api, name="teacher_students_bulk_api"),
+    path("teacher/sessions/<int:session_id>/lesson/", lesson_views.teacher_lesson_page, name="teacher_lesson_page"),
+    path("api/teacher/theory-modules/<int:module_id>/highlights/", lesson_views.teacher_highlights, name="teacher_highlights"),
+    path("api/student/theory-module/<int:module_id>/highlights/", lesson_views.student_highlights, name="student_highlights"),
+    path("api/teacher/theory-quizzes/<int:module_id>/practice/", lesson_views.teacher_practice_quiz, name="teacher_practice_quiz"),
     # Student auth API
     path("api/auth/student-login", views.student_login, name="student_login"),
     path("api/auth/student-logout", views.student_logout, name="student_logout"),

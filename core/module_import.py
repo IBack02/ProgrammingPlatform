@@ -546,7 +546,7 @@ def _prepare_module(raw, index: int, used_positions: set[int]) -> dict:
     else:
         _reject_unknown(
             row,
-            common_fields | {"rubric", "prompts", "questions", "stages"},
+            common_fields | {"rubric", "prompts", "questions", "stages", "tournament_cooldown_seconds"},
             f"modules[{index}]",
         )
         rubric = _text(
@@ -555,6 +555,8 @@ def _prepare_module(raw, index: int, used_positions: set[int]) -> dict:
         if rubric not in GameModule.Rubric.values:
             raise ValueError(f"modules[{index}].rubric is invalid")
         prepared["rubric"] = rubric
+        from .game_views import validate_tournament_cooldown
+        prepared["tournament_cooldown_seconds"] = validate_tournament_cooldown(row.get("tournament_cooldown_seconds", 1.5))
         if rubric == GameModule.Rubric.MIND_RACE:
             prepared["prompts"] = _prepare_mind_race_prompts(row.get("prompts"))
             if row.get("questions") is not None or row.get("stages") is not None:
@@ -631,6 +633,7 @@ def _create_module(session: Session, prepared: dict) -> dict:
             **common,
             topic=prepared["topic"],
             rubric=prepared["rubric"],
+            tournament_cooldown_seconds=prepared["tournament_cooldown_seconds"],
             is_active=prepared["is_active"],
         )
         if prepared["rubric"] == GameModule.Rubric.MIND_RACE:

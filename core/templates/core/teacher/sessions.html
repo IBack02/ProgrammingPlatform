@@ -133,17 +133,6 @@
       <div class="muted" style="margin:10px 0 6px;">{{ T.description_label }}</div>
       <textarea id="desc" class="textarea-ui" style="width:100%;height:90px;"></textarea>
 
-      <div style="margin-top:10px;display:flex;gap:10px;flex-wrap:wrap;">
-        <div style="flex:1;min-width:220px;">
-          <div class="muted">{{ T.starts_at_local }}</div>
-          <input id="startsAt" type="datetime-local" class="input-ui" style="width:100%;"/>
-        </div>
-        <div style="flex:1;min-width:220px;">
-          <div class="muted">{{ T.ends_at_local }}</div>
-          <input id="endsAt" type="datetime-local" class="input-ui" style="width:100%;"/>
-        </div>
-      </div>
-
       <div style="margin-top:10px;">
         <div class="muted">{{ T.status_label }}</div>
         <select id="status" class="select-ui">
@@ -152,8 +141,6 @@
           <option value="stopped">{{ T.stopped }}</option>
         </select>
 
-        <button class="btn" id="startBtn" type="button" style="margin-left:10px;">{{ T.start }}</button>
-        <button class="btn" id="stopBtn" type="button" style="margin-left:6px;border-color:#fca5a5;">{{ T.stop }}</button>
       </div>
       <label class="class-pill" style="margin-top:10px;">
         <input id="isSharedTemplate" type="checkbox">
@@ -166,9 +153,8 @@
       </div>
 
       <div style="margin-top:12px;display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end;">
-        <button class="btn" id="saveBtn" type="button">{{ T.save_session }}</button>
-        <button class="btn" id="saveClassesBtn" type="button">{{ T.save_classes }}</button>
-        <a class="btn" id="tasksLink" href="#" style="text-decoration:none;">{{ T.open_tasks }}</a>
+        <a class="btn" id="tasksLink" href="#" style="text-decoration:none;">{{ T.open_modules }}</a>
+        <a class="btn" id="lessonLink" href="#">{{ T.lesson_mode }}</a>
       </div>
     </div>
   </div>
@@ -257,21 +243,6 @@
     const el = document.getElementById("msg");
     el.textContent = text || "";
     el.className = "muted message" + (text ? ` ${type}` : "");
-  }
-
-  function isoToLocalInput(iso){
-    if (!iso) return "";
-    try{
-      const d = new Date(iso);
-      const pad = n => String(n).padStart(2,"0");
-      return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-    } catch(e){
-      return "";
-    }
-  }
-
-  function localInputToIso(value){
-    return value ? value : null;
   }
 
   function statusClass(status){
@@ -413,6 +384,7 @@
   }
 
   async function selectSession(id, showMessage=false){
+    if (!(await flushSessionChanges())) return;
     selectedId = id;
     applySessionSearch();
 
@@ -425,17 +397,17 @@
 
     document.getElementById("title").value = s.title || "";
     document.getElementById("desc").value = s.description || "";
-    document.getElementById("startsAt").value = isoToLocalInput(s.starts_at);
-    document.getElementById("endsAt").value = isoToLocalInput(s.ends_at);
     document.getElementById("status").value = s.status || "draft";
     document.getElementById("isSharedTemplate").checked = !!s.is_shared_template;
     document.getElementById("tasksLink").href = `/teacher/modules/?session_id=${selectedId}`;
+    document.getElementById("lessonLink").href = `/teacher/sessions/${selectedId}/lesson/`;
 
     const res = await api(`/api/teacher/sessions/${selectedId}/classes/`);
     if (!res.data.ok){
       setMsg(res.data.error || UI.failedLoadSessionClasses, "err");
       return;
     }
+    if (selectedId !== id) return;
     renderClassesCheckboxes(res.data.class_ids || []);
 
     if (showMessage) setMsg(`${s.title}`, "info");
@@ -465,98 +437,61 @@
 
   document.getElementById("sessionSearch").addEventListener("input", applySessionSearch);
 
-  document.getElementById("saveBtn").addEventListener("click", async () => {
-    if (!selectedId){
-      setMsg(UI.selectSession, "err");
-      return;
+  let saveTimer = null, saveQueue = Promise.resolve(true), pendingChanges = null, failedChanges = null, savesQueued = 0;
+  function queueSessionChange(fields){
+    if (!selectedId) return;
+    const base = pendingChanges?.id === selectedId ? pendingChanges.fields : {};
+    pendingChanges = {id:selectedId,fields:{...base,...fields,starts_at:null,ends_at:null}};
+    setMsg("{{ T.autosaving|escapejs }}", "info");
+    clearTimeout(saveTimer);
+    saveTimer=setTimeout(flushSessionChanges,500);
+  }
+  async function flushSessionChanges(){
+    clearTimeout(saveTimer);
+    const change=pendingChanges || failedChanges;
+    pendingChanges=null;
+    if(change){
+      savesQueued++;
+      saveQueue=saveQueue.then(async()=>{
+        const fields={...(failedChanges?.id===change.id?failedChanges.fields:{}),...change.fields};
+        try{
+          const res=await api(`/api/teacher/sessions/${change.id}/`,"PATCH",fields);
+          if(!res.data.ok)throw new Error(res.data.error||UI.saveFailed);
+          failedChanges=null;
+          const item=sessionsCache.find(s=>s.id===change.id);
+          if(item)Object.assign(item,res.data.session);
+          applySessionSearch();
+          if(!pendingChanges && savesQueued===1)setMsg(UI.sessionSaved,"ok");
+          return true;
+        }catch(error){
+          failedChanges={id:change.id,fields};
+          setMsg(error.message||UI.saveFailed,"err");
+          return false;
+        }finally{
+          savesQueued--;
+        }
+      });
     }
-
-    const payload = {
-      title: (document.getElementById("title").value || "").trim(),
-      description: document.getElementById("desc").value || "",
-      starts_at: localInputToIso((document.getElementById("startsAt").value || "").trim()),
-      ends_at: localInputToIso((document.getElementById("endsAt").value || "").trim()),
-      status: document.getElementById("status").value
-      ,is_shared_template: document.getElementById("isSharedTemplate").checked
-    };
-
-    setBusy(true);
-    setMsg(UI.loading, "info");
-    const res = await api(`/api/teacher/sessions/${selectedId}/`, "PATCH", payload);
-    setBusy(false);
-
-    if (!res.data.ok){
-      setMsg(res.data.error || UI.saveFailed, "err");
-      return;
-    }
-
-    setMsg(UI.sessionSaved, "ok");
-    await loadSessions(true);
+    return saveQueue;
+  }
+  document.getElementById("title").addEventListener("input",event=>{
+    const title=event.target.value.trim();
+    queueSessionChange({title});
   });
-
-  document.getElementById("saveClassesBtn").addEventListener("click", async () => {
-    if (!selectedId){
-      setMsg(UI.selectSession, "err");
-      return;
-    }
-
-    const ids = [];
-    allClasses.forEach(c => {
-      const cb = document.getElementById("c_" + c.id);
-      if (cb && cb.checked) ids.push(c.id);
-    });
-
-    setBusy(true);
-    setMsg(UI.loading, "info");
-    const res = await api(`/api/teacher/sessions/${selectedId}/assign-classes/`, "POST", { class_ids: ids });
-    setBusy(false);
-
-    if (!res.data.ok){
-      setMsg(res.data.error || UI.saveClassesFailed, "err");
-      return;
-    }
-
-    setMsg(UI.classesAssigned, "ok");
+  document.getElementById("desc").addEventListener("input",event=>queueSessionChange({description:event.target.value}));
+  document.getElementById("status").addEventListener("change",event=>queueSessionChange({status:event.target.value}));
+  document.getElementById("isSharedTemplate").addEventListener("change",event=>queueSessionChange({is_shared_template:event.target.checked}));
+  document.getElementById("classesBox").addEventListener("change",()=>{
+    queueSessionChange({class_group_ids:allClasses.filter(c=>document.getElementById("c_"+c.id)?.checked).map(c=>c.id)});
   });
-
-  document.getElementById("startBtn").addEventListener("click", async () => {
-    if (!selectedId){
-      setMsg(UI.selectSession, "err");
-      return;
-    }
-
-    setBusy(true);
-    setMsg(UI.loading, "info");
-    const res = await api(`/api/teacher/sessions/${selectedId}/`, "PATCH", { status: "running" });
-    setBusy(false);
-
-    if (!res.data.ok){
-      setMsg(res.data.error || UI.failedToStart, "err");
-      return;
-    }
-
-    setMsg(UI.sessionStarted, "ok");
-    await loadSessions(true);
-  });
-
-  document.getElementById("stopBtn").addEventListener("click", async () => {
-    if (!selectedId){
-      setMsg(UI.selectSession, "err");
-      return;
-    }
-
-    setBusy(true);
-    setMsg(UI.loading, "info");
-    const res = await api(`/api/teacher/sessions/${selectedId}/`, "PATCH", { status: "stopped" });
-    setBusy(false);
-
-    if (!res.data.ok){
-      setMsg(res.data.error || UI.failedToStop, "err");
-      return;
-    }
-
-    setMsg(UI.sessionStopped, "ok");
-    await loadSessions(true);
+  document.querySelectorAll("a[href],#tasksLink,#lessonLink").forEach(link=>link.addEventListener("click",async event=>{
+    if(event.ctrlKey||event.metaKey||event.shiftKey||event.button)return;
+    event.preventDefault();
+    if(await flushSessionChanges())window.location.href=link.href;
+  }));
+  window.addEventListener("online",()=>flushSessionChanges());
+  window.addEventListener("beforeunload",event=>{
+    if(pendingChanges||failedChanges||savesQueued){event.preventDefault();event.returnValue="";}
   });
 
   (async function init(){

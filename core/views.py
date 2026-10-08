@@ -1226,28 +1226,7 @@ def student_theory_module_detail(request: HttpRequest, module_id: int):
     })
 
 
-@require_GET
-def student_theory_quiz_detail(request: HttpRequest, module_id: int):
-    student_id, class_id = _get_student_from_session(request)
-    if not student_id:
-        return JsonResponse({"ok": False, "error": "not authenticated"}, status=401)
-
-    module = get_object_or_404(
-        TheoryQuizModule.objects.select_related("session").prefetch_related("questions__choices", "questions__pairs"),
-        id=module_id,
-        is_active=True,
-    )
-    session = module.session
-    if not _student_can_access_session(session, class_id=class_id, student_id=student_id):
-        return JsonResponse({"ok": False, "error": "session is not accessible"}, status=403)
-
-    ss, _ = _get_or_create_student_session(student_id, session)
-    last_attempt = (
-        StudentTheoryQuizAttempt.objects.filter(student_session=ss, module=module)
-        .order_by("-attempt_no")
-        .first()
-    )
-
+def _public_quiz_questions(module, student_id):
     questions_out = []
     for question in module.questions.all().order_by("ordinal", "id"):
         row = {
@@ -1283,6 +1262,113 @@ def student_theory_quiz_detail(request: HttpRequest, module_id: int):
             row["right_items"] = right_items
 
         questions_out.append(row)
+
+    return questions_out
+
+
+def _grade_theory_quiz(module, answers, student_id):
+    session = module.session
+    results = []
+    correct_answers = 0
+    total_questions = 0
+
+    for question in module.questions.all().order_by("ordinal", "id"):
+        total_questions += 1
+        answer_key = str(question.id)
+        student_value = answers.get(answer_key)
+        is_correct = False
+        feedback = ""
+
+        if question.question_type == TheoryQuizQuestion.QuestionType.SINGLE_CHOICE:
+            try:
+                selected_id = int(student_value)
+            except (TypeError, ValueError):
+                selected_id = None
+            correct_choice = question.choices.filter(is_correct=True).order_by("ordinal", "id").first()
+            is_correct = bool(correct_choice and selected_id == correct_choice.id)
+            feedback = "" if is_correct else "Incorrect choice."
+
+        elif question.question_type == TheoryQuizQuestion.QuestionType.MATCHING:
+            submitted_map = student_value if isinstance(student_value, dict) else {}
+            expected_map = {
+                _quiz_match_token(student_id, question.id, pair.id, "left"):
+                _quiz_match_token(student_id, question.id, pair.id, "right")
+                for pair in question.pairs.all().order_by("ordinal", "id")
+            }
+            clean_submitted_map = {
+                str(left): str(right)
+                for left, right in submitted_map.items()
+                if isinstance(left, str) and isinstance(right, str)
+            }
+            is_correct = bool(expected_map) and clean_submitted_map == expected_map
+            feedback = "" if is_correct else "Some matches are incorrect."
+
+        elif question.question_type == TheoryQuizQuestion.QuestionType.OPEN_ANSWER:
+            student_answer = student_value.strip() if isinstance(student_value, str) else ""
+            model_answer = (question.model_answer or "").strip()
+            if student_answer and _normalize_open_answer_text(student_answer) == _normalize_open_answer_text(model_answer):
+                is_correct = True
+                feedback = ""
+            elif student_answer and model_answer:
+                try:
+                    prompt_snapshot = build_theory_open_answer_prompt_snapshot(
+                        session_title=session.title,
+                        session_description=session.description,
+                        module_title=module.title,
+                        question_prompt=question.prompt,
+                        model_answer=model_answer,
+                        student_answer=student_answer,
+                        accept_suitable_answer=question.accept_suitable_answer,
+                    )
+                    ai_result = call_openai_theory_open_answer(prompt_snapshot).get("data") or {}
+                    is_correct = bool(ai_result.get("is_correct"))
+                    feedback = (ai_result.get("feedback") or "").strip()
+                except Exception:
+                    is_correct = False
+                    feedback = "Answer could not be verified automatically."
+            else:
+                is_correct = False
+                feedback = "Answer is required."
+
+        if is_correct:
+            correct_answers += 1
+
+        results.append({
+            "question_id": question.id,
+            "ordinal": question.ordinal,
+            "question_type": question.question_type,
+            "is_correct": is_correct,
+            "feedback": feedback,
+        })
+
+    score_percent = round((correct_answers * 100.0 / total_questions), 2) if total_questions > 0 else 0.0
+
+    return results, correct_answers, total_questions, score_percent
+
+
+@require_GET
+def student_theory_quiz_detail(request: HttpRequest, module_id: int):
+    student_id, class_id = _get_student_from_session(request)
+    if not student_id:
+        return JsonResponse({"ok": False, "error": "not authenticated"}, status=401)
+
+    module = get_object_or_404(
+        TheoryQuizModule.objects.select_related("session").prefetch_related("questions__choices", "questions__pairs"),
+        id=module_id,
+        is_active=True,
+    )
+    session = module.session
+    if not _student_can_access_session(session, class_id=class_id, student_id=student_id):
+        return JsonResponse({"ok": False, "error": "session is not accessible"}, status=403)
+
+    ss, _ = _get_or_create_student_session(student_id, session)
+    last_attempt = (
+        StudentTheoryQuizAttempt.objects.filter(student_session=ss, module=module)
+        .order_by("-attempt_no")
+        .first()
+    )
+
+    questions_out = _public_quiz_questions(module, student_id)
 
     return JsonResponse({
         "ok": True,
@@ -1343,80 +1429,7 @@ def student_theory_quiz_submit(request: HttpRequest, module_id: int):
         StudentTheoryQuizAttempt.objects.filter(student_session=ss, module=module).count() + 1
     )
 
-    results = []
-    correct_answers = 0
-    total_questions = 0
-
-    for question in module.questions.all().order_by("ordinal", "id"):
-        total_questions += 1
-        answer_key = str(question.id)
-        student_value = answers.get(answer_key)
-        is_correct = False
-        feedback = ""
-
-        if question.question_type == TheoryQuizQuestion.QuestionType.SINGLE_CHOICE:
-            try:
-                selected_id = int(student_value)
-            except (TypeError, ValueError):
-                selected_id = None
-            correct_choice = question.choices.filter(is_correct=True).order_by("ordinal", "id").first()
-            is_correct = bool(correct_choice and selected_id == correct_choice.id)
-            feedback = "" if is_correct else "Incorrect choice."
-
-        elif question.question_type == TheoryQuizQuestion.QuestionType.MATCHING:
-            submitted_map = student_value if isinstance(student_value, dict) else {}
-            expected_map = {
-                _quiz_match_token(student_id, question.id, pair.id, "left"):
-                _quiz_match_token(student_id, question.id, pair.id, "right")
-                for pair in question.pairs.all().order_by("ordinal", "id")
-            }
-            clean_submitted_map = {
-                str(left): str(right)
-                for left, right in submitted_map.items()
-                if isinstance(left, str) and isinstance(right, str)
-            }
-            is_correct = bool(expected_map) and clean_submitted_map == expected_map
-            feedback = "" if is_correct else "Some matches are incorrect."
-
-        elif question.question_type == TheoryQuizQuestion.QuestionType.OPEN_ANSWER:
-            student_answer = (student_value or "").strip()
-            model_answer = (question.model_answer or "").strip()
-            if student_answer and _normalize_open_answer_text(student_answer) == _normalize_open_answer_text(model_answer):
-                is_correct = True
-                feedback = ""
-            elif student_answer and model_answer:
-                try:
-                    prompt_snapshot = build_theory_open_answer_prompt_snapshot(
-                        session_title=session.title,
-                        session_description=session.description,
-                        module_title=module.title,
-                        question_prompt=question.prompt,
-                        model_answer=model_answer,
-                        student_answer=student_answer,
-                        accept_suitable_answer=question.accept_suitable_answer,
-                    )
-                    ai_result = call_openai_theory_open_answer(prompt_snapshot).get("data") or {}
-                    is_correct = bool(ai_result.get("is_correct"))
-                    feedback = (ai_result.get("feedback") or "").strip()
-                except Exception:
-                    is_correct = False
-                    feedback = "Answer could not be verified automatically."
-            else:
-                is_correct = False
-                feedback = "Answer is required."
-
-        if is_correct:
-            correct_answers += 1
-
-        results.append({
-            "question_id": question.id,
-            "ordinal": question.ordinal,
-            "question_type": question.question_type,
-            "is_correct": is_correct,
-            "feedback": feedback,
-        })
-
-    score_percent = round((correct_answers * 100.0 / total_questions), 2) if total_questions > 0 else 0.0
+    results, correct_answers, total_questions, score_percent = _grade_theory_quiz(module, answers, student_id)
 
     attempt = StudentTheoryQuizAttempt.objects.create(
         student_session=ss,
@@ -2725,6 +2738,41 @@ def teacher_students_api(request: HttpRequest):
     return JsonResponse({"ok": True, "student": _serialize_student(st)}, status=201)
 
 
+@require_POST
+def teacher_students_bulk_api(request: HttpRequest):
+    teacher = _get_logged_in_teacher(request)
+    if not teacher:
+        return _teacher_api_unauthorized()
+    data = _json_body(request)
+    names_text = data.get("names")
+    if not isinstance(names_text, str) or len(names_text) > 50000:
+        return JsonResponse({"ok": False, "error": "Provide one name per line"}, status=400)
+    names = [line.strip() for line in names_text.splitlines() if line.strip()]
+    if not names or len(names) > 200 or any(len(name) > 120 for name in names):
+        return JsonResponse({"ok": False, "error": "Use 1–200 names, each up to 120 characters"}, status=400)
+    pin = str(data.get("pin") or "").strip()
+    if not PIN_RE.match(pin):
+        return JsonResponse({"ok": False, "error": "pin must be 6 digits"}, status=400)
+    class_id = str(data.get("class_id") or "")
+    if not class_id.isdigit():
+        return JsonResponse({"ok": False, "error": "class_id is required"}, status=400)
+    group = get_object_or_404(ClassGroup, id=int(class_id), owner=teacher)
+    created, skipped = [], []
+    with transaction.atomic():
+        Teacher.objects.select_for_update().get(id=teacher.id)
+        existing = {name.casefold() for name in Student.objects.filter(class_group__owner=teacher).values_list("full_name", flat=True)}
+        for name in names:
+            if name.casefold() in existing:
+                skipped.append(name)
+                continue
+            student = Student(full_name=name, class_group=group, is_active=True)
+            student.set_pin(pin)
+            student.save()
+            created.append(student.id)
+            existing.add(name.casefold())
+    return JsonResponse({"ok": True, "created_count": len(created), "skipped_count": len(skipped), "skipped_names": skipped}, status=201)
+
+
 @require_http_methods(["PATCH", "DELETE"])
 def teacher_student_detail_api(request: HttpRequest, student_id: int):
     teacher = _get_logged_in_teacher(request)
@@ -3064,6 +3112,7 @@ def teacher_session_clone_api(request: HttpRequest, session_id: int):
                     title=game.title,
                     topic=game.topic,
                     rubric=game.rubric,
+                    tournament_cooldown_seconds=game.tournament_cooldown_seconds,
                     is_active=game.is_active,
                 )
                 MindRacePrompt.objects.bulk_create([
