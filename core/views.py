@@ -1550,6 +1550,7 @@ def student_submit(request: HttpRequest, task_id: int):
     final_code = _join_code(top_frag, user_code, bottom_frag)
 
     judge_failed = False
+    tokens = []
     try:
         tokens = create_batch_submissions(
             final_code,
@@ -1561,44 +1562,8 @@ def student_submit(request: HttpRequest, task_id: int):
         judge_failed = True
         results = []
 
-    passed = 0
-    stdout_last = ""
-    stderr_last = ""
-    verdict = Submission.Verdict.RUNTIME_ERROR if judge_failed else Submission.Verdict.WRONG_ANSWER
-
-    if judge_failed:
-        stderr_last = "Code execution service is temporarily unavailable."
-    else:
-        for result in results:
-            stdout_last = getattr(result, "stdout", "") or ""
-            stderr_last = (
-                getattr(result, "stderr", "")
-                or getattr(result, "compile_output", "")
-                or getattr(result, "message", "")
-                or ""
-            )
-            status_id = getattr(result, "status_id", None)
-
-            if status_id == 3:
-                passed += 1
-                continue
-            if status_id == 4:
-                verdict = Submission.Verdict.WRONG_ANSWER
-                break
-            if status_id == 5:
-                verdict = Submission.Verdict.TIME_LIMIT
-                break
-            if status_id == 6:
-                verdict = Submission.Verdict.COMPILATION_ERROR
-                break
-            verdict = Submission.Verdict.RUNTIME_ERROR
-            break
-
-        if len(results) == len(testcases) and passed == len(testcases):
-            verdict = Submission.Verdict.ACCEPTED
-        elif len(results) != len(testcases) and not stderr_last:
-            verdict = Submission.Verdict.RUNTIME_ERROR
-            stderr_last = "Code execution returned an incomplete result."
+    from .submission_results import summarize_results
+    test_results, passed, verdict, stdout_last, stderr_last = summarize_results(testcases, results, tokens, judge_failed)
 
     with transaction.atomic():
         progress = StudentTaskProgress.objects.select_for_update().get(id=progress.id)
@@ -1627,6 +1592,9 @@ def student_submit(request: HttpRequest, task_id: int):
             stderr=stderr_last,
             passed_tests=passed,
             total_tests=len(testcases),
+            test_results=test_results,
+            executed_code=final_code,
+            programming_language=task.programming_language,
         )
 
     return JsonResponse(

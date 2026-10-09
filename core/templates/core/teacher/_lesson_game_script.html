@@ -142,7 +142,7 @@
     }else if(round.rubric==="tournament"){
       const winner=players.find(p=>p.finish_place===1);
       const preparing=(round.tournament_matches||[]).some(m=>m.preparation_ms>0);
-      box.innerHTML=winner?`<h3>🏆 {{ T.tournament_champion|escapejs }}: ${escapeHtml(winner.student_name)}</h3>`:(preparing?`<p class="tournament-preparation"><b>{{ T.tournament_prepare|escapejs }}</b></p>`:"");
+      box.innerHTML=winner?`<h3>🏆 {{ T.tournament_winner_label|escapejs }}: ${escapeHtml(winner.student_name)}</h3>`:(preparing?`<p class="tournament-preparation"><b>{{ T.tournament_prepare|escapejs }}</b></p>`:"");
     }else{
       box.innerHTML=round.status==="finished"?`<h3>${round.outcome==="won"?"{{ T.wonder_team_won|escapejs }}":round.outcome==="lost"?"{{ T.wonder_team_lost|escapejs }}":"{{ T.wonder_game_stopped|escapejs }}"}</h3>`:"";
     }

@@ -1,13 +1,52 @@
 """Teacher lesson presentation, practice quizzes and class-scoped annotations."""
 from django.http import JsonResponse
+from django.db.models import Q
 from django.shortcuts import get_object_or_404, render
 from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views.decorators.http import require_GET, require_http_methods
 
 from . import views
-from .models import LessonHighlight, TheoryMaterialModule
+from .models import LessonHighlight, TheoryMaterialModule, Submission
 
 MARKER_COLORS = {"yellow", "green", "blue", "pink", "purple", "orange", "red"}
+
+
+@require_GET
+def teacher_lesson_submissions(request, task_id, submission_id=None):
+    teacher = views._get_logged_in_teacher(request)
+    if not teacher:
+        return views._teacher_api_unauthorized()
+    task = views._require_task_owner_or_404(task_id, teacher)
+    class_id = request.GET.get("class_id", "")
+    if not class_id.isdigit():
+        return JsonResponse({"ok": False, "error": "Select a class"}, status=400)
+    group = get_object_or_404(task.session.allowed_classes, id=int(class_id), owner=teacher)
+    rows = Submission.objects.filter(progress__task=task, progress__student_session__session=task.session).filter(
+        Q(progress__student_session__student__class_group=group)
+        | Q(progress__student_session__student__class_memberships__class_group=group)
+    ).select_related("progress__student_session__student").distinct().order_by("-id")
+
+    def summary(row):
+        return {"id": row.id, "student_name": row.progress.student_session.student.full_name,
+                "attempt_no": row.attempt_no, "submitted_at": row.submitted_at.isoformat(),
+                "verdict": row.verdict, "passed_tests": row.passed_tests, "total_tests": row.total_tests}
+
+    if submission_id is not None:
+        row = get_object_or_404(rows, id=submission_id)
+        return JsonResponse({"ok": True, "submission": {**summary(row), "code": row.code,
+            "executed_code": row.executed_code, "programming_language": row.programming_language,
+            "stdout": row.stdout, "stderr": row.stderr, "test_results": row.test_results}})
+    try:
+        before = int(request.GET.get("before", 0))
+        if before < 0:
+            raise ValueError
+    except ValueError:
+        return JsonResponse({"ok": False, "error": "Invalid cursor"}, status=400)
+    if before:
+        rows = rows.filter(id__lt=before)
+    selected = list(rows.defer("code", "executed_code", "test_results", "stdout", "stderr")[:51])
+    return JsonResponse({"ok": True, "submissions": [summary(row) for row in selected[:50]],
+                         "has_more": len(selected) > 50})
 
 
 @views.teacher_required

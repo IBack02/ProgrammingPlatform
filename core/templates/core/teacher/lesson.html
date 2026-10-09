@@ -18,7 +18,6 @@
   .lesson-content textarea,.lesson-content select,.select-ui{padding:10px;border:1px solid var(--border);border-radius:10px;background:var(--card)}
   button{cursor:pointer}button:disabled{cursor:default;opacity:.5}
   [hidden]{display:none!important}
-  #lessonStatus{min-height:18px;margin-top:10px}
   .marker-swatch{width:30px;height:30px;border-radius:50%;border:2px solid transparent;padding:0}.marker-swatch[aria-pressed="true"]{outline:3px solid var(--primary);outline-offset:2px}.marker-swatch:focus-visible{outline:3px solid var(--primary);outline-offset:3px}
   .marker-tools{padding:10px 0;border-bottom:1px solid var(--border);margin-bottom:18px}
   html[data-theme="dark"]{--border:#46525e;--card:#202832;--muted:#aab7c5}
@@ -59,17 +58,17 @@
       <div id="quizResultsList"></div>
     </section>
     <section id="gamePane" hidden>{% include "core/teacher/_lesson_game_host.html" %}</section>
-    <section id="codingPane" hidden><div id="codingStatement" style="white-space:pre-wrap"></div><pre id="codingConstraints" style="white-space:pre-wrap"></pre></section>
+    {% include "core/teacher/_lesson_coding.html" %}
   </main>
 </div>
 <script>
   const selectedSessionId = {{ lesson_session.id }};
   let selectedModuleId = null, selectedModuleType = null, currentGameModule = null;
-  let modulesCache = [], loadToken = 0, lessonRanges = [], questions = [], markerSaving = false;
+  let loadToken = 0, lessonRanges = [], questions = [], markerSaving = false;
   let selectedMarkerColor="yellow";
   const quizDrafts = new Map();
   const UI = {
-    failedLoadModules:"{{ T.failed_load_tasks|escapejs }}",createFailed:"{{ T.create_failed|escapejs }}",saveFailed:"{{ T.save_failed|escapejs }}",
+    failedLoadModules:"{{ T.failed_load_tasks|escapejs }}",saveFailed:"{{ T.save_failed|escapejs }}",
     quizQuestion:"{{ T.quiz_question|escapejs }}",quizCorrect:"{{ T.quiz_correct|escapejs }}",quizIncorrect:"{{ T.quiz_incorrect|escapejs }}",
     invalidAttachment:"{{ T.invalid_attachment_url|escapejs }}",downloadAttachment:"{{ T.download_attachment|escapejs }}"
   };
@@ -89,6 +88,7 @@
   {% include "core/_learning_renderers.html" %}
   {% include "core/_lesson_markers.html" %}
   {% include "core/teacher/_lesson_game_script.html" %}
+  {% include "core/teacher/_lesson_coding_script.html" %}
 
   async function refreshLessonGame(){
     const id=selectedModuleId,token=loadToken;
@@ -125,17 +125,20 @@
     setMsg("{{ T.lesson_marker_saved|escapejs }}");
   }
   async function openLessonModule(item){
-    const token=++loadToken;stopGamePolling();closeTournamentMatchDetails();
+    const token=++loadToken;stopGamePolling();stopCodingPolling();closeTournamentMatchDetails();
     selectedModuleId=item.id;selectedModuleType=item.module_type;currentGameModule=null;currentGameRound=null;
     setMsg(""); qs("lessonTitle").textContent=item.title;qs("lessonTopic").textContent="";
     ["theoryPane","quizPane","gamePane","codingPane"].forEach(id=>qs(id).hidden=true);
     qs("lessonModules").querySelectorAll("button").forEach(b=>b.classList.toggle("active",b.dataset.key===`${item.module_type}:${item.id}`));
-    const paths={theory_material:"theory-modules",theory_quiz:"theory-quizzes",game:"game-modules",coding_task:"tasks"};
+    if(item.module_type==="coding_task"){
+      qs("codingPane").hidden=false;qs("lessonTopic").textContent=item.topic||"";resetCodingSubmissions();return;
+    }
+    const paths={theory_material:"theory-modules",theory_quiz:"theory-quizzes",game:"game-modules"};
     const suffix=item.module_type==="theory_quiz"?"practice/":"";
     const res=await api(`/api/teacher/${paths[item.module_type]}/${item.id}/${suffix}`);
     if(token!==loadToken)return;
     if(!res.data.ok)return setMsg(res.data.error);
-    const module=res.data.module||res.data.task;
+    const module=res.data.module;
     qs("lessonTopic").textContent=module.topic||"";
     if(item.module_type==="theory_material"){
       qs("theoryPane").hidden=false;renderTheoryBlocks(module.blocks);await loadMarkers();
@@ -144,8 +147,6 @@
       renderQuizQuestionsStudent(questions,quizDrafts.get(item.id));qs("quizScore").textContent="";renderQuizResults([]);
     }else if(item.module_type==="game"){
       qs("gamePane").hidden=false;currentGameModule=module;await selectGameClass();
-    }else{
-      qs("codingPane").hidden=false;qs("codingStatement").textContent=module.statement;qs("codingConstraints").textContent=module.constraints||"";
     }
   }
   qs("submitQuiz").addEventListener("click",async()=>{
@@ -157,6 +158,7 @@
     renderQuizResults(res.data.attempt.results);
   });
   qs("gameClassSelect").addEventListener("change",async()=>{
+    if(selectedModuleType==="coding_task")resetCodingSubmissions();
     if(selectedModuleType==="game")await selectGameClass();
     if(selectedModuleType==="theory_material")await loadMarkers();
   });
@@ -175,7 +177,7 @@
     const types=[["tasks","coding_task"],["theory-modules","theory_material"],["theory-quizzes","theory_quiz"],["game-modules","game"]];
     const results=await Promise.all(types.map(([path])=>api(`/api/teacher/sessions/${selectedSessionId}/${path}/`)));
     if(results.some(r=>!r.data.ok))return setMsg(UI.failedLoadModules);
-    modulesCache=results.flatMap((r,i)=>(r.data.modules||r.data.tasks||[]).map(m=>({...m,module_type:types[i][1]}))).sort((a,b)=>a.position-b.position);
+    const modulesCache=results.flatMap((r,i)=>(r.data.modules||r.data.tasks||[]).map(m=>({...m,module_type:types[i][1]}))).sort((a,b)=>a.position-b.position);
     modulesCache.forEach(m=>{const button=document.createElement("button");button.className="btn lesson-module";button.type="button";button.dataset.key=`${m.module_type}:${m.id}`;button.textContent=`${m.position}. ${m.title}`;button.onclick=()=>openLessonModule(m);qs("lessonModules").append(button)});
     if(modulesCache.length)await openLessonModule(modulesCache[0]);else qs("lessonTitle").textContent="{{ T.no_modules|default:'—'|escapejs }}";
   })();

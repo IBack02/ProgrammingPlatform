@@ -1660,7 +1660,7 @@
       qs("tournamentPrompt").textContent = match.current_question.prompt;
       if (questionChanged) input.focus({preventScroll: true});
     } else {
-      qs("tournamentMatchScore").textContent = round.me?.finish_place === 1 ? UI.tournamentChampion : (round.tournament_eliminated ? UI.tournamentEliminated : UI.tournamentWaitingMatch);
+      qs("tournamentMatchScore").textContent = remaining>0&&match ? `${match.player_one.student_name} ${match.score_one} : ${match.score_two} ${match.player_two.student_name}` : (round.me?.finish_place === 1 ? UI.tournamentChampion : (round.tournament_eliminated ? UI.tournamentEliminated : UI.tournamentWaitingMatch));
       qs("tournamentPrompt").textContent = "";
     }
     tournamentCooldownUntil = Date.now() + Math.max(0, Number(round.tournament_answer_cooldown_ms || 0));

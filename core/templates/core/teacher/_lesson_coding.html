@@ -1,0 +1,19 @@
+<style>
+  .submission-card{display:flex;width:100%;align-items:center;justify-content:space-between;gap:12px;text-align:left;padding:14px;margin:9px 0;border:1px solid var(--border);border-left:4px solid #f59e0b;border-radius:12px;background:var(--card);color:inherit}
+  .submission-card.accepted{border-left-color:#22c55e}.submission-card:hover{box-shadow:0 0 0 2px #38bdf833}.submission-card small{display:block;margin-top:5px}
+  #submissionDialog{width:min(900px,90vw);max-height:85vh;overflow:auto;border:1px solid var(--border);border-radius:16px;padding:22px;background:#f8fafc;color:#172033}
+  html[data-theme="dark"] #submissionDialog{background:#202832;color:#edf1f3}
+  .test-io{display:grid;grid-template-columns:1fr 1fr;gap:8px 16px;margin-top:12px}.test-io>div{min-width:0}
+  #submissionDialog::backdrop{background:#0009}#submissionDialog pre{white-space:pre-wrap;overflow-wrap:anywhere;padding:12px;background:#64748b14;border-radius:8px;font-family:var(--code-font)}
+  .submission-test{border:1px solid var(--border);border-radius:10px;padding:12px;margin-top:10px}.submission-test summary{cursor:pointer;font-weight:700}
+  @media(max-width:600px){.submission-card{flex-wrap:wrap}.test-io{grid-template-columns:1fr}}
+</style>
+<section id="codingPane" hidden>
+  <p class="muted">{{ T.lesson_submissions_hint }}</p>
+  <div id="codingSubmissions"></div>
+  <button type="button" class="btn" id="moreSubmissions" hidden>{{ T.load_more }}</button>
+</section>
+<dialog id="submissionDialog" aria-labelledby="submissionTitle">
+  <div class="row" style="justify-content:space-between"><h3 id="submissionTitle"></h3><button type="button" class="btn" id="closeSubmission">{{ T.close }}</button></div>
+  <div id="submissionDetails"></div>
+</dialog>

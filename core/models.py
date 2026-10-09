@@ -863,6 +863,9 @@ class Submission(models.Model):
 
     passed_tests = models.PositiveIntegerField(default=0)
     total_tests = models.PositiveIntegerField(default=0)
+    test_results = models.JSONField(default=list, blank=True)
+    executed_code = models.TextField(blank=True, default="")
+    programming_language = models.CharField(max_length=16, blank=True, default="")
 
     external_run_id = models.CharField(max_length=120, blank=True)
 

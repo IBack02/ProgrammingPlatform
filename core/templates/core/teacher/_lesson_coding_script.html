@@ -1,0 +1,36 @@
+  let codingTimer=null,codingEpoch=0,codingBusy=false,codingRows=new Map();
+  const verdictLabels={accepted:"{{ T.submission_accepted|escapejs }}",wrong_answer:"{{ T.submission_wrong_answer|escapejs }}",time_limit:"{{ T.submission_time_limit|escapejs }}",compilation_error:"{{ T.submission_compilation_error|escapejs }}",runtime_error:"{{ T.submission_runtime_error|escapejs }}",unavailable:"{{ T.submission_unavailable|escapejs }}"};
+  function stopCodingPolling(){clearTimeout(codingTimer);codingEpoch++;codingBusy=false;qs("submissionDialog").close()}
+  function codingContext(){return `${selectedModuleId}:${qs("gameClassSelect").value}:${codingEpoch}`}
+  async function loadCodingSubmissions(more=false){
+    if(codingBusy||selectedModuleType!=="coding_task"||!qs("gameClassSelect").value)return;
+    clearTimeout(codingTimer);codingBusy=true;
+    const context=codingContext(),before=more&&codingRows.size?Math.min(...codingRows.keys()):0;
+    const res=await api(`/api/teacher/tasks/${selectedModuleId}/submissions/?class_id=${qs("gameClassSelect").value}&before=${before}`);
+    if(context!==codingContext())return;
+    codingBusy=false;
+    if(res.data.ok){
+      res.data.submissions.forEach(row=>codingRows.set(row.id,row));
+      const box=qs("codingSubmissions"),focused=box.contains(document.activeElement)?document.activeElement.dataset.submission:null;
+      box.innerHTML=codingRows.size?Array.from(codingRows.values()).sort((a,b)=>b.id-a.id).map(row=>`<button type="button" class="submission-card ${row.verdict==="accepted"?"accepted":""}" data-submission="${row.id}"><span><b>${escapeHtml(row.student_name)}</b><small>#${row.attempt_no} · ${escapeHtml(new Date(row.submitted_at).toLocaleString())}</small></span><span>${escapeHtml(verdictLabels[row.verdict]||row.verdict)}<small>{{ T.submission_tests|escapejs }}: ${row.passed_tests}/${row.total_tests}</small></span><span>{{ T.open_details|escapejs }} →</span></button>`).join(""):`<p class="muted">{{ T.no_submissions|escapejs }}</p>`;
+      box.querySelectorAll("[data-submission]").forEach(button=>button.onclick=()=>openSubmission(button.dataset.submission));
+      if(focused)box.querySelector(`[data-submission="${focused}"]`)?.focus({preventScroll:true});
+      if(more||!before&&codingRows.size<=50)qs("moreSubmissions").hidden=!res.data.has_more;
+    }else setMsg(res.data.error||UI.failedLoadModules);
+    codingTimer=setTimeout(()=>loadCodingSubmissions(),3000);
+  }
+  function resetCodingSubmissions(){stopCodingPolling();codingRows=new Map();qs("codingSubmissions").replaceChildren();qs("moreSubmissions").hidden=true;loadCodingSubmissions()}
+  async function openSubmission(id){
+    const context=codingContext();
+    const res=await api(`/api/teacher/tasks/${selectedModuleId}/submissions/${id}/?class_id=${qs("gameClassSelect").value}`);
+    if(context!==codingContext())return;
+    if(!res.data.ok)return setMsg(res.data.error);
+    const row=res.data.submission;
+    qs("submissionTitle").textContent=`${row.student_name} · #${row.attempt_no} · ${verdictLabels[row.verdict]||row.verdict}`;
+    const output=(title,text)=>`<b>${title}</b><pre>${escapeHtml(text||"—")}</pre>`;
+    qs("submissionDetails").innerHTML=`<p>{{ T.submission_tests|escapejs }}: ${row.passed_tests}/${row.total_tests} · ${escapeHtml(row.programming_language)}</p>${output("{{ T.submission_code|escapejs }}",row.code)}${row.executed_code&&row.executed_code!==row.code?`<details><summary>{{ T.submission_executed_code|escapejs }}</summary><pre>${escapeHtml(row.executed_code)}</pre></details>`:""}${row.test_results.length?row.test_results.map(test=>`<details class="submission-test" ${test.verdict!=="accepted"?"open":""}><summary>#${test.ordinal} · ${escapeHtml(verdictLabels[test.verdict]||test.verdict)}</summary><div class="test-io"><div>${output("stdin",test.stdin)}</div><div>${output("{{ T.submission_expected|escapejs }}",test.expected_stdout)}</div><div>${output("stdout",test.stdout)}</div><div>${output("stderr",test.stderr)}</div></div></details>`).join(""):`${output("stdout",row.stdout)}${output("stderr",row.stderr)}<p class="muted">{{ T.submission_legacy|escapejs }}</p>`}`;
+    qs("submissionDialog").showModal();
+  }
+  qs("closeSubmission").onclick=()=>qs("submissionDialog").close();
+  qs("moreSubmissions").onclick=()=>loadCodingSubmissions(true);
+  window.addEventListener("pagehide",stopCodingPolling);

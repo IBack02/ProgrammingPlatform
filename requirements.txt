@@ -9,3 +9,4 @@ requests==2.34.2
 openai==2.46.0
 google-api-python-client==2.198.0
 google-auth==2.56.1
+reportlab==5.0.1

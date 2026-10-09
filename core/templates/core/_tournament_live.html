@@ -7,10 +7,11 @@
 <script>
   // Keep the scroll element itself alive while live scores replace its contents.
   function updateTournamentViewport(root, html, roundId){
-    if(root._bracketHtml===html && root._bracketRound===roundId && root.firstElementChild)return;
+    const sameViewport=root.firstElementChild && root.firstElementChild===root._bracketViewport;
+    if(root._bracketHtml===html && root._bracketRound===roundId && sameViewport)return;
     const template=document.createElement('template');template.innerHTML=html;
     const next=template.content.firstElementChild, current=root.firstElementChild;
-    if(current && next && root._bracketRound===roundId){
+    if(sameViewport && next && root._bracketRound===roundId){
       const left=current.scrollLeft,top=current.scrollTop;
       const focused=current.contains(document.activeElement)?document.activeElement.dataset.matchId:null;
       current.replaceChildren(...next.childNodes);
@@ -18,5 +19,6 @@
       if(focused)current.querySelector(`[data-match-id="${focused}"]`)?.focus({preventScroll:true});
     }else root.replaceChildren(...template.content.childNodes);
     root._bracketHtml=html;root._bracketRound=roundId;
+    root._bracketViewport=root.firstElementChild;
   }
 </script>

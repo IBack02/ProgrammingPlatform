@@ -48,6 +48,7 @@
       {% for class_group in classes %}<span class="exam-summary-pill">{{ class_group.name }}</span>{% endfor %}
     </div>
   </div>
+  <button type="button" class="btn" data-exam-report="{{ exam.id }}" data-report-class="{{ selected_class.id|default:'' }}">{{ T.download_exam_report }}</button>
   <a class="btn" href="/teacher/">{{ T.back_to_dashboard }}</a>
 </section>
 
@@ -85,4 +86,5 @@
     {% else %}<div class="empty-state">{{ T.no_exam_attempts }}</div>{% endif %}
   </div>
 </section>
+{% include "core/teacher/_exam_report_download.html" %}
 {% endblock %}
