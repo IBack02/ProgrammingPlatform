@@ -87,7 +87,7 @@
     <form method="post" action="/student/login/">
       {% csrf_token %}
       <label>{{ T.student_login_name_label|default:"Full name" }}</label>
-      <input name="full_name" autocomplete="off" required />
+      <input name="full_name" value="{{ full_name|default:'' }}" autocomplete="off" required />
 
       <label>{{ T.student_login_pin_label|default:"PIN (6 digits)" }}</label>
       <input type="password" name="pin" inputmode="numeric" pattern="\d{6}" maxlength="6" autocomplete="current-password" required />
@@ -95,12 +95,13 @@
       <button type="submit">{{ T.student_login_submit|default:"Login" }}</button>
 
       {% if error %}
-        <div class="err">{{ error }}</div>
+        <div class="err" id="loginError" role="alert">{{ error }}</div>
       {% endif %}
 
       <div class="hint">{{ T.student_login_hint|default:"After login, your session page will open." }}</div>
       <div class="hint"><a href="/teacher/login/">{{ T.teacher_login_link|default:"Teacher login" }}</a></div>
     </form>
   </div>
+{% include "core/_login_lockout.html" %}
 </body>
 </html>

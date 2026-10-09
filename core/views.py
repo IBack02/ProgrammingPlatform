@@ -70,6 +70,7 @@ from .security import (
     clear_login_identity,
     client_ip,
     login_is_limited,
+    login_retry_after,
     record_login_failure,
     request_is_limited,
 )
@@ -85,9 +86,6 @@ SESSION_STATUSES = {
     SESSION_STATUS_RUNNING,
     SESSION_STATUS_STOPPED,
 }
-LOGIN_RATE_LIMIT_MAX_ATTEMPTS = int(getattr(settings, "LOGIN_RATE_LIMIT_MAX_ATTEMPTS", 8))
-LOGIN_RATE_LIMIT_WINDOW_SECONDS = int(getattr(settings, "LOGIN_RATE_LIMIT_WINDOW_SECONDS", 15 * 60))
-LOGIN_RATE_LIMIT_LOCK_SECONDS = int(getattr(settings, "LOGIN_RATE_LIMIT_LOCK_SECONDS", 15 * 60))
 GENERIC_LOGIN_ERROR = "invalid credentials"
 DUMMY_PIN_HASH = make_password("not-a-valid-pin")
 MAX_STUDENT_CODE_BYTES = int(getattr(settings, "MAX_STUDENT_CODE_BYTES", 100_000))
@@ -111,9 +109,24 @@ def _clear_login_failures(kind: str, request: HttpRequest, identity: str) -> Non
     clear_login_identity(kind, request, identity)
 
 
-def _login_rate_limit_json() -> JsonResponse:
-    response = JsonResponse({"ok": False, "error": "too many login attempts"}, status=429)
-    response["Retry-After"] = str(LOGIN_RATE_LIMIT_LOCK_SECONDS)
+def _login_rate_limit_json(kind, request, identity) -> JsonResponse:
+    retry_after = login_retry_after(kind, request, identity)
+    response = JsonResponse({"ok": False, "error": "too many login attempts", "retry_after_seconds": retry_after}, status=429)
+    response["Retry-After"] = str(retry_after)
+    response["Cache-Control"] = "no-store"
+    return response
+
+
+def _login_rate_limit_page(kind, request, identity):
+    retry_after = login_retry_after(kind, request, identity)
+    translations = UI_TRANSLATIONS.get(get_ui_lang(request), UI_TRANSLATIONS["en"])
+    response = render(request, f"core/{kind}_login.html", {
+        "error": translations["login_locked_countdown"].replace("{seconds}", str(retry_after)),
+        "retry_after_seconds": retry_after,
+        "full_name": identity,
+    }, status=429)
+    response["Retry-After"] = str(retry_after)
+    response["Cache-Control"] = "no-store"
     return response
 
 
@@ -906,11 +919,13 @@ def student_login(request: HttpRequest):
     if not PIN_RE.match(pin):
         return JsonResponse({"ok": False, "error": "pin must be 6 digits"}, status=400)
     if _login_rate_limited("student", request, full_name):
-        return _login_rate_limit_json()
+        return _login_rate_limit_json("student", request, full_name)
 
     student = _authenticate_student(full_name, pin)
     if not student:
         _record_login_failure("student", request, full_name)
+        if _login_rate_limited("student", request, full_name):
+            return _login_rate_limit_json("student", request, full_name)
         return JsonResponse({"ok": False, "error": GENERIC_LOGIN_ERROR}, status=401)
 
     _clear_login_failures("student", request, full_name)
@@ -1942,16 +1957,13 @@ def student_login_page(request: HttpRequest):
             {"error": T.get("student_login_error_required", "Enter name and PIN (6 digits).")},
         )
     if _login_rate_limited("student", request, full_name):
-        return render(
-            request,
-            "core/student_login.html",
-            {"error": T.get("login_error_too_many_attempts", "Too many attempts. Try again later.")},
-            status=429,
-        )
+        return _login_rate_limit_page("student", request, full_name)
 
     student = _authenticate_student(full_name, pin)
     if not student:
         _record_login_failure("student", request, full_name)
+        if _login_rate_limited("student", request, full_name):
+            return _login_rate_limit_page("student", request, full_name)
         return render(
             request,
             "core/student_login.html",
@@ -2522,11 +2534,13 @@ def teacher_login(request: HttpRequest):
             status=400,
         )
     if _login_rate_limited("teacher", request, full_name):
-        return _login_rate_limit_json()
+        return _login_rate_limit_json("teacher", request, full_name)
 
     teacher = _authenticate_teacher(full_name, password)
     if not teacher:
         _record_login_failure("teacher", request, full_name)
+        if _login_rate_limited("teacher", request, full_name):
+            return _login_rate_limit_json("teacher", request, full_name)
         return JsonResponse({"ok": False, "error": GENERIC_LOGIN_ERROR}, status=401)
 
     _clear_login_failures("teacher", request, full_name)
@@ -2575,16 +2589,13 @@ def teacher_login_page(request: HttpRequest):
             {"error": translations.get("teacher_login_error_required", "Enter name and password (6-15 characters).")},
         )
     if _login_rate_limited("teacher", request, full_name):
-        return render(
-            request,
-            "core/teacher_login.html",
-            {"error": translations.get("login_error_too_many_attempts", "Too many attempts. Try again later.")},
-            status=429,
-        )
+        return _login_rate_limit_page("teacher", request, full_name)
 
     teacher = _authenticate_teacher(full_name, password)
     if not teacher:
         _record_login_failure("teacher", request, full_name)
+        if _login_rate_limited("teacher", request, full_name):
+            return _login_rate_limit_page("teacher", request, full_name)
         return render(
             request,
             "core/teacher_login.html",

@@ -2,6 +2,7 @@ import hashlib
 import hmac
 import ipaddress
 from datetime import timedelta
+from math import ceil
 
 from django.conf import settings
 from django.db import IntegrityError, transaction
@@ -82,7 +83,7 @@ def record_hit(
         if bucket.blocked_until and bucket.blocked_until > now:
             return True
 
-        if now - bucket.window_started_at >= timedelta(seconds=window_seconds):
+        if (bucket.blocked_until and bucket.blocked_until <= now) or now - bucket.window_started_at >= timedelta(seconds=window_seconds):
             bucket.hits = 0
             bucket.window_started_at = now
             bucket.blocked_until = None
@@ -107,17 +108,23 @@ def login_identifiers(kind: str, request, identity: str) -> list[tuple[str, str,
     ip = client_ip(request)
     pair = f"{ip}|{normalized}"
     return [
-        (f"login_{kind}_pair", pair, int(getattr(settings, "LOGIN_RATE_LIMIT_MAX_ATTEMPTS", 8))),
-        (f"login_{kind}_identity", normalized, int(getattr(settings, "LOGIN_IDENTITY_MAX_ATTEMPTS", 12))),
+        (f"login_{kind}_pair", pair, int(getattr(settings, "LOGIN_RATE_LIMIT_MAX_ATTEMPTS", 5))),
+        (f"login_{kind}_identity", normalized, int(getattr(settings, "LOGIN_IDENTITY_MAX_ATTEMPTS", 5))),
         (f"login_{kind}_ip", ip, int(getattr(settings, "LOGIN_IP_MAX_ATTEMPTS", 40))),
     ]
 
 
 def login_is_limited(kind: str, request, identity: str) -> bool:
-    return any(
-        is_limited(scope, identifier)
-        for scope, identifier, _ in login_identifiers(kind, request, identity)
-    )
+    return login_retry_after(kind, request, identity) > 0
+
+
+def login_retry_after(kind: str, request, identity: str) -> int:
+    keys = [_key_hash(scope, identifier) for scope, identifier, _ in login_identifiers(kind, request, identity)]
+    now = timezone.now()
+    blocked_until = SecurityThrottle.objects.filter(
+        key_hash__in=keys, blocked_until__gt=now,
+    ).order_by("-blocked_until").values_list("blocked_until", flat=True).first()
+    return max(0, ceil((blocked_until - now).total_seconds())) if blocked_until else 0
 
 
 def record_login_failure(kind: str, request, identity: str) -> None:

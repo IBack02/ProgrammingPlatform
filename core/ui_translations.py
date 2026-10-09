@@ -2239,3 +2239,10 @@ for _lang_code, _extra in {
     'en': {'open_modules':'Go to modules','autosaving':'Saving changes…','tournament_cooldown':'Delay after an incorrect answer (seconds)','bulk_students':'Add a list of students','bulk_students_help':'One name per line, up to 200 students. Duplicates will be skipped.','bulk_students_pin':'Choose a class and an initial PIN for all students in this list.','bulk_created':'Added','bulk_skipped':'Duplicates skipped'},
 }.items():
     UI_TRANSLATIONS[_lang_code].update(_extra)
+
+for _lang_code, _extra in {
+    'ru': {'login_locked_countdown': 'Вход временно заблокирован после неудачных попыток. Повторите через {seconds} сек.', 'login_lock_expired': 'Время блокировки истекло. Можно повторить вход.'},
+    'kk': {'login_locked_countdown': 'Сәтсіз әрекеттерден кейін кіру уақытша бұғатталды. {seconds} секундтан кейін қайталаңыз.', 'login_lock_expired': 'Бұғаттау уақыты аяқталды. Қайта кіруге болады.'},
+    'en': {'login_locked_countdown': 'Login is temporarily locked after failed attempts. Try again in {seconds} seconds.', 'login_lock_expired': 'The lockout has expired. You can try signing in again.'},
+}.items():
+    UI_TRANSLATIONS[_lang_code].update(_extra)

@@ -1,0 +1,14 @@
+{% if retry_after_seconds %}
+<script>
+(() => {
+  const message = document.getElementById("loginError");
+  const deadline = Date.now() + {{ retry_after_seconds }} * 1000;
+  const pattern = "{{ T.login_locked_countdown|escapejs }}";
+  const timer = setInterval(() => {
+    const seconds = Math.max(0, Math.ceil((deadline - Date.now()) / 1000));
+    message.textContent = seconds ? pattern.replace("{seconds}", seconds) : "{{ T.login_lock_expired|escapejs }}";
+    if (!seconds) clearInterval(timer);
+  }, 1000);
+})();
+</script>
+{% endif %}

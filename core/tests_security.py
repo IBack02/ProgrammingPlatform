@@ -98,14 +98,14 @@ class SecurityRegressionTests(TestCase):
         self.assertNotEqual(self.class_group.id, duplicate_name.id)
     def test_login_is_persistently_rate_limited(self):
         client = Client(REMOTE_ADDR="203.0.113.8")
-        for _ in range(3):
+        for attempt in range(3):
             response = self._json(
                 client,
                 "post",
                 "/api/auth/student-login",
                 {"full_name": self.student.full_name, "pin": "000000"},
             )
-            self.assertEqual(response.status_code, 401)
+            self.assertEqual(response.status_code, 429 if attempt == 2 else 401)
 
         response = self._json(
             client,

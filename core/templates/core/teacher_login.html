@@ -21,15 +21,16 @@
     <div class="title">{{ T.teacher_login_title|default:"Teacher Login" }}</div>
     <div class="muted">{{ T.teacher_login_hint|default:"Use your name and password (6-15 characters)." }}</div>
 
-    {% if error %}<div class="err">{{ error }}</div>{% endif %}
+    {% if error %}<div class="err" id="loginError" role="alert">{{ error }}</div>{% endif %}
 
     <form method="post">
       {% csrf_token %}
-      <input name="full_name" placeholder="{{ T.teacher_login_name_label|default:'Full name' }}" autocomplete="username"/>
+      <input name="full_name" value="{{ full_name|default:'' }}" placeholder="{{ T.teacher_login_name_label|default:'Full name' }}" autocomplete="username"/>
       <input type="password" name="password" placeholder="{{ T.teacher_login_password_label|default:'Password' }}" minlength="6" maxlength="15" autocomplete="current-password"/>
       <button type="submit">{{ T.teacher_login_submit|default:"Login" }}</button>
       <div class="muted" style="margin-top:12px;"><a href="/student/login/">{{ T.student_login_link|default:"Student login" }}</a></div>
     </form>
   </div>
+{% include "core/_login_lockout.html" %}
 </body>
 </html>
