@@ -3,6 +3,7 @@
 {% block subtitle %}{{ T.lesson_mode }}{% endblock %}
 {% block content %}
 {% include "core/_game_avatar.html" %}
+{% include "core/_tournament_live.html" %}
 <style>
   :root{--border:#dbe3ee;--card:#fff;--primary:#0284c7;--muted:#64748b}
   body{font-family:{% if ui_lang == 'kk' %}var(--ui-font-kk){% else %}var(--ui-font-default){% endif %}}
@@ -18,6 +19,7 @@
   button{cursor:pointer}button:disabled{cursor:default;opacity:.5}
   [hidden]{display:none!important}
   #lessonStatus{min-height:18px;margin-top:10px}
+  .marker-swatch{width:30px;height:30px;border-radius:50%;border:2px solid transparent;padding:0}.marker-swatch[aria-pressed="true"]{outline:3px solid var(--primary);outline-offset:2px}.marker-swatch:focus-visible{outline:3px solid var(--primary);outline-offset:3px}
   .marker-tools{padding:10px 0;border-bottom:1px solid var(--border);margin-bottom:18px}
   html[data-theme="dark"]{--border:#46525e;--card:#202832;--muted:#aab7c5}
   @media(max-width:800px){.lesson-layout{grid-template-columns:1fr}.lesson-content{padding:16px}}
@@ -43,6 +45,7 @@
     <section id="theoryPane" hidden>
       <div class="row marker-tools">
         <label><input type="checkbox" id="markerEnabled" checked> {{ T.lesson_marker }}</label>
+        <div id="markerPalette" class="row" role="group" aria-label="{{ T.marker_color }}"></div>
         <button type="button" class="btn" id="clearMarkers">{{ T.lesson_clear_markers }}</button>
         <span class="muted">{{ T.lesson_marker_hint }}</span>
       </div>
@@ -63,6 +66,7 @@
   const selectedSessionId = {{ lesson_session.id }};
   let selectedModuleId = null, selectedModuleType = null, currentGameModule = null;
   let modulesCache = [], loadToken = 0, lessonRanges = [], questions = [], markerSaving = false;
+  let selectedMarkerColor="yellow";
   const quizDrafts = new Map();
   const UI = {
     failedLoadModules:"{{ T.failed_load_tasks|escapejs }}",createFailed:"{{ T.create_failed|escapejs }}",saveFailed:"{{ T.save_failed|escapejs }}",
@@ -111,11 +115,7 @@
     const added=clear?[]:selectedLessonRanges();
     if(!clear&&!added.length)return;
     const token=loadToken,classId=qs("gameClassSelect").value;
-    const ranges=clear?[]:lessonRanges.concat(added);
-    // Merge overlapping selections before persisting repeated marker strokes.
-    ranges.sort((a,b)=>a.block_id-b.block_id||a.start-b.start);
-    const merged=[];
-    ranges.forEach(r=>{const last=merged.at(-1);if(last&&last.block_id===r.block_id&&last.text===r.text&&r.start<=last.end)last.end=Math.max(last.end,r.end);else merged.push({...r})});
+    const merged=clear?[]:toggleLessonMarkers(lessonRanges,added,selectedMarkerColor);
     markerSaving=true;
     const res=await api(`/api/teacher/theory-modules/${selectedModuleId}/highlights/?class_id=${classId}`,"PUT",{ranges:merged});
     markerSaving=false;
@@ -162,6 +162,13 @@
   });
   qs("moduleBlocks").addEventListener("pointerup",()=>saveMarkers());
   qs("moduleBlocks").addEventListener("keyup",event=>{if(event.key==="Shift")saveMarkers()});
+  const markerLabels={yellow:"{{ T.marker_yellow|escapejs }}",green:"{{ T.marker_green|escapejs }}",blue:"{{ T.marker_blue|escapejs }}",pink:"{{ T.marker_pink|escapejs }}",purple:"{{ T.marker_purple|escapejs }}",orange:"{{ T.marker_orange|escapejs }}",red:"{{ T.marker_red|escapejs }}"};
+  Object.entries(lessonMarkerColors).forEach(([color,value])=>{
+    const button=document.createElement("button");button.type="button";button.className="marker-swatch";
+    button.style.background=value;button.title=markerLabels[color];button.setAttribute("aria-label",markerLabels[color]);button.setAttribute("aria-pressed",color===selectedMarkerColor);
+    button.onclick=()=>{selectedMarkerColor=color;qs("markerPalette").querySelectorAll("button").forEach(b=>b.setAttribute("aria-pressed",b===button))};
+    qs("markerPalette").append(button);
+  });
   qs("clearMarkers").addEventListener("click",()=>saveMarkers(true));
   window.addEventListener("pagehide",stopGamePolling);
   (async()=>{

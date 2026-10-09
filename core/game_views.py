@@ -262,6 +262,12 @@ def _validate_tournament_question(data, question=None):
     return ordinal, prompt, answer
 
 
+def _tournament_preparation_ms(match):
+    if match.status != TournamentMatch.Status.RUNNING or not match.started_at:
+        return 0
+    return max(0, ceil((match.started_at - timezone.now()).total_seconds() * 1000))
+
+
 def _tournament_match_row(match, snapshot):
     stage = snapshot[match.stage_number - 1] if match.stage_number <= len(snapshot) else {}
     questions = stage.get("questions", [])
@@ -272,6 +278,7 @@ def _tournament_match_row(match, snapshot):
         "stage_title": stage.get("title") or f"Round {match.stage_number}",
         "match_number": match.match_number,
         "status": match.status,
+        "preparation_ms": _tournament_preparation_ms(match),
         "player_one": _participant_row(match.player_one) if match.player_one else None,
         "player_two": _participant_row(match.player_two) if match.player_two else None,
         "winner_id": match.winner_id,
@@ -283,7 +290,7 @@ def _tournament_match_row(match, snapshot):
             "index": match.current_question_index,
             "ordinal": current.get("ordinal", match.current_question_index + 1),
             "prompt": current.get("prompt", ""),
-        } if current and match.status == TournamentMatch.Status.RUNNING else None,
+        } if current and match.status == TournamentMatch.Status.RUNNING and not _tournament_preparation_ms(match) else None,
         "last_question_result": {
             "question_index": match.last_question_index,
             "winner_id": match.last_question_winner_id,
@@ -607,7 +614,8 @@ def _student_round_state(round_obj, student):
             .first()
         )
         data["my_tournament_match_id"] = active_match.id if active_match else None
-        data["can_answer_tournament"] = bool(active_match and round_obj.status == GameRound.Status.RUNNING)
+        data["tournament_preparation_ms"] = _tournament_preparation_ms(active_match) if active_match else 0
+        data["can_answer_tournament"] = bool(active_match and round_obj.status == GameRound.Status.RUNNING and not data["tournament_preparation_ms"])
         data["tournament_answer_cooldown_ms"] = (
             _tournament_answer_cooldown_ms(participant) if data["can_answer_tournament"] else 0
         )
@@ -656,6 +664,12 @@ def _student_round_state(round_obj, student):
             "ordinal": prompt["ordinal"],
             "sentence": prompt["sentence"],
         }
+    # Students only receive their own current question. Spectators get the bracket alone.
+    if round_obj.module.rubric == GameModule.Rubric.TOURNAMENT:
+        for match in data.get("tournament_matches", []):
+            if match["id"] != data.get("my_tournament_match_id"):
+                match["current_question"] = None
+                match["last_question_result"] = None
     return data
 
 
@@ -1081,7 +1095,7 @@ def _create_tournament_matches(round_obj, stage_number, participants):
             player_two=two,
             winner=one if is_bye else None,
             status=TournamentMatch.Status.FINISHED if is_bye else TournamentMatch.Status.RUNNING,
-            started_at=now,
+            started_at=now if is_bye else now + timedelta(seconds=3),
             finished_at=now if is_bye else None,
         )
 
@@ -1526,6 +1540,13 @@ def student_tournament_answer_api(request: HttpRequest, round_id: int):
             return _api_error("this tournament match is not running", 409)
         if participant.id not in {match.player_one_id, match.player_two_id}:
             return _api_error("student is not assigned to this match", 403)
+        preparation_ms = _tournament_preparation_ms(match)
+        if preparation_ms:
+            response = JsonResponse({"ok": False, "preparing": True,
+                "error": "prepare for the next round", "retry_after_ms": preparation_ms,
+                "round": _student_round_state(round_obj, student)}, status=409)
+            response["Retry-After"] = str(ceil(preparation_ms / 1000))
+            return response
         stage = round_obj.prompt_snapshot[match.stage_number - 1]
         questions = stage.get("questions", [])
         if question_index < 0 or question_index >= len(questions):

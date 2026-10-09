@@ -1,0 +1,22 @@
+<style>
+  .tournament-preparation{text-align:center;padding:24px;border:2px solid #38bdf8;border-radius:16px;background:color-mix(in srgb,#38bdf8 12%,transparent);margin:12px 0}
+  .tournament-countdown{display:grid;place-items:center;width:72px;height:72px;margin:0 auto 12px;border:5px solid #38bdf8;border-radius:50%;font-size:36px;font-weight:800;animation:round-ready 1s ease-in-out infinite}
+  @keyframes round-ready{50%{transform:scale(1.1);box-shadow:0 0 0 10px #38bdf822}}
+  @media(prefers-reduced-motion:reduce){.tournament-countdown{animation:none}}
+</style>
+<script>
+  // Keep the scroll element itself alive while live scores replace its contents.
+  function updateTournamentViewport(root, html, roundId){
+    if(root._bracketHtml===html && root._bracketRound===roundId && root.firstElementChild)return;
+    const template=document.createElement('template');template.innerHTML=html;
+    const next=template.content.firstElementChild, current=root.firstElementChild;
+    if(current && next && root._bracketRound===roundId){
+      const left=current.scrollLeft,top=current.scrollTop;
+      const focused=current.contains(document.activeElement)?document.activeElement.dataset.matchId:null;
+      current.replaceChildren(...next.childNodes);
+      current.scrollLeft=left;current.scrollTop=top;
+      if(focused)current.querySelector(`[data-match-id="${focused}"]`)?.focus({preventScroll:true});
+    }else root.replaceChildren(...template.content.childNodes);
+    root._bracketHtml=html;root._bracketRound=roundId;
+  }
+</script>

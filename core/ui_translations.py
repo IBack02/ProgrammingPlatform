@@ -2246,3 +2246,10 @@ for _lang_code, _extra in {
     'en': {'login_locked_countdown': 'Login is temporarily locked after failed attempts. Try again in {seconds} seconds.', 'login_lock_expired': 'The lockout has expired. You can try signing in again.'},
 }.items():
     UI_TRANSLATIONS[_lang_code].update(_extra)
+
+for _lang_code, _extra in {
+    'ru': {'tournament_prepare':'Приготовьтесь! Скоро начнётся новый раунд.', 'live_results':'Результаты гонки', 'marker_color':'Цвет маркера', 'marker_yellow':'Жёлтый', 'marker_green':'Зелёный', 'marker_blue':'Голубой', 'marker_pink':'Розовый', 'marker_purple':'Фиолетовый', 'marker_orange':'Оранжевый', 'marker_red':'Красный', 'lesson_marker_hint':'Выделите текст для подсветки у учеников. Повторное выделение снимает маркер.'},
+    'kk': {'tournament_prepare':'Дайындалыңыз! Жаңа раунд жақында басталады.', 'live_results':'Жарыс нәтижелері', 'marker_color':'Маркер түсі', 'marker_yellow':'Сары', 'marker_green':'Жасыл', 'marker_blue':'Көгілдір', 'marker_pink':'Қызғылт', 'marker_purple':'Күлгін', 'marker_orange':'Қызғылт сары', 'marker_red':'Қызыл', 'lesson_marker_hint':'Мәтінді таңдасаңыз, оқушылар белгілеуді көреді. Қайта таңдау белгілеуді жояды.'},
+    'en': {'tournament_prepare':'Get ready! A new round is about to start.', 'live_results':'Race results', 'marker_color':'Highlighter color', 'marker_yellow':'Yellow', 'marker_green':'Green', 'marker_blue':'Blue', 'marker_pink':'Pink', 'marker_purple':'Purple', 'marker_orange':'Orange', 'marker_red':'Red', 'lesson_marker_hint':'Select text to highlight it for students. Select it again to remove the highlight.'},
+}.items():
+    UI_TRANSLATIONS[_lang_code].update(_extra)

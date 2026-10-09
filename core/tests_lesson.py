@@ -112,3 +112,12 @@ class LessonTests(TestCase):
         payload.update(class_id=group.id, names="Good")
         self.assertEqual(self.client.post(url, json.dumps(payload), content_type="application/json").status_code, 404)
         self.assertEqual(Client().post(url, json.dumps(payload), content_type="application/json").status_code, 401)
+
+    def test_marker_palette_colors_are_saved_and_shared(self):
+        student = self.student_client(self.group)
+        for color in ("yellow", "green", "blue", "pink", "purple", "orange", "red"):
+            result = self.put([{"block_id": self.block.id, "start": 0, "end": 5, "color": color}])
+            self.assertEqual(result.status_code, 200)
+            self.assertEqual(student.get(self.student_url).json()["ranges"][0]["color"], color)
+        self.assertEqual(self.put([{"block_id": self.block.id, "start": 0, "end": 5, "color": "invalid"}]).status_code, 400)
+        self.assertEqual(self.put([{"block_id": self.block.id, "start": 0, "end": 5}]).json()["ranges"][0]["color"], "yellow")

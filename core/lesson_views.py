@@ -7,6 +7,8 @@ from django.views.decorators.http import require_GET, require_http_methods
 from . import views
 from .models import LessonHighlight, TheoryMaterialModule
 
+MARKER_COLORS = {"yellow", "green", "blue", "pink", "purple", "orange", "red"}
+
 
 @views.teacher_required
 @ensure_csrf_cookie
@@ -42,12 +44,15 @@ def teacher_highlights(request, module_id):
             if block and "text" in row and row["text"] != block.content:
                 return JsonResponse({"ok": False, "error": "Text has changed; reload the module"}, status=409)
             start, end = row.get("start"), row.get("end")
+            color = row.get("color", "yellow")
+            if not isinstance(color, str) or color not in MARKER_COLORS:
+                return JsonResponse({"ok": False, "error": "Invalid marker color"}, status=400)
             if (not block or block.block_type not in ("heading", "text", "code")
                     or type(start) is not int or type(end) is not int
                     or not 0 <= start < end <= len(block.content.encode("utf-16-le")) // 2):
                 return JsonResponse({"ok": False, "error": "Invalid highlight range"}, status=400)
             # Bind offsets to the displayed content; stale marks disappear after editing a block.
-            clean.append({"block_id": block.id, "start": start, "end": end, "text": block.content})
+            clean.append({"block_id": block.id, "start": start, "end": end, "text": block.content, "color": color})
         state, _ = LessonHighlight.objects.update_or_create(module=module, class_group=group, defaults={"ranges": clean})
     else:
         state = LessonHighlight.objects.filter(module=module, class_group=group).first()
