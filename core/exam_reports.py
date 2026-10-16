@@ -102,14 +102,14 @@ def compact_analysis_input(data):
         reviews.append([aindex[r.assignment.exam_attempt_id], qindex[r.question_id], reviewer, float(r.score),
                         r.moderation_status, text_id(r.comment), text_id(r.teacher_comment)])
     payload = {
-        "schema": {"q": "number,prompt_text_id,max,model_answer_text_id,type,table_schema,matching_pairs,image_url",
+        "schema": {"q": "number,prompt_text_id,max,model_answer_text_id,type,table_schema,matching_pairs,image_url,choices",
                    "s": "anonymous_student_id,teacher_scores,peer_scores,teacher_feedback_text_ids",
                    "r": "student_id,question_index,anonymous_reviewer_id,score,moderation,comment_text_id,teacher_moderation_comment_text_id",
                    "avg": "number,max,teacher_mean,peer_mean,teacher_count,peer_count,objective_review_count",
                    "null": "missing grade or text; never zero", "text_ids": "zero-based index into texts; all question arrays use q order"},
         "exam": [data["exam"].title, data["exam"].topic],
         "q": [[q.position, text_id(q.prompt), float(q.max_score), text_id(q.model_answer), q.question_type, q.table_schema,
-               [[p.left_text, p.right_text] for p in q.matching_pairs.all()], q.image_url] for q in data["questions"]],
+               [[p.left_text, p.right_text] for p in q.matching_pairs.all()], q.image_url, q.choices] for q in data["questions"]],
         "s": [[row["id"], row["teacher"], row["peer"], [text_id(f) for f in row["feedback"]]] for row in data["rows"]],
         "r": reviews,
         "avg": [[r[k] for k in ("number", "max", "teacher", "peer", "teacher_n", "peer_n", "objective_n")] for r in data["stats"]],

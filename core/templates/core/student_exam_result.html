@@ -48,7 +48,7 @@
         <div class="question-head"><div class="question-title">{{ row.question.position }}. {{ row.question.prompt }}</div><span class="points">{{ row.question.max_score }} {{ T.points }}</span></div>
         <div class="section">
           <div class="section-title">{{ T.your_exam_answer }}</div>
-          {% if row.question.question_type == 'open_text' %}
+          {% if row.question.question_type == 'open_text' or row.question.question_type == 'single_choice' %}
             <div class="answer-text{% if not row.answer or not row.answer.text_answer %} empty{% endif %}">{% if row.answer and row.answer.text_answer %}{{ row.answer.text_answer }}{% else %}{{ T.no_answer }}{% endif %}</div>
           {% elif row.question.question_type == 'matching' %}
             {% if row.matching_rows %}{% for pair in row.matching_rows %}<div class="matching-row"><div>{{ pair.left_text }}</div><span>→</span><div>{{ pair.right_text|default:T.no_answer }}</div></div>{% endfor %}{% else %}<div class="answer-text empty">{{ T.no_answer }}</div>{% endif %}

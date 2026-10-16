@@ -5,6 +5,8 @@ from django.contrib.auth.hashers import make_password, check_password
 class ClassGroup(models.Model):
     # Django's primary-key `id` is the stable unique class identifier.
     name = models.CharField(max_length=32)
+    is_guest = models.BooleanField(default=False)
+    guest_access_token = models.UUIDField(null=True, blank=True, unique=True, editable=False)
     owner = models.ForeignKey(
         "Teacher",
         on_delete=models.SET_NULL,
@@ -18,6 +20,9 @@ class ClassGroup(models.Model):
         verbose_name = "Class"
         verbose_name_plural = "Classes"
         ordering = ["name"]
+        constraints = [
+            models.UniqueConstraint(fields=["owner"], condition=models.Q(is_guest=True), name="one_guest_class_per_teacher"),
+        ]
 
     def __str__(self):
         return self.name
@@ -32,6 +37,8 @@ class Student(models.Model):
         related_name="member_students",
     )
     pin_hash = models.CharField(max_length=256)
+    guest_lease_token = models.UUIDField(null=True, blank=True, unique=True, editable=False)
+    guest_lease_expires_at = models.DateTimeField(null=True, blank=True, editable=False)
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -1055,6 +1062,7 @@ class Exam(models.Model):
     topic = models.CharField(max_length=255, blank=True, default="")
     instructions = models.TextField(blank=True, default="")
     duration_minutes = models.PositiveIntegerField(default=60)
+    auto_grade = models.BooleanField(default=False)
     status = models.CharField(max_length=16, choices=Status.choices, default=Status.DRAFT)
     allowed_classes = models.ManyToManyField(ClassGroup, through="ExamClass", related_name="exams")
     created_at = models.DateTimeField(auto_now_add=True)
@@ -1085,6 +1093,7 @@ class ExamQuestion(models.Model):
         MATCHING = "matching", "Matching"
         DIAGRAM = "diagram", "Diagram"
         TABLE = "table", "Fill table"
+        SINGLE_CHOICE = "single_choice", "Test (one answer)"
 
     exam = models.ForeignKey(Exam, on_delete=models.CASCADE, related_name="questions")
     position = models.PositiveIntegerField()
@@ -1093,6 +1102,7 @@ class ExamQuestion(models.Model):
     image_url = models.URLField(max_length=1000, blank=True, default="")
     model_answer = models.TextField(blank=True, default="")
     table_schema = models.JSONField(default=dict, blank=True)
+    choices = models.JSONField(default=list, blank=True)
     max_score = models.DecimalField(max_digits=7, decimal_places=2, default=1)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -1153,6 +1163,7 @@ class ExamAnswer(models.Model):
     attempt = models.ForeignKey(ExamAttempt, on_delete=models.CASCADE, related_name="answers")
     question = models.ForeignKey(ExamQuestion, on_delete=models.PROTECT, related_name="answers")
     text_answer = models.TextField(blank=True, default="")
+    choice_answer = models.CharField(max_length=32, blank=True, default="")
     matching_answer = models.JSONField(default=dict, blank=True)
     diagram_xml = models.TextField(blank=True, default="")
     diagram_file_url = models.URLField(max_length=1000, blank=True, default="")

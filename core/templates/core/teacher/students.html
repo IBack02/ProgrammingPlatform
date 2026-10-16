@@ -162,8 +162,9 @@
   <div id="bulkFields" hidden style="margin-bottom:10px">
     <label for="bulkNames">{{ T.bulk_students_help }}</label>
     <textarea id="bulkNames" class="input-ui" rows="8" style="display:block;width:100%;margin-top:8px" maxlength="50000"></textarea>
-    <div class="muted">{{ T.bulk_students_pin }}</div>
+    <div class="muted" id="bulkPinHint">{{ T.bulk_students_pin }}</div>
   </div>
+  <p id="guestHint" class="muted" hidden>{{ T.guest_names_hint }}</p>
   <div style="display:flex; gap:10px; flex-wrap:wrap;">
     <input id="newName" class="input-ui" placeholder="{{ T.full_name_unique }}" style="min-width:240px;"/>
     <input id="newPin" class="input-ui" type="password" placeholder="{{ T.pin_6_digits }}" inputmode="numeric" style="min-width:180px;"/>
@@ -227,6 +228,7 @@
     membershipsFailed: "{{ T.student_classes_save_failed|escapejs }}"
   };
 
+  let initialClassId = new URLSearchParams(location.search).get("class_id");
   let editingStudentId = null;
   let classesCache = [];
   let studentsCache = [];
@@ -300,7 +302,8 @@
     classesCache = classes;
 
     const sel = document.getElementById("classSelect");
-    const prev = sel.value;
+    const prev = sel.value || initialClassId;
+    initialClassId = null;
     sel.innerHTML = "";
     sel.insertAdjacentHTML("beforeend", `<option value="">${escapeHtml(UI.allClasses)}</option>`);
     classes.forEach(c => {
@@ -311,11 +314,15 @@
       sel.value = prev;
     }
 
+    const guest = classes.find(c => String(c.id) === sel.value)?.is_guest;
+    document.getElementById("newPin").hidden = !!guest;
+    document.getElementById("guestHint").hidden = !guest;
+    document.getElementById("bulkPinHint").hidden = !!guest;
     return classes;
   }
 
   function buildClassOptions(selectedId){
-    return classesCache.map(c => `
+    return classesCache.filter(c => c.id === selectedId || (!c.is_guest && !classesCache.find(row => row.id === selectedId)?.is_guest)).map(c => `
       <option value="${c.id}" ${String(c.id) === String(selectedId) ? "selected" : ""}>
         ${escapeHtml(c.name)}
       </option>
@@ -402,7 +409,7 @@
                 • ${escapeHtml(UI.selected)}
               </div>
               <div class="membership-summary">${escapeHtml(UI.classesLabel)}: ${escapeHtml((s.classes || []).map(c => c.name).join(", ") || s.class?.name || "—")}</div>
-              <button class="btn" type="button" data-classes="${s.id}" style="margin-top:8px">${escapeHtml(UI.addToClasses)}</button>
+              <button class="btn" type="button" data-classes="${s.id}" style="margin-top:8px;${s.is_guest ? 'display:none' : ''}">${escapeHtml(UI.addToClasses)}</button>
             `;
             studentCard.addEventListener("click", () => {
               editingStudentId = s.id;
@@ -430,7 +437,7 @@
                 <div class="editor-row">
                   <div>
                     <div class="muted" style="margin-bottom:6px;">${escapeHtml(UI.newPin)}</div>
-                    <input class="input-ui" type="password" data-pin="${s.id}" placeholder="${escapeHtml(UI.pinOptionalChange)}" inputmode="numeric" style="width:100%;">
+                    <input class="input-ui" type="password" ${s.is_guest ? 'disabled' : ''} data-pin="${s.id}" placeholder="${escapeHtml(UI.pinOptionalChange)}" inputmode="numeric" style="width:100%;">
                   </div>
                   <div style="display:flex;align-items:flex-end;">
                     <label class="muted" style="display:flex;gap:8px;align-items:center;">
@@ -556,7 +563,7 @@
     document.getElementById("membershipTitle").textContent = `${UI.classesLabel}: ${student.full_name}`;
     const selectedIds = new Set((student.class_ids || []).map(Number));
     const primaryId = Number(student.class?.id);
-    document.getElementById("membershipList").innerHTML = classesCache.map(classGroup => {
+    document.getElementById("membershipList").innerHTML = classesCache.filter(c => c.id === primaryId || (!c.is_guest && !student.is_guest)).map(classGroup => {
       const isPrimary = Number(classGroup.id) === primaryId;
       return `<label class="membership-option${isPrimary ? " primary" : ""}">
         <input type="checkbox" value="${classGroup.id}" ${selectedIds.has(Number(classGroup.id)) ? "checked" : ""} ${isPrimary ? "disabled" : ""}>
@@ -627,7 +634,7 @@
       setMsg(UI.enterStudentName, "err");
       return;
     }
-    if (!(pin.length === 6 && /^\d+$/.test(pin))){
+    if (!classesCache.find(c => String(c.id) === classId)?.is_guest && !(pin.length === 6 && /^\d+$/.test(pin))){
       setMsg(UI.pinMustBe6Digits, "err");
       return;
     }

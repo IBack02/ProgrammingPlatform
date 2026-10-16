@@ -15,6 +15,7 @@
       placeholder="{{ T.class_name_placeholder }}"
       style="padding:10px;border:1px solid #e5e7eb;border-radius:10px;min-width:240px;"
     />
+    <label style="display:flex;align-items:center;gap:8px"><input id="newClassGuest" type="checkbox"> {{ T.guest_class }}</label>
     <button class="btn" id="createBtn" type="button">{{ T.create }}</button>
   </div>
   <div class="muted" id="msg" style="margin-top:8px;"></div>
@@ -156,6 +157,17 @@
           <span class="muted">${escapeHtml(UI.studentsCount)}: ${c.student_count || 0}</span>
         </div>
 
+        ${c.is_guest ? `<div style="display:flex;gap:20px;align-items:center;flex-wrap:wrap;margin-top:18px">
+          <img src="/teacher/classes/${c.id}/guest-qr/" alt="QR" width="180" height="180" style="background:white;border-radius:12px">
+          <div style="min-width:0;flex:1">
+            <strong>{{ T.guest_class|escapejs }}</strong><p>{{ T.guest_available|escapejs }}: ${c.guest_available} / ${c.student_count}</p>
+            <input aria-label="{{ T.guest_link|escapejs }}" readonly value="${escapeHtml(new URL(c.guest_url, location.origin).href)}" style="width:100%;box-sizing:border-box;padding:10px" onclick="this.select()">
+            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">
+              <a class="btn" href="/teacher/classes/${c.id}/guest-qr/?download=1">{{ T.guest_download_qr|escapejs }}</a>
+              <a class="btn" href="/teacher/students/?class_id=${c.id}">{{ T.guest_add|escapejs }}</a>
+            </div><p class="muted">{{ T.guest_lifetime|escapejs }}</p>
+          </div>
+        </div>` : ''}
         <div id="students-${c.id}" style="margin-top:12px; ${isExpanded ? '' : 'display:none;'}">
           <div style="font-weight:800; margin-bottom:4px;">${escapeHtml(UI.studentsOfClass)}</div>
           ${renderStudentBadges(c.students || [])}
@@ -221,6 +233,9 @@
     }
 
     renderList(res.data.classes || []);
+    const hasGuest = (res.data.classes || []).some(c => c.is_guest);
+    document.getElementById("newClassGuest").disabled = hasGuest;
+    if (hasGuest) document.getElementById("newClassGuest").checked = false;
   }
 
   document.getElementById("createBtn").addEventListener("click", async () => {
@@ -230,7 +245,7 @@
       return;
     }
 
-    const res = await api("/api/teacher/classes/", "POST", {name});
+    const res = await api("/api/teacher/classes/", "POST", {name, is_guest: document.getElementById("newClassGuest").checked});
     if (!res.data.ok){
       setMsg(res.data.error || UI.createFailed);
       return;

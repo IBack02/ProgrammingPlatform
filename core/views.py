@@ -4,6 +4,7 @@ import json
 import logging
 import random
 import re
+import uuid
 from functools import wraps
 from datetime import timedelta
 from urllib.parse import urlparse
@@ -11,7 +12,7 @@ from urllib.parse import urlparse
 from django.conf import settings
 from django.contrib.admin.views.decorators import staff_member_required
 from django.contrib.auth.hashers import check_password, make_password
-from django.db import transaction
+from django.db import IntegrityError, transaction
 from django.db.models import Avg, Count, F, Max, Q, Sum
 from django.http import HttpRequest, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -517,6 +518,9 @@ def _serialize_class_group(class_group: ClassGroup):
     return {
         "id": class_group.id,
         "name": class_group.name,
+        "is_guest": class_group.is_guest,
+        "guest_url": f"/guest/{class_group.guest_access_token}/" if class_group.is_guest else None,
+        "guest_available": class_group.students.filter(is_active=True).filter(Q(guest_lease_expires_at__isnull=True) | Q(guest_lease_expires_at__lte=timezone.now())).count() if class_group.is_guest else None,
         "student_count": len(students),
         "students": students,
     }
@@ -552,6 +556,7 @@ def _serialize_student(student: Student):
     return {
         "id": student.id,
         "full_name": student.full_name,
+        "is_guest": student.class_group.is_guest,
         "class": {
             "id": student.class_group_id,
             "name": student.class_group.name if student.class_group_id else "",
@@ -887,7 +892,7 @@ def _task_hints_from_payload(data: dict, defaults: SessionTask | None = None) ->
 def _authenticate_student(full_name: str, pin: str):
     candidates = list(
         Student.objects.select_related("class_group")
-        .filter(full_name__iexact=full_name, is_active=True)
+        .filter(full_name__iexact=full_name, is_active=True, class_group__is_guest=False)
         .order_by("id")[:21]
     )
     if not candidates:
@@ -2640,7 +2645,14 @@ def teacher_classes_api(request: HttpRequest):
     if ClassGroup.objects.filter(owner=teacher, name__iexact=name).exists():
         return JsonResponse({"ok": False, "error": "class with this name already exists"}, status=409)
 
-    obj = ClassGroup.objects.create(name=name, owner=teacher)
+    is_guest = data.get("is_guest", False)
+    if not isinstance(is_guest, bool):
+        return JsonResponse({"ok": False, "error": "is_guest must be a boolean"}, status=400)
+    try:
+        with transaction.atomic():
+            obj = ClassGroup.objects.create(name=name, owner=teacher, is_guest=is_guest, guest_access_token=uuid.uuid4() if is_guest else None)
+    except IntegrityError:
+        return JsonResponse({"ok": False, "error": UI_TRANSLATIONS[get_ui_lang(request)]["guest_one_class"]}, status=409)
     return JsonResponse({"ok": True, "class": _serialize_class_group(obj)}, status=201)
 
 
@@ -2703,16 +2715,16 @@ def teacher_students_api(request: HttpRequest):
 
     if not full_name:
         return JsonResponse({"ok": False, "error": "full_name is required"}, status=400)
-    if not PIN_RE.match(pin):
-        return JsonResponse({"ok": False, "error": "pin must be 6 digits"}, status=400)
     if not (isinstance(class_id, int) or (isinstance(class_id, str) and str(class_id).isdigit())):
         return JsonResponse({"ok": False, "error": "class_id is required"}, status=400)
     if Student.objects.filter(class_group__owner=teacher, full_name__iexact=full_name).exists():
         return JsonResponse({"ok": False, "error": "student with this name already exists"}, status=409)
 
     cg = get_object_or_404(ClassGroup, id=int(class_id), owner=teacher)
+    if not cg.is_guest and not PIN_RE.match(pin):
+        return JsonResponse({"ok": False, "error": "pin must be 6 digits"}, status=400)
     st = Student(full_name=full_name, class_group=cg, is_active=True)
-    st.set_pin(pin)
+    st.set_pin(None if cg.is_guest else pin)
     st.save()
     return JsonResponse({"ok": True, "student": _serialize_student(st)}, status=201)
 
@@ -2730,12 +2742,12 @@ def teacher_students_bulk_api(request: HttpRequest):
     if not names or len(names) > 200 or any(len(name) > 120 for name in names):
         return JsonResponse({"ok": False, "error": "Use 1–200 names, each up to 120 characters"}, status=400)
     pin = str(data.get("pin") or "").strip()
-    if not PIN_RE.match(pin):
-        return JsonResponse({"ok": False, "error": "pin must be 6 digits"}, status=400)
     class_id = str(data.get("class_id") or "")
     if not class_id.isdigit():
         return JsonResponse({"ok": False, "error": "class_id is required"}, status=400)
     group = get_object_or_404(ClassGroup, id=int(class_id), owner=teacher)
+    if not group.is_guest and not PIN_RE.match(pin):
+        return JsonResponse({"ok": False, "error": "pin must be 6 digits"}, status=400)
     created, skipped = [], []
     with transaction.atomic():
         Teacher.objects.select_for_update().get(id=teacher.id)
@@ -2745,7 +2757,7 @@ def teacher_students_bulk_api(request: HttpRequest):
                 skipped.append(name)
                 continue
             student = Student(full_name=name, class_group=group, is_active=True)
-            student.set_pin(pin)
+            student.set_pin(None if group.is_guest else pin)
             student.save()
             created.append(student.id)
             existing.add(name.casefold())
@@ -2779,12 +2791,21 @@ def teacher_student_detail_api(request: HttpRequest, student_id: int):
         cid = data.get("class_id")
         if not (isinstance(cid, int) or (isinstance(cid, str) and str(cid).isdigit())):
             return JsonResponse({"ok": False, "error": "invalid class_id"}, status=400)
-        st.class_group = get_object_or_404(ClassGroup, id=int(cid), owner=teacher)
+        target_class = get_object_or_404(ClassGroup, id=int(cid), owner=teacher)
+        if target_class.id != st.class_group_id and (target_class.is_guest or st.class_group.is_guest):
+            return JsonResponse({"ok": False, "error": "Guest accounts cannot move between classes"}, status=400)
+        st.class_group = target_class
 
     if "is_active" in data:
         st.is_active = bool(data.get("is_active"))
+        if not st.is_active:
+            st.guest_lease_token = None
+            st.guest_lease_expires_at = None
 
-    st.save()
+    changed_fields = ["full_name", "class_group", "is_active"]
+    if not st.is_active:
+        changed_fields += ["guest_lease_token", "guest_lease_expires_at"]
+    st.save(update_fields=changed_fields)
     if previous_primary_class_id != st.class_group_id:
         StudentClassMembership.objects.filter(
             student=st,
@@ -2835,6 +2856,9 @@ def teacher_student_classes_api(request: HttpRequest, student_id: int):
             status=400,
         )
 
+    if (student.class_group.is_guest and class_ids != [student.class_group_id]) or ClassGroup.objects.filter(id__in=class_ids, is_guest=True).exclude(id=student.class_group_id).exists():
+        return JsonResponse({"ok": False, "error": "Guest accounts belong only to their guest class"}, status=400)
+
     with transaction.atomic():
         StudentClassMembership.objects.filter(student=student).exclude(
             class_group_id__in=class_ids
@@ -2856,6 +2880,8 @@ def teacher_student_reset_pin_api(request: HttpRequest, student_id: int):
         return _teacher_api_unauthorized()
 
     st = get_object_or_404(Student, id=student_id, class_group__owner=teacher)
+    if st.class_group.is_guest:
+        return JsonResponse({"ok": False, "error": "Guest accounts use the guest link, not a PIN"}, status=400)
     data = _json_body(request)
     pin = str(data.get("pin") or "").strip()
     if not PIN_RE.match(pin):

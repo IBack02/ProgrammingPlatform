@@ -205,6 +205,7 @@ def _serialize_question_teacher(question: ExamQuestion) -> dict:
         "image_url": question.image_url,
         "model_answer": question.model_answer,
         "table_schema": question.table_schema,
+        "choices": question.choices,
         "max_score": float(question.max_score),
         "pairs": [_serialize_pair(pair) for pair in question.matching_pairs.all()],
     }
@@ -217,6 +218,7 @@ def _serialize_exam(exam: Exam, include_questions: bool = False) -> dict:
         "topic": exam.topic,
         "instructions": exam.instructions,
         "duration_minutes": exam.duration_minutes,
+        "auto_grade": exam.auto_grade,
         "status": exam.status,
         "class_ids": list(exam.allowed_classes.order_by("name").values_list("id", flat=True)),
         "question_count": exam.questions.count(),
@@ -248,6 +250,7 @@ def _clone_exam(source: Exam, teacher: Teacher) -> Exam:
         topic=source.topic,
         instructions=source.instructions,
         duration_minutes=source.duration_minutes,
+        auto_grade=source.auto_grade,
         status=Exam.Status.DRAFT,
     )
     for question in source.questions.prefetch_related("matching_pairs").order_by(
@@ -261,6 +264,7 @@ def _clone_exam(source: Exam, teacher: Teacher) -> Exam:
             image_url=question.image_url,
             model_answer=question.model_answer,
             table_schema=deepcopy(question.table_schema),
+            choices=deepcopy(question.choices),
             max_score=question.max_score,
         )
         ExamMatchPair.objects.bulk_create(
@@ -403,6 +407,29 @@ def _validate_table_answer(question: ExamQuestion, value) -> dict:
         clean[str(key)] = text
     return clean
 
+def _parse_choices(raw):
+    if not isinstance(raw, list) or not 2 <= len(raw) <= 12:
+        raise ValueError("A test needs 2–12 answer options")
+    choices = []
+    for index, item in enumerate(raw, 1):
+        if not isinstance(item, dict) or not isinstance(item.get("is_correct", False), bool):
+            raise ValueError("Each option needs text and a boolean is_correct")
+        text = str(item.get("text") or "").strip()
+        if not text or len(text) > 4000:
+            raise ValueError("Option text must contain 1–4000 characters")
+        choices.append({"key": str(index), "text": text, "is_correct": item.get("is_correct", False)})
+    if sum(c["is_correct"] for c in choices) != 1:
+        raise ValueError("Select exactly one correct answer")
+    return choices
+
+
+def _auto_grade_flag(data, default=False):
+    value = data.get("auto_grade", default)
+    if not isinstance(value, bool):
+        raise ValueError("auto_grade must be a boolean")
+    return value
+
+
 def _parse_question_payload(data: dict, defaults: ExamQuestion | None = None) -> dict:
     question_type = str(
         data.get("question_type", defaults.question_type if defaults else "")
@@ -416,7 +443,12 @@ def _parse_question_payload(data: dict, defaults: ExamQuestion | None = None) ->
     prompt = str(data.get("prompt", defaults.prompt if defaults else "")).strip()
     if not prompt:
         raise ValueError("prompt is required")
-    if question_type == ExamQuestion.QuestionType.TABLE:
+    choices = []
+    if question_type == ExamQuestion.QuestionType.SINGLE_CHOICE:
+        choices = _parse_choices(data.get("choices", defaults.choices if defaults else []))
+        table_schema = {}
+        model_answer = next(c["text"] for c in choices if c["is_correct"])
+    elif question_type == ExamQuestion.QuestionType.TABLE:
         raw_schema = data.get(
             "table_schema",
             defaults.table_schema if defaults else None,
@@ -456,6 +488,7 @@ def _parse_question_payload(data: dict, defaults: ExamQuestion | None = None) ->
         "image_url": image_url,
         "max_score": max_score,
         "pairs": pairs,
+        "choices": choices,
     }
 
 
@@ -519,12 +552,43 @@ def _presentation_for_exam(exam: Exam) -> dict:
     return presentation
 
 
+def _auto_grade_attempt(attempt):
+    if not attempt.exam.auto_grade:
+        return
+    for question in attempt.exam.questions.filter(question_type__in=[
+        ExamQuestion.QuestionType.MATCHING, ExamQuestion.QuestionType.SINGLE_CHOICE,
+    ]):
+        answer, _ = ExamAnswer.objects.get_or_create(attempt=attempt, question=question)
+        if answer.awarded_score is not None:
+            continue  # Preserve any explicit teacher grade.
+        if question.question_type == ExamQuestion.QuestionType.SINGLE_CHOICE:
+            correct = next((c["key"] for c in question.choices if c["is_correct"]), None)
+            score = question.max_score if correct and answer.choice_answer == correct else Decimal("0")
+        else:
+            correct = attempt.presentation_json.get(str(question.id), {}).get("correct", {})
+            matched = sum(answer.matching_answer.get(left) == right for left, right in correct.items())
+            score = question.max_score * Decimal(matched) / Decimal(len(correct)) if correct else Decimal("0")
+        answer.awarded_score = score.quantize(Decimal("0.01"))
+        answer.save(update_fields=["awarded_score", "updated_at"])
+    attempt.total_score = attempt.answers.aggregate(total=Sum("awarded_score"))["total"] or Decimal("0")
+    attempt.save(update_fields=["total_score", "updated_at"])
+
+
+def _finish_attempt(attempt, status):
+    # Serialize closure with autosaves and other requests discovering expiry.
+    with transaction.atomic():
+        locked = ExamAttempt.objects.select_for_update().select_related("exam").get(id=attempt.id)
+        if locked.status == ExamAttempt.Status.IN_PROGRESS:
+            locked.status = status
+            locked.submitted_at = locked.expires_at if status == ExamAttempt.Status.EXPIRED else timezone.now()
+            locked.save(update_fields=["status", "submitted_at", "updated_at"])
+            _auto_grade_attempt(locked)
+        attempt.status, attempt.submitted_at, attempt.total_score = locked.status, locked.submitted_at, locked.total_score
+
+
 def _expire_if_needed(attempt: ExamAttempt) -> bool:
     if attempt.status == ExamAttempt.Status.IN_PROGRESS and timezone.now() >= attempt.expires_at:
-        attempt.status = ExamAttempt.Status.EXPIRED
-        attempt.submitted_at = attempt.expires_at
-        attempt.save(update_fields=["status", "submitted_at", "updated_at"])
-        return True
+        _finish_attempt(attempt, ExamAttempt.Status.EXPIRED)
     return attempt.status == ExamAttempt.Status.EXPIRED
 
 
@@ -567,6 +631,7 @@ def _answer_student(answer: ExamAnswer | None) -> dict:
     if not answer:
         return {
             "text_answer": "",
+            "choice_answer": "",
             "matching_answer": {},
             "diagram_xml": "",
             "diagram_file_url": "",
@@ -574,6 +639,7 @@ def _answer_student(answer: ExamAnswer | None) -> dict:
         }
     return {
         "text_answer": answer.text_answer,
+        "choice_answer": answer.choice_answer,
         "matching_answer": answer.matching_answer,
         "diagram_xml": answer.diagram_xml,
         "diagram_file_url": answer.diagram_file_url,
@@ -596,6 +662,8 @@ def _student_question(question: ExamQuestion, attempt: ExamAttempt, answer: Exam
         presentation = attempt.presentation_json.get(str(question.id), {})
         data["left_items"] = presentation.get("left", [])
         data["right_items"] = presentation.get("right", [])
+    elif question.question_type == ExamQuestion.QuestionType.SINGLE_CHOICE:
+        data["choices"] = [{"key": c["key"], "text": c["text"]} for c in question.choices]
     elif question.question_type == ExamQuestion.QuestionType.TABLE:
         data["table_schema"] = _student_table_schema(question.table_schema)
     return data
@@ -805,6 +873,13 @@ def _save_answer(attempt: ExamAttempt, question: ExamQuestion, data: dict) -> tu
     warning = ""
     if question.question_type == ExamQuestion.QuestionType.OPEN_TEXT:
         answer.text_answer = str(data.get("text_answer") or "")[:50000]
+    elif question.question_type == ExamQuestion.QuestionType.SINGLE_CHOICE:
+        key = str(data.get("choice_answer") or "")
+        choices = {c["key"]: c["text"] for c in question.choices}
+        if key and key not in choices:
+            raise ValueError("Unknown answer option")
+        answer.choice_answer = key
+        answer.text_answer = choices.get(key, "")
     elif question.question_type == ExamQuestion.QuestionType.MATCHING:
         answer.matching_answer = _validate_matching_answer(
             attempt, question, data.get("matching_answer") or {}
@@ -1118,6 +1193,7 @@ def teacher_exams_api(request: HttpRequest):
                 topic=str(data.get("topic") or "").strip(),
                 instructions=str(data.get("instructions") or "").strip(),
                 duration_minutes=duration,
+                auto_grade=_auto_grade_flag(data),
             )
             _set_exam_classes(exam, class_ids)
         return JsonResponse({"ok": True, "exam": _serialize_exam(exam, True)}, status=201)
@@ -1140,7 +1216,7 @@ def teacher_exam_detail_api(request: HttpRequest, exam_id: int):
             exam.delete()
             return JsonResponse({"ok": True})
         data = _json_body(request)
-        if {"title", "topic", "instructions", "duration_minutes", "class_ids"}.intersection(data):
+        if {"title", "topic", "instructions", "duration_minutes", "class_ids", "auto_grade"}.intersection(data):
             _ensure_exam_editable(exam)
         with transaction.atomic():
             if "title" in data:
@@ -1166,6 +1242,8 @@ def teacher_exam_detail_api(request: HttpRequest, exam_id: int):
                     if not ExamClass.objects.filter(exam=exam).exists():
                         raise ValueError("assign at least one class before starting the exam")
                 exam.status = status
+            if "auto_grade" in data:
+                exam.auto_grade = _auto_grade_flag(data)
             if "is_shared_template" in data:
                 exam.is_shared_template = bool(data.get("is_shared_template"))
             exam.save()
@@ -1263,6 +1341,7 @@ def teacher_exam_import_api(request: HttpRequest):
                     topic=str(exam_data.get("topic") or "").strip(),
                     instructions=str(exam_data.get("instructions") or "").strip(),
                     duration_minutes=_positive_int(exam_data.get("duration_minutes", 60), "duration_minutes", 1440),
+                    auto_grade=_auto_grade_flag(exam_data),
                 )
                 _set_exam_classes(exam, _class_ids_for_teacher(teacher, exam_data.get("class_ids", [])))
                 for question_data in questions:
@@ -1285,6 +1364,8 @@ def teacher_exam_import_api(request: HttpRequest):
                         raise ValueError("exam.title is required")
                 if "duration_minutes" in exam_data:
                     exam.duration_minutes = _positive_int(exam_data["duration_minutes"], "duration_minutes", 1440)
+                if "auto_grade" in exam_data:
+                    exam.auto_grade = _auto_grade_flag(exam_data)
                 if "class_ids" in exam_data:
                     _set_exam_classes(exam, _class_ids_for_teacher(teacher, exam_data["class_ids"]))
                 exam.save()
@@ -1382,6 +1463,7 @@ def teacher_exam_attempt_detail_api(request: HttpRequest, attempt_id: int):
         id=attempt_id,
         exam__owner=teacher,
     )
+    _expire_if_needed(attempt)
     answers = {answer.question_id: answer for answer in attempt.answers.all()}
     rows = []
     for question in attempt.exam.questions.prefetch_related("matching_pairs").order_by("position", "id"):
@@ -1479,6 +1561,7 @@ def student_exams_api(request: HttpRequest):
             "topic": exam.topic,
             "instructions": exam.instructions,
             "duration_minutes": exam.duration_minutes,
+        "auto_grade": exam.auto_grade,
             "status": exam.status,
             "question_count": exam.questions.count(),
             "total_points": float(exam.questions.aggregate(total=Sum("max_score"))["total"] or 0),
@@ -1561,6 +1644,7 @@ def student_exam_detail_api(request: HttpRequest, exam_id: int):
             "topic": exam.topic,
             "instructions": exam.instructions,
             "duration_minutes": exam.duration_minutes,
+        "auto_grade": exam.auto_grade,
             "status": exam.status,
         },
         "attempt": _attempt_summary(attempt),
@@ -1598,9 +1682,7 @@ def student_exam_answer_api(request: HttpRequest, exam_id: int, question_id: int
             if attempt.status != ExamAttempt.Status.IN_PROGRESS:
                 return _api_error("exam attempt is closed", 409)
             if timezone.now() >= attempt.expires_at:
-                attempt.status = ExamAttempt.Status.EXPIRED
-                attempt.submitted_at = attempt.expires_at
-                attempt.save(update_fields=["status", "submitted_at", "updated_at"])
+                _finish_attempt(attempt, ExamAttempt.Status.EXPIRED)
                 return _api_error("exam attempt is closed", 409)
 
             question = get_object_or_404(
@@ -1647,9 +1729,7 @@ def student_exam_integrity_api(request: HttpRequest, exam_id: int):
             if attempt.status != ExamAttempt.Status.IN_PROGRESS:
                 return _api_error("exam attempt is closed", 409)
             if timezone.now() >= attempt.expires_at:
-                attempt.status = ExamAttempt.Status.EXPIRED
-                attempt.submitted_at = attempt.expires_at
-                attempt.save(update_fields=["status", "submitted_at", "updated_at"])
+                _finish_attempt(attempt, ExamAttempt.Status.EXPIRED)
                 return _api_error("exam attempt is closed", 409)
 
             remaining = max(0, 500 - attempt.integrity_events.count())
@@ -1709,9 +1789,7 @@ def student_exam_submit_api(request: HttpRequest, exam_id: int):
             if attempt.status != ExamAttempt.Status.IN_PROGRESS:
                 return _api_error("exam attempt is already closed", 409)
             if timezone.now() >= attempt.expires_at:
-                attempt.status = ExamAttempt.Status.EXPIRED
-                attempt.submitted_at = attempt.expires_at
-                attempt.save(update_fields=["status", "submitted_at", "updated_at"])
+                _finish_attempt(attempt, ExamAttempt.Status.EXPIRED)
                 return _api_error("exam time has expired; saved drafts were fixed", 409)
             raw_answers = data.get("answers") or []
             if not isinstance(raw_answers, list):
@@ -1727,9 +1805,7 @@ def student_exam_submit_api(request: HttpRequest, exam_id: int):
                 final_row = dict(row)
                 final_row["upload_to_drive"] = False
                 _save_answer(attempt, question, final_row)
-            attempt.status = ExamAttempt.Status.SUBMITTED
-            attempt.submitted_at = timezone.now()
-            attempt.save(update_fields=["status", "submitted_at", "updated_at"])
+            _finish_attempt(attempt, ExamAttempt.Status.SUBMITTED)
         return JsonResponse({"ok": True, "attempt": _attempt_summary(attempt)})
     except ValueError as exc:
         return _api_error(str(exc))

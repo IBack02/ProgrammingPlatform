@@ -1,8 +1,10 @@
 from django.urls import path
 from django.views.generic import RedirectView
-from . import exam_reports, exam_views, game_views, lesson_views, module_import, module_order, peer_views, views
+from . import exam_reports, exam_views, game_views, guest_views, lesson_views, module_import, module_order, peer_views, views
 
 urlpatterns = [
+    path("guest/<uuid:token>/", guest_views.guest_entry, name="guest_entry"),
+    path("teacher/classes/<int:class_id>/guest-qr/", guest_views.guest_qr, name="guest_qr"),
     path("api/teacher/exams/<int:exam_id>/report/", exam_reports.teacher_exam_report, name="teacher_exam_report"),
     path("api/teacher/tasks/<int:task_id>/submissions/", lesson_views.teacher_lesson_submissions, name="teacher_lesson_submissions"),
     path("api/teacher/tasks/<int:task_id>/submissions/<int:submission_id>/", lesson_views.teacher_lesson_submissions, name="teacher_lesson_submission_detail"),
