@@ -373,7 +373,7 @@ CURRENT_EXAM_SNAPSHOT (use these exact exam and question IDs when editing; never
 ${JSON.stringify(snapshot,null,2)}
 
 CREATE A NEW EXAM:
-{"action":"create_exam","exam":{"title":"...","topic":"...","instructions":"...","duration_minutes":60,"class_ids":[]},"questions":[FULL_QUESTION,...]}
+{"action":"create_exam","exam":{"title":"...","topic":"...","instructions":"...","duration_minutes":60,"auto_grade":false,"class_ids":[]},"questions":[FULL_QUESTION,...]}
 
 UPDATE THE SELECTED EXAM:
 {"action":"update_exam","exam_id":${snapshot?.exam_id||1},"exam":{},"replace_questions":false,"questions":[QUESTION_COMMAND,...]}
@@ -396,6 +396,7 @@ QUESTION FIELDS:
 position is a positive unique integer. question_type is "open_text", "matching", "single_choice", "diagram", or "table". Common fields are prompt, image_url (empty or HTTPS URL), and max_score.
 Open text, matching and diagram questions require a non-empty model_answer.
 single_choice needs choices: [{"text":"Option A","is_correct":true},{"text":"Option B","is_correct":false}] with 2–12 options and exactly one correct option; model_answer is generated automatically.
+Example test question: {"position":1,"question_type":"single_choice","prompt":"How many bits are in a byte?","image_url":"","max_score":2,"choices":[{"text":"8","is_correct":true},{"text":"16","is_correct":false}]}
 exam.auto_grade (boolean, default false) enables automatic grading of matching and single_choice questions after submission or expiry. Matching receives partial credit per correct pair.
 Matching questions require at least two pairs: "pairs":[{"left_text":"...","right_text":"..."},{"left_text":"...","right_text":"..."}].
 

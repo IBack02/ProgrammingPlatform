@@ -163,6 +163,7 @@ def _clear_student_auth(request: HttpRequest) -> None:
         "student_auth_version",
         "student_selected_session_id",
         "student_selected_class_id",
+        "guest_lease_token",
     ]:
         request.session.pop(key, None)
 
@@ -934,6 +935,7 @@ def student_login(request: HttpRequest):
         return JsonResponse({"ok": False, "error": GENERIC_LOGIN_ERROR}, status=401)
 
     _clear_login_failures("student", request, full_name)
+    _clear_student_auth(request)
     request.session.cycle_key()
     request.session["student_id"] = student.id
     request.session["student_name"] = student.full_name
@@ -1944,6 +1946,7 @@ def student_login_page(request: HttpRequest):
         )
 
     _clear_login_failures("student", request, full_name)
+    _clear_student_auth(request)
     request.session.cycle_key()
     request.session["student_id"] = student.id
     request.session["student_name"] = student.full_name
@@ -1972,6 +1975,8 @@ def _change_pin_page(request: HttpRequest, role: str):
 
     if not account:
         return redirect(login_url)
+    if role == "student" and account.class_group.is_guest:
+        return redirect(return_url)
     if is_teacher:
         context = {
             "role": role,

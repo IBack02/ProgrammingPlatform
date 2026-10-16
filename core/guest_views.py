@@ -6,12 +6,12 @@ import qrcode
 from qrcode.image.svg import SvgPathFillImage
 from django.db import IntegrityError, transaction
 from django.db.models import Q
-from django.http import HttpResponse
+from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.cache import never_cache
-from django.views.decorators.http import require_GET, require_http_methods
+from django.views.decorators.http import require_GET, require_http_methods, require_POST
 
 from .models import ClassGroup, Student
 from .security import auth_version
@@ -35,6 +35,11 @@ def claim_guest(group, token):
     if existing:
         return existing
     free = Q(guest_lease_expires_at__isnull=True) | Q(guest_lease_expires_at__lte=now)
+    # An expired reservation with this visitor nonce must not prevent claiming
+    # an earlier free account through the unique-token constraint.
+    Student.objects.filter(free, guest_lease_token=token).update(
+        guest_lease_token=None, guest_lease_expires_at=None,
+    )
     for student_id in students.filter(free).order_by("id").values_list("id", flat=True):
         try:
             with transaction.atomic():
@@ -57,25 +62,46 @@ class GuestLeaseMiddleware:
         student_id = request.session.get("student_id")
         token = request.session.get("guest_lease_token")
         if student_id:
-            guest = Student.objects.filter(id=student_id, class_group__is_guest=True).exists()
+            guest = Student.objects.select_related("class_group").filter(id=student_id, class_group__is_guest=True).first()
             if guest:
+                request.guest_entry_url = reverse("guest_entry", args=[guest.class_group.guest_access_token])
                 now = timezone.now()
                 valid = Student.objects.filter(
                     id=student_id, is_active=True, class_group__owner__is_active=True,
                     guest_lease_token=token, guest_lease_expires_at__gt=now,
                 ) if token else Student.objects.none()
-                if not valid.exists():
+                # Renew atomically: if another visitor claimed an expired lease
+                # first, its new token makes this update fail and access is denied.
+                is_status_check = request.path == reverse("guest_session_status")
+                lease_valid = valid.exists() if is_status_check else valid.update(guest_lease_expires_at=now + LEASE_DURATION)
+                if not lease_valid:
                     for key in list(request.session.keys()):
-                        if key.startswith("student_") or key == "guest_lease_token":
+                        if key.startswith("student_") or key.startswith("guest_"):
                             request.session.pop(key, None)
-                else:
-                    valid.filter(guest_lease_expires_at__lt=now + timedelta(minutes=25)).update(
-                        guest_lease_expires_at=now + LEASE_DURATION,
-                    )
         response = self.get_response(request)
         if token and (request.session.get("student_id") != student_id or request.session.get("guest_lease_token") != token):
             release_guest(student_id, token)
         return response
+
+
+@require_GET
+def guest_session_status(request):
+    from .views import _get_logged_in_student
+    student = _get_logged_in_student(request) if request.session.get("guest_lease_token") else None
+    return JsonResponse({"ok": bool(student)}, status=200 if student else 401)
+
+
+@require_POST
+def release_class_guests(request, class_id):
+    from .views import _get_logged_in_teacher
+    teacher = _get_logged_in_teacher(request)
+    if not teacher:
+        return JsonResponse({"ok": False, "error": "not authenticated"}, status=401)
+    group = get_object_or_404(ClassGroup, id=class_id, owner=teacher, is_guest=True)
+    released = Student.objects.filter(class_group=group, guest_lease_token__isnull=False).update(
+        guest_lease_token=None, guest_lease_expires_at=None,
+    )
+    return JsonResponse({"ok": True, "released_count": released})
 
 
 @never_cache

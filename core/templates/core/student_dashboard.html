@@ -70,7 +70,7 @@
         <div>
           <div class="title" id="studentName">{{ T.student_portal_title }}</div>
           <div class="muted" id="studentClass"></div>
-          <div class="muted"><a href="/student/change-pin/">{{ T.change_pin }}</a></div>
+          {% if not request.session.guest_lease_token %}<div class="muted"><a href="/student/change-pin/">{{ T.change_pin }}</a></div>{% endif %}
         </div>
       </div>
       <div class="actions">

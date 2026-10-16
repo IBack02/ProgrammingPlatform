@@ -165,7 +165,8 @@
             <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">
               <a class="btn" href="/teacher/classes/${c.id}/guest-qr/?download=1">{{ T.guest_download_qr|escapejs }}</a>
               <a class="btn" href="/teacher/students/?class_id=${c.id}">{{ T.guest_add|escapejs }}</a>
-            </div><p class="muted">{{ T.guest_lifetime|escapejs }}</p>
+              <button class="btn" type="button" data-release-guests="${c.id}" style="border-color:#fca5a5">{{ T.guest_release_all|escapejs }}</button>
+            </div><div data-guest-notice="${c.id}" role="status" aria-live="polite" style="margin-top:8px"></div><p class="muted">{{ T.guest_lifetime|escapejs }}</p>
           </div>
         </div>` : ''}
         <div id="students-${c.id}" style="margin-top:12px; ${isExpanded ? '' : 'display:none;'}">
@@ -175,6 +176,25 @@
       `;
 
       root.appendChild(wrapper);
+    });
+
+    root.querySelectorAll("button[data-release-guests]").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        const id = btn.dataset.releaseGuests;
+        const notice = () => root.querySelector(`[data-guest-notice="${id}"]`);
+        btn.disabled = true;
+        notice().textContent = "{{ T.guest_releasing|escapejs }}";
+        try {
+          const res = await api(`/api/teacher/classes/${id}/release-guests/`, "POST");
+          if (!res.data.ok) throw new Error(res.data.error || "{{ T.guest_release_failed|escapejs }}");
+          await load();
+          if (notice()) notice().textContent = "{{ T.guest_released|escapejs }}";
+        } catch (error) {
+          if (notice()) notice().textContent = error.message || "{{ T.guest_release_failed|escapejs }}";
+        } finally {
+          btn.disabled = false;
+        }
+      });
     });
 
     root.querySelectorAll("button[data-save]").forEach(btn => {

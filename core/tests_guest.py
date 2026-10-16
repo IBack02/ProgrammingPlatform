@@ -5,6 +5,7 @@ from datetime import timedelta
 from django.db import IntegrityError, transaction
 from django.test import Client, TestCase, override_settings
 from django.utils import timezone
+from django.utils.html import escapejs
 
 from .guest_views import claim_guest, release_guest
 from .models import ClassGroup, Student, Teacher
@@ -113,8 +114,81 @@ class GuestAccountTests(TestCase):
         self.assertEqual(claim_guest(self.group, token).id, self.students[1].id)
         self.assertIsNone(claim_guest(self.group, uuid.uuid4()))
 
+    def test_expired_nonce_can_claim_an_earlier_free_account(self):
+        token = uuid.uuid4()
+        Student.objects.filter(id=self.students[1].id).update(
+            guest_lease_token=token, guest_lease_expires_at=timezone.now()-timedelta(seconds=1),
+        )
+        self.assertEqual(claim_guest(self.group, token).id, self.students[0].id)
+
+    def test_regular_login_releases_guest_and_removes_guest_identity(self):
+        self.enter(self.client)
+        guest_id = self.client.session["student_id"]
+        group = ClassGroup.objects.create(name="Regular", owner=self.teacher)
+        student = Student(full_name="Regular student", class_group=group)
+        student.set_pin("123456")
+        student.save()
+        response = self.client.post("/api/auth/student-login", data=json.dumps({"full_name":student.full_name,"pin":"123456"}), content_type="application/json")
+        self.assertEqual(response.status_code, 200)
+        self.assertNotIn("guest_lease_token", self.client.session)
+        self.assertIsNone(Student.objects.get(id=guest_id).guest_lease_token)
+
     def test_get_does_not_allocate_and_post_requires_csrf(self):
         client = Client(enforce_csrf_checks=True)
         self.assertEqual(client.get(self.url).status_code, 200)
         self.assertEqual(client.post(self.url).status_code, 403)
         self.assertFalse(Student.objects.filter(guest_lease_token__isnull=False).exists())
+
+    def test_owner_can_release_all_guests_and_old_sessions_stay_invalid(self):
+        first, second = Client(), Client()
+        self.enter(first)
+        self.enter(second)
+        old_token = first.session["guest_lease_token"]
+        response = self.teacher_client.post(f"/api/teacher/classes/{self.group.id}/release-guests/")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["released_count"], 2)
+        self.assertFalse(self.group.students.exclude(guest_lease_token=None).exists())
+        self.assertFalse(self.group.students.exclude(guest_lease_expires_at=None).exists())
+        for client in (first, second):
+            self.assertEqual(client.get("/api/auth/guest-status").status_code, 401)
+            self.assertNotIn("guest_visitor_token", client.session)
+            self.assertEqual(client.get("/api/auth/student-me").status_code, 401)
+        self.enter(first)
+        self.assertNotEqual(first.session["guest_lease_token"], old_token)
+        self.assertEqual(second.get("/api/auth/student-me").status_code, 401)
+        self.group.refresh_from_db()
+        self.assertEqual(f"/guest/{self.group.guest_access_token}/", self.url)
+        self.assertEqual(self.group.students.filter(is_active=True).count(), 2)
+
+    def test_release_is_owner_only_and_guest_class_only(self):
+        self.enter(self.client)
+        url = f"/api/teacher/classes/{self.group.id}/release-guests/"
+        self.assertEqual(self.client.post(url).status_code, 401)
+        self.assertEqual(Client().post(url).status_code, 401)
+        self.assertEqual(self.teacher_client.get(url).status_code, 405)
+        other = Teacher.objects.create(full_name="Other teacher", pin_hash="!")
+        other_group = ClassGroup.objects.create(name="Other guests", owner=other, is_guest=True, guest_access_token=uuid.uuid4())
+        other_student = Student.objects.create(full_name="Other guest", class_group=other_group, pin_hash="!")
+        claim_guest(other_group, uuid.uuid4())
+        ordinary = ClassGroup.objects.create(name="Regular", owner=self.teacher)
+        for group in (other_group, ordinary):
+            self.assertEqual(self.teacher_client.post(f"/api/teacher/classes/{group.id}/release-guests/").status_code, 404)
+        self.teacher_client.post(url)
+        other_student.refresh_from_db()
+        self.assertIsNotNone(other_student.guest_lease_token)
+
+    def test_release_requires_csrf(self):
+        protected = Client(enforce_csrf_checks=True)
+        protected.cookies = self.teacher_client.cookies
+        self.assertEqual(protected.post(f"/api/teacher/classes/{self.group.id}/release-guests/").status_code, 403)
+
+    def test_status_poll_does_not_extend_lease_and_guest_pages_include_watcher(self):
+        self.enter(self.client)
+        expires = timezone.now() + timedelta(minutes=1)
+        Student.objects.filter(id=self.client.session["student_id"]).update(guest_lease_expires_at=expires)
+        self.assertEqual(self.client.get("/api/auth/guest-status").status_code, 200)
+        student = Student.objects.get(id=self.client.session["student_id"])
+        self.assertEqual(student.guest_lease_expires_at, expires)
+        response = self.client.get("/student/exams/")
+        self.assertContains(response, 'setInterval(checkGuestSession, 5000)')
+        self.assertContains(response, escapejs(self.url))

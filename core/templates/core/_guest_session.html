@@ -1,0 +1,24 @@
+{% if request.session.guest_lease_token %}
+<script>
+  (() => {
+    let checking = false;
+    async function checkGuestSession() {
+      if (checking || document.hidden) return;
+      checking = true;
+      try {
+        const response = await fetch("{% url 'guest_session_status' %}", {credentials: "same-origin", cache: "no-store"});
+        if (response.status === 401) {
+          location.replace("{{ request.guest_entry_url|default:'/student/login/'|escapejs }}");
+        }
+      } catch (_) {
+        // A temporary network failure does not mean the guest was signed out.
+      } finally {
+        checking = false;
+      }
+    }
+    setInterval(checkGuestSession, 5000);
+    document.addEventListener("visibilitychange", checkGuestSession);
+    window.addEventListener("pageshow", checkGuestSession);
+  })();
+</script>
+{% endif %}
