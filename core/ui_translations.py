@@ -2268,8 +2268,8 @@ for _lang_code, _extra in {'ru': {'exam_auto_grade': 'Автопроверка �
     UI_TRANSLATIONS[_lang_code].update(_extra)
 
 for _lang_code, _extra in {
-    "ru": {"guest_release_all": "Выгнать всех гостей", "guest_releasing": "Завершаем гостевые сеансы…", "guest_released": "Все гостевые сеансы завершены. Аккаунты снова доступны для входа.", "guest_release_failed": "Не удалось завершить гостевые сеансы."},
-    "kk": {"guest_release_all": "Барлық қонақты шығару", "guest_releasing": "Қонақ сеанстары аяқталуда…", "guest_released": "Барлық қонақ сеансы аяқталды. Аккаунттарға қайта кіруге болады.", "guest_release_failed": "Қонақ сеанстарын аяқтау мүмкін болмады."},
-    "en": {"guest_release_all": "Sign out all guests", "guest_releasing": "Signing out guests…", "guest_released": "All guest sessions ended. The accounts are available again.", "guest_release_failed": "Could not sign out guests."},
+    "ru": {"exam_report_title": "Отчёт по экзамену", "exam_report_hint": "PDF с анализом ИИ, графиками и баллами по вопросам.", "guest_release_all": "Выгнать всех гостей", "guest_releasing": "Завершаем гостевые сеансы…", "guest_released": "Все гостевые сеансы завершены. Аккаунты снова доступны для входа.", "guest_release_failed": "Не удалось завершить гостевые сеансы."},
+    "kk": {"exam_report_title": "Емтихан есебі", "exam_report_hint": "ЖИ талдауы, диаграммалар және сұрақтар бойынша балдар бар PDF.", "guest_release_all": "Барлық қонақты шығару", "guest_releasing": "Қонақ сеанстары аяқталуда…", "guest_released": "Барлық қонақ сеансы аяқталды. Аккаунттарға қайта кіруге болады.", "guest_release_failed": "Қонақ сеанстарын аяқтау мүмкін болмады."},
+    "en": {"exam_report_title": "Exam report", "exam_report_hint": "PDF with AI analysis, charts, and scores by question.", "guest_release_all": "Sign out all guests", "guest_releasing": "Signing out guests…", "guest_released": "All guest sessions ended. The accounts are available again.", "guest_release_failed": "Could not sign out guests."},
 }.items():
     UI_TRANSLATIONS[_lang_code].update(_extra)

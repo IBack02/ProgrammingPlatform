@@ -72,6 +72,16 @@
       </div>
 
       <section class="section">
+        <div class="section-title">{{ T.exam_report_title }}</div>
+        <p class="muted">{{ T.exam_report_hint }}</p>
+        <div class="row" style="align-items:end">
+          <label class="field" style="max-width:280px"><span>{{ T.class_filter }}</span><select id="reportClass" class="select"></select></label>
+          <button id="downloadExamReportBtn" class="btn primary" type="button" data-exam-report="">{{ T.download_exam_report }}</button>
+        </div>
+        {% include "core/teacher/_exam_report_download.html" %}
+      </section>
+
+      <section class="section">
         <div class="section-title">{{ T.exam_questions }}</div>
         <div class="row">
           <label class="field" style="max-width:140px"><span>{{ T.position }}</span><input id="qPosition" class="input" type="number" min="1"></label>
@@ -235,6 +245,11 @@ async function selectExam(id){
   document.getElementById("examAutoGrade").checked=!!current.auto_grade;document.getElementById("examAutoGrade").disabled=current.attempt_count>0;document.getElementById("examDuration").value=current.duration_minutes;document.getElementById("examInstructions").value=current.instructions;
   document.getElementById("examShared").checked=!!current.is_shared_template;
   const status=document.getElementById("examStatus");status.textContent=current.status;status.className="pill "+current.status;
+  const reportClass=document.getElementById("reportClass"), selectedClass=reportClass.value;
+  reportClass.innerHTML=`<option value="">{{ T.all_classes|escapejs }}</option>`+classes.map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join("");
+  if(classes.some(c=>String(c.id)===selectedClass))reportClass.value=selectedClass;
+  const reportButton=document.getElementById("downloadExamReportBtn");reportButton.dataset.examReport=current.id;reportButton.dataset.reportClass=reportClass.value;
+  if(!reportButton.disabled)document.getElementById("reportDownloadStatus").textContent="";
   renderClasses();renderQuestions();resetQuestionForm();renderExamLists();await loadAttempts();
 }
 function renderClasses(){
@@ -352,6 +367,7 @@ document.getElementById("qType").onchange=toggleQuestionFields;document.getEleme
 document.getElementById("saveQuestionBtn").onclick=async()=>{const url=editingQuestionId?`/api/teacher/exam-questions/${editingQuestionId}/`:`/api/teacher/exams/${current.id}/questions/`;const data=await api(url,editingQuestionId?"PATCH":"POST",collectQuestion());if(!data.ok){message(data.error);return;}message(UI.questionSaved,true);await reloadCurrent();};
 async function deleteQuestion(id){if(!confirm(UI.confirmSubmitDelete))return;const data=await api(`/api/teacher/exam-questions/${id}/`,"DELETE");if(!data.ok){message(data.error);return;}message(UI.questionDeleted,true);await reloadCurrent();}
 document.getElementById("refreshAttemptsBtn").onclick=loadAttempts;
+document.getElementById("reportClass").onchange=event=>document.getElementById("downloadExamReportBtn").dataset.reportClass=event.target.value;
 
 function buildAgentPrompt(){
   const snapshot=current?{

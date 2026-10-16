@@ -4,18 +4,18 @@ document.addEventListener('click',async event=>{
   const button=event.target.closest('[data-exam-report]');
   if(!button||button.disabled||!button.dataset.examReport)return;
   event.preventDefault();button.disabled=true;
+  const examId=button.dataset.examReport, classId=button.dataset.reportClass||'';
   const originalLabel=button.textContent;button.textContent='{{ T.report_building|escapejs }}';
   const status=document.getElementById('reportDownloadStatus');
   status.textContent='{{ T.report_building|escapejs }}';
   try{
     const csrf=(document.cookie.match(/(?:^|; )csrftoken=([^;]*)/)||[])[1]||'';
-    const classId=button.dataset.reportClass||'';
-    const response=await fetch(`/api/teacher/exams/${button.dataset.examReport}/report/?class_id=${encodeURIComponent(classId)}`,{method:'POST',credentials:'same-origin',headers:{'X-CSRFToken':csrf}});
+    const response=await fetch(`/api/teacher/exams/${examId}/report/?class_id=${encodeURIComponent(classId)}`,{method:'POST',credentials:'same-origin',headers:{'X-CSRFToken':csrf}});
     if(!response.ok||!response.headers.get('content-type')?.includes('application/pdf')){
       const data=await response.json().catch(()=>({}));throw new Error(data.error||'{{ T.report_failed|escapejs }}');
     }
     const url=URL.createObjectURL(await response.blob());
-    const link=document.createElement('a');link.href=url;link.download=`exam-${button.dataset.examReport}-report.pdf`;
+    const link=document.createElement('a');link.href=url;link.download=`exam-${examId}-report.pdf`;
     document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);
     status.textContent=response.headers.get('X-Report-Analysis')==='ready'?'{{ T.report_downloaded|escapejs }}':'{{ T.report_ai_unavailable|escapejs }}';
   }catch(error){status.textContent=error.message}

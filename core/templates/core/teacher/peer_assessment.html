@@ -92,7 +92,6 @@
       <div class="student-grid" id="studentGrid"></div>
 
       <div class="section-title"><h2>{{ T.peer_review_results }}</h2></div>
-      <div class="toolbar" id="examReports"></div>
       <div class="review-list" id="reviewList"></div>
     </div>
   </main>
@@ -133,7 +132,7 @@
     document.getElementById('studentGrid').innerHTML=state.current.students.length?state.current.students.map(s=>`<button class="student-card" data-student="${s.id}"><div class="student-name">${esc(s.full_name)}</div><span class="pill">{{ T.assigned_works|escapejs }}: ${s.assignments.length}</span></button>`).join(''):`<div class="empty">{{ T.no_students|escapejs }}</div>`;
     document.querySelectorAll('[data-student]').forEach(b=>b.onclick=()=>openReviewer(Number(b.dataset.student)));
     const works=state.current.result_works||[];
-    document.getElementById('examReports').innerHTML=Array.from(new Map(works.map(w=>[w.exam_id,w.exam_title])).entries()).map(([id,title])=>`<button type="button" class="action" data-exam-report="${id}">{{ T.download_exam_report|escapejs }} · ${esc(title)}</button>`).join('');document.getElementById('reviewList').innerHTML=works.length?works.map(work=>`<a class="result-work" href="/teacher/assessment/${state.current.id}/results/${work.attempt_id}/"><div><b>#${work.attempt_id} · ${esc(work.exam_title)}</b><div class="review-meta">${esc(work.author_name)} · ${esc(work.author_class)}</div><div class="muted">{{ T.peer_review_progress|escapejs }}: ${work.review_count}/${work.question_count*work.reviewer_count} · {{ T.reviewers_completed|escapejs }}: ${work.completed_reviewer_count}/${work.reviewer_count}</div></div><span class="action">{{ T.open_details|escapejs }}</span></a>`).join(''):`<div class="empty">{{ T.no_peer_result_works|escapejs }}</div>`;
+    document.getElementById('reviewList').innerHTML=works.length?works.map(work=>`<a class="result-work" href="/teacher/assessment/${state.current.id}/results/${work.attempt_id}/"><div><b>#${work.attempt_id} · ${esc(work.exam_title)}</b><div class="review-meta">${esc(work.author_name)} · ${esc(work.author_class)}</div><div class="muted">{{ T.peer_review_progress|escapejs }}: ${work.review_count}/${work.question_count*work.reviewer_count} · {{ T.reviewers_completed|escapejs }}: ${work.completed_reviewer_count}/${work.reviewer_count}</div></div><span class="action">{{ T.open_details|escapejs }}</span></a>`).join(''):`<div class="empty">{{ T.no_peer_result_works|escapejs }}</div>`;
   }
   function openReviewer(id){state.reviewer=state.current.students.find(s=>s.id===id);document.getElementById('modalTitle').textContent=state.reviewer.full_name;renderAssigned();document.getElementById('attemptSearch').value='';document.getElementById('searchResults').innerHTML='';document.getElementById('reviewerModal').classList.add('open');document.getElementById('reviewerModal').setAttribute('aria-hidden','false');searchAttempts()}
   function closeReviewer(){document.getElementById('reviewerModal').classList.remove('open');document.getElementById('reviewerModal').setAttribute('aria-hidden','true');state.reviewer=null}
@@ -151,5 +150,4 @@
   document.getElementById('saveModal').onclick=closeReviewer;document.getElementById('closeModal').onclick=closeReviewer;document.getElementById('reviewerModal').onclick=e=>{if(e.target.id==='reviewerModal')closeReviewer()};document.getElementById('refreshSessions').onclick=()=>loadSessions(state.current?.id);
   (async()=>{try{await loadClasses();await loadSessions()}catch(e){message(e.message,true)}})();
 </script>
-{% include "core/teacher/_exam_report_download.html" %}
 {% endblock %}

@@ -7,7 +7,7 @@ from django.core.cache import cache
 from django.test import Client, TestCase
 from django.utils import timezone
 
-from .exam_reports import collect_report, compact_analysis_input, generate_analysis, render_pdf
+from .exam_reports import LABELS, collect_report, compact_analysis_input, generate_analysis, render_pdf
 from .models import (Teacher, ClassGroup, Student, Session, SessionTask, StudentSession,
     StudentTaskProgress, Submission, TaskTestCase, Exam, ExamQuestion, ExamAttempt, ExamAnswer,
     PeerAssessmentSession, PeerAssessmentAssignment, PeerAssessmentReview)
@@ -135,6 +135,63 @@ class ExamReportTests(TestCase):
         self.assertNotIn("Reviewer", payload)
         self.assertEqual(len(data["r"]), 3)
 
+    @patch("core.exam_reports.generate_analysis", return_value="Повторить цикл while: вопрос 1.")
+    def test_report_without_assessment_uses_only_teacher_scores_and_feedback(self, analyze):
+        self.peer_session.delete()
+        response = self.client.post(self.url)
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.content.startswith(b"%PDF-"))
+        self.assertEqual(response["X-Report-Analysis"], "ready")
+        payload = json.loads(analyze.call_args.args[0])
+        self.assertNotIn("r", payload)
+        self.assertNotIn("r", payload["schema"])
+        self.assertNotIn("peer", json.dumps(payload))
+        self.assertEqual(payload["avg"], [[1, 5, 2, 2], [2, 5, None, 0]])
+        self.assertEqual(payload["s"][0][1], [0, None])
+        self.assertIn("Нужно повторить цикл while.", payload["texts"])
+        self.assertEqual(len(payload["s"][0]), 3)
+
+    def test_peer_sections_depend_on_actual_reviews_in_the_selected_class(self):
+        PeerAssessmentReview.objects.filter(assignment__exam_attempt=self.attempts[0]).delete()
+        self.assertTrue(collect_report(self.exam)["has_peer_reviews"])
+        self.assertTrue(collect_report(self.exam, self.other)["has_peer_reviews"])
+        # An assigned assessment with no reviews must not create empty report sections.
+        data = collect_report(self.exam, self.group)
+        self.assertFalse(data["has_peer_reviews"])
+        self.assertNotIn("r", json.loads(compact_analysis_input(data)))
+
+    def test_teacher_only_pdf_omits_peer_charts_tables_and_explanations_in_all_languages(self):
+        from reportlab.graphics.shapes import Drawing, String
+        from reportlab.platypus import Paragraph, Table
+
+        self.peer_session.delete()
+        data = collect_report(self.exam)
+        for language, labels in LABELS.items():
+            with self.subTest(language=language), patch("reportlab.platypus.SimpleDocTemplate.build") as build:
+                render_pdf(data, "Analysis", language)
+                texts, tables = [], []
+                for item in build.call_args.args[0]:
+                    if isinstance(item, Paragraph):
+                        texts.append(item.getPlainText())
+                    elif isinstance(item, Drawing):
+                        texts.extend(shape.text for shape in item.contents if isinstance(shape, String))
+                    elif isinstance(item, Table):
+                        tables.append(item._cellvalues)
+                        texts.extend(cell for row in item._cellvalues for cell in row if isinstance(cell, str))
+                self.assertIn(labels["teacher_sources"], texts)
+                self.assertIn(labels["teacher_note"], texts)
+                self.assertNotIn(labels["sources"], texts)
+                self.assertNotIn(labels["note"], texts)
+                self.assertNotIn(labels["peer"], texts)
+                self.assertNotIn(labels["objective"], texts)
+                self.assertNotIn(f'{labels["matrix"]} — {labels["peer"]}', texts)
+                self.assertEqual(len(tables), 2)  # Numeric statistics and teacher score matrix.
+                self.assertEqual(tables[0][0], [labels[k] for k in ("question", "maximum", "teacher", "count")])
+
+    def test_report_download_is_on_exams_page_and_removed_from_assessment(self):
+        self.assertContains(self.client.get("/teacher/exams/"), 'id="downloadExamReportBtn"')
+        self.assertNotContains(self.client.get("/teacher/assessment/"), "data-exam-report")
+
     @patch("core.exam_reports.generate_analysis", return_value="Успехи: вопрос 1. Повторить условия цикла.")
     def test_pdf_download_is_private_and_scoped(self, analyze):
         response = self.client.post(self.url + f"?class_id={self.group.id}")
@@ -166,6 +223,15 @@ class ExamReportTests(TestCase):
         self.assertEqual(call.call_count, 1)
         self.assertFalse(call.call_args.kwargs["store"])
         self.assertEqual(call.call_args.kwargs["input"], payload)
+        self.assertIn("Compare teacher and peer scores", call.call_args.kwargs["instructions"])
+        self.peer_session.delete()
+        teacher_payload = compact_analysis_input(collect_report(self.exam))
+        generate_analysis(teacher_payload, "ru")
+        self.assertEqual(call.call_count, 2)
+        instructions = call.call_args.kwargs["instructions"]
+        self.assertNotIn("Compare teacher and peer scores", instructions)
+        self.assertIn("solely on teacher scores and teacher feedback", instructions)
+        self.assertIn("Do not mention peer assessment", instructions)
 
     def test_pdf_handles_many_columns_long_names_and_feedback(self):
         for i in range(3, 24):
