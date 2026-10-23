@@ -35,6 +35,7 @@ def presentation_catalog(language="ru"):
         cards.append({
             "id": definition["id"], "name": definition["name"],
             "role": definition["roles"][language],
+            "biography": definition.get("bios", {}).get(language, ""),
             "rarity": definition["rarity"], "rarity_label": rarity["labels"][language],
             "stars": range(rarity["stars"]), "star_count": rarity["stars"],
             "portrait_url": portrait_url(definition["portrait"]),

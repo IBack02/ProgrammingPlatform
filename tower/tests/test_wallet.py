@@ -207,7 +207,7 @@ class WalletTests(WalletFixtures, TestCase):
         self.assertEqual(response.json()["wallet"]["niscoin"], 100)
         self.assertEqual(len(response.json()["entries"]), 1)
         self.assertIn("no-store", response["Cache-Control"])
-        page = client.get(reverse("tower:home"))
+        page = client.get(reverse("tower:home"), {"tab": "wallet"})
         self.assertContains(page, "&lt;script&gt;bad&lt;/script&gt;")
         self.assertNotContains(page, "<script>bad</script>")
 

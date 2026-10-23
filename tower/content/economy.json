@@ -1,0 +1,15 @@
+{
+  "offer": "school",
+  "version": "school-v1",
+  "pack": {"price": 50, "slots": 3, "fragments_per_slot": 2, "weights": {"common": 70, "rare": 22, "epic": 7, "legendary": 1}, "pity_after": 4, "overflow_rate": 1},
+  "shard_costs": {"common": 2, "rare": 4, "epic": 8, "legendary": 16},
+  "cosmetics": [
+    {"slug": "cap", "slot": "head", "price": 30, "labels": {"ru": "Кепка", "kk": "Кепка", "en": "Cap"}},
+    {"slug": "crown", "slot": "head", "price": 80, "labels": {"ru": "Корона", "kk": "Тәж", "en": "Crown"}},
+    {"slug": "round-glasses", "slot": "glasses", "price": 40, "labels": {"ru": "Круглые очки", "kk": "Дөңгелек көзілдірік", "en": "Round glasses"}},
+    {"slug": "sunglasses", "slot": "glasses", "price": 60, "labels": {"ru": "Тёмные очки", "kk": "Қара көзілдірік", "en": "Sunglasses"}},
+    {"slug": "mustache", "slot": "mustache", "price": 35, "labels": {"ru": "Усы", "kk": "Мұрт", "en": "Mustache"}},
+    {"slug": "parchment", "slot": "theme", "price": 100, "labels": {"ru": "Пергамент", "kk": "Пергамент", "en": "Parchment"}},
+    {"slug": "forest", "slot": "theme", "price": 100, "labels": {"ru": "Лесной журнал", "kk": "Орман журналы", "en": "Forest journal"}}
+  ]
+}

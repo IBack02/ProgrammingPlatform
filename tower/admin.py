@@ -7,7 +7,8 @@ from django.template.response import TemplateResponse
 from django.urls import path, reverse
 
 from .forms import AdjustmentForm
-from .models import GameOperation, TowerAuditEvent, Wallet, WalletEntry
+from .models import (CosmeticDefinition, GameOperation, HeroDefinition, PackOffer, PackOpening,
+                     PackVersion, PlayerCosmetic, PlayerHero, TowerAuditEvent, Wallet, WalletEntry)
 from .services.wallet import WalletError, adjust_wallet
 
 
@@ -91,3 +92,31 @@ class TowerAuditEventAdmin(JournalAdmin):
     list_display = ("id", "event_type", "actor_teacher", "actor_admin", "student", "class_group", "created_at")
     list_filter = ("event_type",)
     list_select_related = ("actor_teacher", "actor_admin", "student", "class_group")
+
+
+@admin.register(PackOpening)
+class PackOpeningAdmin(JournalAdmin):
+    list_display = ("id", "player", "version", "cost", "pity_before", "pity_after", "created_at")
+    search_fields = ("player__student__full_name",)
+    list_select_related = ("player__student", "version")
+
+
+@admin.register(PackOffer)
+class PackOfferAdmin(JournalAdmin):
+    list_display = ("slug", "version", "is_active")
+
+    def has_change_permission(self, request, obj=None):
+        return self.has_module_permission(request)
+
+    def get_readonly_fields(self, request, obj=None):
+        return ("slug", "version")
+
+    def save_model(self, request, obj, form, change):
+        before = PackOffer.objects.get(pk=obj.pk).is_active
+        super().save_model(request, obj, form, change)
+        TowerAuditEvent.objects.create(event_type="pack_availability", actor_admin=request.user,
+            metadata={"offer": obj.pk, "before": before, "after": obj.is_active})
+
+
+for _model in (HeroDefinition, PlayerHero, PackVersion, CosmeticDefinition, PlayerCosmetic):
+    admin.site.register(_model, JournalAdmin)

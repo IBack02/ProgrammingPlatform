@@ -32,6 +32,11 @@ class AppendOnlyModel(models.Model):
 class TowerPlayer(models.Model):
     student = models.OneToOneField("core.Student", on_delete=models.PROTECT, related_name="tower_player")
     created_at = models.DateTimeField(auto_now_add=True)
+    pack_misses = models.PositiveSmallIntegerField(default=0)
+    avatar_shape = models.CharField(max_length=16, default="square")
+    avatar_color = models.CharField(max_length=7, default="#3b82f6")
+    avatar_accessories = models.JSONField(default=dict, blank=True)
+    profile_theme = models.CharField(max_length=24, default="midnight")
 
 
 class Wallet(models.Model):
@@ -74,6 +79,8 @@ class WalletEntry(AppendOnlyModel):
         LEARNING = "learning_reward", "Learning reward"
         PURCHASE = "purchase", "Purchase"
         CORRECTION = "correction", "Administrator correction"
+        EXCHANGE = "fragment_exchange", "Fragment exchange"
+        OVERFLOW = "fragment_overflow", "Surplus fragments"
 
     wallet = models.ForeignKey(Wallet, on_delete=models.PROTECT, related_name="entries")
     operation = models.ForeignKey(GameOperation, on_delete=models.PROTECT, related_name="entries")
@@ -129,3 +136,73 @@ class RewardBatch(AppendOnlyModel):
 
     class Meta:
         constraints = [models.UniqueConstraint(fields=["actor_scope", "request_id"], name="tower_reward_batch_once")]
+
+
+class HeroDefinition(models.Model):
+    slug = models.SlugField(primary_key=True)
+    name = models.CharField(max_length=80)
+    rarity = models.CharField(max_length=16)
+    roles = models.JSONField(default=dict)
+    portrait = models.CharField(max_length=160)
+    required_fragments = models.PositiveSmallIntegerField(default=10)
+    shard_cost = models.PositiveSmallIntegerField()
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        constraints = [models.CheckConstraint(condition=models.Q(required_fragments__gt=0, shard_cost__gt=0), name="tower_hero_positive_cost")]
+
+
+class PlayerHero(models.Model):
+    player = models.ForeignKey(TowerPlayer, on_delete=models.PROTECT, related_name="heroes")
+    hero = models.ForeignKey(HeroDefinition, on_delete=models.PROTECT)
+    fragments = models.PositiveSmallIntegerField(default=0)
+    assembled_at = models.DateTimeField(null=True, blank=True)
+    is_favorite = models.BooleanField(default=False)
+    discovered_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=["player", "hero"], name="tower_player_hero_once")]
+
+
+class PackVersion(AppendOnlyModel):
+    slug = models.SlugField(unique=True)
+    config = models.JSONField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+
+class PackOffer(models.Model):
+    slug = models.SlugField(primary_key=True)
+    version = models.ForeignKey(PackVersion, on_delete=models.PROTECT)
+    is_active = models.BooleanField(default=True)
+
+
+class PackOpening(AppendOnlyModel):
+    player = models.ForeignKey(TowerPlayer, on_delete=models.PROTECT, related_name="pack_openings")
+    operation = models.OneToOneField(GameOperation, on_delete=models.PROTECT)
+    version = models.ForeignKey(PackVersion, on_delete=models.PROTECT)
+    cost = models.PositiveIntegerField()
+    drops = models.JSONField()
+    pity_before = models.PositiveSmallIntegerField()
+    pity_after = models.PositiveSmallIntegerField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-id"]
+
+
+class CosmeticDefinition(models.Model):
+    slug = models.SlugField(primary_key=True)
+    slot = models.CharField(max_length=16)
+    labels = models.JSONField(default=dict)
+    price = models.PositiveIntegerField()
+    is_active = models.BooleanField(default=True)
+
+
+class PlayerCosmetic(models.Model):
+    player = models.ForeignKey(TowerPlayer, on_delete=models.PROTECT, related_name="cosmetics")
+    cosmetic = models.ForeignKey(CosmeticDefinition, on_delete=models.PROTECT)
+    operation = models.OneToOneField(GameOperation, on_delete=models.PROTECT)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=["player", "cosmetic"], name="tower_player_cosmetic_once")]

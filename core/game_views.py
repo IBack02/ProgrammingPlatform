@@ -33,6 +33,7 @@ from .models import (
     WonderFieldQuestion,
 )
 from .security import request_is_limited
+from tower.services.avatar import prepare_avatar_rows, saved_avatar
 
 
 WONDER_FIELD_LATIN = "QWERTYUIOPASDFGHJKLZXCVBNM"
@@ -314,6 +315,7 @@ def _tournament_round_data(round_obj):
             "last_question_winner__student",
         )
     )
+    prepare_avatar_rows([player for match in matches for player in (match.player_one, match.player_two)])
     entrants = round_obj.participants.count()
     stage_sizes = []
     for _stage in snapshot:
@@ -376,12 +378,14 @@ def _tournament_answer_attempt_rows(round_obj):
 
 
 def _participant_row(participant):
+    prepare_avatar_rows([participant])
     return {
         "id": participant.id,
         "student_id": participant.student_id,
         "student_name": participant.student.full_name,
         "avatar_shape": participant.avatar_shape,
         "avatar_color": participant.avatar_color,
+        "avatar_accessories": participant._tower_accessories,
         "progress": participant.progress,
         "correct_answers": participant.correct_answers,
         "wrong_answers": participant.wrong_answers,
@@ -405,6 +409,7 @@ def _wonder_event_row(event):
 
 def _wonder_round_data(round_obj):
     participants = list(round_obj.participants.select_related("student").all())
+    prepare_avatar_rows(participants)
     by_student_id = {row.student_id: row for row in participants}
     queue = [by_student_id[student_id] for student_id in round_obj.turn_order if student_id in by_student_id]
     current_participant = queue[round_obj.turn_index % len(queue)] if queue else None
@@ -486,6 +491,7 @@ def _round_row(round_obj, include_participants=True):
     }
     if include_participants:
         participants = list(round_obj.participants.select_related("student").all())
+        prepare_avatar_rows(participants)
         participants.sort(
             key=lambda row: (
                 row.finish_place is None,
@@ -1399,10 +1405,11 @@ def student_game_ready_api(request: HttpRequest, module_id: int):
             55 + secrets.randbelow(166),
             55 + secrets.randbelow(166),
         )
+        avatar = saved_avatar(student) or {"avatar_shape": shape, "avatar_color": color}
         participant, _ = GameParticipant.objects.get_or_create(
             round=round_obj,
             student=student,
-            defaults={"avatar_shape": shape, "avatar_color": color},
+            defaults=avatar,
         )
     return JsonResponse({
         "ok": True,

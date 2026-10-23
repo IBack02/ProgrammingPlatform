@@ -1,24 +1,239 @@
 {
   "version": 1,
-  "aspect_ratio": [2, 3],
+  "aspect_ratio": [
+    2,
+    3
+  ],
   "rarities": {
-    "common": {"stars": 2, "frame": "tower/frames/common.webp", "labels": {"ru": "Обычная", "kk": "Кәдімгі", "en": "Common"}},
-    "rare": {"stars": 3, "frame": "tower/frames/rare.webp", "labels": {"ru": "Редкая", "kk": "Сирек", "en": "Rare"}},
-    "epic": {"stars": 4, "frame": "tower/frames/epic.webp", "labels": {"ru": "Эпическая", "kk": "Эпикалық", "en": "Epic"}},
-    "legendary": {"stars": 5, "frame": "tower/frames/legendary.webp", "labels": {"ru": "Легендарная", "kk": "Аңызға айналған", "en": "Legendary"}}
+    "common": {
+      "stars": 2,
+      "frame": "tower/frames/common.webp",
+      "labels": {
+        "ru": "Обычная",
+        "kk": "Кәдімгі",
+        "en": "Common"
+      }
+    },
+    "rare": {
+      "stars": 3,
+      "frame": "tower/frames/rare.webp",
+      "labels": {
+        "ru": "Редкая",
+        "kk": "Сирек",
+        "en": "Rare"
+      }
+    },
+    "epic": {
+      "stars": 4,
+      "frame": "tower/frames/epic.webp",
+      "labels": {
+        "ru": "Эпическая",
+        "kk": "Эпикалық",
+        "en": "Epic"
+      }
+    },
+    "legendary": {
+      "stars": 5,
+      "frame": "tower/frames/legendary.webp",
+      "labels": {
+        "ru": "Легендарная",
+        "kk": "Аңызға айналған",
+        "en": "Legendary"
+      }
+    }
   },
   "cards": [
-    {"id": "nis-coder", "name": "Арман", "rarity": "common", "portrait": "chars/nis-coder.png", "roles": {"ru": "Программист", "kk": "Бағдарламашы", "en": "Programmer"}},
-    {"id": "nis-mathematician", "name": "Аружан", "rarity": "common", "portrait": "chars/nis-mathematician.png", "roles": {"ru": "Математик", "kk": "Математик", "en": "Mathematician"}},
-    {"id": "nis-chemist", "name": "Ильяс", "rarity": "common", "portrait": "chars/nis-chemist.png", "roles": {"ru": "Химик", "kk": "Химик", "en": "Chemist"}},
-    {"id": "nis-roboticist", "name": "Аяулым", "rarity": "rare", "portrait": "chars/nis-roboticist.png", "roles": {"ru": "Робототехник", "kk": "Робототехник", "en": "Roboticist"}},
-    {"id": "nis-artist", "name": "Тимур", "rarity": "rare", "portrait": "chars/nis-artist.png", "roles": {"ru": "Художник", "kk": "Суретші", "en": "Artist"}},
-    {"id": "nis-biologist", "name": "Сара", "rarity": "rare", "portrait": "chars/nis-biologist.png", "roles": {"ru": "Биолог", "kk": "Биолог", "en": "Biologist"}},
-    {"id": "nis-physicist", "name": "Руслан", "rarity": "epic", "portrait": "chars/nis-physicist.png", "roles": {"ru": "Физик", "kk": "Физик", "en": "Physicist"}},
-    {"id": "nis-debater", "name": "Алия", "rarity": "epic", "portrait": "chars/nis-debater.png", "roles": {"ru": "Дебатёр", "kk": "Пікірсайысшы", "en": "Debater"}},
-    {"id": "nis-astronomer", "name": "Мади", "rarity": "epic", "portrait": "chars/nis-astronomer.png", "roles": {"ru": "Астроном", "kk": "Астроном", "en": "Astronomer"}},
-    {"id": "nis-musician", "name": "Дана", "rarity": "legendary", "portrait": "chars/nis-musician.png", "roles": {"ru": "Музыкант", "kk": "Музыкант", "en": "Musician"}},
-    {"id": "nis-chessplayer", "name": "Аскар", "rarity": "legendary", "portrait": "chars/nis-chessplayer.png", "roles": {"ru": "Шахматист", "kk": "Шахматшы", "en": "Chess player"}},
-    {"id": "nis-inventor", "name": "Томирис", "rarity": "legendary", "portrait": "chars/nis-inventor.png", "roles": {"ru": "Изобретатель", "kk": "Өнертапқыш", "en": "Inventor"}}
+    {
+      "id": "nis-coder",
+      "name": "Арман",
+      "rarity": "common",
+      "portrait": "chars/nis-coder.png",
+      "roles": {
+        "ru": "Программист",
+        "kk": "Бағдарламашы",
+        "en": "Programmer"
+      },
+      "bios": {
+        "ru": "Арман превращает сложные идеи в простые программы и всегда помогает найти потерянную скобку.",
+        "kk": "Арман күрделі ойларды қарапайым бағдарламаға айналдырып, жоғалған жақшаны табуға көмектеседі.",
+        "en": "Arman turns complicated ideas into simple programs and always helps find a missing bracket."
+      }
+    },
+    {
+      "id": "nis-mathematician",
+      "name": "Аружан",
+      "rarity": "common",
+      "portrait": "chars/nis-mathematician.png",
+      "roles": {
+        "ru": "Математик",
+        "kk": "Математик",
+        "en": "Mathematician"
+      },
+      "bios": {
+        "ru": "Аружан замечает закономерности там, где другие видят только числа. Её любимый вопрос — «почему?»",
+        "kk": "Аружан басқалар тек сандарды көрген жерден заңдылық табады. Оның сүйікті сұрағы — «неге?»",
+        "en": "Aruzhan finds patterns where others see only numbers. Her favorite question is “why?”"
+      }
+    },
+    {
+      "id": "nis-chemist",
+      "name": "Ильяс",
+      "rarity": "common",
+      "portrait": "chars/nis-chemist.png",
+      "roles": {
+        "ru": "Химик",
+        "kk": "Химик",
+        "en": "Chemist"
+      },
+      "bios": {
+        "ru": "Ильяс ведёт аккуратный журнал опытов и считает, что любопытство начинается с хорошего вопроса.",
+        "kk": "Ілияс тәжірибе журналын ұқыпты жүргізеді, ал қызығушылық жақсы сұрақтан басталады деп санайды.",
+        "en": "Ilyas keeps a careful experiment journal and believes curiosity starts with a good question."
+      }
+    },
+    {
+      "id": "nis-roboticist",
+      "name": "Аяулым",
+      "rarity": "rare",
+      "portrait": "chars/nis-roboticist.png",
+      "roles": {
+        "ru": "Робототехник",
+        "kk": "Робототехник",
+        "en": "Roboticist"
+      },
+      "bios": {
+        "ru": "Аяулым собирает роботов, которые умеют помогать. Каждый новый прототип начинается с эскиза.",
+        "kk": "Аяулым көмектесе алатын роботтар құрастырады. Әр жаңа прототип сызбадан басталады.",
+        "en": "Ayaulym builds robots that help people. Every new prototype starts with a sketch."
+      }
+    },
+    {
+      "id": "nis-artist",
+      "name": "Тимур",
+      "rarity": "rare",
+      "portrait": "chars/nis-artist.png",
+      "roles": {
+        "ru": "Художник",
+        "kk": "Суретші",
+        "en": "Artist"
+      },
+      "bios": {
+        "ru": "Тимур носит с собой скетчбук и умеет показать целую историю одним рисунком.",
+        "kk": "Тимур сурет дәптерін бірге алып жүреді және бір суретпен тұтас оқиғаны жеткізе алады.",
+        "en": "Timur carries a sketchbook and can tell a whole story with one drawing."
+      }
+    },
+    {
+      "id": "nis-biologist",
+      "name": "Сара",
+      "rarity": "rare",
+      "portrait": "chars/nis-biologist.png",
+      "roles": {
+        "ru": "Биолог",
+        "kk": "Биолог",
+        "en": "Biologist"
+      },
+      "bios": {
+        "ru": "Сара исследует школьный сад и знает, сколько удивительного скрывается в обычном листе.",
+        "kk": "Сара мектеп бағын зерттеп, кәдімгі жапырақта қанша ғажайып барын біледі.",
+        "en": "Sara explores the school garden and knows how much wonder hides in an ordinary leaf."
+      }
+    },
+    {
+      "id": "nis-physicist",
+      "name": "Руслан",
+      "rarity": "epic",
+      "portrait": "chars/nis-physicist.png",
+      "roles": {
+        "ru": "Физик",
+        "kk": "Физик",
+        "en": "Physicist"
+      },
+      "bios": {
+        "ru": "Руслан проверяет идеи экспериментами. Даже бумажный самолёт для него — маленькая лаборатория.",
+        "kk": "Руслан ойларын тәжірибемен тексереді. Ол үшін қағаз ұшақтың өзі шағын зертхана.",
+        "en": "Ruslan tests ideas with experiments. Even a paper plane is a tiny laboratory to him."
+      }
+    },
+    {
+      "id": "nis-debater",
+      "name": "Алия",
+      "rarity": "epic",
+      "portrait": "chars/nis-debater.png",
+      "roles": {
+        "ru": "Дебатёр",
+        "kk": "Пікірсайысшы",
+        "en": "Debater"
+      },
+      "bios": {
+        "ru": "Алия внимательно слушает собеседников и помогает команде находить убедительные аргументы.",
+        "kk": "Әлия әңгімелесушілерді мұқият тыңдап, командаға сенімді дәлелдер табуға көмектеседі.",
+        "en": "Aliya listens carefully and helps her team find convincing arguments."
+      }
+    },
+    {
+      "id": "nis-astronomer",
+      "name": "Мади",
+      "rarity": "epic",
+      "portrait": "chars/nis-astronomer.png",
+      "roles": {
+        "ru": "Астроном",
+        "kk": "Астроном",
+        "en": "Astronomer"
+      },
+      "bios": {
+        "ru": "Мади наблюдает звёзды и собирает карту ночного неба. Каждое созвездие хранит свою историю.",
+        "kk": "Мәди жұлдыздарды бақылап, түнгі аспан картасын жинайды. Әр шоқжұлдыздың өз тарихы бар.",
+        "en": "Madi observes the stars and maps the night sky. Every constellation holds a story."
+      }
+    },
+    {
+      "id": "nis-musician",
+      "name": "Дана",
+      "rarity": "legendary",
+      "portrait": "chars/nis-musician.png",
+      "roles": {
+        "ru": "Музыкант",
+        "kk": "Музыкант",
+        "en": "Musician"
+      },
+      "bios": {
+        "ru": "Дана слышит ритм даже в школьной перемене и превращает настроение в новую мелодию.",
+        "kk": "Дана мектеп үзілісінен де ырғақ естіп, көңіл күйді жаңа әуенге айналдырады.",
+        "en": "Dana hears rhythm even during school breaks and turns a mood into a new melody."
+      }
+    },
+    {
+      "id": "nis-chessplayer",
+      "name": "Аскар",
+      "rarity": "legendary",
+      "portrait": "chars/nis-chessplayer.png",
+      "roles": {
+        "ru": "Шахматист",
+        "kk": "Шахматшы",
+        "en": "Chess player"
+      },
+      "bios": {
+        "ru": "Аскар любит красивые комбинации и знает: хорошая партия начинается с внимательного взгляда.",
+        "kk": "Асқар әдемі комбинацияларды ұнатады және жақсы партия зейінді көзқарастан басталатынын біледі.",
+        "en": "Askar loves elegant combinations and knows a good game begins with paying attention."
+      }
+    },
+    {
+      "id": "nis-inventor",
+      "name": "Томирис",
+      "rarity": "legendary",
+      "portrait": "chars/nis-inventor.png",
+      "roles": {
+        "ru": "Изобретатель",
+        "kk": "Өнертапқыш",
+        "en": "Inventor"
+      },
+      "bios": {
+        "ru": "Томирис соединяет неожиданные идеи. В её блокноте всегда найдётся место для следующего изобретения.",
+        "kk": "Томирис күтпеген ойларды біріктіреді. Оның дәптерінде келесі өнертабысқа әрдайым орын бар.",
+        "en": "Tomiris connects unexpected ideas. There is always room in her notebook for another invention."
+      }
+    }
   ]
 }

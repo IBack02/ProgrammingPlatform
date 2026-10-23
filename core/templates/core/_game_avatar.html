@@ -1,3 +1,5 @@
+{% load static %}
+<link rel="stylesheet" href="{% static 'tower/avatar.css' %}">
 <style>
   .gameAvatar{width:46px;height:46px;flex-shrink:0;position:relative;filter:drop-shadow(0 5px 5px rgba(15,23,42,.25))}
   .gameAvatarBody{position:absolute;inset:0;background:var(--runner-color);border-radius:10px}
@@ -15,7 +17,9 @@
 </style>
 <script>
   function gameAvatarHtml(player){
-    return `<div class="gameAvatar" style="--runner-color:${escapeHtml(player.avatar_color)}"><div class="gameAvatarBody ${escapeHtml(player.avatar_shape)}"></div><span class="gameEye left"></span><span class="gameEye right"></span></div>`;
+    const allowedAccessories = ["cap", "crown", "round-glasses", "sunglasses", "mustache"];
+    const accessories = Object.values(player.avatar_accessories || {}).filter(value => allowedAccessories.includes(value)).map(value => `<span class="gameAvatarAccessory gameAvatarAccessory--${value}" aria-hidden="true"></span>`).join("");
+    return `<div class="gameAvatar" style="--runner-color:${escapeHtml(player.avatar_color)}"><div class="gameAvatarBody ${escapeHtml(player.avatar_shape)}"></div><span class="gameEye left"></span><span class="gameEye right"></span>${accessories}</div>`;
   }
 
   function animateGameAvatars(container){

@@ -1,6 +1,6 @@
-<article class="collection-card collection-card--{{ card.rarity }}" data-card-rarity="{{ card.rarity }}" aria-label="{{ card.name }} · {{ card.role }} · {{ card.rarity_label }} · {{ card.star_count }} ★">
+<article class="collection-card collection-card--{{ card.rarity }}{% if card.state %} collection-card--{{ card.state }}{% endif %}" data-card-rarity="{{ card.rarity }}" aria-label="{{ card.name }} · {{ card.role }} · {{ card.rarity_label }} · {{ card.star_count }} ★">
   <div class="collection-card__placeholder" aria-hidden="true">NIS</div>
-  <img class="collection-card__portrait" src="{{ card.portrait_url }}" alt="{{ card.name }} — {{ card.role }}" width="1024" height="1536" loading="lazy" decoding="async">
+  {% if card.state != 'undiscovered' %}<img class="collection-card__portrait" src="{{ card.portrait_url }}" alt="{{ card.name }} — {{ card.role }}" width="1024" height="1536" loading="lazy" decoding="async">{% endif %}
   <img class="collection-card__frame" src="{{ card.frame_url }}" alt="" aria-hidden="true" width="512" height="768" decoding="async">
   <div class="collection-card__copy"><h2>{{ card.name }}</h2><p>{{ card.role }}</p></div>
   <div class="collection-card__stars" aria-hidden="true">

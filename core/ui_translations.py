@@ -2463,3 +2463,7 @@ for _lang_code, _hint in {
     "en": "Earn niscoins for achievements: your teacher awards them directly or the system awards them under your class rules.",
 }.items():
     UI_TRANSLATIONS[_lang_code]["wallet_earning_hint"] = _hint
+
+from tower.ui_translations import JOURNAL_TEXT
+for _lang_code, _extra in JOURNAL_TEXT.items():
+    UI_TRANSLATIONS[_lang_code].update({"journal_" + key: value for key, value in _extra.items()})

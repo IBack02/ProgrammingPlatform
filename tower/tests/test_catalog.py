@@ -68,8 +68,12 @@ class CardPreviewAccessTests(TestCase):
         self.assertEqual(self.client.get("/teacher/tower/preview/").status_code, 302)
 
     def test_student_landing_does_not_claim_all_cards_are_owned(self):
+        import io
+        from django.core.management import call_command
         from core.models import ClassGroup, Student, Teacher
         from core.security import auth_version
+
+        call_command("seed_tower_catalog", stdout=io.StringIO())
 
         teacher = Teacher.objects.create(full_name="Catalogue teacher", pin_hash="unused", can_manage_tower=True)
         group = ClassGroup.objects.create(name="Catalogue class", owner=teacher, tower_enabled=True)
@@ -79,4 +83,5 @@ class CardPreviewAccessTests(TestCase):
         session.save()
         response = self.client.get("/tower/")
         self.assertEqual(response.status_code, 200)
-        self.assertNotContains(response, 'data-card-rarity=')
+        self.assertContains(response, 'data-collection-state="undiscovered"', count=12)
+        self.assertNotContains(response, 'class="collection-card__portrait"')

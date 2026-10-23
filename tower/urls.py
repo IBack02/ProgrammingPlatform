@@ -1,12 +1,14 @@
 from django.urls import path
 
-from . import views, wallet_views
+from . import collection_views, views, wallet_views
 
 
 app_name = "tower"
 
 urlpatterns = [
-    path("tower/", views.home, name="home"),
+    path("tower/", collection_views.journal, name="home"),
+    path("tower/actions/<str:action>/", collection_views.student_action, name="student_action"),
+    path("api/tower/actions/<str:action>/", collection_views.student_action, name="student_action_api"),
     path("api/tower/status/", views.status, name="status"),
     path("api/tower/wallet/", wallet_views.wallet_api, name="wallet"),
     path("teacher/tower/wallets/", wallet_views.teacher_wallets, name="teacher_wallets"),

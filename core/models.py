@@ -566,6 +566,7 @@ class GameParticipant(models.Model):
     student = models.ForeignKey(Student, on_delete=models.PROTECT, related_name="game_participations")
     avatar_shape = models.CharField(max_length=16, choices=AvatarShape.choices)
     avatar_color = models.CharField(max_length=7)
+    avatar_accessories = models.JSONField(default=dict, blank=True)
     progress = models.PositiveIntegerField(default=0)
     correct_answers = models.PositiveIntegerField(default=0)
     wrong_answers = models.PositiveIntegerField(default=0)
