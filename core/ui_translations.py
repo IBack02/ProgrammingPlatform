@@ -968,6 +968,112 @@ DEFAULT_UI_LANG = "en"
 SUPPORTED_UI_LANGS = {"ru", "kk", "en"}
 
 
+for _lang_code, _tower_text in {
+    "ru": {
+        "tower_title": "Коллекционный журнал",
+        "tower_preview": "Предпросмотр журнала",
+        "tower_card_catalog": "Персонажи NIS",
+        "tower_catalog_hint": "Предпросмотр оформления карточек. Здесь показан полный каталог персонажей; коллекция ученика учитывается отдельно.",
+        "tower_rarity_filter": "Редкость карточек",
+        "tower_all_cards": "Все карточки",
+        "tower_preparing": "Журнал готовится к открытию. Зарабатывай нишкойны за учебные достижения, открывай паки, собирай карточки персонажей и украшай свою аватарку.",
+        "tower_back_management": "К управлению башней",
+        "tower_back_lesson": "Вернуться к уроку",
+        "tower_unavailable": "Башня сейчас недоступна",
+        "tower_access_hint": "Доступ к башне открывает учитель для выбранных классов.",
+        "tower_management_hint": "Выберите классы, ученикам которых будет доступна башня. При отключении доступ закрывается, а игровой прогресс сохраняется.",
+        "tower_class_access": "Доступ учеников к башне",
+        "tower_class_ineligible": "Для включения нужен обычный класс с активным владельцем, которому администратор разрешил управление башней.",
+    },
+    "kk": {
+        "tower_title": "Коллекциялық журнал",
+        "tower_preview": "Журналды алдын ала қарау",
+        "tower_card_catalog": "NIS кейіпкерлері",
+        "tower_catalog_hint": "Карточкалардың көрінісін алдын ала қарау. Мұнда толық каталог көрсетілген; оқушының жеке жинағы бөлек есептеледі.",
+        "tower_rarity_filter": "Карточкалардың сиректігі",
+        "tower_all_cards": "Барлық карточкалар",
+        "tower_preparing": "Журнал ашылуға дайындалуда. Оқудағы жетістіктерің үшін нишкойн жина, пактарды аш, кейіпкер карточкаларын жинап, аватарыңды безендір.",
+        "tower_back_management": "Мұнараны басқаруға оралу",
+        "tower_back_lesson": "Сабаққа оралу",
+        "tower_unavailable": "Мұнара қазір қолжетімсіз",
+        "tower_access_hint": "Мұғалім таңдалған сыныптарға мұнараға кіру мүмкіндігін ашады.",
+        "tower_management_hint": "Оқушылары мұнараға кіре алатын сыныптарды таңдаңыз. Қолжетімділік өшірілгенде ойын барысы сақталады.",
+        "tower_class_access": "Оқушылардың мұнараға қолжетімділігі",
+        "tower_class_ineligible": "Қосу үшін әкімші мұнараны басқаруға рұқсат берген белсенді иесі бар кәдімгі сынып қажет.",
+    },
+    "en": {
+        "tower_title": "Collection Journal",
+        "tower_preview": "Preview the journal",
+        "tower_card_catalog": "NIS characters",
+        "tower_catalog_hint": "Card design preview. This is the full character catalogue; each student's collection is tracked separately.",
+        "tower_rarity_filter": "Card rarity",
+        "tower_all_cards": "All cards",
+        "tower_preparing": "The journal is preparing to open. Earn niscoins through learning achievements, open packs, collect character cards and customize your avatar.",
+        "tower_back_management": "Back to tower management",
+        "tower_back_lesson": "Return to the lesson",
+        "tower_unavailable": "The tower is currently unavailable",
+        "tower_access_hint": "Your teacher can open tower access for selected classes.",
+        "tower_management_hint": "Choose which classes can enter the tower. Disabling access preserves their game progress.",
+        "tower_class_access": "Student access to the tower",
+        "tower_class_ineligible": "Enabling access requires a regular class with an active owner authorized by an administrator to manage the tower.",
+    },
+}.items():
+    UI_TRANSLATIONS[_lang_code].update(_tower_text)
+
+
+for _lang_code, _wallet_text in {
+    "ru": {
+        "wallet_title": "Кошелёк", "wallet_balance": "Ваш баланс", "wallet_niscoin": "нишкойнов",
+        "wallet_shards": "осколков", "wallet_history": "История операций", "wallet_after": "Баланс после",
+        "wallet_no_entries": "Операций пока нет. Первую награду выдаст учитель.", "wallet_older": "Более ранние операции",
+        "wallet_earning_hint": "Получайте нишкойны за учебные достижения. Награды начисляет учитель.",
+        "wallet_awards": "Награды и кошельки", "wallet_teacher_hint": "Начисляйте нишкойны ученикам включённых классов. Для каждой награды укажите причину.",
+        "wallet_teacher_history_hint": "Здесь показаны ваши начисления в этом классе. Баланс общий для аккаунта ученика.",
+        "wallet_amount": "Нишкойны", "wallet_reason": "Причина награды", "wallet_award": "Начислить",
+        "wallet_show": "Показать", "wallet_students": "Ученики", "wallet_no_students": "Нет доступных учеников. Включите доступ к журналу для класса.",
+        "wallet_award_success": "Награда начислена.", "wallet_award_replayed": "Эта награда уже была начислена. Повторного начисления нет.",
+        "wallet_form_invalid": "Проверьте сумму, причину и выбранного ученика.",
+        "wallet_error_invalid_amount": "Укажите положительное целое число в установленном лимите.",
+        "wallet_error_reason_required": "Укажите причину: от 1 до 240 символов.",
+        "wallet_error_request_conflict": "Этот запрос уже использован для другой операции. Обновите страницу.",
+        "wallet_error_balance_limit": "Достигнут предельный баланс.",
+    },
+    "kk": {
+        "wallet_title": "Әмиян", "wallet_balance": "Сіздің теңгеріміңіз", "wallet_niscoin": "нишкойн",
+        "wallet_shards": "сынық", "wallet_history": "Операциялар тарихы", "wallet_after": "Кейінгі теңгерім",
+        "wallet_no_entries": "Әзірге операциялар жоқ. Алғашқы сыйақыны мұғалім береді.", "wallet_older": "Бұрынғы операциялар",
+        "wallet_earning_hint": "Оқудағы жетістіктеріңіз үшін нишкойн алыңыз. Сыйақыны мұғалім тағайындайды.",
+        "wallet_awards": "Сыйақылар мен әмияндар", "wallet_teacher_hint": "Қосылған сыныптардың оқушыларына нишкойн беріңіз. Әр сыйақының себебін көрсетіңіз.",
+        "wallet_teacher_history_hint": "Мұнда осы сыныптағы сіздің сыйақыларыңыз көрсетілген. Теңгерім оқушы аккаунтына ортақ.",
+        "wallet_amount": "Нишкойн", "wallet_reason": "Сыйақы себебі", "wallet_award": "Есептеу",
+        "wallet_show": "Көрсету", "wallet_students": "Оқушылар", "wallet_no_students": "Қолжетімді оқушылар жоқ. Сыныпқа журналды ашыңыз.",
+        "wallet_award_success": "Сыйақы есептелді.", "wallet_award_replayed": "Бұл сыйақы бұрын есептелген. Қайта есептелмеді.",
+        "wallet_form_invalid": "Соманы, себебін және таңдалған оқушыны тексеріңіз.",
+        "wallet_error_invalid_amount": "Белгіленген шекте оң бүтін сан енгізіңіз.",
+        "wallet_error_reason_required": "1–240 таңбадан тұратын себепті көрсетіңіз.",
+        "wallet_error_request_conflict": "Бұл сұрау басқа операцияға қолданылған. Бетті жаңартыңыз.",
+        "wallet_error_balance_limit": "Теңгерім шегіне жетті.",
+    },
+    "en": {
+        "wallet_title": "Wallet", "wallet_balance": "Your balance", "wallet_niscoin": "niscoins",
+        "wallet_shards": "shards", "wallet_history": "Transaction history", "wallet_after": "Balance after",
+        "wallet_no_entries": "No transactions yet. Your teacher can award your first niscoins.", "wallet_older": "Older transactions",
+        "wallet_earning_hint": "Earn niscoins for learning achievements. Your teacher awards them.",
+        "wallet_awards": "Rewards and wallets", "wallet_teacher_hint": "Award niscoins to students in enabled classes. Include a reason for every award.",
+        "wallet_teacher_history_hint": "These are your awards in this class. The balance belongs to the student's account across classes.",
+        "wallet_amount": "Niscoins", "wallet_reason": "Award reason", "wallet_award": "Award",
+        "wallet_show": "Show", "wallet_students": "Students", "wallet_no_students": "No eligible students. Enable journal access for a class first.",
+        "wallet_award_success": "Award added.", "wallet_award_replayed": "This award was already added. It has not been added twice.",
+        "wallet_form_invalid": "Check the amount, reason and selected student.",
+        "wallet_error_invalid_amount": "Enter a positive whole number within the configured limit.",
+        "wallet_error_reason_required": "Enter a reason between 1 and 240 characters.",
+        "wallet_error_request_conflict": "This request was used for a different transaction. Refresh the page.",
+        "wallet_error_balance_limit": "The balance limit has been reached.",
+    },
+}.items():
+    UI_TRANSLATIONS[_lang_code].update(_wallet_text)
+
+
 def get_ui_lang(request):
     lang = request.session.get("ui_lang") or request.COOKIES.get("ui_lang") or DEFAULT_UI_LANG
     if lang not in SUPPORTED_UI_LANGS:

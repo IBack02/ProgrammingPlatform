@@ -1,0 +1,39 @@
+{% load static %}
+<!doctype html>
+<html lang="{{ ui_lang }}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ T.tower_title }}</title>
+  <link rel="stylesheet" href="{% static 'tower/journal.css' %}">
+  {% if tower_preview %}<script src="{% static 'tower/journal.js' %}" defer></script>{% endif %}
+</head>
+<body><main class="journal{% if not tower_preview %} journal--preparing{% endif %}">
+  <header class="journal-header">
+    <div>
+      <p class="journal-eyebrow">NIS · {{ T.tower_title }}</p>
+      <h1>{% if tower_preview %}{{ T.tower_card_catalog }}{% else %}{{ T.tower_title }}{% endif %}</h1>
+    </div>
+    {% if tower_preview %}<a class="journal-back" href="{% url 'tower:teacher' %}">{{ T.tower_back_management }}</a>
+    {% else %}<a class="journal-back" href="/student/">{{ T.tower_back_lesson }}</a>{% endif %}
+  </header>
+  {% if tower_preview %}
+    <p class="journal-intro">{{ T.tower_catalog_hint }}</p>
+    <div class="rarity-filters" role="group" aria-label="{{ T.tower_rarity_filter }}">
+      <button type="button" class="rarity-filter" data-rarity-filter="all" aria-pressed="true">{{ T.tower_all_cards }}</button>
+      {% for rarity in rarities %}<button type="button" class="rarity-filter rarity-filter--{{ rarity.id }}" data-rarity-filter="{{ rarity.id }}" aria-pressed="false">{{ rarity.label }} <span aria-hidden="true">{{ rarity.stars }} ★</span></button>{% endfor %}
+    </div>
+    <p class="journal-count" role="status" aria-live="polite"><span id="visibleCardCount">{{ cards|length }}</span> / {{ cards|length }}</p>
+    <section class="collection-grid" aria-label="{{ T.tower_card_catalog }}">
+      {% for card in cards %}{% include "tower/_collection_card.html" with card=card only %}{% endfor %}
+    </section>
+  {% else %}
+    <section class="wallet-summary" aria-label="{{ T.wallet_title }}">
+      <div><p class="journal-eyebrow">{{ T.wallet_balance }}</p><strong class="wallet-total">{{ wallet.niscoin }} <span>{{ T.wallet_niscoin }}</span></strong></div>
+      <p>{{ T.wallet_earning_hint }}</p>
+    </section>
+    <section class="wallet-panel"><h2>{{ T.wallet_history }}</h2>{% include 'tower/_wallet_history.html' %}</section>
+    <p class="journal-intro">{{ T.tower_preparing }}</p>
+  {% endif %}
+</main></body>
+</html>

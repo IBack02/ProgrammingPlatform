@@ -1,0 +1,26 @@
+{% extends "core/teacher/_base.html" %}
+{% block title %}{{ T.tower_title }}{% endblock %}
+{% block subtitle %}{{ T.tower_management_hint }}{% endblock %}
+{% block content %}
+<div class="card" style="margin-bottom:14px">
+  <h1 style="margin-top:0;font-size:22px">{{ T.tower_title }}</h1>
+  <p>{{ T.tower_management_hint }}</p>
+  <a class="btn" href="{% url 'tower:preview' %}">{{ T.tower_preview }}</a>
+  <a class="btn" href="{% url 'tower:teacher_wallets' %}">{{ T.wallet_awards }}</a>
+</div>
+{% if tower_error %}<p role="alert">{{ tower_error }}</p>{% endif %}
+{% for group in tower_classes %}
+<form method="post" class="card" style="margin-bottom:12px;display:flex;align-items:center;gap:16px;flex-wrap:wrap">
+  {% csrf_token %}
+  <input type="hidden" name="class_id" value="{{ group.id }}">
+  <strong>{{ group.name }}</strong>
+  {% if group.can_enable or group.tower_enabled %}
+    <label style="display:flex;align-items:center;gap:10px;padding:8px 0">
+      <input type="checkbox" name="tower_enabled" {% if group.tower_enabled %}checked{% endif %} style="width:20px;height:20px">
+      {{ T.tower_class_access }}
+    </label>
+    <button class="btn" type="submit">{{ T.save }}</button>
+  {% else %}<span class="muted">{{ T.tower_class_ineligible }}</span>{% endif %}
+</form>
+{% empty %}<div class="card">{{ T.no_classes_yet }}</div>{% endfor %}
+{% endblock %}

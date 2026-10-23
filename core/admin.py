@@ -1,6 +1,22 @@
 from django.contrib import admin
+from django.db import transaction
 
-from .forms import StudentAdminForm
+
+def _save_tower_access(model_admin, request, obj, form, change, fields, event_type):
+    from tower.models import TowerAuditEvent
+
+    with transaction.atomic():
+        previous = type(obj).objects.filter(pk=obj.pk).values(*fields).first() if change else None
+        model_admin.save_model(request, obj, form, change)
+        current = {field: getattr(obj, field) for field in fields}
+        if previous != current and (change or any(current.get(key) for key in ("can_manage_tower", "tower_enabled"))):
+            TowerAuditEvent.objects.create(
+                event_type=event_type, actor_admin=request.user,
+                class_group=obj if event_type == "class_admin_access" else None,
+                metadata={"target_id": obj.pk, "before": previous, "after": current},
+            )
+
+from .forms import ClassGroupAdminForm, StudentAdminForm
 from .models import (
     ClassGroup,
     Student,
@@ -29,8 +45,18 @@ class StudentClassMembershipInline(admin.TabularInline):
 
 @admin.register(ClassGroup)
 class ClassGroupAdmin(admin.ModelAdmin):
-    list_display = ("id", "name", "owner", "created_at")
+    form = ClassGroupAdminForm
+    list_display = ("id", "name", "owner", "tower_enabled", "created_at")
+    list_filter = ("tower_enabled",)
     search_fields = ("name",)
+
+    def save_model(self, request, obj, form, change):
+        _save_tower_access(super(), request, obj, form, change,
+                           ("tower_enabled", "owner_id", "is_guest"), "class_admin_access")
+
+    def get_readonly_fields(self, request, obj=None):
+        fields = super().get_readonly_fields(request, obj)
+        return fields if request.user.is_superuser else (*fields, "tower_enabled")
 
 
 @admin.register(Student)
@@ -139,11 +165,19 @@ from .forms import TeacherAdminForm
 @admin.register(Teacher)
 class TeacherAdmin(admin.ModelAdmin):
     form = TeacherAdminForm
-    list_display = ("full_name", "is_active", "created_at")
-    list_filter = ("is_active",)
+    list_display = ("full_name", "is_active", "can_manage_tower", "created_at")
+    list_filter = ("is_active", "can_manage_tower")
     search_fields = ("full_name",)
     readonly_fields = ("created_at",)
     exclude = ("pin_hash",)
+
+    def save_model(self, request, obj, form, change):
+        _save_tower_access(super(), request, obj, form, change,
+                           ("can_manage_tower", "is_active"), "teacher_access")
+
+    def get_readonly_fields(self, request, obj=None):
+        fields = super().get_readonly_fields(request, obj)
+        return fields if request.user.is_superuser else (*fields, "can_manage_tower")
 
 admin.site.register([Exam, ExamClass, ExamQuestion, ExamMatchPair, ExamAttempt, ExamAnswer])
 admin.site.register([PeerAssessmentSession, PeerAssessmentAssignment, PeerAssessmentReview])

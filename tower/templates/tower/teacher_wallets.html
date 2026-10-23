@@ -1,0 +1,42 @@
+{% extends "core/teacher/_base.html" %}
+{% load static %}
+{% block title %}{{ T.wallet_awards }}{% endblock %}
+{% block subtitle %}{{ T.wallet_teacher_hint }}{% endblock %}
+{% block content %}
+<link rel="stylesheet" href="{% static 'tower/wallet.css' %}">
+<div class="card wallet-heading">
+  <div><h1>{{ T.wallet_awards }}</h1><p>{{ T.wallet_teacher_hint }}</p></div>
+  <a class="btn" href="{% url 'tower:teacher' %}">{{ T.tower_back_management }}</a>
+</div>
+{% for message in messages %}<p class="wallet-notice" role="status">{{ message }}</p>{% endfor %}
+{% if wallet_error %}<p class="wallet-error" role="alert">{{ wallet_error }}</p>{% endif %}
+<form method="get" class="card wallet-class-picker">
+  <label for="wallet-class">{{ T.class_label }}</label>
+  <select name="class_id" id="wallet-class">
+    {% for group in wallet_classes %}<option value="{{ group.pk }}" {% if wallet_class.pk == group.pk %}selected{% endif %}>{{ group.name }}</option>{% endfor %}
+  </select>
+  <button class="btn" type="submit">{{ T.wallet_show }}</button>
+</form>
+<div class="wallet-students">
+{% for row in wallet_rows %}
+  <article class="card wallet-student">
+    <div class="wallet-student-heading"><strong>{{ row.student.full_name }}</strong><span>{{ row.balance }} {{ T.wallet_niscoin }}</span>
+      <a href="?class_id={{ wallet_class.pk }}&amp;student_id={{ row.student.pk }}#wallet-history">{{ T.wallet_history }}</a>
+    </div>
+    <form method="post" class="wallet-award-form">
+      {% csrf_token %}{{ row.form.class_id }}{{ row.form.student_id }}{{ row.form.request_id }}
+      <label>{{ T.wallet_amount }}{{ row.form.amount }}</label>
+      <label class="wallet-reason">{{ T.wallet_reason }}{{ row.form.reason }}</label>
+      <button class="btn" type="submit">{{ T.wallet_award }}</button>
+      {% if row.form.errors %}<div class="wallet-field-errors" role="alert">{{ row.form.errors }}</div>{% endif %}
+    </form>
+  </article>
+{% empty %}<div class="card">{{ T.wallet_no_students }}</div>{% endfor %}
+</div>
+{% if student_page.has_other_pages %}<nav class="wallet-pagination" aria-label="{{ T.wallet_students }}">
+  {% if student_page.has_previous %}<a href="?class_id={{ wallet_class.pk }}&amp;page={{ student_page.previous_page_number }}">←</a>{% endif %}
+  <span>{{ student_page.number }} / {{ student_page.paginator.num_pages }}</span>
+  {% if student_page.has_next %}<a href="?class_id={{ wallet_class.pk }}&amp;page={{ student_page.next_page_number }}">→</a>{% endif %}
+</nav>{% endif %}
+{% if history_student %}<section class="card" id="wallet-history"><h2>{{ T.wallet_history }} · {{ history_student.full_name }}</h2><p class="muted">{{ T.wallet_teacher_history_hint }}</p>{% include 'tower/_wallet_history.html' %}</section>{% endif %}
+{% endblock %}

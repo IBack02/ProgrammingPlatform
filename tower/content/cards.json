@@ -1,0 +1,24 @@
+{
+  "version": 1,
+  "aspect_ratio": [2, 3],
+  "rarities": {
+    "common": {"stars": 2, "frame": "tower/frames/common.webp", "labels": {"ru": "Обычная", "kk": "Кәдімгі", "en": "Common"}},
+    "rare": {"stars": 3, "frame": "tower/frames/rare.webp", "labels": {"ru": "Редкая", "kk": "Сирек", "en": "Rare"}},
+    "epic": {"stars": 4, "frame": "tower/frames/epic.webp", "labels": {"ru": "Эпическая", "kk": "Эпикалық", "en": "Epic"}},
+    "legendary": {"stars": 5, "frame": "tower/frames/legendary.webp", "labels": {"ru": "Легендарная", "kk": "Аңызға айналған", "en": "Legendary"}}
+  },
+  "cards": [
+    {"id": "nis-coder", "name": "Арман", "rarity": "common", "portrait": "chars/nis-coder.png", "roles": {"ru": "Программист", "kk": "Бағдарламашы", "en": "Programmer"}},
+    {"id": "nis-mathematician", "name": "Аружан", "rarity": "common", "portrait": "chars/nis-mathematician.png", "roles": {"ru": "Математик", "kk": "Математик", "en": "Mathematician"}},
+    {"id": "nis-chemist", "name": "Ильяс", "rarity": "common", "portrait": "chars/nis-chemist.png", "roles": {"ru": "Химик", "kk": "Химик", "en": "Chemist"}},
+    {"id": "nis-roboticist", "name": "Аяулым", "rarity": "rare", "portrait": "chars/nis-roboticist.png", "roles": {"ru": "Робототехник", "kk": "Робототехник", "en": "Roboticist"}},
+    {"id": "nis-artist", "name": "Тимур", "rarity": "rare", "portrait": "chars/nis-artist.png", "roles": {"ru": "Художник", "kk": "Суретші", "en": "Artist"}},
+    {"id": "nis-biologist", "name": "Сара", "rarity": "rare", "portrait": "chars/nis-biologist.png", "roles": {"ru": "Биолог", "kk": "Биолог", "en": "Biologist"}},
+    {"id": "nis-physicist", "name": "Руслан", "rarity": "epic", "portrait": "chars/nis-physicist.png", "roles": {"ru": "Физик", "kk": "Физик", "en": "Physicist"}},
+    {"id": "nis-debater", "name": "Алия", "rarity": "epic", "portrait": "chars/nis-debater.png", "roles": {"ru": "Дебатёр", "kk": "Пікірсайысшы", "en": "Debater"}},
+    {"id": "nis-astronomer", "name": "Мади", "rarity": "epic", "portrait": "chars/nis-astronomer.png", "roles": {"ru": "Астроном", "kk": "Астроном", "en": "Astronomer"}},
+    {"id": "nis-musician", "name": "Дана", "rarity": "legendary", "portrait": "chars/nis-musician.png", "roles": {"ru": "Музыкант", "kk": "Музыкант", "en": "Musician"}},
+    {"id": "nis-chessplayer", "name": "Аскар", "rarity": "legendary", "portrait": "chars/nis-chessplayer.png", "roles": {"ru": "Шахматист", "kk": "Шахматшы", "en": "Chess player"}},
+    {"id": "nis-inventor", "name": "Томирис", "rarity": "legendary", "portrait": "chars/nis-inventor.png", "roles": {"ru": "Изобретатель", "kk": "Өнертапқыш", "en": "Inventor"}}
+  ]
+}

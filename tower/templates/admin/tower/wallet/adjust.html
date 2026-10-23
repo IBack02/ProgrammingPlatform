@@ -1,0 +1,7 @@
+{% extends "admin/base_site.html" %}
+{% block content %}
+<h1>{{ title }}</h1>
+<p>{{ wallet.player.student.full_name }} · {{ wallet.niscoin }} нишкойнов · {{ wallet.universal_shards }} осколков</p>
+<p>Положительная сумма добавляет валюту, отрицательная списывает. Причина обязательна. Операция сохраняется в истории.</p>
+<form method="post">{% csrf_token %}{{ form.as_p }}<input type="submit" value="Записать корректировку"></form>
+{% endblock %}

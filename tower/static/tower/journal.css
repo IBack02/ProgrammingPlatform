@@ -1,0 +1,41 @@
+:root{color-scheme:dark;font-family:Georgia,"Times New Roman",serif;background:#111823;color:#e9e4d9}
+*{box-sizing:border-box}
+body{margin:0;min-width:280px;background:radial-gradient(ellipse at 50% 0,#26364b 0,transparent 65%),#111823}
+.journal{max-width:1160px;margin:auto;padding:44px 24px 70px}
+.journal--preparing{max-width:780px;margin-top:8vh}
+.journal-header{display:flex;align-items:center;justify-content:space-between;gap:24px;flex-wrap:wrap}
+.journal-eyebrow{font:600 11px/1.4 Arial,sans-serif;letter-spacing:.2em;text-transform:uppercase;color:#afc0cb;margin:0 0 12px}
+h1{font-size:clamp(28px,4.5vw,46px);font-weight:500;line-height:1.1;margin:0}
+.journal-back{font:13px/1.5 Arial,sans-serif;text-decoration:none;color:#e6d6aa;padding:11px 16px;border:1px solid #bca36b55;border-radius:8px}
+.journal-intro{color:#b4bfca;max-width:720px;font:14px/1.7 Arial,sans-serif;margin:18px 0 26px}
+.rarity-filters{display:flex;flex-wrap:wrap;gap:8px}
+.rarity-filter{--rarity:#ced8e2;font:12px/1.3 Arial,sans-serif;cursor:pointer;color:#d2dbe3;background:#1e2938;border:1px solid #5a6b7e55;border-radius:7px;padding:10px 13px;min-height:40px}
+.rarity-filter span{margin-left:7px;color:var(--rarity)}
+.rarity-filter--rare{--rarity:#66caff}.rarity-filter--epic{--rarity:#cf9aef}.rarity-filter--legendary{--rarity:#f7cc67}
+.rarity-filter[aria-pressed=true]{background:#324455;border-color:var(--rarity);color:#fff}
+.journal-count{color:#93a5b6;font:12px/1.4 Arial,sans-serif;margin:16px 0 20px}
+.collection-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:26px 20px}
+.collection-card{container-type:inline-size;position:relative;aspect-ratio:2/3;isolation:isolate;filter:drop-shadow(0 12px 14px #0006);transition:transform .18s ease}
+.collection-card:hover{transform:translateY(-4px)}
+.collection-card[hidden]{display:none}
+.collection-card__portrait,.collection-card__placeholder{position:absolute;inset:2.5%;width:95%;height:95%;object-fit:cover;border-radius:3%;z-index:0}
+.collection-card__portrait[hidden]{display:none}
+.collection-card__placeholder{display:grid;place-items:center;background:linear-gradient(150deg,#293f56,#142030);color:#4b647d;font:700 12cqw Georgia,serif}
+.collection-card__frame{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:1}
+.collection-card__copy{position:absolute;left:10%;right:10%;bottom:15.1%;padding:5% 3% 2%;z-index:2;text-align:center;background:linear-gradient(transparent,#101620e8 50%);border-radius:5px;text-shadow:0 1px 4px #000}
+.collection-card__copy h2{font-size:clamp(13px,7.2cqw,23px);font-weight:600;line-height:1.08;margin:0;color:#fff8e8;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.collection-card__copy p{font:400 clamp(10px,4.1cqw,14px)/1.3 Arial,sans-serif;letter-spacing:.03em;margin:4% 0 0;color:#e1e5e6;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.collection-card__stars{position:absolute;left:18%;right:18%;bottom:6.4%;height:5.5%;display:flex;justify-content:center;gap:3%;z-index:3;pointer-events:none}
+.collection-card__stars svg{height:100%;width:auto;fill:#ffe6a1;stroke:#72511e;stroke-width:.9;filter:drop-shadow(0 1px 1px #0009)}
+.collection-card--common .collection-card__stars svg{fill:#f5f7fa;stroke:#566878}
+.collection-card--rare .collection-card__stars svg{fill:#c8f0ff;stroke:#1b5d84}
+.collection-card--epic .collection-card__stars svg{fill:#f1d8ff;stroke:#63357b}
+a:focus-visible,button:focus-visible{outline:3px solid #e4c782;outline-offset:4px}
+@media(max-width:900px){.collection-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:18px 14px}}
+@media(max-width:620px){.journal{padding:26px 14px 44px}.collection-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:18px 10px}.journal-header{gap:18px}.journal-intro{font-size:13px}.rarity-filter{padding:9px 10px}.journal-back{font-size:12px}}
+@media(prefers-reduced-motion:reduce){.collection-card{transition:none}.collection-card:hover{transform:none}}
+.wallet-summary{display:flex;justify-content:space-between;align-items:center;gap:24px;flex-wrap:wrap;padding:28px;margin:30px 0 24px;background:linear-gradient(120deg,#263b4b,#182635);border:1px solid #bca36b66;border-radius:14px;font:14px/1.6 Arial,sans-serif}
+.wallet-total{font:600 44px/1.3 Georgia,serif;color:#f4d487}.wallet-total span{font:16px Arial,sans-serif}.wallet-summary>p{max-width:370px;color:#bdcbd5}
+.wallet-panel{padding:24px 28px;background:#162431;border:1px solid #52677955;border-radius:14px}.wallet-panel h2{font-size:22px;margin:0 0 12px}
+.wallet-entry{display:flex;justify-content:space-between;gap:20px;padding:18px 0;border-bottom:1px solid #52677944;overflow-wrap:anywhere;font:14px/1.5 Arial,sans-serif}.wallet-entry small{display:block;margin-top:5px;color:#a8b9c8}.wallet-entry-amount{text-align:right;flex-shrink:0}.wallet-entry-amount--positive{color:#8ee3b1}.wallet-history+.journal-back{display:inline-block;margin-top:20px}
+@media(max-width:520px){.wallet-summary,.wallet-panel{padding:20px}.wallet-entry{flex-wrap:wrap}.wallet-entry-amount{text-align:left}.wallet-total{font-size:36px}}

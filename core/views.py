@@ -14,6 +14,7 @@ from django.contrib.admin.views.decorators import staff_member_required
 from django.contrib.auth.hashers import check_password, make_password
 from django.db import IntegrityError, transaction
 from django.db.models import Avg, Count, F, Max, Q, Sum
+from django.db.models.deletion import ProtectedError
 from django.http import HttpRequest, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
@@ -2644,6 +2645,8 @@ def teacher_classes_api(request: HttpRequest):
         return JsonResponse({"ok": True, "classes": [_serialize_class_group(c) for c in classes]})
 
     data = _json_body(request)
+    if "tower_enabled" in data or "can_manage_tower" in data:
+        return JsonResponse({"ok": False, "error": "tower settings require tower management"}, status=403)
     name = (data.get("name") or "").strip()
     if not name:
         return JsonResponse({"ok": False, "error": "name is required"}, status=400)
@@ -2671,6 +2674,8 @@ def teacher_class_detail_api(request: HttpRequest, class_id: int):
 
     if request.method == "PATCH":
         data = _json_body(request)
+        if "tower_enabled" in data or "can_manage_tower" in data:
+            return JsonResponse({"ok": False, "error": "tower settings require tower management"}, status=403)
         name = (data.get("name") or "").strip()
         if not name:
             return JsonResponse({"ok": False, "error": "name is required"}, status=400)
@@ -2683,7 +2688,10 @@ def teacher_class_detail_api(request: HttpRequest, class_id: int):
     if StudentClassMembership.objects.filter(class_group=obj).exists():
         return JsonResponse({"ok": False, "error": "cannot delete: class has students"}, status=409)
 
-    obj.delete()
+    try:
+        obj.delete()
+    except ProtectedError:
+        return JsonResponse({"ok": False, "error": "cannot delete: class has protected history"}, status=409)
     return JsonResponse({"ok": True})
 
 
@@ -2778,7 +2786,10 @@ def teacher_student_detail_api(request: HttpRequest, student_id: int):
     st = get_object_or_404(Student.objects.select_related("class_group"), id=student_id, class_group__owner=teacher)
 
     if request.method == "DELETE":
-        st.delete()
+        try:
+            st.delete()
+        except ProtectedError:
+            return JsonResponse({"ok": False, "error": "cannot delete: student has protected history; deactivate the account"}, status=409)
         return JsonResponse({"ok": True})
 
     data = _json_body(request)

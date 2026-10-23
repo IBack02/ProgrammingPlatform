@@ -6,6 +6,7 @@ class ClassGroup(models.Model):
     # Django's primary-key `id` is the stable unique class identifier.
     name = models.CharField(max_length=32)
     is_guest = models.BooleanField(default=False)
+    tower_enabled = models.BooleanField(default=False, verbose_name="Доступ к башне")
     guest_access_token = models.UUIDField(null=True, blank=True, unique=True, editable=False)
     owner = models.ForeignKey(
         "Teacher",
@@ -22,6 +23,10 @@ class ClassGroup(models.Model):
         ordering = ["name"]
         constraints = [
             models.UniqueConstraint(fields=["owner"], condition=models.Q(is_guest=True), name="one_guest_class_per_teacher"),
+            models.CheckConstraint(
+                condition=models.Q(tower_enabled=False) | models.Q(is_guest=False),
+                name="tower_excludes_guest_classes",
+            ),
         ]
 
     def __str__(self):
@@ -1001,6 +1006,11 @@ class Teacher(models.Model):
     full_name = models.CharField(max_length=120, unique=True)
     pin_hash = models.CharField(max_length=128)
     is_active = models.BooleanField(default=True)
+    can_manage_tower = models.BooleanField(
+        default=False,
+        verbose_name="Управление башней",
+        help_text="Назначается только суперпользователем. Разрешает управление игрой в собственных классах.",
+    )
 
     created_at = models.DateTimeField(auto_now_add=True)
 

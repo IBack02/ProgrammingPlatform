@@ -77,6 +77,12 @@ SECURE_HSTS_INCLUDE_SUBDOMAINS = not DEBUG
 SECURE_HSTS_PRELOAD = os.environ.get("SECURE_HSTS_PRELOAD", "false").lower() == "true"
 SECURE_CONTENT_TYPE_NOSNIFF = True
 REFERRER_POLICY = "strict-origin-when-cross-origin"
+TOWER_ENABLED = os.environ.get("TOWER_ENABLED", "false").lower() == "true"
+TOWER_ASSET_BASE_URL = os.environ.get(
+    "TOWER_ASSET_BASE_URL", "https://pub-d45cf87f435a45e1b45efc0397382c5d.r2.dev"
+).rstrip("/")
+TOWER_MANUAL_AWARD_LIMIT = int(os.environ.get("TOWER_MANUAL_AWARD_LIMIT", "10000"))
+TOWER_ADMIN_ADJUSTMENT_LIMIT = int(os.environ.get("TOWER_ADMIN_ADJUSTMENT_LIMIT", "1000000"))
 X_FRAME_OPTIONS = "DENY"
 SECURE_CROSS_ORIGIN_OPENER_POLICY = "same-origin"
 SIGNED_COOKIE_LEGACY_SALT_FALLBACK = False
@@ -112,6 +118,7 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     "core",
+    "tower",
 ]
 
 MIDDLEWARE = [
@@ -141,6 +148,7 @@ TEMPLATES = [
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
                 "core.context_processors.ui_i18n",
+                "tower.context_processors.tower_access",
             ],
         },
     },
@@ -189,7 +197,10 @@ USE_TZ = True
 STATIC_URL = "/static/"
 STATIC_ROOT = os.path.join(BASE_DIR, "staticfiles")
 STATICFILES_DIRS = [os.path.join(BASE_DIR, "core", "imgs")]
-STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
+STORAGES = {
+    "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+    "staticfiles": {"BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage"},
+}
 
 
 # Default primary key field type

@@ -1,0 +1,25 @@
+.wallet-heading { display:flex; justify-content:space-between; align-items:center; gap:16px; flex-wrap:wrap; margin-bottom:16px; }
+.wallet-heading h1 { margin:0; font-size:24px; }
+.wallet-heading p { max-width:720px; }
+.wallet-class-picker { display:flex; gap:12px; align-items:center; flex-wrap:wrap; margin-bottom:16px; }
+.wallet-class-picker select { min-width:180px; padding:10px; border:1px solid #cbd5e1; border-radius:8px; }
+.wallet-student { margin-bottom:12px; }
+.wallet-student-heading { display:flex; align-items:center; gap:16px; flex-wrap:wrap; margin-bottom:14px; }
+.wallet-student-heading strong { flex:1; min-width:160px; }
+.wallet-award-form { display:flex; gap:12px; align-items:flex-end; flex-wrap:wrap; }
+.wallet-award-form label { display:flex; flex-direction:column; gap:6px; font-size:13px; }
+.wallet-award-form input { box-sizing:border-box; padding:10px; border:1px solid #cbd5e1; border-radius:8px; font:inherit; }
+.wallet-award-form .award-amount { width:120px; }
+.wallet-reason { flex:1; min-width:200px; }
+.wallet-award-form button { min-height:40px; }
+.wallet-field-errors { width:100%; color:#b91c1c; }
+.wallet-notice { padding:12px 16px; background:#dcfce7; color:#14532d; border-radius:10px; }
+.wallet-error { padding:12px 16px; background:#fee2e2; color:#991b1b; border-radius:10px; }
+.wallet-entry { display:flex; justify-content:space-between; gap:16px; padding:16px 0; border-bottom:1px solid #e2e8f0; overflow-wrap:anywhere; }
+.wallet-entry small { display:block; margin-top:6px; opacity:.7; }
+.wallet-entry-amount { text-align:right; flex-shrink:0; }
+.wallet-entry-amount--positive { color:#15803d; }
+html[data-theme="dark"] .wallet-entry-amount--positive { color:#8ee3b1; }
+html[data-theme="dark"] .wallet-entry { border-bottom-color:#46525e; }
+.wallet-pagination { display:flex; justify-content:center; gap:24px; margin:20px 0; }
+@media(max-width:520px) { .wallet-award-form label, .wallet-reason { flex:1 1 100%; min-width:0; } .wallet-award-form .award-amount { width:100%; } .wallet-entry { flex-wrap:wrap; } .wallet-entry-amount { text-align:left; } }

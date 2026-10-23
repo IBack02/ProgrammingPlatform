@@ -1,0 +1,12 @@
+<div class="wallet-history">
+  {% for entry in wallet_entries %}
+    <article class="wallet-entry">
+      <div><strong>{{ entry.reason }}</strong><small>{{ entry.created_at|date:"d.m.Y H:i" }}</small></div>
+      <div class="wallet-entry-amount {% if entry.delta > 0 %}wallet-entry-amount--positive{% endif %}">
+        <strong>{% if entry.delta > 0 %}+{% endif %}{{ entry.delta }} {% if entry.currency == 'niscoin' %}{{ T.wallet_niscoin }}{% else %}{{ T.wallet_shards }}{% endif %}</strong>
+        <small>{{ T.wallet_after }}: {{ entry.balance_after }}</small>
+      </div>
+    </article>
+  {% empty %}<p class="muted">{{ T.wallet_no_entries }}</p>{% endfor %}
+</div>
+{% if history_next_url %}<a class="journal-back" href="{{ history_next_url }}">{{ T.wallet_older }}</a>{% endif %}

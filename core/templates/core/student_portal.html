@@ -557,6 +557,7 @@
             <button class="ghost" type="submit">{{ T.logout }}</button>
           </form>
           <a class="ghost" href="/student/dashboard/" style="text-decoration:none;">{{ T.dashboard|default:"Dashboard" }}</a>
+          {% if tower_can_enter %}<a class="ghost" href="{% url 'tower:home' %}" style="text-decoration:none;">{{ T.tower_title }}</a>{% endif %}
         </div>
       </div>
 

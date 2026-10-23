@@ -6,4 +6,5 @@ urlpatterns = [
     path("", RedirectView.as_view(url="/student/login/", permanent=False)),
     path("admin/", admin.site.urls),
     path("", include("core.urls")),
+    path("", include("tower.urls")),
 ]

@@ -1,6 +1,23 @@
 from django import forms
 from django.core.exceptions import ValidationError
-from .models import Student
+from .models import ClassGroup, Student
+
+
+class ClassGroupAdminForm(forms.ModelForm):
+    class Meta:
+        model = ClassGroup
+        fields = "__all__"
+
+    def clean(self):
+        cleaned = super().clean()
+        enabled = cleaned.get("tower_enabled", self.instance.tower_enabled)
+        if enabled:
+            if cleaned.get("is_guest", self.instance.is_guest):
+                raise ValidationError("Башня недоступна гостевым классам.")
+            owner = cleaned.get("owner", self.instance.owner if self.instance.owner_id else None)
+            if not owner or not owner.is_active or not owner.can_manage_tower:
+                raise ValidationError("Сначала назначьте активному владельцу класса право «Управление башней».")
+        return cleaned
 
 
 class StudentAdminForm(forms.ModelForm):
@@ -46,7 +63,7 @@ class TeacherAdminForm(forms.ModelForm):
 
     class Meta:
         model = Teacher
-        fields = ("full_name", "is_active", "password")
+        fields = ("full_name", "is_active", "can_manage_tower", "password")
 
     def clean_password(self):
         password = self.cleaned_data.get("password") or ""
