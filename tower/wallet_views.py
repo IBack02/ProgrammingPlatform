@@ -15,10 +15,11 @@ from django.views.decorators.http import require_GET, require_POST, require_http
 
 from core.models import Student
 from core.ui_translations import UI_TRANSLATIONS, get_ui_lang
-from .forms import AwardForm
-from .models import WalletEntry
+from .forms import AwardForm, BatchAwardForm, RewardPolicyForm
+from .models import RewardPolicy, WalletEntry
 from .permissions import is_tower_admin, managed_classes, tower_student_required, tower_teacher_required
 from .services.wallet import WalletError, award_coins, student_wallet
+from .services.rewards import award_batch, save_policy
 
 
 def wallet_errors(view):
@@ -105,7 +106,7 @@ def _scope(request, class_id):
 
 
 def _teacher_history(request, group, student):
-    entries = WalletEntry.objects.filter(wallet__player__student=student, class_group=group)
+    entries = WalletEntry.objects.filter(wallet__player__student=student, class_group=group).select_related("wallet__player__student")
     if not is_tower_admin(request):
         entries = entries.filter(operation__actor_teacher=request.tower_teacher)
     return _history(entries, request.GET.get("before"))
@@ -167,7 +168,35 @@ def teacher_wallets(request):
     group, students = _scope(request, chosen) if chosen else (None, Student.objects.none())
     bound_form = None
     error = ""
-    if request.method == "POST":
+    policy_form = RewardPolicyForm(instance=RewardPolicy.objects.filter(class_group=group).first() if group else None)
+    batch_form = None
+    action = request.POST.get("action", "single")
+    if request.method == "POST" and action in ("policy", "batch"):
+        if not group:
+            raise Http404
+        actor = {"admin": request.user} if is_tower_admin(request) else {"teacher": request.tower_teacher}
+        form = (RewardPolicyForm(request.POST, instance=policy_form.instance) if action == "policy"
+                else BatchAwardForm(request.POST, students=students))
+        if action == "policy":
+            policy_form = form
+        else:
+            batch_form = form
+        if form.is_valid():
+            try:
+                if action == "policy":
+                    save_policy(class_id=group.pk, values=form.cleaned_data, **actor)
+                    notice = text["reward_policy_saved"]
+                else:
+                    result = award_batch(**form.cleaned_data, **actor)
+                    notice = text["wallet_award_replayed"] if result["replayed"] else text["reward_batch_success"].format(count=result["count"])
+            except WalletError as exc:
+                error = text.get(f"wallet_error_{exc.code}", text["wallet_form_invalid"])
+            else:
+                messages.success(request, notice)
+                return redirect(f"{reverse('tower:teacher')}?{urlencode({'class_id': group.pk})}")
+        else:
+            error = text["wallet_form_invalid"]
+    elif request.method == "POST":
         bound_form = AwardForm(request.POST)
         if bound_form.is_valid():
             try:
@@ -180,21 +209,31 @@ def teacher_wallets(request):
                 return redirect(f"{reverse('tower:teacher_wallets')}?{target}")
         else:
             error = text["wallet_form_invalid"]
-    student_page = Paginator(students.select_related("tower_player__wallet").order_by("full_name", "id"), 50).get_page(request.GET.get("page"))
+    query = request.GET.get("q", "").strip()[:120]
+    visible_students = students.filter(full_name__icontains=query) if query else students
+    student_page = Paginator(visible_students.select_related("tower_player__wallet").order_by("full_name", "id"), 50).get_page(request.GET.get("page"))
     rows = []
     for student in student_page:
         player = getattr(student, "tower_player", None)
         wallet = getattr(player, "wallet", None) if player else None
-        form = AwardForm(initial={"class_id": group.pk, "student_id": student.pk, "request_id": uuid.uuid4()})
-        if bound_form and str(student.pk) == request.POST.get("student_id"):
-            form = bound_form
-        rows.append({"student": student, "balance": wallet.niscoin if wallet else 0, "form": form})
+        rows.append({"student": student, "balance": wallet.niscoin if wallet else 0,
+                     "selected": str(student.pk) in request.POST.getlist("student_ids")})
     selected = positive_id(request.GET.get("student_id"), optional=True)
     history_student = get_object_or_404(students, pk=selected) if selected else None
-    entries, next_before = _teacher_history(request, group, history_student) if history_student else ([], None)
+    if history_student:
+        entries, next_before = _teacher_history(request, group, history_student)
+    else:
+        history = WalletEntry.objects.filter(class_group=group).select_related("wallet__player__student") if group else WalletEntry.objects.none()
+        if not is_tower_admin(request):
+            history = history.filter(operation__actor_teacher=request.tower_teacher)
+        entries, next_before = _history(history, request.GET.get("before"))
+    from .views import _serialize_class
     return render(request, "tower/teacher_wallets.html", {
         "active": "tower", "wallet_classes": groups, "wallet_class": group,
         "wallet_rows": rows, "student_page": student_page, "wallet_error": error,
         "history_student": history_student, "wallet_entries": entries,
-        "history_next_url": "?" + urlencode({"class_id": group.pk, "student_id": selected, "before": next_before}) if next_before else "",
+        "tower_classes": [_serialize_class(item) for item in managed_classes(request)],
+        "policy_form": policy_form, "reward_query": query,
+        "batch_form": batch_form or BatchAwardForm(students=students, initial={"class_id": group.pk if group else "", "request_id": uuid.uuid4()}),
+        "history_next_url": "?" + urlencode({"class_id": group.pk, **({"student_id": selected} if selected else {}), "before": next_before}) + "#wallet-history" if next_before else "",
     }, status=400 if error else 200)

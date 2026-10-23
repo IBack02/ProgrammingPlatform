@@ -1,0 +1,5 @@
+{% if request.user.is_superuser and not tower_service_enabled %}
+  <ul class="messagelist"><li class="warning">
+    {{ T.tower_disabled_hint }} {{ T.tower_disabled_admin_hint }}
+  </li></ul>
+{% endif %}

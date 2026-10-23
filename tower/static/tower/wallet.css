@@ -23,3 +23,64 @@ html[data-theme="dark"] .wallet-entry-amount--positive { color:#8ee3b1; }
 html[data-theme="dark"] .wallet-entry { border-bottom-color:#46525e; }
 .wallet-pagination { display:flex; justify-content:center; gap:24px; margin:20px 0; }
 @media(max-width:520px) { .wallet-award-form label, .wallet-reason { flex:1 1 100%; min-width:0; } .wallet-award-form .award-amount { width:100%; } .wallet-entry { flex-wrap:wrap; } .wallet-entry-amount { text-align:left; } }
+
+.reward-hero{border-top:4px solid #b58a3c;padding:24px}
+.reward-eyebrow{font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:#806026}
+.reward-hero p{line-height:1.6}
+.reward-nav{display:flex;gap:8px;flex-wrap:wrap;margin:18px 0}
+.reward-nav a{padding:10px 14px;border-radius:10px;background:#fff;color:#334155;text-decoration:none;border:1px solid #e2e8f0}
+.reward-workspace{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(300px,1fr);gap:20px;align-items:start}
+.reward-workspace>.card{padding:22px}
+.reward-workspace h2,.reward-history h2{font-size:19px;margin:0 0 8px}
+.reward-workspace .muted{line-height:1.6;font-size:13px}
+.reward-search{margin:20px 0 14px}
+.reward-search label{display:block;font-size:13px;margin-bottom:6px}
+.reward-search>div{display:flex;gap:8px}
+.reward-search input{min-width:0;flex:1}
+.reward-workspace input:not([type=checkbox]){box-sizing:border-box;padding:10px;border:1px solid #cbd5e1;border-radius:8px;font:inherit;background:transparent;color:inherit}
+.reward-select-all{display:flex;justify-content:space-between;gap:8px;font-size:12px;padding:12px 0;border-bottom:1px solid #e2e8f0}
+.reward-select-all label,.reward-student-row label{display:flex;gap:10px;align-items:center;cursor:pointer}
+.reward-workspace input[type=checkbox],.reward-access input[type=checkbox]{width:18px;height:18px;accent-color:#9d7025;flex-shrink:0}
+.reward-roster{max-height:360px;overflow:auto}
+.reward-student-row{display:flex;align-items:center;gap:12px;border-bottom:1px solid #e2e8f0;padding:12px 0;font-size:13px}
+.reward-student-row label{flex:1;min-width:0;overflow-wrap:anywhere}
+.reward-student-row:has(input:checked){background:#f9f3e6}
+.reward-student-row a{font-size:11px}
+.reward-balance{font-weight:700;white-space:nowrap}
+.reward-balance small{font-size:10px;font-weight:400}
+.reward-total{padding:12px;background:#f8f4eb;border-radius:8px;font-size:13px;line-height:1.5}
+.reward-submit{background:#805d26;color:#fff;width:100%;font-weight:700;min-height:44px}
+.reward-submit:disabled{opacity:.5;cursor:default}
+.reward-rules fieldset{border:1px solid #e2e8f0;border-radius:12px;padding:14px;margin:20px 0}
+.reward-rules legend{font-weight:700;font-size:14px}
+.reward-podium{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.reward-podium label{display:grid;gap:8px;font-size:12px}
+.reward-podium input{width:100%}
+.reward-rule-field{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:16px 0;border-bottom:1px solid #e2e8f0;font-size:14px}
+.reward-rule-field small{display:block;font-size:12px;line-height:1.6;margin-top:6px;opacity:.7}
+.reward-rule-field input{width:90px;flex-shrink:0}
+.reward-rule-note{font-size:12px;line-height:1.7;color:#64748b}
+.reward-history,.reward-access{margin-top:20px;padding:22px}
+.reward-access summary{font-weight:700;cursor:pointer}
+.reward-access-row{display:flex;gap:16px;align-items:center;flex-wrap:wrap;padding:14px 0;border-top:1px solid #e2e8f0}
+.reward-access-row strong{flex:1}
+.reward-workspace section,.reward-history,.reward-access{scroll-margin-top:16px}
+.reward-workspace :focus-visible,.reward-nav a:focus-visible{outline:3px solid #0ea5e9;outline-offset:3px}
+html[data-theme="dark"] .reward-nav a{background:#202832;border-color:#46525e;color:#e2e8f0}
+html[data-theme="dark"] .reward-total,html[data-theme="dark"] .reward-student-row:has(input:checked){background:#3a3223}
+html[data-theme="dark"] .reward-rule-note{color:#b6c1ce}
+html[data-theme="dark"] .reward-eyebrow{color:#e3c17d}
+html[data-theme="dark"] .reward-workspace input:not([type=checkbox]){border-color:#596878}
+@media(max-width:850px){.reward-workspace{grid-template-columns:1fr}
+}
+@media(max-width:520px){.reward-workspace>.card,.reward-history,.reward-access,.reward-hero{padding:16px}
+.reward-student-row{flex-wrap:wrap}
+.reward-student-row label{flex-basis:60%}
+.reward-balance small{display:block}
+.reward-select-all{flex-wrap:wrap}
+}
+
+.reward-center{font-family:Arial,"Segoe UI",sans-serif}
+.reward-hero p{margin:8px 0}
+.reward-center .reward-eyebrow{font-size:11px}
+.reward-hero h1{font-size:24px;line-height:1.3}

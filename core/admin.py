@@ -1,4 +1,5 @@
 from django.contrib import admin
+from django.conf import settings
 from django.db import transaction
 
 
@@ -170,6 +171,17 @@ class TeacherAdmin(admin.ModelAdmin):
     search_fields = ("full_name",)
     readonly_fields = ("created_at",)
     exclude = ("pin_hash",)
+    change_form_template = "admin/core/teacher/change_form.html"
+    change_list_template = "admin/core/teacher/change_list.html"
+
+    def render_change_form(self, request, context, *args, **kwargs):
+        context["tower_service_enabled"] = bool(settings.TOWER_ENABLED)
+        return super().render_change_form(request, context, *args, **kwargs)
+
+    def changelist_view(self, request, extra_context=None):
+        return super().changelist_view(request, extra_context={
+            **(extra_context or {}), "tower_service_enabled": bool(settings.TOWER_ENABLED),
+        })
 
     def save_model(self, request, obj, form, change):
         _save_tower_access(super(), request, obj, form, change,

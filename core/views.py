@@ -1236,6 +1236,11 @@ def student_theory_module_detail(request: HttpRequest, module_id: int):
     if not _student_can_access_session(session, class_id=class_id, student_id=student_id):
         return JsonResponse({"ok": False, "error": "session is not accessible"}, status=403)
 
+    from tower.services.rewards import learning_reward
+    learning_reward(student_id=student_id,
+        class_id=_student_session_class_id(session, student_id=student_id, preferred_class_id=class_id),
+        session_id=session.pk, event="page", resource_id=module.pk, title=module.title)
+
     return JsonResponse({
         "ok": True,
         "module": {
@@ -1465,6 +1470,12 @@ def student_theory_quiz_submit(request: HttpRequest, module_id: int):
         result_json={"results": results},
     )
 
+    if total_questions and correct_answers == total_questions:
+        from tower.services.rewards import learning_reward
+        learning_reward(student_id=student_id,
+            class_id=_student_session_class_id(session, student_id=student_id, preferred_class_id=class_id),
+            session_id=session.pk, event="quiz", resource_id=module.pk, title=module.title)
+
     return JsonResponse({
         "ok": True,
         "attempt": {
@@ -1604,6 +1615,12 @@ def student_submit(request: HttpRequest, task_id: int):
             executed_code=final_code,
             programming_language=task.programming_language,
         )
+
+        if verdict == Submission.Verdict.ACCEPTED:
+            from tower.services.rewards import learning_reward
+            learning_reward(student_id=student_id,
+                class_id=_student_session_class_id(session, student_id=student_id, preferred_class_id=class_id),
+                session_id=session.pk, event="task", resource_id=task.pk, title=task.title)
 
     return JsonResponse(
         {

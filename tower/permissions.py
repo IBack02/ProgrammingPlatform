@@ -9,6 +9,7 @@ from django.shortcuts import redirect, render
 from django.views.decorators.cache import never_cache
 
 from core.models import ClassGroup
+from core.ui_translations import UI_TRANSLATIONS, get_ui_lang
 from core.views import _get_logged_in_student, _get_logged_in_teacher
 
 
@@ -50,7 +51,7 @@ def managed_classes(request):
     return groups.filter(owner=request.tower_teacher)
 
 
-def _denied(request, *, authenticated, login_url):
+def _denied(request, *, authenticated, login_url, role):
     if request.path.startswith("/api/"):
         code = "tower_access_denied" if authenticated else "not_authenticated"
         if authenticated and not tower_is_enabled():
@@ -58,7 +59,22 @@ def _denied(request, *, authenticated, login_url):
         return JsonResponse({"ok": False, "error": code}, status=403 if authenticated else 401)
     if not authenticated:
         return redirect(login_url)
-    return render(request, "tower/denied.html", status=403)
+    text = UI_TRANSLATIONS[get_ui_lang(request)]
+    return_url = "/teacher/" if role == "teacher" else "/student/"
+    context = {"tower_return_url": "/admin/" if is_tower_admin(request) else return_url}
+    if not tower_is_enabled():
+        context["tower_denial_hint"] = text["tower_disabled_hint"]
+        if is_tower_admin(request):
+            context["tower_admin_setup_hint"] = text["tower_disabled_admin_hint"]
+    elif role == "teacher":
+        if request.session.get("teacher_id"):
+            context["tower_denial_hint"] = text["tower_teacher_permission_hint"]
+        else:
+            context.update({
+                "tower_denial_hint": text["tower_teacher_login_hint"],
+                "tower_login_url": login_url,
+            })
+    return render(request, "tower/denied.html", context, status=403)
 
 
 def tower_student_required(view):
@@ -72,7 +88,7 @@ def tower_student_required(view):
                 request.tower_classes = groups
                 return view(request, *args, **kwargs)
         authenticated = bool(student or _get_logged_in_teacher(request) or request.user.is_authenticated)
-        return _denied(request, authenticated=authenticated, login_url="/student/login/")
+        return _denied(request, authenticated=authenticated, login_url="/student/login/", role="student")
 
     return never_cache(wrapped)
 
@@ -85,6 +101,6 @@ def tower_teacher_required(view):
             request.tower_teacher = teacher
             return view(request, *args, **kwargs)
         authenticated = bool(teacher or _get_logged_in_student(request) or request.user.is_authenticated)
-        return _denied(request, authenticated=authenticated, login_url="/teacher/login/")
+        return _denied(request, authenticated=authenticated, login_url="/teacher/login/", role="teacher")
 
     return never_cache(wrapped)

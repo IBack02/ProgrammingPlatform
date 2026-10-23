@@ -71,6 +71,9 @@ def status(request):
 @tower_teacher_required
 @ensure_csrf_cookie
 def teacher_page(request):
+    if request.method == "GET":
+        from .wallet_views import teacher_wallets
+        return teacher_wallets(request)
     error = ""
     if request.method == "POST":
         try:

@@ -186,6 +186,47 @@ class TowerAccessTests(TestCase):
             self.assertEqual(client.get(reverse("tower:teacher_classes")).status_code, 403)
             self.assertEqual(self.set_access(client).status_code, 403)
 
+    def test_disabled_service_explains_global_switch_to_assigned_teacher(self):
+        client = self.teacher_client()
+        client.cookies["ui_lang"] = "ru"
+        with override_settings(TOWER_ENABLED=False):
+            page = client.get(reverse("tower:preview"))
+            self.assertContains(page, "отключён на всём сайте", status_code=403)
+            self.assertNotContains(page, "открывает учитель для выбранных классов", status_code=403)
+            self.assertEqual(client.get(reverse("tower:teacher_classes")).json()["error"], "tower_disabled")
+        self.teacher.refresh_from_db()
+        self.assertTrue(self.teacher.can_manage_tower)
+        self.assertEqual(client.get(reverse("tower:preview")).status_code, 200)
+
+    def test_unassigned_teacher_sees_permission_message_instead_of_student_hint(self):
+        client = self.teacher_client(self.ordinary_teacher)
+        client.cookies["ui_lang"] = "ru"
+        page = client.get(reverse("tower:preview"))
+        self.assertContains(page, "Для этого учительского аккаунта", status_code=403)
+        self.assertNotContains(page, "открывает учитель для выбранных классов", status_code=403)
+
+    def test_staff_without_teacher_session_gets_teacher_login_link(self):
+        self.client.force_login(self.staff)
+        self.client.cookies["ui_lang"] = "ru"
+        page = self.client.get(reverse("tower:preview"))
+        self.assertContains(page, 'href="/teacher/login/"', status_code=403)
+        self.assertContains(page, "Войти как учитель", status_code=403)
+        self.assertEqual(self.client.get(reverse("tower:teacher_classes")).status_code, 403)
+
+    @override_settings(TOWER_ENABLED=False)
+    def test_superuser_sees_disabled_service_notice_in_teacher_admin(self):
+        self.client.force_login(self.admin)
+        for url in [reverse("admin:core_teacher_changelist"), reverse("admin:core_teacher_change", args=[self.teacher.pk])]:
+            with self.subTest(url=url):
+                self.assertContains(self.client.get(url), "TOWER_ENABLED=true")
+        self.assertContains(self.client.get(reverse("tower:preview")), "TOWER_ENABLED=true", status_code=403)
+        self.client.force_login(self.staff)
+        self.assertNotContains(self.client.get(reverse("admin:core_teacher_changelist")), "TOWER_ENABLED=true")
+
+    def test_enabled_service_has_no_disabled_notice_in_admin(self):
+        self.client.force_login(self.admin)
+        self.assertNotContains(self.client.get(reverse("admin:core_teacher_changelist")), "TOWER_ENABLED=true")
+
     def test_teacher_lists_only_own_classes_and_can_toggle_access(self):
         client = self.teacher_client()
         response = client.get(reverse("tower:teacher_classes"))

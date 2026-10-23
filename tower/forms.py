@@ -2,7 +2,7 @@ from django import forms
 from django.conf import settings
 from django.core.validators import MaxValueValidator
 
-from .models import WalletEntry
+from .models import RewardPolicy, WalletEntry
 
 
 class AwardForm(forms.Form):
@@ -31,3 +31,33 @@ class AdjustmentForm(forms.Form):
         if delta == 0 or abs(delta) > settings.TOWER_ADMIN_ADJUSTMENT_LIMIT:
             raise forms.ValidationError("Укажите ненулевую целую сумму в установленном лимите.")
         return delta
+
+
+class RewardPolicyForm(forms.ModelForm):
+    class Meta:
+        model = RewardPolicy
+        fields = ("race_first", "race_second", "race_third", "task_solved", "page_opened")
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        for field in self.fields.values():
+            field.min_value = 0
+            field.validators.append(MaxValueValidator(settings.TOWER_MANUAL_AWARD_LIMIT))
+            field.widget.attrs.update(min=0, max=settings.TOWER_MANUAL_AWARD_LIMIT, step=1)
+
+    def clean(self):
+        values = super().clean()
+        if all(key in values for key in ("race_first", "race_second", "race_third")):
+            if not values["race_first"] >= values["race_second"] >= values["race_third"]:
+                self.add_error("race_second", "1 ≥ 2 ≥ 3")
+        return values
+
+
+class BatchAwardForm(AwardForm):
+    student_id = None
+    student_ids = forms.TypedMultipleChoiceField(coerce=int, choices=())
+
+    def __init__(self, *args, students, **kwargs):
+        kwargs.setdefault("auto_id", "batch_%s")
+        super().__init__(*args, **kwargs)
+        self.fields["student_ids"].choices = [(student.pk, student.full_name) for student in students]

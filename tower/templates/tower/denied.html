@@ -3,7 +3,9 @@
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>{{ T.tower_unavailable }}</title></head>
 <body><main style="max-width:680px;margin:10vh auto;padding:24px;font-family:Arial,sans-serif">
   <h1>{{ T.tower_unavailable }}</h1>
-  <p>{{ T.tower_access_hint }}</p>
-  <a href="{% if request.session.teacher_id %}/teacher/{% else %}/student/{% endif %}">{{ T.back_to_dashboard }}</a>
+  <p>{{ tower_denial_hint|default:T.tower_access_hint }}</p>
+  {% if tower_admin_setup_hint %}<p>{{ tower_admin_setup_hint }}</p>{% endif %}
+  {% if tower_login_url %}<p><a href="{{ tower_login_url }}">{{ T.tower_teacher_login_link }}</a></p>{% endif %}
+  <a href="{% if tower_return_url %}{{ tower_return_url }}{% elif request.session.teacher_id %}/teacher/{% else %}/student/{% endif %}">{{ T.back_to_dashboard }}</a>
 </main></body>
 </html>

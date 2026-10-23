@@ -71,6 +71,7 @@ class WalletEntry(AppendOnlyModel):
 
     class Source(models.TextChoices):
         MANUAL = "manual_award", "Teacher award"
+        LEARNING = "learning_reward", "Learning reward"
         PURCHASE = "purchase", "Purchase"
         CORRECTION = "correction", "Administrator correction"
 
@@ -108,3 +109,23 @@ class TowerAuditEvent(AppendOnlyModel):
 
     class Meta:
         ordering = ["-id"]
+
+
+class RewardPolicy(models.Model):
+    class_group = models.OneToOneField("core.ClassGroup", on_delete=models.CASCADE, related_name="reward_policy")
+    race_first = models.PositiveIntegerField(default=0)
+    race_second = models.PositiveIntegerField(default=0)
+    race_third = models.PositiveIntegerField(default=0)
+    task_solved = models.PositiveIntegerField(default=0)
+    page_opened = models.PositiveIntegerField(default=0)
+    updated_at = models.DateTimeField(auto_now=True)
+
+
+class RewardBatch(AppendOnlyModel):
+    actor_scope = models.CharField(max_length=64)
+    request_id = models.UUIDField()
+    payload_hash = models.CharField(max_length=64)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=["actor_scope", "request_id"], name="tower_reward_batch_once")]

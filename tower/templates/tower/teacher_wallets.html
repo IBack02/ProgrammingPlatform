@@ -1,42 +1,80 @@
 {% extends "core/teacher/_base.html" %}
 {% load static %}
-{% block title %}{{ T.wallet_awards }}{% endblock %}
-{% block subtitle %}{{ T.wallet_teacher_hint }}{% endblock %}
+{% block title %}{{ T.tower_title }} · {{ T.wallet_awards }}{% endblock %}
+{% block subtitle %}{{ T.reward_workspace_hint }}{% endblock %}
 {% block content %}
 <link rel="stylesheet" href="{% static 'tower/wallet.css' %}">
-<div class="card wallet-heading">
-  <div><h1>{{ T.wallet_awards }}</h1><p>{{ T.wallet_teacher_hint }}</p></div>
-  <a class="btn" href="{% url 'tower:teacher' %}">{{ T.tower_back_management }}</a>
+<script src="{% static 'tower/rewards.js' %}" defer></script>
+<div class="reward-center">
+<div class="card wallet-heading reward-hero">
+  <div><p class="reward-eyebrow">NIS · {{ T.tower_title }}</p><h1>{{ T.wallet_awards }}</h1><p>{{ T.reward_workspace_hint }}</p></div>
+  <a class="btn" href="{% url 'tower:preview' %}">{{ T.tower_preview }}</a>
 </div>
 {% for message in messages %}<p class="wallet-notice" role="status">{{ message }}</p>{% endfor %}
 {% if wallet_error %}<p class="wallet-error" role="alert">{{ wallet_error }}</p>{% endif %}
+<nav class="reward-nav" aria-label="{{ T.tower_title }}">
+  <a href="#manual-rewards">{{ T.reward_manual }}</a><a href="#automatic-rewards">{{ T.reward_automatic }}</a><a href="#wallet-history">{{ T.wallet_history }}</a><a href="#journal-access">{{ T.tower_class_access }}</a>
+</nav>
+{% if wallet_class %}
 <form method="get" class="card wallet-class-picker">
   <label for="wallet-class">{{ T.class_label }}</label>
   <select name="class_id" id="wallet-class">
     {% for group in wallet_classes %}<option value="{{ group.pk }}" {% if wallet_class.pk == group.pk %}selected{% endif %}>{{ group.name }}</option>{% endfor %}
   </select>
-  <button class="btn" type="submit">{{ T.wallet_show }}</button>
+  <button class="btn" type="submit">{{ T.wallet_show }}</button><span class="muted">{{ T.reward_class_scope }}</span>
 </form>
-<div class="wallet-students">
-{% for row in wallet_rows %}
-  <article class="card wallet-student">
-    <div class="wallet-student-heading"><strong>{{ row.student.full_name }}</strong><span>{{ row.balance }} {{ T.wallet_niscoin }}</span>
-      <a href="?class_id={{ wallet_class.pk }}&amp;student_id={{ row.student.pk }}#wallet-history">{{ T.wallet_history }}</a>
-    </div>
-    <form method="post" class="wallet-award-form">
-      {% csrf_token %}{{ row.form.class_id }}{{ row.form.student_id }}{{ row.form.request_id }}
-      <label>{{ T.wallet_amount }}{{ row.form.amount }}</label>
-      <label class="wallet-reason">{{ T.wallet_reason }}{{ row.form.reason }}</label>
-      <button class="btn" type="submit">{{ T.wallet_award }}</button>
-      {% if row.form.errors %}<div class="wallet-field-errors" role="alert">{{ row.form.errors }}</div>{% endif %}
-    </form>
-  </article>
-{% empty %}<div class="card">{{ T.wallet_no_students }}</div>{% endfor %}
+<div class="reward-workspace">
+<section class="card reward-manual" id="manual-rewards">
+  <h2>{{ T.reward_manual }}</h2><p class="muted">{{ T.reward_manual_hint }}</p>
+  <form method="get" class="reward-search"><input type="hidden" name="class_id" value="{{ wallet_class.pk }}">
+    <label for="reward-search">{{ T.reward_search }}</label><div><input id="reward-search" name="q" value="{{ reward_query }}" maxlength="120" type="search"><button class="btn" type="submit">{{ T.wallet_show }}</button></div>
+  </form>
+  <form method="post" id="batch-award" action="{% url 'tower:teacher_wallets' %}?class_id={{ wallet_class.pk }}&amp;q={{ reward_query|urlencode }}&amp;page={{ student_page.number }}">
+    {% csrf_token %}<input type="hidden" name="action" value="batch">{{ batch_form.class_id }}{{ batch_form.request_id }}
+    {% if batch_form.errors %}<div class="wallet-field-errors" role="alert">{{ batch_form.errors }}</div>{% endif %}
+    <div class="reward-select-all"><label><input type="checkbox" id="reward-select-all"> {{ T.reward_select_visible }}</label><span>{{ student_page.paginator.count }} · {{ T.wallet_students }}</span></div>
+    <div class="reward-roster">
+    {% for row in wallet_rows %}<div class="reward-student-row">
+      <label><input type="checkbox" name="student_ids" value="{{ row.student.pk }}" {% if row.selected %}checked{% endif %}><span>{{ row.student.full_name }}</span></label>
+      <span class="reward-balance">{{ row.balance }} <small>{{ T.wallet_niscoin }}</small></span>
+      <a href="?class_id={{ wallet_class.pk }}&amp;student_id={{ row.student.pk }}#wallet-history" aria-label="{{ T.wallet_history }} · {{ row.student.full_name }}">{{ T.wallet_history }}</a>
+    </div>{% empty %}<p>{{ T.wallet_no_students }}</p>{% endfor %}
+    </div><p class="muted">{{ T.reward_page_selection }}</p>
+    <div class="wallet-award-form"><label>{{ T.wallet_amount }}{{ batch_form.amount }}</label><label class="wallet-reason">{{ T.wallet_reason }}{{ batch_form.reason }}</label></div>
+    <p class="reward-total" role="status" aria-live="polite" data-reward-summary data-template="{{ T.reward_total }}" data-empty="{{ T.reward_choose_students }}">{{ T.reward_choose_students }}</p>
+    <button class="btn reward-submit" type="submit" data-reward-submit>{{ T.wallet_award }}</button>
+  </form>
+  {% if student_page.has_other_pages %}<nav class="wallet-pagination" aria-label="{{ T.wallet_students }}">
+    {% if student_page.has_previous %}<a href="?class_id={{ wallet_class.pk }}&amp;q={{ reward_query|urlencode }}&amp;page={{ student_page.previous_page_number }}#manual-rewards">←</a>{% endif %}<span>{{ student_page.number }} / {{ student_page.paginator.num_pages }}</span>
+    {% if student_page.has_next %}<a href="?class_id={{ wallet_class.pk }}&amp;q={{ reward_query|urlencode }}&amp;page={{ student_page.next_page_number }}#manual-rewards">→</a>{% endif %}
+  </nav>{% endif %}
+</section>
+<section class="card reward-rules" id="automatic-rewards">
+  <h2>{{ T.reward_automatic }}</h2><p class="muted">{{ T.reward_automatic_hint }}</p>
+  <form method="post" action="{% url 'tower:teacher_wallets' %}">
+    {% csrf_token %}<input type="hidden" name="action" value="policy"><input type="hidden" name="class_id" value="{{ wallet_class.pk }}">
+    {% if policy_form.errors %}<div class="wallet-field-errors" role="alert">{{ policy_form.errors }}</div>{% endif %}
+    <fieldset><legend>{{ T.reward_race }}</legend><p class="muted">{{ T.reward_race_hint }}</p>
+      <div class="reward-podium"><label><span>1 · {{ T.reward_place }}</span>{{ policy_form.race_first }}</label><label><span>2 · {{ T.reward_place }}</span>{{ policy_form.race_second }}</label><label><span>3 · {{ T.reward_place }}</span>{{ policy_form.race_third }}</label></div>
+    </fieldset>
+    <label class="reward-rule-field"><span>{{ T.reward_task }}<small>{{ T.reward_task_hint }}</small></span>{{ policy_form.task_solved }}</label>
+    <label class="reward-rule-field"><span>{{ T.reward_page }}<small>{{ T.reward_page_hint }}</small></span>{{ policy_form.page_opened }}</label>
+    <p class="reward-rule-note">{{ T.reward_rule_note }}</p><button class="btn" type="submit">{{ T.reward_save_policy }}</button>
+  </form>
+</section>
 </div>
-{% if student_page.has_other_pages %}<nav class="wallet-pagination" aria-label="{{ T.wallet_students }}">
-  {% if student_page.has_previous %}<a href="?class_id={{ wallet_class.pk }}&amp;page={{ student_page.previous_page_number }}">←</a>{% endif %}
-  <span>{{ student_page.number }} / {{ student_page.paginator.num_pages }}</span>
-  {% if student_page.has_next %}<a href="?class_id={{ wallet_class.pk }}&amp;page={{ student_page.next_page_number }}">→</a>{% endif %}
-</nav>{% endif %}
-{% if history_student %}<section class="card" id="wallet-history"><h2>{{ T.wallet_history }} · {{ history_student.full_name }}</h2><p class="muted">{{ T.wallet_teacher_history_hint }}</p>{% include 'tower/_wallet_history.html' %}</section>{% endif %}
+<section class="card reward-history" id="wallet-history"><div class="wallet-heading"><h2>{{ T.wallet_history }} · {% if history_student %}{{ history_student.full_name }}{% else %}{{ wallet_class.name }}{% endif %}</h2>{% if history_student %}<a href="?class_id={{ wallet_class.pk }}#wallet-history">{{ T.reward_class_history }}</a>{% endif %}</div>
+<p class="muted">{{ T.wallet_teacher_history_hint }}</p>
+{% for entry in wallet_entries %}<div class="wallet-entry"><div><strong>{{ entry.wallet.player.student.full_name }}</strong><div>{{ entry.reason }}</div><small>{{ entry.created_at|date:"d.m.Y H:i" }}</small></div><div class="wallet-entry-amount wallet-entry-amount--positive">{% if entry.delta > 0 %}+{% endif %}{{ entry.delta }} {{ T.wallet_niscoin }}</div></div>{% empty %}<p>{{ T.wallet_no_entries }}</p>{% endfor %}
+{% if history_next_url %}<a href="{{ history_next_url }}">{{ T.wallet_older }}</a>{% endif %}
+</section>
+{% else %}<div class="card wallet-notice">{{ T.reward_enable_class }}</div>{% endif %}
+<details class="card reward-access" id="journal-access" {% if not wallet_class %}open{% endif %}><summary>{{ T.tower_class_access }}</summary><p class="muted">{{ T.tower_management_hint }}</p>
+{% for group in tower_classes %}<form method="post" action="{% url 'tower:teacher' %}" class="reward-access-row">
+  {% csrf_token %}<input type="hidden" name="class_id" value="{{ group.id }}"><strong>{{ group.name }}</strong>
+  {% if group.can_enable or group.tower_enabled %}<label><input type="checkbox" name="tower_enabled" {% if group.tower_enabled %}checked{% endif %}> {{ T.tower_class_access }}</label><button class="btn" type="submit">{{ T.save }}</button>
+  {% else %}<span class="muted">{{ T.tower_class_ineligible }}</span>{% endif %}
+</form>{% empty %}<p>{{ T.no_classes_yet }}</p>{% endfor %}
+</details>
+</div>
 {% endblock %}

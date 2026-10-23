@@ -1264,6 +1264,8 @@ def teacher_game_finish_round_api(request: HttpRequest, round_id: int):
         round_obj.status = GameRound.Status.FINISHED
         round_obj.finished_at = finished_at
         round_obj.save(update_fields=["status", "finished_at"])
+        from tower.services.rewards import reward_finished_race
+        reward_finished_race(round_obj)
     return JsonResponse({"ok": True, "round": _teacher_round_row(round_obj)})
 
 
