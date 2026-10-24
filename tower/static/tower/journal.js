@@ -21,7 +21,7 @@ function filterJournal() {
   const count = document.getElementById("visibleCardCount");
   if (count) count.textContent = String(visible);
   const empty = document.querySelector(".journal-filter-empty");
-  if (empty) empty.hidden = visible > 0;
+  if (empty) empty.hidden = visible > 0 || rows.length === 0;
 }
 document.addEventListener("click", event => {
   const button = event.target.closest("[data-rarity-filter], [data-state-filter]");
