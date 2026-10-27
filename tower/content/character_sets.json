@@ -1,0 +1,1373 @@
+{
+  "schema_version": 1,
+  "sets": [
+    {
+      "hero_id": "nis-coder",
+      "revision": 1,
+      "status": "published",
+      "components": {
+        "head": {
+          "id": "nis-coder-head",
+          "slot": "head",
+          "labels": {
+            "ru": "Шапка · Арман",
+            "kk": "Бас киім · Арман",
+            "en": "Hat · Арман"
+          },
+          "asset": {
+            "path": "sets/nis-coder/v1/head.png",
+            "width": 1254,
+            "height": 1254
+          },
+          "attachment": {
+            "anchor": "head",
+            "pivot": {
+              "x": 0.5,
+              "y": 0.707
+            },
+            "width_ratio": 1.26,
+            "rotation": 0.0,
+            "layer": "front"
+          }
+        },
+        "prop": {
+          "id": "nis-coder-prop",
+          "slot": "prop",
+          "labels": {
+            "ru": "Игровая приставка · Арман",
+            "kk": "Ойын құрылғысы · Арман",
+            "en": "Game console · Арман"
+          },
+          "asset": {
+            "path": "sets/nis-coder/v1/prop.png",
+            "width": 1254,
+            "height": 1254
+          },
+          "attachment": {
+            "anchor": "hand",
+            "pivot": {
+              "x": 0.5,
+              "y": 0.5
+            },
+            "width_ratio": 0.84,
+            "rotation": 0.0,
+            "layer": "front"
+          }
+        },
+        "background": {
+          "id": "nis-coder-background",
+          "slot": "background",
+          "labels": {
+            "ru": "Фон · Арман",
+            "kk": "Фон · Арман",
+            "en": "Background · Арман"
+          },
+          "asset": {
+            "path": "sets/nis-coder/v1/background.png",
+            "width": 1672,
+            "height": 941
+          }
+        },
+        "ui_loader": {
+          "id": "nis-coder-ui-loader",
+          "slot": "ui_loader",
+          "labels": {
+            "ru": "Загрузчик · Арман",
+            "kk": "Жүктеу белгісі · Арман",
+            "en": "Loading indicator · Арман"
+          },
+          "asset": {
+            "path": "sets/nis-coder/v1/ui-loader.svg",
+            "width": 128,
+            "height": 128
+          },
+          "animation": "rotate"
+        },
+        "ui_decoration": {
+          "id": "nis-coder-ui-decoration",
+          "slot": "ui_decoration",
+          "labels": {
+            "ru": "Декор интерфейса · Арман",
+            "kk": "Интерфейс безендіруі · Арман",
+            "en": "Interface decoration · Арман"
+          },
+          "asset": {
+            "path": "sets/nis-coder/v1/ui-decoration.svg",
+            "width": 256,
+            "height": 128
+          }
+        },
+        "companion": {
+          "id": "nis-coder-companion",
+          "slot": "companion",
+          "labels": {
+            "ru": "Помощник · Арман",
+            "kk": "Көмекші · Арман",
+            "en": "Companion · Арман"
+          },
+          "asset": {
+            "path": "sets/nis-coder/v1/companion-placeholder.svg",
+            "width": 512,
+            "height": 512
+          },
+          "behavior_profile": "nis-coder",
+          "placeholder": true
+        }
+      }
+    },
+    {
+      "hero_id": "nis-mathematician",
+      "revision": 1,
+      "status": "published",
+      "components": {
+        "head": {
+          "id": "nis-mathematician-head",
+          "slot": "head",
+          "labels": {
+            "ru": "Шапка · Аружан",
+            "kk": "Бас киім · Аружан",
+            "en": "Hat · Аружан"
+          },
+          "asset": {
+            "path": "sets/nis-mathematician/v1/head.png",
+            "width": 1254,
+            "height": 1254
+          },
+          "attachment": {
+            "anchor": "head",
+            "pivot": {
+              "x": 0.5,
+              "y": 0.75
+            },
+            "width_ratio": 1.26,
+            "rotation": 0.0,
+            "layer": "front"
+          }
+        },
+        "prop": {
+          "id": "nis-mathematician-prop",
+          "slot": "prop",
+          "labels": {
+            "ru": "Книга · Аружан",
+            "kk": "Кітап · Аружан",
+            "en": "Book · Аружан"
+          },
+          "asset": {
+            "path": "sets/nis-mathematician/v1/prop.png",
+            "width": 1254,
+            "height": 1254
+          },
+          "attachment": {
+            "anchor": "hand",
+            "pivot": {
+              "x": 0.5,
+              "y": 0.5
+            },
+            "width_ratio": 0.84,
+            "rotation": 0.0,
+            "layer": "front"
+          }
+        },
+        "background": {
+          "id": "nis-mathematician-background",
+          "slot": "background",
+          "labels": {
+            "ru": "Фон · Аружан",
+            "kk": "Фон · Аружан",
+            "en": "Background · Аружан"
+          },
+          "asset": {
+            "path": "sets/nis-mathematician/v1/background.png",
+            "width": 1672,
+            "height": 940
+          }
+        },
+        "ui_loader": {
+          "id": "nis-mathematician-ui-loader",
+          "slot": "ui_loader",
+          "labels": {
+            "ru": "Загрузчик · Аружан",
+            "kk": "Жүктеу белгісі · Аружан",
+            "en": "Loading indicator · Аружан"
+          },
+          "asset": {
+            "path": "sets/nis-mathematician/v1/ui-loader.svg",
+            "width": 128,
+            "height": 128
+          },
+          "animation": "rotate"
+        },
+        "ui_decoration": {
+          "id": "nis-mathematician-ui-decoration",
+          "slot": "ui_decoration",
+          "labels": {
+            "ru": "Декор интерфейса · Аружан",
+            "kk": "Интерфейс безендіруі · Аружан",
+            "en": "Interface decoration · Аружан"
+          },
+          "asset": {
+            "path": "sets/nis-mathematician/v1/ui-decoration.svg",
+            "width": 256,
+            "height": 128
+          }
+        },
+        "companion": {
+          "id": "nis-mathematician-companion",
+          "slot": "companion",
+          "labels": {
+            "ru": "Помощник · Аружан",
+            "kk": "Көмекші · Аружан",
+            "en": "Companion · Аружан"
+          },
+          "asset": {
+            "path": "sets/nis-mathematician/v1/companion-placeholder.svg",
+            "width": 512,
+            "height": 512
+          },
+          "behavior_profile": "nis-mathematician",
+          "placeholder": true
+        }
+      }
+    },
+    {
+      "hero_id": "nis-chemist",
+      "revision": 1,
+      "status": "published",
+      "components": {
+        "head": {
+          "id": "nis-chemist-head",
+          "slot": "head",
+          "labels": {
+            "ru": "Шапка · Ильяс",
+            "kk": "Бас киім · Ильяс",
+            "en": "Hat · Ильяс"
+          },
+          "asset": {
+            "path": "sets/nis-chemist/v1/head.png",
+            "width": 1254,
+            "height": 1254
+          },
+          "attachment": {
+            "anchor": "head",
+            "pivot": {
+              "x": 0.5,
+              "y": 0.75
+            },
+            "width_ratio": 1.26,
+            "rotation": 0.0,
+            "layer": "front"
+          }
+        },
+        "prop": {
+          "id": "nis-chemist-prop",
+          "slot": "prop",
+          "labels": {
+            "ru": "Колба · Ильяс",
+            "kk": "Зертханалық колба · Ильяс",
+            "en": "Flask · Ильяс"
+          },
+          "asset": {
+            "path": "sets/nis-chemist/v1/prop.png",
+            "width": 1254,
+            "height": 1254
+          },
+          "attachment": {
+            "anchor": "hand",
+            "pivot": {
+              "x": 0.5,
+              "y": 0.5
+            },
+            "width_ratio": 0.84,
+            "rotation": 0.0,
+            "layer": "front"
+          }
+        },
+        "background": {
+          "id": "nis-chemist-background",
+          "slot": "background",
+          "labels": {
+            "ru": "Фон · Ильяс",
+            "kk": "Фон · Ильяс",
+            "en": "Background · Ильяс"
+          },
+          "asset": {
+            "path": "sets/nis-chemist/v1/background.png",
+            "width": 1672,
+            "height": 941
+          }
+        },
+        "ui_loader": {
+          "id": "nis-chemist-ui-loader",
+          "slot": "ui_loader",
+          "labels": {
+            "ru": "Загрузчик · Ильяс",
+            "kk": "Жүктеу белгісі · Ильяс",
+            "en": "Loading indicator · Ильяс"
+          },
+          "asset": {
+            "path": "sets/nis-chemist/v1/ui-loader.svg",
+            "width": 128,
+            "height": 128
+          },
+          "animation": "rotate"
+        },
+        "ui_decoration": {
+          "id": "nis-chemist-ui-decoration",
+          "slot": "ui_decoration",
+          "labels": {
+            "ru": "Декор интерфейса · Ильяс",
+            "kk": "Интерфейс безендіруі · Ильяс",
+            "en": "Interface decoration · Ильяс"
+          },
+          "asset": {
+            "path": "sets/nis-chemist/v1/ui-decoration.svg",
+            "width": 256,
+            "height": 128
+          }
+        },
+        "companion": {
+          "id": "nis-chemist-companion",
+          "slot": "companion",
+          "labels": {
+            "ru": "Помощник · Ильяс",
+            "kk": "Көмекші · Ильяс",
+            "en": "Companion · Ильяс"
+          },
+          "asset": {
+            "path": "sets/nis-chemist/v1/companion-placeholder.svg",
+            "width": 512,
+            "height": 512
+          },
+          "behavior_profile": "nis-chemist",
+          "placeholder": true
+        }
+      }
+    },
+    {
+      "hero_id": "nis-roboticist",
+      "revision": 1,
+      "status": "published",
+      "components": {
+        "head": {
+          "id": "nis-roboticist-head",
+          "slot": "head",
+          "labels": {
+            "ru": "Шапка · Аяулым",
+            "kk": "Бас киім · Аяулым",
+            "en": "Hat · Аяулым"
+          },
+          "asset": {
+            "path": "sets/nis-roboticist/v1/head.png",
+            "width": 1254,
+            "height": 1254
+          },
+          "attachment": {
+            "anchor": "head",
+            "pivot": {
+              "x": 0.5,
+              "y": 0.75
+            },
+            "width_ratio": 1.26,
+            "rotation": 0.0,
+            "layer": "front"
+          }
+        },
+        "prop": {
+          "id": "nis-roboticist-prop",
+          "slot": "prop",
+          "labels": {
+            "ru": "Мини-робот · Аяулым",
+            "kk": "Шағын робот · Аяулым",
+            "en": "Mini robot · Аяулым"
+          },
+          "asset": {
+            "path": "sets/nis-roboticist/v1/prop.png",
+            "width": 1254,
+            "height": 1254
+          },
+          "attachment": {
+            "anchor": "side",
+            "pivot": {
+              "x": 0.5,
+              "y": 0.5
+            },
+            "width_ratio": 0.84,
+            "rotation": 0.0,
+            "layer": "front"
+          }
+        },
+        "background": {
+          "id": "nis-roboticist-background",
+          "slot": "background",
+          "labels": {
+            "ru": "Фон · Аяулым",
+            "kk": "Фон · Аяулым",
+            "en": "Background · Аяулым"
+          },
+          "asset": {
+            "path": "sets/nis-roboticist/v1/background.png",
+            "width": 1672,
+            "height": 941
+          }
+        },
+        "ui_loader": {
+          "id": "nis-roboticist-ui-loader",
+          "slot": "ui_loader",
+          "labels": {
+            "ru": "Загрузчик · Аяулым",
+            "kk": "Жүктеу белгісі · Аяулым",
+            "en": "Loading indicator · Аяулым"
+          },
+          "asset": {
+            "path": "sets/nis-roboticist/v1/ui-loader.svg",
+            "width": 128,
+            "height": 128
+          },
+          "animation": "rotate"
+        },
+        "ui_decoration": {
+          "id": "nis-roboticist-ui-decoration",
+          "slot": "ui_decoration",
+          "labels": {
+            "ru": "Декор интерфейса · Аяулым",
+            "kk": "Интерфейс безендіруі · Аяулым",
+            "en": "Interface decoration · Аяулым"
+          },
+          "asset": {
+            "path": "sets/nis-roboticist/v1/ui-decoration.svg",
+            "width": 256,
+            "height": 128
+          }
+        },
+        "companion": {
+          "id": "nis-roboticist-companion",
+          "slot": "companion",
+          "labels": {
+            "ru": "Помощник · Аяулым",
+            "kk": "Көмекші · Аяулым",
+            "en": "Companion · Аяулым"
+          },
+          "asset": {
+            "path": "sets/nis-roboticist/v1/companion-placeholder.svg",
+            "width": 512,
+            "height": 512
+          },
+          "behavior_profile": "nis-roboticist",
+          "placeholder": true
+        }
+      }
+    },
+    {
+      "hero_id": "nis-artist",
+      "revision": 1,
+      "status": "published",
+      "components": {
+        "head": {
+          "id": "nis-artist-head",
+          "slot": "head",
+          "labels": {
+            "ru": "Шапка · Тимур",
+            "kk": "Бас киім · Тимур",
+            "en": "Hat · Тимур"
+          },
+          "asset": {
+            "path": "sets/nis-artist/v1/head.png",
+            "width": 1254,
+            "height": 1254
+          },
+          "attachment": {
+            "anchor": "head",
+            "pivot": {
+              "x": 0.5,
+              "y": 0.719
+            },
+            "width_ratio": 1.3,
+            "rotation": 0.0,
+            "layer": "front"
+          }
+        },
+        "prop": {
+          "id": "nis-artist-prop",
+          "slot": "prop",
+          "labels": {
+            "ru": "Палитра · Тимур",
+            "kk": "Бояу тақтасы · Тимур",
+            "en": "Palette · Тимур"
+          },
+          "asset": {
+            "path": "sets/nis-artist/v1/prop.png",
+            "width": 1254,
+            "height": 1254
+          },
+          "attachment": {
+            "anchor": "hand",
+            "pivot": {
+              "x": 0.5,
+              "y": 0.5
+            },
+            "width_ratio": 0.84,
+            "rotation": 0.0,
+            "layer": "front"
+          }
+        },
+        "background": {
+          "id": "nis-artist-background",
+          "slot": "background",
+          "labels": {
+            "ru": "Фон · Тимур",
+            "kk": "Фон · Тимур",
+            "en": "Background · Тимур"
+          },
+          "asset": {
+            "path": "sets/nis-artist/v1/background.png",
+            "width": 1672,
+            "height": 941
+          }
+        },
+        "ui_loader": {
+          "id": "nis-artist-ui-loader",
+          "slot": "ui_loader",
+          "labels": {
+            "ru": "Загрузчик · Тимур",
+            "kk": "Жүктеу белгісі · Тимур",
+            "en": "Loading indicator · Тимур"
+          },
+          "asset": {
+            "path": "sets/nis-artist/v1/ui-loader.svg",
+            "width": 128,
+            "height": 128
+          },
+          "animation": "rotate"
+        },
+        "ui_decoration": {
+          "id": "nis-artist-ui-decoration",
+          "slot": "ui_decoration",
+          "labels": {
+            "ru": "Декор интерфейса · Тимур",
+            "kk": "Интерфейс безендіруі · Тимур",
+            "en": "Interface decoration · Тимур"
+          },
+          "asset": {
+            "path": "sets/nis-artist/v1/ui-decoration.svg",
+            "width": 256,
+            "height": 128
+          }
+        },
+        "companion": {
+          "id": "nis-artist-companion",
+          "slot": "companion",
+          "labels": {
+            "ru": "Помощник · Тимур",
+            "kk": "Көмекші · Тимур",
+            "en": "Companion · Тимур"
+          },
+          "asset": {
+            "path": "sets/nis-artist/v1/companion-placeholder.svg",
+            "width": 512,
+            "height": 512
+          },
+          "behavior_profile": "nis-artist",
+          "placeholder": true
+        }
+      }
+    },
+    {
+      "hero_id": "nis-biologist",
+      "revision": 1,
+      "status": "published",
+      "components": {
+        "head": {
+          "id": "nis-biologist-head",
+          "slot": "head",
+          "labels": {
+            "ru": "Шапка · Сара",
+            "kk": "Бас киім · Сара",
+            "en": "Hat · Сара"
+          },
+          "asset": {
+            "path": "sets/nis-biologist/v1/head.png",
+            "width": 1254,
+            "height": 1254
+          },
+          "attachment": {
+            "anchor": "head",
+            "pivot": {
+              "x": 0.5,
+              "y": 0.75
+            },
+            "width_ratio": 1.26,
+            "rotation": 0.0,
+            "layer": "front"
+          }
+        },
+        "prop": {
+          "id": "nis-biologist-prop",
+          "slot": "prop",
+          "labels": {
+            "ru": "Растение · Сара",
+            "kk": "Өсімдік · Сара",
+            "en": "Plant · Сара"
+          },
+          "asset": {
+            "path": "sets/nis-biologist/v1/prop.png",
+            "width": 1254,
+            "height": 1254
+          },
+          "attachment": {
+            "anchor": "ground",
+            "pivot": {
+              "x": 0.5,
+              "y": 0.5
+            },
+            "width_ratio": 0.84,
+            "rotation": 0.0,
+            "layer": "front"
+          }
+        },
+        "background": {
+          "id": "nis-biologist-background",
+          "slot": "background",
+          "labels": {
+            "ru": "Фон · Сара",
+            "kk": "Фон · Сара",
+            "en": "Background · Сара"
+          },
+          "asset": {
+            "path": "sets/nis-biologist/v1/background.png",
+            "width": 1672,
+            "height": 941
+          }
+        },
+        "ui_loader": {
+          "id": "nis-biologist-ui-loader",
+          "slot": "ui_loader",
+          "labels": {
+            "ru": "Загрузчик · Сара",
+            "kk": "Жүктеу белгісі · Сара",
+            "en": "Loading indicator · Сара"
+          },
+          "asset": {
+            "path": "sets/nis-biologist/v1/ui-loader.svg",
+            "width": 128,
+            "height": 128
+          },
+          "animation": "rotate"
+        },
+        "ui_decoration": {
+          "id": "nis-biologist-ui-decoration",
+          "slot": "ui_decoration",
+          "labels": {
+            "ru": "Декор интерфейса · Сара",
+            "kk": "Интерфейс безендіруі · Сара",
+            "en": "Interface decoration · Сара"
+          },
+          "asset": {
+            "path": "sets/nis-biologist/v1/ui-decoration.svg",
+            "width": 256,
+            "height": 128
+          }
+        },
+        "companion": {
+          "id": "nis-biologist-companion",
+          "slot": "companion",
+          "labels": {
+            "ru": "Помощник · Сара",
+            "kk": "Көмекші · Сара",
+            "en": "Companion · Сара"
+          },
+          "asset": {
+            "path": "sets/nis-biologist/v1/companion-placeholder.svg",
+            "width": 512,
+            "height": 512
+          },
+          "behavior_profile": "nis-biologist",
+          "placeholder": true
+        }
+      }
+    },
+    {
+      "hero_id": "nis-physicist",
+      "revision": 1,
+      "status": "published",
+      "components": {
+        "head": {
+          "id": "nis-physicist-head",
+          "slot": "head",
+          "labels": {
+            "ru": "Шапка · Руслан",
+            "kk": "Бас киім · Руслан",
+            "en": "Hat · Руслан"
+          },
+          "asset": {
+            "path": "sets/nis-physicist/v1/head.png",
+            "width": 1254,
+            "height": 1254
+          },
+          "attachment": {
+            "anchor": "head",
+            "pivot": {
+              "x": 0.5,
+              "y": 0.75
+            },
+            "width_ratio": 1.26,
+            "rotation": 0.0,
+            "layer": "front"
+          }
+        },
+        "prop": {
+          "id": "nis-physicist-prop",
+          "slot": "prop",
+          "labels": {
+            "ru": "Бумажный самолёт · Руслан",
+            "kk": "Қағаз ұшақ · Руслан",
+            "en": "Paper plane · Руслан"
+          },
+          "asset": {
+            "path": "sets/nis-physicist/v1/prop.png",
+            "width": 1254,
+            "height": 1254
+          },
+          "attachment": {
+            "anchor": "hand",
+            "pivot": {
+              "x": 0.5,
+              "y": 0.5
+            },
+            "width_ratio": 0.84,
+            "rotation": 0.0,
+            "layer": "front"
+          }
+        },
+        "background": {
+          "id": "nis-physicist-background",
+          "slot": "background",
+          "labels": {
+            "ru": "Фон · Руслан",
+            "kk": "Фон · Руслан",
+            "en": "Background · Руслан"
+          },
+          "asset": {
+            "path": "sets/nis-physicist/v1/background.png",
+            "width": 1672,
+            "height": 941
+          }
+        },
+        "ui_loader": {
+          "id": "nis-physicist-ui-loader",
+          "slot": "ui_loader",
+          "labels": {
+            "ru": "Загрузчик · Руслан",
+            "kk": "Жүктеу белгісі · Руслан",
+            "en": "Loading indicator · Руслан"
+          },
+          "asset": {
+            "path": "sets/nis-physicist/v1/ui-loader.svg",
+            "width": 128,
+            "height": 128
+          },
+          "animation": "rotate"
+        },
+        "ui_decoration": {
+          "id": "nis-physicist-ui-decoration",
+          "slot": "ui_decoration",
+          "labels": {
+            "ru": "Декор интерфейса · Руслан",
+            "kk": "Интерфейс безендіруі · Руслан",
+            "en": "Interface decoration · Руслан"
+          },
+          "asset": {
+            "path": "sets/nis-physicist/v1/ui-decoration.svg",
+            "width": 256,
+            "height": 128
+          }
+        },
+        "companion": {
+          "id": "nis-physicist-companion",
+          "slot": "companion",
+          "labels": {
+            "ru": "Помощник · Руслан",
+            "kk": "Көмекші · Руслан",
+            "en": "Companion · Руслан"
+          },
+          "asset": {
+            "path": "sets/nis-physicist/v1/companion-placeholder.svg",
+            "width": 512,
+            "height": 512
+          },
+          "behavior_profile": "nis-physicist",
+          "placeholder": true
+        }
+      }
+    },
+    {
+      "hero_id": "nis-debater",
+      "revision": 1,
+      "status": "published",
+      "components": {
+        "head": {
+          "id": "nis-debater-head",
+          "slot": "head",
+          "labels": {
+            "ru": "Шапка · Алия",
+            "kk": "Бас киім · Алия",
+            "en": "Hat · Алия"
+          },
+          "asset": {
+            "path": "sets/nis-debater/v1/head.png",
+            "width": 1254,
+            "height": 1254
+          },
+          "attachment": {
+            "anchor": "head",
+            "pivot": {
+              "x": 0.5,
+              "y": 0.75
+            },
+            "width_ratio": 1.26,
+            "rotation": 0.0,
+            "layer": "front"
+          }
+        },
+        "prop": {
+          "id": "nis-debater-prop",
+          "slot": "prop",
+          "labels": {
+            "ru": "Блокнот · Алия",
+            "kk": "Қойын дәптер · Алия",
+            "en": "Notebook · Алия"
+          },
+          "asset": {
+            "path": "sets/nis-debater/v1/prop.png",
+            "width": 1254,
+            "height": 1254
+          },
+          "attachment": {
+            "anchor": "hand",
+            "pivot": {
+              "x": 0.5,
+              "y": 0.5
+            },
+            "width_ratio": 0.84,
+            "rotation": 0.0,
+            "layer": "front"
+          }
+        },
+        "background": {
+          "id": "nis-debater-background",
+          "slot": "background",
+          "labels": {
+            "ru": "Фон · Алия",
+            "kk": "Фон · Алия",
+            "en": "Background · Алия"
+          },
+          "asset": {
+            "path": "sets/nis-debater/v1/background.png",
+            "width": 1672,
+            "height": 941
+          }
+        },
+        "ui_loader": {
+          "id": "nis-debater-ui-loader",
+          "slot": "ui_loader",
+          "labels": {
+            "ru": "Загрузчик · Алия",
+            "kk": "Жүктеу белгісі · Алия",
+            "en": "Loading indicator · Алия"
+          },
+          "asset": {
+            "path": "sets/nis-debater/v1/ui-loader.svg",
+            "width": 128,
+            "height": 128
+          },
+          "animation": "rotate"
+        },
+        "ui_decoration": {
+          "id": "nis-debater-ui-decoration",
+          "slot": "ui_decoration",
+          "labels": {
+            "ru": "Декор интерфейса · Алия",
+            "kk": "Интерфейс безендіруі · Алия",
+            "en": "Interface decoration · Алия"
+          },
+          "asset": {
+            "path": "sets/nis-debater/v1/ui-decoration.svg",
+            "width": 256,
+            "height": 128
+          }
+        },
+        "companion": {
+          "id": "nis-debater-companion",
+          "slot": "companion",
+          "labels": {
+            "ru": "Помощник · Алия",
+            "kk": "Көмекші · Алия",
+            "en": "Companion · Алия"
+          },
+          "asset": {
+            "path": "sets/nis-debater/v1/companion-placeholder.svg",
+            "width": 512,
+            "height": 512
+          },
+          "behavior_profile": "nis-debater",
+          "placeholder": true
+        }
+      }
+    },
+    {
+      "hero_id": "nis-astronomer",
+      "revision": 1,
+      "status": "published",
+      "components": {
+        "head": {
+          "id": "nis-astronomer-head",
+          "slot": "head",
+          "labels": {
+            "ru": "Шапка · Мади",
+            "kk": "Бас киім · Мади",
+            "en": "Hat · Мади"
+          },
+          "asset": {
+            "path": "sets/nis-astronomer/v1/head.png",
+            "width": 1254,
+            "height": 1254
+          },
+          "attachment": {
+            "anchor": "head",
+            "pivot": {
+              "x": 0.5,
+              "y": 0.75
+            },
+            "width_ratio": 1.26,
+            "rotation": 0.0,
+            "layer": "front"
+          }
+        },
+        "prop": {
+          "id": "nis-astronomer-prop",
+          "slot": "prop",
+          "labels": {
+            "ru": "Телескоп · Мади",
+            "kk": "Телескоп · Мади",
+            "en": "Telescope · Мади"
+          },
+          "asset": {
+            "path": "sets/nis-astronomer/v1/prop.png",
+            "width": 1254,
+            "height": 1254
+          },
+          "attachment": {
+            "anchor": "side",
+            "pivot": {
+              "x": 0.5,
+              "y": 0.5
+            },
+            "width_ratio": 0.84,
+            "rotation": 0.0,
+            "layer": "front"
+          }
+        },
+        "background": {
+          "id": "nis-astronomer-background",
+          "slot": "background",
+          "labels": {
+            "ru": "Фон · Мади",
+            "kk": "Фон · Мади",
+            "en": "Background · Мади"
+          },
+          "asset": {
+            "path": "sets/nis-astronomer/v1/background.png",
+            "width": 1672,
+            "height": 941
+          }
+        },
+        "ui_loader": {
+          "id": "nis-astronomer-ui-loader",
+          "slot": "ui_loader",
+          "labels": {
+            "ru": "Загрузчик · Мади",
+            "kk": "Жүктеу белгісі · Мади",
+            "en": "Loading indicator · Мади"
+          },
+          "asset": {
+            "path": "sets/nis-astronomer/v1/ui-loader.svg",
+            "width": 128,
+            "height": 128
+          },
+          "animation": "rotate"
+        },
+        "ui_decoration": {
+          "id": "nis-astronomer-ui-decoration",
+          "slot": "ui_decoration",
+          "labels": {
+            "ru": "Декор интерфейса · Мади",
+            "kk": "Интерфейс безендіруі · Мади",
+            "en": "Interface decoration · Мади"
+          },
+          "asset": {
+            "path": "sets/nis-astronomer/v1/ui-decoration.svg",
+            "width": 256,
+            "height": 128
+          }
+        },
+        "companion": {
+          "id": "nis-astronomer-companion",
+          "slot": "companion",
+          "labels": {
+            "ru": "Помощник · Мади",
+            "kk": "Көмекші · Мади",
+            "en": "Companion · Мади"
+          },
+          "asset": {
+            "path": "sets/nis-astronomer/v1/companion-placeholder.svg",
+            "width": 512,
+            "height": 512
+          },
+          "behavior_profile": "nis-astronomer",
+          "placeholder": true
+        }
+      }
+    },
+    {
+      "hero_id": "nis-musician",
+      "revision": 1,
+      "status": "published",
+      "components": {
+        "head": {
+          "id": "nis-musician-head",
+          "slot": "head",
+          "labels": {
+            "ru": "Шапка · Дана",
+            "kk": "Бас киім · Дана",
+            "en": "Hat · Дана"
+          },
+          "asset": {
+            "path": "sets/nis-musician/v1/head.png",
+            "width": 1254,
+            "height": 1254
+          },
+          "attachment": {
+            "anchor": "head",
+            "pivot": {
+              "x": 0.5,
+              "y": 0.75
+            },
+            "width_ratio": 1.26,
+            "rotation": 0.0,
+            "layer": "front"
+          }
+        },
+        "prop": {
+          "id": "nis-musician-prop",
+          "slot": "prop",
+          "labels": {
+            "ru": "Укулеле · Дана",
+            "kk": "Укулеле · Дана",
+            "en": "Ukulele · Дана"
+          },
+          "asset": {
+            "path": "sets/nis-musician/v1/prop.png",
+            "width": 1254,
+            "height": 1254
+          },
+          "attachment": {
+            "anchor": "hand",
+            "pivot": {
+              "x": 0.5,
+              "y": 0.5
+            },
+            "width_ratio": 0.84,
+            "rotation": 0.0,
+            "layer": "front"
+          }
+        },
+        "background": {
+          "id": "nis-musician-background",
+          "slot": "background",
+          "labels": {
+            "ru": "Фон · Дана",
+            "kk": "Фон · Дана",
+            "en": "Background · Дана"
+          },
+          "asset": {
+            "path": "sets/nis-musician/v1/background.png",
+            "width": 1672,
+            "height": 941
+          }
+        },
+        "ui_loader": {
+          "id": "nis-musician-ui-loader",
+          "slot": "ui_loader",
+          "labels": {
+            "ru": "Загрузчик · Дана",
+            "kk": "Жүктеу белгісі · Дана",
+            "en": "Loading indicator · Дана"
+          },
+          "asset": {
+            "path": "sets/nis-musician/v1/ui-loader.svg",
+            "width": 128,
+            "height": 128
+          },
+          "animation": "rotate"
+        },
+        "ui_decoration": {
+          "id": "nis-musician-ui-decoration",
+          "slot": "ui_decoration",
+          "labels": {
+            "ru": "Декор интерфейса · Дана",
+            "kk": "Интерфейс безендіруі · Дана",
+            "en": "Interface decoration · Дана"
+          },
+          "asset": {
+            "path": "sets/nis-musician/v1/ui-decoration.svg",
+            "width": 256,
+            "height": 128
+          }
+        },
+        "companion": {
+          "id": "nis-musician-companion",
+          "slot": "companion",
+          "labels": {
+            "ru": "Помощник · Дана",
+            "kk": "Көмекші · Дана",
+            "en": "Companion · Дана"
+          },
+          "asset": {
+            "path": "sets/nis-musician/v1/companion-placeholder.svg",
+            "width": 512,
+            "height": 512
+          },
+          "behavior_profile": "nis-musician",
+          "placeholder": true
+        }
+      }
+    },
+    {
+      "hero_id": "nis-chessplayer",
+      "revision": 1,
+      "status": "published",
+      "components": {
+        "head": {
+          "id": "nis-chessplayer-head",
+          "slot": "head",
+          "labels": {
+            "ru": "Шапка · Аскар",
+            "kk": "Бас киім · Аскар",
+            "en": "Hat · Аскар"
+          },
+          "asset": {
+            "path": "sets/nis-chessplayer/v1/head.png",
+            "width": 1254,
+            "height": 1254
+          },
+          "attachment": {
+            "anchor": "head",
+            "pivot": {
+              "x": 0.5,
+              "y": 0.75
+            },
+            "width_ratio": 1.26,
+            "rotation": 0.0,
+            "layer": "front"
+          }
+        },
+        "prop": {
+          "id": "nis-chessplayer-prop",
+          "slot": "prop",
+          "labels": {
+            "ru": "Шахматная фигура · Аскар",
+            "kk": "Шахмат тасы · Аскар",
+            "en": "Chess piece · Аскар"
+          },
+          "asset": {
+            "path": "sets/nis-chessplayer/v1/prop.png",
+            "width": 1254,
+            "height": 1254
+          },
+          "attachment": {
+            "anchor": "ground",
+            "pivot": {
+              "x": 0.5,
+              "y": 0.5
+            },
+            "width_ratio": 0.84,
+            "rotation": 0.0,
+            "layer": "front"
+          }
+        },
+        "background": {
+          "id": "nis-chessplayer-background",
+          "slot": "background",
+          "labels": {
+            "ru": "Фон · Аскар",
+            "kk": "Фон · Аскар",
+            "en": "Background · Аскар"
+          },
+          "asset": {
+            "path": "sets/nis-chessplayer/v1/background.png",
+            "width": 1672,
+            "height": 941
+          }
+        },
+        "ui_loader": {
+          "id": "nis-chessplayer-ui-loader",
+          "slot": "ui_loader",
+          "labels": {
+            "ru": "Загрузчик · Аскар",
+            "kk": "Жүктеу белгісі · Аскар",
+            "en": "Loading indicator · Аскар"
+          },
+          "asset": {
+            "path": "sets/nis-chessplayer/v1/ui-loader.svg",
+            "width": 128,
+            "height": 128
+          },
+          "animation": "rotate"
+        },
+        "ui_decoration": {
+          "id": "nis-chessplayer-ui-decoration",
+          "slot": "ui_decoration",
+          "labels": {
+            "ru": "Декор интерфейса · Аскар",
+            "kk": "Интерфейс безендіруі · Аскар",
+            "en": "Interface decoration · Аскар"
+          },
+          "asset": {
+            "path": "sets/nis-chessplayer/v1/ui-decoration.svg",
+            "width": 256,
+            "height": 128
+          }
+        },
+        "companion": {
+          "id": "nis-chessplayer-companion",
+          "slot": "companion",
+          "labels": {
+            "ru": "Помощник · Аскар",
+            "kk": "Көмекші · Аскар",
+            "en": "Companion · Аскар"
+          },
+          "asset": {
+            "path": "sets/nis-chessplayer/v1/companion-placeholder.svg",
+            "width": 512,
+            "height": 512
+          },
+          "behavior_profile": "nis-chessplayer",
+          "placeholder": true
+        }
+      }
+    },
+    {
+      "hero_id": "nis-inventor",
+      "revision": 1,
+      "status": "published",
+      "components": {
+        "head": {
+          "id": "nis-inventor-head",
+          "slot": "head",
+          "labels": {
+            "ru": "Шапка · Томирис",
+            "kk": "Бас киім · Томирис",
+            "en": "Hat · Томирис"
+          },
+          "asset": {
+            "path": "sets/nis-inventor/v1/head.png",
+            "width": 1254,
+            "height": 1254
+          },
+          "attachment": {
+            "anchor": "head",
+            "pivot": {
+              "x": 0.5,
+              "y": 0.75
+            },
+            "width_ratio": 1.26,
+            "rotation": 0.0,
+            "layer": "front"
+          }
+        },
+        "prop": {
+          "id": "nis-inventor-prop",
+          "slot": "prop",
+          "labels": {
+            "ru": "Механическая игрушка · Томирис",
+            "kk": "Механикалық ойыншық · Томирис",
+            "en": "Mechanical toy · Томирис"
+          },
+          "asset": {
+            "path": "sets/nis-inventor/v1/prop.png",
+            "width": 1254,
+            "height": 1254
+          },
+          "attachment": {
+            "anchor": "side",
+            "pivot": {
+              "x": 0.5,
+              "y": 0.5
+            },
+            "width_ratio": 0.84,
+            "rotation": 0.0,
+            "layer": "front"
+          }
+        },
+        "background": {
+          "id": "nis-inventor-background",
+          "slot": "background",
+          "labels": {
+            "ru": "Фон · Томирис",
+            "kk": "Фон · Томирис",
+            "en": "Background · Томирис"
+          },
+          "asset": {
+            "path": "sets/nis-inventor/v1/background.png",
+            "width": 1672,
+            "height": 941
+          }
+        },
+        "ui_loader": {
+          "id": "nis-inventor-ui-loader",
+          "slot": "ui_loader",
+          "labels": {
+            "ru": "Загрузчик · Томирис",
+            "kk": "Жүктеу белгісі · Томирис",
+            "en": "Loading indicator · Томирис"
+          },
+          "asset": {
+            "path": "sets/nis-inventor/v1/ui-loader.svg",
+            "width": 128,
+            "height": 128
+          },
+          "animation": "rotate"
+        },
+        "ui_decoration": {
+          "id": "nis-inventor-ui-decoration",
+          "slot": "ui_decoration",
+          "labels": {
+            "ru": "Декор интерфейса · Томирис",
+            "kk": "Интерфейс безендіруі · Томирис",
+            "en": "Interface decoration · Томирис"
+          },
+          "asset": {
+            "path": "sets/nis-inventor/v1/ui-decoration.svg",
+            "width": 256,
+            "height": 128
+          }
+        },
+        "companion": {
+          "id": "nis-inventor-companion",
+          "slot": "companion",
+          "labels": {
+            "ru": "Помощник · Томирис",
+            "kk": "Көмекші · Томирис",
+            "en": "Companion · Томирис"
+          },
+          "asset": {
+            "path": "sets/nis-inventor/v1/companion-placeholder.svg",
+            "width": 512,
+            "height": 512
+          },
+          "behavior_profile": "nis-inventor",
+          "placeholder": true
+        }
+      }
+    }
+  ]
+}

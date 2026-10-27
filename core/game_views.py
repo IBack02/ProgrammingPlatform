@@ -1350,6 +1350,8 @@ def student_game_module_api(request: HttpRequest, module_id: int):
     if not student:
         return _api_error("not authenticated", 401)
     module = _student_module(student, module_id)
+    from tower.services.companion_sources import record_learning_visit
+    record_learning_visit(student_id=student.pk, module=module, module_type="game")
     round_obj = _active_round_for_student(module, student)
     if round_obj and module.rubric == GameModule.Rubric.WONDER_FIELD:
         round_obj = _refresh_wonder_round(round_obj.id)

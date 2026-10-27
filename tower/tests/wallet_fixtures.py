@@ -5,6 +5,10 @@ from django.test import Client
 
 from core.models import ClassGroup, Student, Teacher
 from core.security import auth_version
+from django.contrib.auth.hashers import make_password
+from django.utils import timezone
+from tower.models import CollectionCredential
+from tower.collection_security import SESSION_KEY
 from tower.services.wallet import award_coins
 
 
@@ -26,7 +30,7 @@ class WalletFixtures:
         values.update(kwargs)
         return award_coins(**values)
 
-    def account_client(self, account=None, *, csrf=False):
+    def account_client(self, account=None, *, csrf=False, collection_access=True):
         account = account or self.student
         client = Client(enforce_csrf_checks=csrf)
         session = client.session
@@ -34,5 +38,10 @@ class WalletFixtures:
         session.update({f"{prefix}_id": account.pk, f"{prefix}_auth_version": auth_version(account.pin_hash)})
         if prefix == "student":
             session["student_class_id"] = account.class_group_id
+            if collection_access:
+                credential, _ = CollectionCredential.objects.get_or_create(student=account,
+                    defaults={"password_hash": make_password("Collection7!")})
+                session[SESSION_KEY] = {"student_id": account.pk, "version": auth_version(credential.password_hash),
+                    "last_seen": timezone.now().timestamp()}
         session.save()
         return client

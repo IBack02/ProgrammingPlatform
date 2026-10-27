@@ -11,10 +11,14 @@ from django.views.decorators.http import require_GET, require_POST
 
 from core.ui_translations import UI_TRANSLATIONS, get_ui_lang
 from .catalog import presentation_catalog
-from .models import CosmeticDefinition, HeroDefinition, PackOffer, PlayerCosmetic, PlayerHero
+from .models import (CharacterSetEntitlement, CharacterSetPublication, CosmeticDefinition,
+                     HeroDefinition, PackOffer, PlayerCosmetic, PlayerHero)
 from .permissions import tower_student_required
+from .collection_security import collection_unlocked_required
+from .asset_delivery import asset_url
 from .services.collection import COLORS, SHAPES, buy_cosmetic, exchange_fragments, open_pack, save_avatar, set_favorite
 from .services.wallet import WalletError
+from .services.appearance import SELECTION_SLOTS, appearance_context, save_appearance
 from .wallet_views import positive_id, student_wallet_context, wallet_errors
 
 
@@ -27,6 +31,8 @@ def journal_context(request):
     catalog = presentation_catalog(language)
     definitions = {hero.pk: hero for hero in HeroDefinition.objects.filter(is_active=True)}
     progress = {row.hero_id: row for row in PlayerHero.objects.filter(player=player)}
+    entitlements = {row.hero_id: row for row in CharacterSetEntitlement.objects.filter(player=player).select_related("fulfilment__version")}
+    publications = {row.hero_id: row.version for row in CharacterSetPublication.objects.filter(is_active=True).select_related("version")}
     cards = []
     for card in catalog["cards"]:
         definition = definitions.get(card["id"])
@@ -36,10 +42,17 @@ def journal_context(request):
         fragments = row.fragments if row else 0
         assembled = bool(row and row.assembled_at)
         missing = max(0, definition.required_fragments - fragments)
+        entitlement = entitlements.get(card["id"])
+        grant = getattr(entitlement, "fulfilment", None)
+        set_version = publications.get(card["id"]) or (grant.version if grant else None)
+        components = [{"id": component["id"], "label": component["labels"].get(language, component["id"]),
+                       "url": asset_url(component["asset"]["path"]), "placeholder": component.get("placeholder", False)}
+                      for component in set_version.config["components"].values()] if set_version else []
         cards.append({**card, "fragments": fragments, "required": definition.required_fragments,
             "state": "collected" if assembled else "collecting" if fragments else "undiscovered",
             "collected": assembled, "favorite": bool(row and row.is_favorite),
             "missing": missing, "shard_cost": definition.shard_cost, "completion_cost": missing * definition.shard_cost,
+            "set_received": grant is not None, "set_pending": assembled and grant is None, "set_components": components,
             "detail_url": "?" + urlencode({"tab": "collection", "hero": card["id"]}) + "#hero-detail"})
     selected_hero = request.GET.get("hero")
     detail = next((card for card in cards if card["id"] == selected_hero), None)
@@ -65,10 +78,12 @@ def journal_context(request):
             opening_cards.append({"card": by_id.get(drop["hero_id"]), **drop})
     owned = set(PlayerCosmetic.objects.filter(player=player).values_list("cosmetic_id", flat=True))
     items = [{"id": item.pk, "slot": item.slot, "label": item.labels.get(language, item.pk),
-              "price": item.price, "owned": item.pk in owned} for item in CosmeticDefinition.objects.filter(is_active=True).order_by("slot", "price", "slug")]
+              "price": item.price, "owned": item.pk in owned} for item in CosmeticDefinition.objects.filter(is_active=True, acquisition="purchase").order_by("slot", "price", "slug")]
     slots = [{"id": slot, "label": text["journal_slot_" + slot], "selected": player.avatar_accessories.get(slot, ""),
               "items": [item for item in items if item["slot"] == slot and item["owned"]]} for slot in ("head", "glasses", "mustache")]
     tab = request.GET.get("tab", "collection")
+    if tab == "appearance":
+        tab = "avatar"
     if tab not in ("collection", "packs", "wallet", "avatar"):
         tab = "collection"
     context.update(catalog)
@@ -86,11 +101,26 @@ def journal_context(request):
         "avatar_data": {"avatar_shape": player.avatar_shape, "avatar_color": player.avatar_color, "avatar_accessories": player.avatar_accessories},
         "history_next_url": "?" + urlencode({"tab": "wallet", "before": context["next_before"]}) if context["next_before"] else "",
     })
+    wardrobe = appearance_context(player, language, wardrobe=True)
+    context["wardrobe"] = wardrobe
+    context["appearance_slots"] = [{"id": slot, "label": text["journal_slot_" + slot],
+        "selected": wardrobe["values"]["selections"][slot],
+        "items": [item for item in wardrobe["items"] if item["slot"] == slot]}
+        for slot in SELECTION_SLOTS]
+    context["appearance_sets"] = [{"hero_id": row.hero_id, "name": row.hero.name,
+        "items": {item["slot"]: item["id"] for item in wardrobe["items"] if item["hero_id"] == row.hero_id}}
+        for row in player.set_entitlements.select_related("hero", "fulfilment") if getattr(row, "fulfilment", None)]
+    return_to = request.GET.get("section", "avatar")
+    context["appearance_section"] = return_to if return_to in ("avatar", "background", "interface", "companion") else "avatar"
+    context["try_set"] = request.GET.get("try_set", "")
+    context["wardrobe"]["sets"] = context["appearance_sets"]
+    context["wardrobe"]["try_set"] = context["try_set"]
     return context
 
 
 @require_GET
 @tower_student_required
+@collection_unlocked_required
 @ensure_csrf_cookie
 @wallet_errors
 def journal(request):
@@ -99,6 +129,7 @@ def journal(request):
 
 @require_POST
 @tower_student_required
+@collection_unlocked_required
 @wallet_errors
 def student_action(request, action):
     is_json = request.path.startswith("/api/")
@@ -121,9 +152,12 @@ def student_action(request, action):
                 values["favorite"] = values["favorite"] == "true"
             if action == "avatar":
                 values["accessories"] = {slot: values.pop(slot, "") for slot in ("head", "glasses", "mustache")}
+            if action == "appearance":
+                values["selections"] = {slot: values.pop(slot, "") for slot in SELECTION_SLOTS}
         schemas = {"pack": {"offer", "version", "request_id"}, "exchange": {"hero_id", "quantity", "request_id"},
                    "cosmetic": {"cosmetic_id", "request_id"}, "favorite": {"hero_id", "favorite"},
-                   "avatar": {"shape", "color", "accessories", "theme"}}
+                   "avatar": {"shape", "color", "accessories", "theme"},
+                   "appearance": {"shape", "color", "selections", "theme"}}
         if action not in schemas or set(values) != schemas[action]:
             raise WalletError("invalid_payload")
         student = request.tower_student
@@ -137,6 +171,9 @@ def student_action(request, action):
         elif action == "avatar":
             save_avatar(student=student, **values)
             tab = "avatar"
+        elif action == "appearance":
+            save_appearance(student=student, **values)
+            tab = "avatar"
         elif action == "favorite":
             set_favorite(student=student, **values)
     except WalletError as exc:
@@ -145,7 +182,24 @@ def student_action(request, action):
         context = journal_context(request)
         text = UI_TRANSLATIONS[get_ui_lang(request)]
         context["journal_error"] = text.get("journal_error_" + exc.code, text.get("wallet_error_" + exc.code, text["wallet_form_invalid"]))
-        context["active_tab"] = {"pack": "packs", "cosmetic": "avatar", "avatar": "avatar"}.get(action, "collection")
+        context["active_tab"] = {"pack": "packs", "cosmetic": "avatar", "avatar": "avatar", "appearance": "avatar"}.get(action, "collection")
+        if action == "appearance":
+            # Preserve valid draft choices after a rejected submission.
+            known = {item["id"]: item["slot"] for item in context["wardrobe"]["items"]}
+            draft = values.get("selections", {})
+            if isinstance(draft, dict):
+                for slot in context["appearance_slots"]:
+                    chosen = draft.get(slot["id"], "")
+                    slot["selected"] = chosen if isinstance(chosen, str) and known.get(chosen) == slot["id"] else ""
+            context["wardrobe"]["draft_error"] = True
+            from .services.collection import COLORS, SHAPES
+            saved = context["wardrobe"]["values"]
+            context["wardrobe"]["draft"] = {
+                "shape": values.get("shape") if values.get("shape") in SHAPES else saved["shape"],
+                "color": values.get("color") if values.get("color") in COLORS else saved["color"],
+                "theme": values.get("theme") if values.get("theme") in ["midnight"] + [item["id"] for item in context["avatar_themes"]] else saved["theme"],
+                "selections": {slot["id"]: slot["selected"] for slot in context["appearance_slots"]},
+            }
         if "request_id" in values:
             context["request_id"] = values["request_id"]
         if action == "exchange":

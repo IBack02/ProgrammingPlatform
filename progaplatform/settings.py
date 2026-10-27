@@ -78,9 +78,15 @@ SECURE_HSTS_PRELOAD = os.environ.get("SECURE_HSTS_PRELOAD", "false").lower() == 
 SECURE_CONTENT_TYPE_NOSNIFF = True
 REFERRER_POLICY = "strict-origin-when-cross-origin"
 TOWER_ENABLED = os.environ.get("TOWER_ENABLED", "false").lower() == "true"
+TOWER_COMPANION_ENABLED = os.environ.get("TOWER_COMPANION_ENABLED", "false").lower() == "true"
+TOWER_COMPANION_CLASS_IDS = tuple(int(value) for value in os.environ.get("TOWER_COMPANION_CLASS_IDS", "").split(",") if value.strip())
+TOWER_COMPANION_MODEL = os.environ.get("TOWER_COMPANION_MODEL", "gpt-4o-mini")
+TOWER_COMPANION_TIMEOUT = min(40, max(5, float(os.environ.get("TOWER_COMPANION_TIMEOUT", "20"))))
 TOWER_ASSET_BASE_URL = os.environ.get(
     "TOWER_ASSET_BASE_URL", "https://pub-d45cf87f435a45e1b45efc0397382c5d.r2.dev"
 ).rstrip("/")
+# Enable after upload_tower_assets has verified all public files.
+TOWER_SET_ASSET_BASE_URL = os.environ.get("TOWER_SET_ASSET_BASE_URL", "").rstrip("/")
 TOWER_MANUAL_AWARD_LIMIT = int(os.environ.get("TOWER_MANUAL_AWARD_LIMIT", "10000"))
 TOWER_ADMIN_ADJUSTMENT_LIMIT = int(os.environ.get("TOWER_ADMIN_ADJUSTMENT_LIMIT", "1000000"))
 X_FRAME_OPTIONS = "DENY"
@@ -131,6 +137,7 @@ MIDDLEWARE = [
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "tower.collection_security.CollectionVisitMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]

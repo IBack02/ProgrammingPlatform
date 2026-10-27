@@ -7,9 +7,12 @@
   <link rel="stylesheet" href="{% static 'tower/journal.css' %}">
   <link rel="stylesheet" href="{% static 'tower/collection.css' %}">
   <script src="{% static 'tower/journal.js' %}" defer></script>
+  <script src="{% static 'tower/collection-security.js' %}" defer></script>
+  <link rel="stylesheet" href="{% static 'tower/appearance-editor.css' %}">
+  <script src="{% static 'tower/appearance-editor.js' %}" defer></script>
 </head>
 <body><main class="journal journal--live">
-  <header class="journal-header"><div><p class="journal-eyebrow">NIS · {{ T.journal_your_space }}</p><h1>{{ T.tower_title }}</h1></div><a class="journal-back" href="/student/">{{ T.tower_back_lesson }}</a></header>
+  <header class="journal-header"><div><p class="journal-eyebrow">NIS · {{ T.journal_your_space }}</p><h1>{{ T.tower_title }}</h1></div><div class="collection-header-actions"><form method="post" action="{% url 'tower:collection_lock' %}">{% csrf_token %}<button class="journal-back" type="submit">{{ T.journal_password_lock }}</button></form><a class="journal-back" href="/student/">{{ T.tower_back_lesson }}</a></div></header>
   <div class="journal-overview">
     <div><span>{{ T.journal_collection_progress }}</span><strong>{{ collected_count }} <small>/ {{ cards|length }}</small></strong></div>
     <div><span>{{ T.wallet_niscoin }}</span><strong>{{ wallet.niscoin }}</strong></div>
@@ -18,7 +21,7 @@
   <nav class="journal-tabs" aria-label="{{ T.tower_title }}">
     <a href="?tab=collection" {% if active_tab == 'collection' %}aria-current="page"{% endif %}>{{ T.journal_collection }}</a>
     <a href="?tab=packs" {% if active_tab == 'packs' %}aria-current="page"{% endif %}>{{ T.journal_packs }}</a>
-    <a href="?tab=avatar" {% if active_tab == 'avatar' %}aria-current="page"{% endif %}>{{ T.journal_avatar }}</a>
+    <a href="?tab=avatar" {% if active_tab == 'avatar' %}aria-current="page"{% endif %}>{{ T.journal_appearance }}</a>
     <a href="?tab=wallet" {% if active_tab == 'wallet' %}aria-current="page"{% endif %}>{{ T.wallet_title }}</a>
   </nav>
   {% for message in messages %}<p class="journal-notice" role="status">{{ message }}</p>{% endfor %}
@@ -66,17 +69,7 @@
     </section>{% endif %}
     <section class="journal-panel" id="opening-history"><h2>{{ T.journal_opening_history }}</h2>{% for receipt in recent_openings %}<a class="pack-history-row" href="?tab=packs&amp;opening_id={{ receipt.pk }}#pack-result"><span>{{ T.journal_school_pack }} #{{ receipt.pk }}<small>{{ receipt.created_at|date:'d.m.Y H:i' }} · {{ receipt.version.slug }}</small></span><b>−{{ receipt.cost }} {{ T.wallet_niscoin }} →</b></a>{% empty %}<p>{{ T.journal_no_openings }}</p>{% endfor %}{% if older_openings_url %}<a class="journal-button" href="{{ older_openings_url }}">{{ T.wallet_older }}</a>{% endif %}</section>
   {% elif active_tab == 'avatar' %}
-    <div class="journal-section-heading"><div><h2>{{ T.journal_avatar }}</h2><p>{{ T.journal_avatar_hint }}</p></div></div>
-    {% include 'core/_game_avatar.html' %}{{ avatar_data|json_script:'journal-avatar-data' }}
-    <section class="journal-panel avatar-workspace"><div class="avatar-display"><div id="journal-avatar-preview"></div><p>{{ T.journal_preview }}</p></div>
-      <form method="post" action="{% url 'tower:student_action' 'avatar' %}" id="avatar-form">{% csrf_token %}
-        <fieldset><legend>{{ T.journal_shape }}</legend><div class="avatar-shapes">{% for shape in avatar_shapes %}<label><input type="radio" name="shape" value="{{ shape.id }}" {% if player.avatar_shape == shape.id %}checked{% endif %}>{{ shape.label }}</label>{% endfor %}</div></fieldset>
-        <fieldset><legend>{{ T.journal_color }}</legend><div class="avatar-colors">{% for color in avatar_colors %}<label style="--swatch:{{ color.value }}"><input type="radio" name="color" value="{{ color.value }}" aria-label="{{ color.label }}" {% if player.avatar_color == color.value %}checked{% endif %}><span aria-hidden="true"></span></label>{% endfor %}</div></fieldset>
-        <div class="avatar-slot-grid">{% for slot in avatar_slots %}<label>{{ slot.label }}<select name="{{ slot.id }}"><option value="">{{ T.journal_none }}</option>{% for item in slot.items %}<option value="{{ item.id }}" {% if slot.selected == item.id %}selected{% endif %}>{{ item.label }}</option>{% endfor %}</select></label>{% endfor %}
-          <label>{{ T.journal_theme }}<select name="theme"><option value="midnight">{{ T.journal_midnight }}</option>{% for item in avatar_themes %}<option value="{{ item.id }}" {% if player.profile_theme == item.id %}selected{% endif %}>{{ item.label }}</option>{% endfor %}</select></label>
-        </div><button class="journal-button journal-button--gold">{{ T.journal_save_avatar }}</button>
-      </form>
-    </section>
+    {% include 'tower/_appearance_editor.html' %}
     <section class="journal-panel"><h2>{{ T.journal_shop }}</h2><p>{{ T.journal_shop_hint }}</p><div class="cosmetic-shop">{% for item in cosmetic_items %}<article class="cosmetic-item">{% if item.slot == 'theme' %}<span class="cosmetic-icon cosmetic-icon--{{ item.id }}" aria-hidden="true">▤</span>{% else %}<div class="gameAvatar cosmetic-sample" style="--runner-color:{{ player.avatar_color }}" aria-hidden="true"><div class="gameAvatarBody {{ player.avatar_shape }}"></div><span class="gameEye left"></span><span class="gameEye right"></span><span class="gameAvatarAccessory gameAvatarAccessory--{{ item.id }}"></span></div>{% endif %}<h3>{{ item.label }}</h3><small>{% if item.slot == 'theme' %}{{ T.journal_theme }}{% elif item.slot == 'head' %}{{ T.journal_slot_head }}{% elif item.slot == 'glasses' %}{{ T.journal_slot_glasses }}{% else %}{{ T.journal_slot_mustache }}{% endif %}</small>
       {% if item.owned %}<span class="journal-collected">{{ T.journal_owned }}</span>{% else %}<form method="post" action="{% url 'tower:student_action' 'cosmetic' %}" data-purchase-form>{% csrf_token %}<input type="hidden" name="request_id" value="{{ request_id }}"><input type="hidden" name="cosmetic_id" value="{{ item.id }}"><button class="journal-button" {% if wallet.niscoin < item.price %}disabled{% endif %}>{{ item.price }} {{ T.wallet_niscoin }}</button></form>{% endif %}
     </article>{% endfor %}</div></section>
@@ -88,5 +81,6 @@
   {% if hero_detail %}<dialog open class="hero-dialog" id="hero-detail" aria-labelledby="hero-detail-title"><div class="hero-detail-top"><span>{{ hero_detail.rarity_label }}</span><a href="?tab=collection" aria-label="{{ T.journal_close }}">×</a></div>{% if journal_error %}<p class="journal-error" role="alert">{{ journal_error }}</p>{% endif %}<div class="hero-detail-grid"><div>{% include 'tower/_collection_card.html' with card=hero_detail only %}</div><div><h2 id="hero-detail-title">{{ hero_detail.name }}</h2><p>{{ hero_detail.role }}</p><p>{{ hero_detail.biography }}</p><p>{{ T.journal_fragments }}: {{ hero_detail.fragments }}/{{ hero_detail.required }}</p><progress value="{{ hero_detail.fragments }}" max="{{ hero_detail.required }}" aria-label="{{ T.journal_fragments }}"></progress>
     {% if hero_detail.collected %}<p class="journal-collected">{{ T.journal_collected }}</p><form method="post" action="{% url 'tower:student_action' 'favorite' %}">{% csrf_token %}<input type="hidden" name="hero_id" value="{{ hero_detail.id }}"><input type="hidden" name="favorite" value="{% if hero_detail.favorite %}false{% else %}true{% endif %}"><button class="journal-button">{% if hero_detail.favorite %}{{ T.journal_unfavorite }}{% else %}{{ T.journal_favorite }}{% endif %}</button></form><p class="journal-muted">{{ T.journal_favorite_hint }}</p>
     {% else %}<p>{{ T.journal_exchange_hint }}</p><form method="post" action="{% url 'tower:student_action' 'exchange' %}" data-purchase-form>{% csrf_token %}<input type="hidden" name="hero_id" value="{{ hero_detail.id }}"><input type="hidden" name="request_id" value="{{ request_id }}"><label class="exchange-quantity">{{ T.journal_quantity }}<input name="quantity" type="number" min="1" max="{{ hero_detail.missing }}" value="1" required data-shard-unit="{{ hero_detail.shard_cost }}"></label><p class="journal-muted">1 {{ T.journal_fragment }} = {{ hero_detail.shard_cost }} {{ T.wallet_shards }}</p><button class="journal-button journal-button--gold" {% if wallet.universal_shards < hero_detail.shard_cost %}disabled{% endif %}>{{ T.journal_exchange }} · <span data-shard-total>{{ hero_detail.shard_cost }}</span> {{ T.wallet_shards }}</button></form><p class="journal-muted">{{ T.journal_complete_cost }}: {{ hero_detail.completion_cost }} {{ T.wallet_shards }}</p>{% endif %}
+    {% include 'tower/_set_reward.html' with card=hero_detail T=T only %}
   </div></div></dialog>{% endif %}
-</main></body></html>
+</main>{% include 'tower/_platform_appearance.html' %}</body></html>

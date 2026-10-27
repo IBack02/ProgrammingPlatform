@@ -1,4 +1,5 @@
-{% load static %}
+{% load static tower_avatar %}
+{% avatar_geometry as attachment_geometry %}{{ attachment_geometry|json_script:'game-avatar-geometry' }}
 <link rel="stylesheet" href="{% static 'tower/avatar.css' %}">
 <style>
   .gameAvatar{width:46px;height:46px;flex-shrink:0;position:relative;filter:drop-shadow(0 5px 5px rgba(15,23,42,.25))}
@@ -18,8 +19,20 @@
 <script>
   function gameAvatarHtml(player){
     const allowedAccessories = ["cap", "crown", "round-glasses", "sunglasses", "mustache"];
-    const accessories = Object.values(player.avatar_accessories || {}).filter(value => allowedAccessories.includes(value)).map(value => `<span class="gameAvatarAccessory gameAvatarAccessory--${value}" aria-hidden="true"></span>`).join("");
-    return `<div class="gameAvatar" style="--runner-color:${escapeHtml(player.avatar_color)}"><div class="gameAvatarBody ${escapeHtml(player.avatar_shape)}"></div><span class="gameEye left"></span><span class="gameEye right"></span>${accessories}</div>`;
+    const anchor = JSON.parse(document.getElementById("game-avatar-geometry").textContent).shapes[player.avatar_shape]?.anchors.head;
+    const accessories = Object.values(player.avatar_accessories || {}).filter(value => allowedAccessories.includes(value)).map(value => {
+      const item = `<span class="gameAvatarAccessory gameAvatarAccessory--${value}" aria-hidden="true"></span>`;
+      if (!["cap", "crown"].includes(value) || !anchor) return item;
+      const transform = `translate(${anchor.point.x * 46}px, ${anchor.point.y * 46}px) rotate(${anchor.rotation}deg) scale(${anchor.span}) translate(-23px, -1.84px)`;
+      return `<span class="gameAvatarLegacyHead" style="transform:${transform}" aria-hidden="true">${item}</span>`;
+    }).join("");
+    const images = Array.isArray(player.avatar_accessories?._set_items) ? player.avatar_accessories._set_items : [];
+    const attachments = layer => {
+      const content = images.filter(item => item.layer === layer && item.matrices?.[player.avatar_shape]).map(item =>
+        `<image href="${escapeHtml(item.url)}" width="${Number(item.width)}" height="${Number(item.height)}" transform="${escapeHtml(item.matrices[player.avatar_shape])}"/>`).join("");
+      return content ? `<svg class="tower-set-attachments tower-set-attachments--${layer}" viewBox="0 0 100 100" aria-hidden="true">${content}</svg>` : "";
+    };
+    return `<div class="gameAvatar" style="--runner-color:${escapeHtml(player.avatar_color)}">${attachments("behind")}<div class="gameAvatarBody ${escapeHtml(player.avatar_shape)}"></div><span class="gameEye left"></span><span class="gameEye right"></span>${accessories}${attachments("front")}</div>`;
   }
 
   function animateGameAvatars(container){

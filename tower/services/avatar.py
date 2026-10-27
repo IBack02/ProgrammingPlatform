@@ -11,8 +11,8 @@ def saved_avatar(student):
     player = TowerPlayer.objects.filter(student=student).first()
     if not player:
         return None
-    return {"avatar_shape": player.avatar_shape, "avatar_color": player.avatar_color,
-            "avatar_accessories": player.avatar_accessories}
+    from .appearance import appearance_context
+    return appearance_context(player)["avatar"]
 
 
 def prepare_avatar_rows(participants):

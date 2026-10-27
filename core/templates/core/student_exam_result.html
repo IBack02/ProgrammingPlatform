@@ -44,7 +44,7 @@
     </section>
 
     {% for row in question_rows %}
-      <article class="question-card">
+      <article class="question-card" id="question-{{ row.question.id }}">
         <div class="question-head"><div class="question-title">{{ row.question.position }}. {{ row.question.prompt }}</div><span class="points">{{ row.question.max_score }} {{ T.points }}</span></div>
         <div class="section">
           <div class="section-title">{{ T.your_exam_answer }}</div>
@@ -84,5 +84,6 @@
       </article>
     {% empty %}<section class="question-card empty">{{ T.no_questions }}</section>{% endfor %}
   </main>
+{% include 'tower/_platform_appearance.html' %}
 </body>
 </html>

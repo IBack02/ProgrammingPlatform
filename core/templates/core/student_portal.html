@@ -524,6 +524,13 @@
     }
     @media (max-width:700px){.tournamentBracketGrid{gap:52px;padding:14px 18px 22px}.tournamentStage{min-width:200px}.tournamentStageTitle{font-size:14px}}
     @media (max-width:520px){.wonderKeyboard{grid-template-columns:repeat(5,minmax(34px,1fr))}.wonderAnswerCell{width:32px;height:42px;font-size:21px}.wonderPlayArea{padding:12px}}
+    @media (max-width:760px){
+      .layout{display:block;height:auto;min-height:100vh;overflow:visible}
+      .sidebarWrap{display:block;height:auto}.sidebar{width:100%!important;min-width:0;max-width:none;height:auto;overflow:visible}
+      .resizer,.splitResizer{display:none}.content{min-width:0;padding:12px;overflow:visible}
+      .contentSplit{display:block;height:auto;min-height:0}.leftPane,.rightPane{width:100%!important;min-width:0;max-width:none;padding:0;overflow:visible}
+      .rightPane{margin-top:12px}.sidebar .topRight{flex-direction:row;align-items:center;flex-wrap:wrap}.sidebar .top{gap:14px}
+    }
   </style>
   {% include "core/_theme_support.html" %}
   {% include "core/_game_avatar.html" %}
@@ -569,6 +576,7 @@
 
       <div id="taskList"></div>
 
+      {% include 'tower/_platform_appearance.html' %}
       <div class="card" id="hintsPanel">
         <div class="hintPanelTitle">{{ T.hints }}</div>
         <div class="tiny">{{ T.hints_unlock_note }}</div>
@@ -2000,6 +2008,7 @@
       qs("constraintsSection").style.display = "none";
       qs("visibleTests").innerHTML = "";
       renderTheoryBlocks(res.data.module.blocks || []);
+      if (/^#theory-block-\d+$/.test(location.hash)) document.getElementById(location.hash.slice(1))?.scrollIntoView({block:"center"});
       pollLessonHighlights(taskId);
 
       lastProgress = null;
@@ -2270,6 +2279,7 @@
     showStatus(UI.loadingSession);
     const qSession = getQueryParam("session_id");
     const qTask = getQueryParam("task_id");
+    const qModuleType = getQueryParam("module_type");
     const sessionUrl = qSession
       ? `/api/student/active-session?session_id=${encodeURIComponent(qSession)}`
       : "/api/student/active-session";
@@ -2299,9 +2309,9 @@
     if (res.data.tasks && res.data.tasks.length > 0){
       const requestedTaskId = qTask ? Number(qTask) : null;
       const target = requestedTaskId
-        ? (res.data.tasks.find(t => Number(t.id) === requestedTaskId) || res.data.tasks[0])
+        ? (res.data.tasks.find(t => Number(t.id) === requestedTaskId && (!qModuleType || t.module_type === qModuleType)) || res.data.tasks[0])
         : res.data.tasks[0];
-      const firstBtn = document.querySelector(`.taskbtn[data-id="${target.id}"]`);
+      const firstBtn = [...document.querySelectorAll('.taskbtn')].find(button => Number(button.dataset.id) === Number(target.id) && button.dataset.moduleType === target.module_type);
       await openTask(target.id, target.module_type || "coding_task", firstBtn);
     } else {
       hideStatus();

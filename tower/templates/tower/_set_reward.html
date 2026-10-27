@@ -1,0 +1,8 @@
+<section class="character-set-reward" data-set-received="{{ card.set_received|yesno:'true,false' }}">
+  <h3>{{ T.journal_set_title }}</h3>
+  {% if card.set_received %}<p class="journal-collected">{{ T.journal_set_received }}</p>
+  {% elif card.set_pending %}<p>{{ T.journal_set_pending }}</p>
+  {% else %}<p class="journal-muted">{{ T.journal_set_unlock_hint }}</p>{% endif %}
+  {% if card.set_components %}<div class="character-set-items">{% for item in card.set_components %}<figure><img src="{{ item.url }}" alt="{{ item.label }}" loading="lazy"><figcaption>{{ item.label }}{% if item.placeholder %}<small>{{ T.journal_set_chibi_placeholder }}</small>{% endif %}</figcaption></figure>{% endfor %}</div>{% endif %}
+  {% if card.set_received %}<div class="set-reward-actions"><a class="journal-button" href="?tab=appearance&amp;try_set={{ card.id }}">{{ T.journal_try_set }}</a><a class="journal-button" href="?tab=appearance&amp;section=companion&amp;try_set={{ card.id }}&amp;companion_only=1">{{ T.journal_choose_companion }}</a></div>{% endif %}
+</section>

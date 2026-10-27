@@ -18,6 +18,7 @@ from core.ui_translations import UI_TRANSLATIONS, get_ui_lang
 from .forms import AwardForm, BatchAwardForm, RewardPolicyForm
 from .models import RewardPolicy, WalletEntry
 from .permissions import is_tower_admin, managed_classes, tower_student_required, tower_teacher_required
+from .collection_security import collection_unlocked_required
 from .services.wallet import WalletError, award_coins, student_wallet
 from .services.rewards import award_batch, save_policy
 
@@ -81,6 +82,7 @@ def student_wallet_context(request):
 
 @require_GET
 @tower_student_required
+@collection_unlocked_required
 @wallet_errors
 def wallet_api(request):
     context = student_wallet_context(request)

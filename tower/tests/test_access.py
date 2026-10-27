@@ -80,7 +80,7 @@ class TowerAccessTests(TestCase):
     def test_enabled_student_can_enter_and_only_sees_eligible_memberships(self):
         StudentClassMembership.objects.create(student=self.student, class_group=self.disabled_group)
         client = self.student_client()
-        self.assertEqual(client.get(reverse("tower:home")).status_code, 200)
+        self.assertRedirects(client.get(reverse("tower:home")), reverse("tower:collection_login") + "?next=%2Ftower%2F", fetch_redirect_response=False)
         response = client.get(reverse("tower:status"))
         self.assertEqual(response.json(), {
             "ok": True, "student_id": self.student.pk,

@@ -119,6 +119,7 @@
       }
 
       wrap.dataset.blockId = block.id;
+      wrap.id = `theory-block-${block.id}`;
       wrap.dataset.blockType = block.block_type;
       box.appendChild(wrap);
     });

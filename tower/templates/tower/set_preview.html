@@ -1,0 +1,14 @@
+{% load static %}
+<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Наборы персонажей · предпросмотр</title><link rel="stylesheet" href="{% static 'tower/set-preview.css' %}"></head>
+<body style="--set-background:url('{{ background_url }}')"><main class="sets-preview">
+<header><div><p class="eyebrow">NIS · ПРЕДПРОСМОТР НАБОРОВ</p><h1>У каждого — свой характер</h1><p>Арман и Тимур · графика и крепления · чиби пока заменены заглушками</p></div><a class="button" href="{% url 'tower:teacher' %}">К журналу учителя</a></header>
+<section class="bundle-grid">{% for bundle in bundles %}<article class="panel"><p class="eyebrow">{{ bundle.role }}</p><h2>{{ bundle.name }}</h2><div class="component-grid">{% for component in bundle.components %}<figure><img src="{{ component.url }}" alt="{{ component.label }}" {% if component.id == 'ui_loader' %}class="rotating"{% endif %}><figcaption>{{ component.label }}{% if component.placeholder %}<span>Временная заглушка</span>{% endif %}</figcaption></figure>{% endfor %}</div><blockquote>{{ bundle.example }}</blockquote><p class="tone">{{ bundle.tone }}</p></article>{% endfor %}</section>
+<section class="panel"><h2>Смешать наборы</h2><form method="get" class="preview-controls">
+<label>Шапка<select name="head">{% for bundle in bundles %}<option value="{{ bundle.hero }}" {% if bundle.hero == head_id %}selected{% endif %}>{{ bundle.name }}</option>{% endfor %}</select></label>
+<label>Предмет<select name="prop">{% for bundle in bundles %}<option value="{{ bundle.hero }}" {% if bundle.hero == prop_id %}selected{% endif %}>{{ bundle.name }}</option>{% endfor %}</select></label>
+<label>Фон<select name="background">{% for bundle in bundles %}<option value="{{ bundle.hero }}" {% if bundle.hero == background_id %}selected{% endif %}>{{ bundle.name }}</option>{% endfor %}</select></label>
+<label>Размер фигуры<select name="size">{% for value in sizes %}<option value="{{ value }}" {% if value == size %}selected{% endif %}>{{ value }} px</option>{% endfor %}</select></label>
+<label class="checkbox"><input type="checkbox" name="anchors" {% if show_anchors %}checked{% endif %}> Точки крепления</label><button>Показать</button></form>
+<div class="avatar-strip">{% for avatar in avatars %}<figure>{% include 'tower/_set_preview_avatar.html' %}<figcaption>{{ avatar.shape }}</figcaption></figure>{% endfor %}</div></section>
+<section class="panel"><h2>Все сочетания на пяти фигурах</h2><p class="tone">Матрицы рассчитывает общий механизм креплений. Результат не меняет аккаунты учеников.</p>{% for row in combinations %}<h3>{{ row.label }}</h3><div class="avatar-strip compact">{% for avatar in row.avatars %}<figure>{% include 'tower/_set_preview_avatar.html' %}<figcaption>{{ avatar.shape }}</figcaption></figure>{% endfor %}</div>{% endfor %}</section>
+</main></body></html>

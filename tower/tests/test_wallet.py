@@ -48,7 +48,7 @@ class WalletTests(WalletFixtures, TestCase):
         result = self.award(reason="  Quiz   prize  ")
         wallet = Wallet.objects.get()
         entry = WalletEntry.objects.get()
-        event = TowerAuditEvent.objects.get()
+        event = TowerAuditEvent.objects.get(student=self.student)
         self.assertEqual(wallet.niscoin, 100)
         self.assertEqual((entry.delta, entry.balance_after, entry.reason), (100, 100, "Quiz prize"))
         self.assertEqual((event.actor_teacher_id, event.entry_id), (self.teacher.pk, entry.pk))
@@ -138,10 +138,12 @@ class WalletTests(WalletFixtures, TestCase):
         self.assertEqual(WalletEntry.objects.count(), 2)
 
     def test_insufficient_funds_rolls_back_everything(self):
+        models = (TowerPlayer, Wallet, GameOperation, WalletEntry, TowerAuditEvent)
+        before = {model: model.objects.count() for model in models}
         self.assert_wallet_error("insufficient_funds", spend_coins, student=self.student, amount=1,
                                  reason="Pack", reference="pack:test", request_id=uuid.uuid4())
-        for model in (TowerPlayer, Wallet, GameOperation, WalletEntry, TowerAuditEvent):
-            self.assertEqual(model.objects.count(), 0)
+        for model in models:
+            self.assertEqual(model.objects.count(), before[model])
 
     def test_audit_failure_rolls_back_balance_and_ledger(self):
         self.award()
@@ -163,7 +165,7 @@ class WalletTests(WalletFixtures, TestCase):
     def test_ledger_and_audit_are_append_only_and_protect_accounts(self):
         self.award()
         for model in (WalletEntry, TowerAuditEvent):
-            obj = model.objects.get()
+            obj = model.objects.get(student=self.student) if model is TowerAuditEvent else model.objects.get()
             for action in [obj.save, obj.delete, lambda: model.objects.all().update(id=999), lambda: model.objects.all().delete()]:
                 with self.assertRaises(ValidationError):
                     action()

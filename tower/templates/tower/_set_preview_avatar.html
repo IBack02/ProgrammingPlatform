@@ -1,0 +1,7 @@
+<svg class="set-avatar" width="{{ avatar.width }}" height="{{ avatar.height }}" viewBox="-60 -95 240 220" role="img" aria-label="{{ avatar.shape }}" data-avatar-shape="{{ avatar.shape }}">
+  <polygon points="{{ avatar.points }}" transform="scale(100)" fill="#5486d8"/>
+  <ellipse cx="35" cy="39" rx="11" ry="13" fill="#fff"/><ellipse cx="65" cy="39" rx="11" ry="13" fill="#fff"/>
+  <circle cx="36" cy="41" r="5" fill="#17253a"/><circle cx="66" cy="41" r="5" fill="#17253a"/>
+  {% for item in avatar.items %}<image href="{{ item.url }}" width="{{ item.width }}" height="{{ item.height }}" transform="{{ item.matrix }}" data-item-slot="{{ item.slot }}"/>{% endfor %}
+  {% if show_anchors %}{% for point in avatar.anchors %}<circle cx="{{ point.x }}" cy="{{ point.y }}" r="2.3" fill="#ff6078" stroke="#fff" stroke-width=".8"/>{% endfor %}{% endif %}
+</svg>

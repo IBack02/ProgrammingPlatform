@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="128" viewBox="0 0 256 128" role="img" aria-labelledby="title">
+<title id="title">Мазок Тимура</title>
+<path d="M17 104c38-34 72-37 106-18 29 16 72 15 116-6" fill="none" stroke="#236978" stroke-width="17" stroke-linecap="round"/>
+<path d="M36 108c58-16 94 18 144-2" fill="none" stroke="#df9e57" stroke-width="5" stroke-linecap="round"/>
+<path d="m141 88 62-61 12 12-62 61Z" fill="#355776"/><path d="m141 88-17 23 29-11Z" fill="#f1bb68"/>
+<path d="m181 49 11-11 12 12-11 11Z" fill="#f58f79"/>
+<circle cx="56" cy="59" r="5" fill="#f58f79"/><circle cx="89" cy="49" r="4" fill="#75cfca"/><circle cx="221" cy="68" r="3" fill="#f6dca2"/>
+</svg>

@@ -97,5 +97,6 @@
   document.getElementById('sessionSelect').onchange=e=>selectSession(e.target.value);
   (async()=>{try{const data=await api('/api/student/peer-sessions/');state.sessions=data.sessions||[];renderSessions();if(state.sessions.length){const running=state.sessions.find(s=>s.status==='running')||state.sessions[0];document.getElementById('sessionSelect').value=running.id;selectSession(running.id)}else document.getElementById('content').innerHTML=`<div class="empty">{{ T.no_peer_sessions|escapejs }}</div>`}catch(e){window.location.assign('/student/login/')}})();
 </script>
+{% include 'tower/_platform_appearance.html' %}
 </body>
 </html>

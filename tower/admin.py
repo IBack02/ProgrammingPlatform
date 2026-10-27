@@ -8,7 +8,9 @@ from django.urls import path, reverse
 
 from .forms import AdjustmentForm
 from .models import (CosmeticDefinition, GameOperation, HeroDefinition, PackOffer, PackOpening,
-                     PackVersion, PlayerCosmetic, PlayerHero, TowerAuditEvent, Wallet, WalletEntry)
+                     PackVersion, PlayerCosmetic, PlayerHero, TowerAuditEvent, Wallet, WalletEntry,
+                     CharacterSetVersion, CharacterSetPublication, CharacterSetEntitlement, PlayerCharacterSet,
+                     CompanionLearningVisit, CompanionMessage, CompanionAccountState, CompanionRequest)
 from .services.wallet import WalletError, adjust_wallet
 
 
@@ -118,5 +120,7 @@ class PackOfferAdmin(JournalAdmin):
             metadata={"offer": obj.pk, "before": before, "after": obj.is_active})
 
 
-for _model in (HeroDefinition, PlayerHero, PackVersion, CosmeticDefinition, PlayerCosmetic):
+for _model in (HeroDefinition, PlayerHero, PackVersion, CosmeticDefinition, PlayerCosmetic,
+               CharacterSetVersion, CharacterSetPublication, CharacterSetEntitlement, PlayerCharacterSet,
+               CompanionLearningVisit, CompanionMessage, CompanionAccountState, CompanionRequest):
     admin.site.register(_model, JournalAdmin)

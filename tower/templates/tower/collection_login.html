@@ -1,0 +1,29 @@
+{% load static %}
+<!doctype html>
+<html lang="{{ ui_lang }}">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ T.journal_password_title }} · {{ T.tower_title }}</title>
+  <link rel="stylesheet" href="{% static 'tower/collection-auth.css' %}">
+</head>
+<body><main class="collection-auth">
+  <p class="collection-auth-eyebrow">NIS · {{ T.tower_title }}</p>
+  <h1>{% if password_setup %}{{ T.journal_password_create }}{% else %}{{ T.journal_password_title }}{% endif %}</h1>
+  <p class="collection-auth-student">{{ collection_student.full_name }}</p>
+  <p>{% if password_setup %}{{ T.journal_password_setup_hint }}{% else %}{{ T.journal_password_login_hint }}{% endif %}</p>
+  <form method="post">
+    {% csrf_token %}<input type="hidden" name="next" value="{{ next_url }}">
+    {{ password_form.non_field_errors }}
+    <label for="{{ password_form.password.id_for_label }}">{{ T.journal_password_label }}</label>
+    {{ password_form.password }}
+    {{ password_form.password.errors }}
+    {% if password_setup %}
+      <p id="password-rules" class="collection-auth-hint">{{ T.journal_password_rules }}</p>
+      <label for="{{ password_form.confirmation.id_for_label }}">{{ T.journal_password_confirm }}</label>
+      {{ password_form.confirmation }}{{ password_form.confirmation.errors }}
+    {% endif %}
+    <button type="submit">{% if password_setup %}{{ T.journal_password_create_enter }}{% else %}{{ T.journal_password_enter }}{% endif %}</button>
+  </form>
+  <p class="collection-auth-hint">{{ T.journal_password_forgot }}</p>
+  <a href="/student/">{{ T.tower_back_lesson }}</a>
+</main></body></html>

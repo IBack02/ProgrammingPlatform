@@ -1,0 +1,42 @@
+{
+  "created": "2026-10-26",
+  "chibi": "User-supplied only; generated character sprite was not imported.",
+  "assets": [
+    {
+      "asset": "coder_head",
+      "tool": "image_gen.imagegen",
+      "prompt": "See generating call in the current task history.",
+      "source": null
+    },
+    {
+      "asset": "coder_prop",
+      "tool": "image_gen.imagegen",
+      "prompt": "See generating call in the current task history.",
+      "source": null
+    },
+    {
+      "asset": "coder_background",
+      "tool": "image_gen.imagegen",
+      "prompt": "Use case: stylized-concept. Asset type: wide background illustration for a student learning dashboard, programmer collection set. Landscape 16:9 composition. Quiet deep midnight navy and desaturated blue atmosphere, subtle warm coral and turquoise accents. Along the far left and far right edges only, loosely suggested softly sculpted circuit paths, rounded little keyboard keys, translucent geometric panels and a few softly glowing dots. Keep the central 65 percent very calm, dark and almost empty for readable learning cards; details collect in the bottom corners and thin outer edges. Premium soft 3D game illustration, matte materials, diffuse ambient light, restrained contrast, no scene furniture or busy workstation. Fill the whole canvas, opaque background. No people, characters, faces, chibi, text, words, code, letters, numbers, logos, buttons, UI layout, watermark or big central object.",
+      "source": "C:\\Users\\Admin\\.codex\\generated_images\\01a16abf-1d57-7990-a4b9-1ad9d69c2b23\\exec-dc296b2c-8e96-46a3-b067-49a2f53db353.png"
+    },
+    {
+      "asset": "artist_head",
+      "tool": "image_gen.imagegen",
+      "prompt": "See generating call in the current task history.",
+      "source": null
+    },
+    {
+      "asset": "artist_prop",
+      "tool": "image_gen.imagegen",
+      "prompt": "See generating call in the current task history.",
+      "source": null
+    },
+    {
+      "asset": "artist_background",
+      "tool": "image_gen.imagegen",
+      "prompt": "Use case: stylized-concept. Asset type: wide full-bleed background for a student learning dashboard, artist collection set. Landscape 16:9 composition. Elegant dark midnight navy canvas with painterly deep teal and desaturated blue brush swaths, a few restrained coral and golden ochre paint accents only along far outer edges and bottom corners. A subtle warm paper texture gives character. Keep central 65 percent quiet, dark and nearly empty so lesson panels will be readable. Abstract art studio feeling, softly dimensional brush paint and refined lighting, tasteful and uncluttered. No actual easel or furniture. Opaque edge-to-edge image. No people, faces, chibi, animals, characters, text, letters, numbers, logos, watermark, UI, cards or buttons. Matching a deep teal artist beret with coral band and wooden paint palette.",
+      "source": "C:\\Users\\Admin\\.codex\\generated_images\\01a16abf-1d57-7990-a4b9-1ad9d69c2b23\\exec-4b32a190-21cd-4838-ba2c-752c8ffc4d33.png"
+    }
+  ]
+}

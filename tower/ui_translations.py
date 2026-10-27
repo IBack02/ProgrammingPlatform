@@ -1,3 +1,39 @@
+COLLECTION_SECURITY_TEXT = {
+    "ru": {
+        "password_title": "Вход в коллекционный журнал", "password_create": "Создай пароль для коллекции",
+        "password_setup_hint": "Пароль защитит твою коллекцию, нишкойны и покупки. Для уроков остаётся прежний вход.",
+        "password_login_hint": "Введи пароль коллекционного журнала.", "password_label": "Пароль", "password_confirm": "Повтори пароль",
+        "password_rules": "От 6 до 15 символов, хотя бы одна буква, без пробелов. Можно использовать цифры и знаки.",
+        "password_required": "Введи пароль.", "password_mismatch": "Пароли не совпадают.", "password_invalid": "Не удалось войти. Проверь пароль и попробуй снова.",
+        "password_locked": "Слишком много попыток. Повтори через {seconds} сек.", "password_enter": "Войти", "password_create_enter": "Создать пароль и войти",
+        "password_forgot": "Забыл пароль? Попроси своего учителя сбросить пароль журнала. Коллекция и валюта сохранятся.",
+        "password_lock": "Закрыть доступ", "password_reset": "Сбросить пароль журнала", "password_reset_done": "Пароль журнала сброшен. Ученик задаст новый при следующем входе.",
+        "password_reset_hint": "Сначала проверь личность ученика. Сброс закроет доступ во всех его браузерах. Ученик сам задаст новый пароль; коллекция, валюта и пароль входа на урок сохранятся.",
+    },
+    "kk": {
+        "password_title": "Коллекция журналына кіру", "password_create": "Коллекцияға құпиясөз жаса",
+        "password_setup_hint": "Құпиясөз коллекцияңды, нишкойндарыңды және сатып алуларыңды қорғайды. Сабаққа кіру өзгермейді.",
+        "password_login_hint": "Коллекция журналының құпиясөзін енгіз.", "password_label": "Құпиясөз", "password_confirm": "Құпиясөзді қайтала",
+        "password_rules": "6–15 таңба, кемінде бір әріп, бос орынсыз. Сандар мен белгілерді қолдануға болады.",
+        "password_required": "Құпиясөзді енгіз.", "password_mismatch": "Құпиясөздер сәйкес келмейді.", "password_invalid": "Кіру мүмкін болмады. Құпиясөзді тексеріп, қайталап көр.",
+        "password_locked": "Тым көп әрекет. {seconds} секундтан кейін қайтала.", "password_enter": "Кіру", "password_create_enter": "Құпиясөз жасап, кіру",
+        "password_forgot": "Құпиясөзді ұмыттың ба? Мұғалімнен журнал құпиясөзін қалпына келтіруді сұра. Коллекция мен валюта сақталады.",
+        "password_lock": "Қолжетімділікті жабу", "password_reset": "Журнал құпиясөзін қалпына келтіру", "password_reset_done": "Журнал құпиясөзі қалпына келтірілді. Оқушы келесі кіруде жаңасын орнатады.",
+        "password_reset_hint": "Алдымен оқушының жеке басын тексеріңіз. Барлық браузерлердегі журналға қолжетімділік жабылады. Оқушы жаңа құпиясөзді өзі жасайды; коллекция, валюта және сабаққа кіру құпиясөзі сақталады.",
+    },
+    "en": {
+        "password_title": "Open your collection journal", "password_create": "Create a collection password",
+        "password_setup_hint": "Your password protects your collection, NIScoins and purchases. Your lesson sign-in stays the same.",
+        "password_login_hint": "Enter your collection journal password.", "password_label": "Password", "password_confirm": "Repeat password",
+        "password_rules": "6–15 characters, with at least one letter and no spaces. Numbers and symbols are welcome.",
+        "password_required": "Enter your password.", "password_mismatch": "Passwords do not match.", "password_invalid": "Could not sign in. Check your password and try again.",
+        "password_locked": "Too many attempts. Try again in {seconds} seconds.", "password_enter": "Enter", "password_create_enter": "Create password and enter",
+        "password_forgot": "Forgot your password? Ask your teacher to reset your journal password. Your collection and currency will be kept.",
+        "password_lock": "Lock journal", "password_reset": "Reset journal password", "password_reset_done": "Journal password reset. The student will create a new one on their next visit.",
+        "password_reset_hint": "Verify the student's identity first. This ends journal access in all their browsers. The student will create their own new password; their collection, currency and lesson sign-in stay unchanged.",
+    },
+}
+
 JOURNAL_TEXT = {
     "ru": {
         "collection_progress": "Собрано карточек", "fragment_unit": "фрагм.", "your_space": "Твоя коллекция", "collection": "Коллекция", "packs": "Паки", "avatar": "Аватарка",
@@ -82,5 +118,84 @@ JOURNAL_TEXT = {
     },
 }
 
+for _lang, _labels in {
+    "ru": {"companion_ready":"Можно получить новую реплику", "companion_empty":"Пока нет подходящего учебного материала.",
+        "companion_generating":"Секунду, я думаю…", "companion_cooldown":"Следующая реплика после",
+        "companion_retry":"Не получилось. Можно повторить после", "companion_unavailable":"Помощник временно недоступен. Попробуй позже.",
+        "companion_open_source":"Открыть материал", "companion_generate":"Напомни о важном"},
+    "kk": {"companion_ready":"Жаңа хабарлама алуға болады", "companion_empty":"Әзірге сәйкес оқу материалы жоқ.",
+        "companion_generating":"Бір сәт, ойланып жатырмын…", "companion_cooldown":"Келесі хабарлама уақыты:",
+        "companion_retry":"Сәтсіз болды. Қайта көру уақыты:", "companion_unavailable":"Көмекші уақытша қолжетімсіз. Кейінірек қайтала.",
+        "companion_open_source":"Материалды ашу", "companion_generate":"Маңыздысын еске сал"},
+    "en": {"companion_ready":"A new message is available", "companion_empty":"There is no suitable learning material yet.",
+        "companion_generating":"One moment, thinking…", "companion_cooldown":"Next message after",
+        "companion_retry":"That did not work. Try again after", "companion_unavailable":"Your companion is temporarily unavailable. Try again later.",
+        "companion_open_source":"Open material", "companion_generate":"Remind me what matters"},
+}.items():
+    JOURNAL_TEXT[_lang].update(_labels)
+
+APPEARANCE_TEXT = {
+    "ru": {
+        "appearance": "Оформление", "appearance_hint": "Сочетай предметы разных персонажей. Изменения применятся после сохранения.",
+        "background": "Фон", "interface": "Детали интерфейса", "companion": "Помощник", "no_companion": "Без помощника",
+        "slot_prop": "Предмет", "slot_background": "Фоновое изображение", "slot_ui_loader": "Загрузчик",
+        "slot_ui_decoration": "Декоративный мотив", "slot_companion": "Персонаж-помощник",
+        "try_set": "Примерить набор", "choose_companion": "Выбрать помощника", "choose_set": "Выбери персонажа", "try": "Примерить",
+        "preview_hint": "Предпросмотр не меняет сохранённое оформление.", "unsaved": "Есть несохранённые изменения.",
+        "loader_preview": "Вид загрузчика", "save_appearance": "Сохранить оформление", "undo_preview": "Отменить примерку", "standard": "Стандартный вид",
+        "background_hint": "Фон появится за учебными блоками. Тема задаёт цвета коллекционного журнала.",
+        "interface_hint": "Загрузчик показывается во время запросов. Декор размещается в свободной области страницы.",
+        "companion_hint": "Выбери одного спутника для учебных страниц. Его можно свернуть в любой момент.",
+        "slot_empty": "Собери персонажа, чтобы открыть предметы для этого раздела.",
+        "personal_space": "Твоё оформление", "change_appearance": "Изменить оформление", "loading": "Загрузка…", "shop_slot_hint": "Украшения для этого слота доступны в магазине ниже.",
+    },
+    "kk": {
+        "appearance": "Безендіру", "appearance_hint": "Әртүрлі кейіпкерлердің заттарын үйлестір. Өзгерістер сақтағаннан кейін қолданылады.",
+        "background": "Фон", "interface": "Интерфейс", "companion": "Көмекші", "no_companion": "Көмекшісіз",
+        "slot_prop": "Зат", "slot_background": "Фон суреті", "slot_ui_loader": "Жүктеу белгісі",
+        "slot_ui_decoration": "Сәндік өрнек", "slot_companion": "Көмекші кейіпкер",
+        "try_set": "Жиынтықты байқап көру", "choose_companion": "Көмекшіні таңдау", "choose_set": "Кейіпкерді таңда", "try": "Байқап көру",
+        "preview_hint": "Алдын ала қарау сақталған безендіруді өзгертпейді.", "unsaved": "Сақталмаған өзгерістер бар.",
+        "loader_preview": "Жүктеу белгісінің көрінісі", "save_appearance": "Безендіруді сақтау", "undo_preview": "Өзгерістерден бас тарту", "standard": "Стандартты көрініс",
+        "background_hint": "Фон оқу блоктарының артында көрсетіледі. Тақырып коллекция журналының түстерін анықтайды.",
+        "interface_hint": "Жүктеу белгісі сұраулар кезінде көрсетіледі. Өрнек беттің бос аймағында орналасады.",
+        "companion_hint": "Оқу беттеріне бір серік таңда. Оны кез келген уақытта жинауға болады.",
+        "slot_empty": "Осы бөлімдегі заттарды ашу үшін кейіпкерді жина.",
+        "personal_space": "Сенің безендіруің", "change_appearance": "Безендіруді өзгерту", "loading": "Жүктелуде…", "shop_slot_hint": "Бұл слоттың әшекейлері төмендегі дүкенде бар.",
+    },
+    "en": {
+        "appearance": "Appearance", "appearance_hint": "Mix items from different characters. Changes apply when you save.",
+        "background": "Background", "interface": "Interface", "companion": "Companion", "no_companion": "No companion",
+        "slot_prop": "Prop", "slot_background": "Background image", "slot_ui_loader": "Loader",
+        "slot_ui_decoration": "Decorative motif", "slot_companion": "Companion character",
+        "try_set": "Try on set", "choose_companion": "Choose companion", "choose_set": "Choose a character", "try": "Try on",
+        "preview_hint": "Trying on items does not change your saved appearance.", "unsaved": "You have unsaved changes.",
+        "loader_preview": "Loader preview", "save_appearance": "Save appearance", "undo_preview": "Undo preview", "standard": "Default appearance",
+        "background_hint": "The background sits behind lesson panels. The theme sets the collection journal colors.",
+        "interface_hint": "The loader appears during requests. Decorations sit in a free area of the page.",
+        "companion_hint": "Choose one companion for your learning pages. You can collapse it at any time.",
+        "slot_empty": "Collect a character to unlock items for this section.",
+        "personal_space": "Your appearance", "change_appearance": "Change appearance", "loading": "Loading…", "shop_slot_hint": "Accessories for this slot are available in the shop below.",
+    },
+}
+for _lang, _labels in APPEARANCE_TEXT.items():
+    JOURNAL_TEXT[_lang].update(_labels)
+
 for _lang, _colors in {"ru": ["Синий", "Красный", "Жёлтый", "Зелёный", "Фиолетовый", "Розовый", "Голубой", "Серый"], "kk": ["Көк", "Қызыл", "Сары", "Жасыл", "Күлгін", "Қызғылт", "Көгілдір", "Сұр"], "en": ["Blue", "Red", "Yellow", "Green", "Purple", "Pink", "Cyan", "Gray"]}.items():
     JOURNAL_TEXT[_lang].update({"color_" + str(index): label for index, label in enumerate(_colors)})
+
+for _lang, _labels in {
+    "ru": {"set_title": "Набор персонажа", "set_received": "Все 6 элементов набора добавлены в аккаунт.",
+           "set_pending": "Право на набор сохранено. Элементы появятся автоматически после подготовки графики.",
+           "set_unlock_hint": "Полностью собери персонажа, чтобы получить его оформление и помощника.",
+           "set_chibi_placeholder": "Временная заглушка чиби"},
+    "kk": {"set_title": "Кейіпкер жиынтығы", "set_received": "Жиынтықтың барлық 6 элементі аккаунтқа қосылды.",
+           "set_pending": "Жиынтыққа құқығың сақталды. Графика дайын болғанда элементтер автоматты түрде қосылады.",
+           "set_unlock_hint": "Безендіруі мен көмекшісін алу үшін кейіпкерді толық жина.",
+           "set_chibi_placeholder": "Чибидің уақытша белгісі"},
+    "en": {"set_title": "Character set", "set_received": "All 6 set components have been added to your account.",
+           "set_pending": "Your set entitlement is saved. Items will arrive automatically when their artwork is ready.",
+           "set_unlock_hint": "Fully collect this character to unlock their appearance items and companion.",
+           "set_chibi_placeholder": "Temporary chibi placeholder"},
+}.items():
+    JOURNAL_TEXT[_lang].update(_labels)

@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128" role="img" aria-labelledby="title">
+<title id="title">Палитра Тимура</title>
+<circle cx="64" cy="64" r="43" fill="none" stroke="#234b56" stroke-width="9"/>
+<path d="M64 21a43 43 0 0 1 43 43" fill="none" stroke="#edb95d" stroke-width="9" stroke-linecap="round"/>
+<path d="M45 40c-14 2-23 15-20 29 3 14 17 23 32 22 9 0 12-5 10-11-2-5 1-9 7-8 12 3 22-4 21-13-2-13-28-24-50-19Z" fill="#ba8550"/>
+<circle cx="43" cy="56" r="6" fill="#75cfca"/><circle cx="60" cy="49" r="6" fill="#f58f79"/><circle cx="78" cy="57" r="6" fill="#f6dca2"/>
+</svg>

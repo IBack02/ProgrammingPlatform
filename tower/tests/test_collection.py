@@ -35,7 +35,7 @@ class CollectionTests(WalletFixtures, TestCase):
 
     def test_catalog_seed_is_idempotent_without_player_rewards(self):
         call_command("seed_tower_catalog", stdout=io.StringIO())
-        self.assertEqual((HeroDefinition.objects.count(), PackVersion.objects.count(), CosmeticDefinition.objects.count()), (12, 1, 7))
+        self.assertEqual((HeroDefinition.objects.count(), PackVersion.objects.count(), CosmeticDefinition.objects.filter(acquisition="purchase").count()), (12, 1, 7))
         self.assertFalse(TowerPlayer.objects.exists())
 
     @patch("tower.services.collection._draw", return_value=("nis-coder", "common"))

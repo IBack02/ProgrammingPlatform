@@ -65,6 +65,7 @@
 </div>
 <section class="card reward-history" id="wallet-history"><div class="wallet-heading"><h2>{{ T.wallet_history }} · {% if history_student %}{{ history_student.full_name }}{% else %}{{ wallet_class.name }}{% endif %}</h2>{% if history_student %}<a href="?class_id={{ wallet_class.pk }}#wallet-history">{{ T.reward_class_history }}</a>{% endif %}</div>
 <p class="muted">{{ T.wallet_teacher_history_hint }}</p>
+{% if history_student %}<p><a class="btn" href="{% url 'tower:collection_password_reset' history_student.pk %}?class_id={{ wallet_class.pk }}">{{ T.journal_password_reset }}</a></p>{% endif %}
 {% for entry in wallet_entries %}<div class="wallet-entry"><div><strong>{{ entry.wallet.player.student.full_name }}</strong><div>{{ entry.reason }}</div><small>{{ entry.created_at|date:"d.m.Y H:i" }}</small></div><div class="wallet-entry-amount wallet-entry-amount--positive">{% if entry.delta > 0 %}+{% endif %}{{ entry.delta }} {{ T.wallet_niscoin }}</div></div>{% empty %}<p>{{ T.wallet_no_entries }}</p>{% endfor %}
 {% if history_next_url %}<a href="{{ history_next_url }}">{{ T.wallet_older }}</a>{% endif %}
 </section>

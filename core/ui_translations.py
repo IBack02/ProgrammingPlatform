@@ -2464,6 +2464,8 @@ for _lang_code, _hint in {
 }.items():
     UI_TRANSLATIONS[_lang_code]["wallet_earning_hint"] = _hint
 
-from tower.ui_translations import JOURNAL_TEXT
+from tower.ui_translations import COLLECTION_SECURITY_TEXT, JOURNAL_TEXT
+for _lang_code, _extra in COLLECTION_SECURITY_TEXT.items():
+    UI_TRANSLATIONS[_lang_code].update({"journal_" + key: value for key, value in _extra.items()})
 for _lang_code, _extra in JOURNAL_TEXT.items():
     UI_TRANSLATIONS[_lang_code].update({"journal_" + key: value for key, value in _extra.items()})

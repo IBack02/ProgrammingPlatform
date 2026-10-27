@@ -1,0 +1,216 @@
+{
+  "tool": "image_gen.imagegen",
+  "chibi_generation": false,
+  "assets": [
+    {
+      "hero": "nis-mathematician",
+      "slot": "prop",
+      "prompt": "Use case: stylized-concept. Asset type: one isolated handheld prop sprite for an educational avatar game, nis-mathematician set. Subject: open hardbound mathematics book with cream blank pages and navy cover with turquoise edges. Premium soft sculpted 3D game object, matte materials, refined diffuse studio lighting, clear silhouette at small sizes. Slight three-quarter view, full object centered on a square canvas. Generous transparent margins around the entire object. Truly transparent background with clean alpha. No head, person, chibi, face, body, hands, stand outside the specified item, floor, cast shadow, text, lettering, numbers, labels, logos or watermark.",
+      "source": "C:\\Users\\Admin\\.codex\\generated_images\\01a178cf-6332-7552-a193-d6cb8aa61723\\exec-929bd587-59c8-4e44-bab2-de2326075f9e.png",
+      "destination": "C:/Users/Admin/PycharmProjects/progaplatform/tower/static/tower/sets/nis-mathematician/v1/prop.png"
+    },
+    {
+      "hero": "nis-mathematician",
+      "slot": "background",
+      "prompt": "Use case: stylized-concept. Asset type: full-bleed landscape 16:9 background illustration for an educational collection dashboard, nis-mathematician set. Premium soft 3D matte game illustration. Palette and motifs: navy, turquoise and restrained gold; softly sculpted geometric patterns and tiny lattice curves. Keep the central 65 percent calm, very dark and nearly empty for readable learning panels; arrange restrained dimensional motifs in the far side edges and bottom corners. Diffuse lighting, elegant spacious design, no large central object. Opaque edge-to-edge image. No characters, people, chibi, faces, animals, text, code, letters, numbers, logos, watermark, buttons or UI.",
+      "source": "C:\\Users\\Admin\\.codex\\generated_images\\01a178cf-6332-7552-a193-d6cb8aa61723\\exec-c1566dc0-2e1e-4b86-9460-f02c2fe65a13.png",
+      "destination": "C:/Users/Admin/PycharmProjects/progaplatform/tower/static/tower/sets/nis-mathematician/v1/background.png"
+    },
+    {
+      "hero": "nis-chemist",
+      "slot": "head",
+      "prompt": "Use case: stylized-concept. Asset type: one isolated wearable headwear sprite for an educational avatar game, nis-chemist set. Subject: clean ivory laboratory cap with a narrow teal band. Premium soft sculpted 3D game object, matte materials, refined diffuse studio lighting, clear silhouette at small sizes. Front view, symmetric wearable bottom rim centered near x50%, y72% of square canvas. Generous transparent margins around the entire object. Truly transparent background with clean alpha. No head, person, chibi, face, body, hands, stand outside the specified item, floor, cast shadow, text, lettering, numbers, labels, logos or watermark.",
+      "source": "C:\\Users\\Admin\\.codex\\generated_images\\01a178cf-6332-7552-a193-d6cb8aa61723\\exec-472085d5-bcc9-424b-a3c2-048b694810c5.png",
+      "destination": "C:/Users/Admin/PycharmProjects/progaplatform/tower/static/tower/sets/nis-chemist/v1/head.png"
+    },
+    {
+      "hero": "nis-chemist",
+      "slot": "prop",
+      "prompt": "Use case: stylized-concept. Asset type: one isolated handheld prop sprite for an educational avatar game, nis-chemist set. Subject: round glass chemistry flask with a stable flat bottom and translucent teal liquid, cork stopper, no labels. Premium soft sculpted 3D game object, matte materials, refined diffuse studio lighting, clear silhouette at small sizes. Slight three-quarter view, full object centered on a square canvas. Generous transparent margins around the entire object. Truly transparent background with clean alpha. No head, person, chibi, face, body, hands, stand outside the specified item, floor, cast shadow, text, lettering, numbers, labels, logos or watermark.",
+      "source": "C:\\Users\\Admin\\.codex\\generated_images\\01a178cf-6332-7552-a193-d6cb8aa61723\\exec-7d37c4f7-0c44-4cbd-b3b2-4230e60bf92a.png",
+      "destination": "C:/Users/Admin/PycharmProjects/progaplatform/tower/static/tower/sets/nis-chemist/v1/prop.png"
+    },
+    {
+      "hero": "nis-chemist",
+      "slot": "background",
+      "prompt": "Use case: stylized-concept. Asset type: full-bleed landscape 16:9 background illustration for an educational collection dashboard, nis-chemist set. Premium soft 3D matte game illustration. Palette and motifs: navy, pale mint and teal; abstract rounded glass highlights and tiny molecular spheres. Keep the central 65 percent calm, very dark and nearly empty for readable learning panels; arrange restrained dimensional motifs in the far side edges and bottom corners. Diffuse lighting, elegant spacious design, no large central object. Opaque edge-to-edge image. No characters, people, chibi, faces, animals, text, code, letters, numbers, logos, watermark, buttons or UI.",
+      "source": "C:\\Users\\Admin\\.codex\\generated_images\\01a178cf-6332-7552-a193-d6cb8aa61723\\exec-bee44fa7-bc9e-402e-aef7-7926f150f52e.png",
+      "destination": "C:/Users/Admin/PycharmProjects/progaplatform/tower/static/tower/sets/nis-chemist/v1/background.png"
+    },
+    {
+      "hero": "nis-roboticist",
+      "slot": "head",
+      "prompt": "Use case: stylized-concept. Asset type: one isolated wearable headwear sprite for an educational avatar game, nis-roboticist set. Subject: dark navy engineers cap with a small circular amber mechanical badge, no letters. Premium soft sculpted 3D game object, matte materials, refined diffuse studio lighting, clear silhouette at small sizes. Front view, symmetric wearable bottom rim centered near x50%, y72% of square canvas. Generous transparent margins around the entire object. Truly transparent background with clean alpha. No head, person, chibi, face, body, hands, stand outside the specified item, floor, cast shadow, text, lettering, numbers, labels, logos or watermark.",
+      "source": "C:\\Users\\Admin\\.codex\\generated_images\\01a178cf-6332-7552-a193-d6cb8aa61723\\exec-ef9cc441-d8d6-4690-98c7-8c66e2a17200.png",
+      "destination": "C:/Users/Admin/PycharmProjects/progaplatform/tower/static/tower/sets/nis-roboticist/v1/head.png"
+    },
+    {
+      "hero": "nis-roboticist",
+      "slot": "prop",
+      "prompt": "Use case: stylized-concept. Asset type: one isolated handheld prop sprite for an educational avatar game, nis-roboticist set. Subject: small friendly toy robot with navy rounded metal body, turquoise accents, two tiny amber lights, no face or facial expression. Premium soft sculpted 3D game object, matte materials, refined diffuse studio lighting, clear silhouette at small sizes. Slight three-quarter view, full object centered on a square canvas. Generous transparent margins around the entire object. Truly transparent background with clean alpha. No head, person, chibi, face, body, hands, stand outside the specified item, floor, cast shadow, text, lettering, numbers, labels, logos or watermark.",
+      "source": "C:\\Users\\Admin\\.codex\\generated_images\\01a178cf-6332-7552-a193-d6cb8aa61723\\exec-68438c41-7a6b-449f-898c-e6e16954db85.png",
+      "destination": "C:/Users/Admin/PycharmProjects/progaplatform/tower/static/tower/sets/nis-roboticist/v1/prop.png"
+    },
+    {
+      "hero": "nis-roboticist",
+      "slot": "background",
+      "prompt": "Use case: stylized-concept. Asset type: full-bleed landscape 16:9 background illustration for an educational collection dashboard, nis-roboticist set. Premium soft 3D matte game illustration. Palette and motifs: navy, electric turquoise and amber; rounded mechanical joints and circuit traces. Keep the central 65 percent calm, very dark and nearly empty for readable learning panels; arrange restrained dimensional motifs in the far side edges and bottom corners. Diffuse lighting, elegant spacious design, no large central object. Opaque edge-to-edge image. No characters, people, chibi, faces, animals, text, code, letters, numbers, logos, watermark, buttons or UI.",
+      "source": "C:\\Users\\Admin\\.codex\\generated_images\\01a178cf-6332-7552-a193-d6cb8aa61723\\exec-af8d6b53-0efd-4e7d-a1ed-ace7f2db3215.png",
+      "destination": "C:/Users/Admin/PycharmProjects/progaplatform/tower/static/tower/sets/nis-roboticist/v1/background.png"
+    },
+    {
+      "hero": "nis-biologist",
+      "slot": "head",
+      "prompt": "Use case: stylized-concept. Asset type: one isolated wearable headwear sprite for an educational avatar game, nis-biologist set. Subject: soft olive-green explorer bucket hat with a narrow ochre band. Premium soft sculpted 3D game object, matte materials, refined diffuse studio lighting, clear silhouette at small sizes. Front view, symmetric wearable bottom rim centered near x50%, y72% of square canvas. Generous transparent margins around the entire object. Truly transparent background with clean alpha. No head, person, chibi, face, body, hands, stand outside the specified item, floor, cast shadow, text, lettering, numbers, labels, logos or watermark.",
+      "source": "C:\\Users\\Admin\\.codex\\generated_images\\01a178cf-6332-7552-a193-d6cb8aa61723\\exec-4f26e4bc-89d0-425d-9cb1-b3c8d9748bb3.png",
+      "destination": "C:/Users/Admin/PycharmProjects/progaplatform/tower/static/tower/sets/nis-biologist/v1/head.png"
+    },
+    {
+      "hero": "nis-biologist",
+      "slot": "prop",
+      "prompt": "Use case: stylized-concept. Asset type: one isolated handheld prop sprite for an educational avatar game, nis-biologist set. Subject: small terracotta plant pot holding three fresh green leaves. Premium soft sculpted 3D game object, matte materials, refined diffuse studio lighting, clear silhouette at small sizes. Slight three-quarter view, full object centered on a square canvas. Generous transparent margins around the entire object. Truly transparent background with clean alpha. No head, person, chibi, face, body, hands, stand outside the specified item, floor, cast shadow, text, lettering, numbers, labels, logos or watermark.",
+      "source": "C:\\Users\\Admin\\.codex\\generated_images\\01a178cf-6332-7552-a193-d6cb8aa61723\\exec-b5a6a1eb-f532-4beb-9312-051c42406ca5.png",
+      "destination": "C:/Users/Admin/PycharmProjects/progaplatform/tower/static/tower/sets/nis-biologist/v1/prop.png"
+    },
+    {
+      "hero": "nis-biologist",
+      "slot": "background",
+      "prompt": "Use case: stylized-concept. Asset type: full-bleed landscape 16:9 background illustration for an educational collection dashboard, nis-biologist set. Premium soft 3D matte game illustration. Palette and motifs: midnight green, sage and ochre; softly sculpted leaves and plant silhouettes. Keep the central 65 percent calm, very dark and nearly empty for readable learning panels; arrange restrained dimensional motifs in the far side edges and bottom corners. Diffuse lighting, elegant spacious design, no large central object. Opaque edge-to-edge image. No characters, people, chibi, faces, animals, text, code, letters, numbers, logos, watermark, buttons or UI.",
+      "source": "C:\\Users\\Admin\\.codex\\generated_images\\01a178cf-6332-7552-a193-d6cb8aa61723\\exec-f1cf7808-bf31-4da0-9ed6-2089f31610e7.png",
+      "destination": "C:/Users/Admin/PycharmProjects/progaplatform/tower/static/tower/sets/nis-biologist/v1/background.png"
+    },
+    {
+      "hero": "nis-physicist",
+      "slot": "head",
+      "prompt": "Use case: stylized-concept. Asset type: one isolated wearable headwear sprite for an educational avatar game, nis-physicist set. Subject: simple dark blue knit beanie with a small sky-blue stripe. Premium soft sculpted 3D game object, matte materials, refined diffuse studio lighting, clear silhouette at small sizes. Front view, symmetric wearable bottom rim centered near x50%, y72% of square canvas. Generous transparent margins around the entire object. Truly transparent background with clean alpha. No head, person, chibi, face, body, hands, stand outside the specified item, floor, cast shadow, text, lettering, numbers, labels, logos or watermark.",
+      "source": "C:\\Users\\Admin\\.codex\\generated_images\\01a178cf-6332-7552-a193-d6cb8aa61723\\exec-c35f5ea3-6e09-4ee8-b498-2e7ab9e5562a.png",
+      "destination": "C:/Users/Admin/PycharmProjects/progaplatform/tower/static/tower/sets/nis-physicist/v1/head.png"
+    },
+    {
+      "hero": "nis-physicist",
+      "slot": "prop",
+      "prompt": "Use case: stylized-concept. Asset type: one isolated handheld prop sprite for an educational avatar game, nis-physicist set. Subject: folded paper airplane, ivory paper with a restrained sky-blue edge. Premium soft sculpted 3D game object, matte materials, refined diffuse studio lighting, clear silhouette at small sizes. Slight three-quarter view, full object centered on a square canvas. Generous transparent margins around the entire object. Truly transparent background with clean alpha. No head, person, chibi, face, body, hands, stand outside the specified item, floor, cast shadow, text, lettering, numbers, labels, logos or watermark.",
+      "source": "C:\\Users\\Admin\\.codex\\generated_images\\01a178cf-6332-7552-a193-d6cb8aa61723\\exec-756f3411-8a91-4415-92f4-5fa8a82aa5a0.png",
+      "destination": "C:/Users/Admin/PycharmProjects/progaplatform/tower/static/tower/sets/nis-physicist/v1/prop.png"
+    },
+    {
+      "hero": "nis-physicist",
+      "slot": "background",
+      "prompt": "Use case: stylized-concept. Asset type: full-bleed landscape 16:9 background illustration for an educational collection dashboard, nis-physicist set. Premium soft 3D matte game illustration. Palette and motifs: navy, cobalt and warm ivory; subtle wave trails, curved light paths and geometric lenses. Keep the central 65 percent calm, very dark and nearly empty for readable learning panels; arrange restrained dimensional motifs in the far side edges and bottom corners. Diffuse lighting, elegant spacious design, no large central object. Opaque edge-to-edge image. No characters, people, chibi, faces, animals, text, code, letters, numbers, logos, watermark, buttons or UI.",
+      "source": "C:\\Users\\Admin\\.codex\\generated_images\\01a178cf-6332-7552-a193-d6cb8aa61723\\exec-e0f4aabf-9435-4d86-a73a-1f0df5aabe80.png",
+      "destination": "C:/Users/Admin/PycharmProjects/progaplatform/tower/static/tower/sets/nis-physicist/v1/background.png"
+    },
+    {
+      "hero": "nis-debater",
+      "slot": "head",
+      "prompt": "Use case: stylized-concept. Asset type: one isolated wearable headwear sprite for an educational avatar game, nis-debater set. Subject: elegant burgundy academic cap with a restrained gold band. Premium soft sculpted 3D game object, matte materials, refined diffuse studio lighting, clear silhouette at small sizes. Front view, symmetric wearable bottom rim centered near x50%, y72% of square canvas. Generous transparent margins around the entire object. Truly transparent background with clean alpha. No head, person, chibi, face, body, hands, stand outside the specified item, floor, cast shadow, text, lettering, numbers, labels, logos or watermark.",
+      "source": "C:\\Users\\Admin\\.codex\\generated_images\\01a178cf-6332-7552-a193-d6cb8aa61723\\exec-c6104c90-9b50-4610-bf3e-613ae9850bf0.png",
+      "destination": "C:/Users/Admin/PycharmProjects/progaplatform/tower/static/tower/sets/nis-debater/v1/head.png"
+    },
+    {
+      "hero": "nis-debater",
+      "slot": "prop",
+      "prompt": "Use case: stylized-concept. Asset type: one isolated handheld prop sprite for an educational avatar game, nis-debater set. Subject: closed burgundy notebook with a simple gold-edged cover and ribbon marker, no lettering. Premium soft sculpted 3D game object, matte materials, refined diffuse studio lighting, clear silhouette at small sizes. Slight three-quarter view, full object centered on a square canvas. Generous transparent margins around the entire object. Truly transparent background with clean alpha. No head, person, chibi, face, body, hands, stand outside the specified item, floor, cast shadow, text, lettering, numbers, labels, logos or watermark.",
+      "source": "C:\\Users\\Admin\\.codex\\generated_images\\01a178cf-6332-7552-a193-d6cb8aa61723\\exec-b60bfc72-f986-4fc7-a43e-0bc915520f33.png",
+      "destination": "C:/Users/Admin/PycharmProjects/progaplatform/tower/static/tower/sets/nis-debater/v1/prop.png"
+    },
+    {
+      "hero": "nis-debater",
+      "slot": "background",
+      "prompt": "Use case: stylized-concept. Asset type: full-bleed landscape 16:9 background illustration for an educational collection dashboard, nis-debater set. Premium soft 3D matte game illustration. Palette and motifs: navy, burgundy and muted gold; layered paper arcs and abstract balanced speech shapes. Keep the central 65 percent calm, very dark and nearly empty for readable learning panels; arrange restrained dimensional motifs in the far side edges and bottom corners. Diffuse lighting, elegant spacious design, no large central object. Opaque edge-to-edge image. No characters, people, chibi, faces, animals, text, code, letters, numbers, logos, watermark, buttons or UI.",
+      "source": "C:\\Users\\Admin\\.codex\\generated_images\\01a178cf-6332-7552-a193-d6cb8aa61723\\exec-01fa5d3c-7b99-4251-8ce5-009a5cfbe528.png",
+      "destination": "C:/Users/Admin/PycharmProjects/progaplatform/tower/static/tower/sets/nis-debater/v1/background.png"
+    },
+    {
+      "hero": "nis-astronomer",
+      "slot": "head",
+      "prompt": "Use case: stylized-concept. Asset type: one isolated wearable headwear sprite for an educational avatar game, nis-astronomer set. Subject: deep navy soft cap with a subtle gold crescent-shaped pin, no face. Premium soft sculpted 3D game object, matte materials, refined diffuse studio lighting, clear silhouette at small sizes. Front view, symmetric wearable bottom rim centered near x50%, y72% of square canvas. Generous transparent margins around the entire object. Truly transparent background with clean alpha. No head, person, chibi, face, body, hands, stand outside the specified item, floor, cast shadow, text, lettering, numbers, labels, logos or watermark.",
+      "source": "C:\\Users\\Admin\\.codex\\generated_images\\01a178cf-6332-7552-a193-d6cb8aa61723\\exec-18bff791-1317-44a0-a2ec-aab02bd274aa.png",
+      "destination": "C:/Users/Admin/PycharmProjects/progaplatform/tower/static/tower/sets/nis-astronomer/v1/head.png"
+    },
+    {
+      "hero": "nis-astronomer",
+      "slot": "prop",
+      "prompt": "Use case: stylized-concept. Asset type: one isolated handheld prop sprite for an educational avatar game, nis-astronomer set. Subject: small brass telescope with deep blue barrel, angled upward on a compact simple tripod. Premium soft sculpted 3D game object, matte materials, refined diffuse studio lighting, clear silhouette at small sizes. Slight three-quarter view, full object centered on a square canvas. Generous transparent margins around the entire object. Truly transparent background with clean alpha. No head, person, chibi, face, body, hands, stand outside the specified item, floor, cast shadow, text, lettering, numbers, labels, logos or watermark.",
+      "source": "C:\\Users\\Admin\\.codex\\generated_images\\01a178cf-6332-7552-a193-d6cb8aa61723\\exec-3ba5243f-4b82-4705-a21d-6a2d21cb961b.png",
+      "destination": "C:/Users/Admin/PycharmProjects/progaplatform/tower/static/tower/sets/nis-astronomer/v1/prop.png"
+    },
+    {
+      "hero": "nis-astronomer",
+      "slot": "background",
+      "prompt": "Use case: stylized-concept. Asset type: full-bleed landscape 16:9 background illustration for an educational collection dashboard, nis-astronomer set. Premium soft 3D matte game illustration. Palette and motifs: midnight navy, desaturated indigo and brass gold; distant tiny stars and restrained nebula wisps. Keep the central 65 percent calm, very dark and nearly empty for readable learning panels; arrange restrained dimensional motifs in the far side edges and bottom corners. Diffuse lighting, elegant spacious design, no large central object. Opaque edge-to-edge image. No characters, people, chibi, faces, animals, text, code, letters, numbers, logos, watermark, buttons or UI.",
+      "source": "C:\\Users\\Admin\\.codex\\generated_images\\01a178cf-6332-7552-a193-d6cb8aa61723\\exec-7fca28e5-b21f-4f9c-9851-e1bec1e85bf8.png",
+      "destination": "C:/Users/Admin/PycharmProjects/progaplatform/tower/static/tower/sets/nis-astronomer/v1/background.png"
+    },
+    {
+      "hero": "nis-musician",
+      "slot": "head",
+      "prompt": "Use case: stylized-concept. Asset type: one isolated wearable headwear sprite for an educational avatar game, nis-musician set. Subject: soft dark plum musician beret with a thin brass-colored band. Premium soft sculpted 3D game object, matte materials, refined diffuse studio lighting, clear silhouette at small sizes. Front view, symmetric wearable bottom rim centered near x50%, y72% of square canvas. Generous transparent margins around the entire object. Truly transparent background with clean alpha. No head, person, chibi, face, body, hands, stand outside the specified item, floor, cast shadow, text, lettering, numbers, labels, logos or watermark.",
+      "source": "C:\\Users\\Admin\\.codex\\generated_images\\01a178cf-6332-7552-a193-d6cb8aa61723\\exec-aebab35d-28d3-4066-b274-7641109086ca.png",
+      "destination": "C:/Users/Admin/PycharmProjects/progaplatform/tower/static/tower/sets/nis-musician/v1/head.png"
+    },
+    {
+      "hero": "nis-musician",
+      "slot": "prop",
+      "prompt": "Use case: stylized-concept. Asset type: one isolated handheld prop sprite for an educational avatar game, nis-musician set. Subject: small wooden ukulele with four strings, warm walnut and ivory details. Premium soft sculpted 3D game object, matte materials, refined diffuse studio lighting, clear silhouette at small sizes. Slight three-quarter view, full object centered on a square canvas. Generous transparent margins around the entire object. Truly transparent background with clean alpha. No head, person, chibi, face, body, hands, stand outside the specified item, floor, cast shadow, text, lettering, numbers, labels, logos or watermark.",
+      "source": "C:\\Users\\Admin\\.codex\\generated_images\\01a178cf-6332-7552-a193-d6cb8aa61723\\exec-5aae8ac6-b307-40e8-9ec9-8c6341eb7245.png",
+      "destination": "C:/Users/Admin/PycharmProjects/progaplatform/tower/static/tower/sets/nis-musician/v1/prop.png"
+    },
+    {
+      "hero": "nis-musician",
+      "slot": "background",
+      "prompt": "Use case: stylized-concept. Asset type: full-bleed landscape 16:9 background illustration for an educational collection dashboard, nis-musician set. Premium soft 3D matte game illustration. Palette and motifs: navy, plum and warm walnut; gentle abstract sound waves and rounded instrument contours. Keep the central 65 percent calm, very dark and nearly empty for readable learning panels; arrange restrained dimensional motifs in the far side edges and bottom corners. Diffuse lighting, elegant spacious design, no large central object. Opaque edge-to-edge image. No characters, people, chibi, faces, animals, text, code, letters, numbers, logos, watermark, buttons or UI.",
+      "source": "C:\\Users\\Admin\\.codex\\generated_images\\01a178cf-6332-7552-a193-d6cb8aa61723\\exec-2ee5a84f-ee37-4917-bacd-f309c656ef15.png",
+      "destination": "C:/Users/Admin/PycharmProjects/progaplatform/tower/static/tower/sets/nis-musician/v1/background.png"
+    },
+    {
+      "hero": "nis-chessplayer",
+      "slot": "head",
+      "prompt": "Use case: stylized-concept. Asset type: one isolated wearable headwear sprite for an educational avatar game, nis-chessplayer set. Subject: dark charcoal chess-themed cap with a subtle ivory checker band. Premium soft sculpted 3D game object, matte materials, refined diffuse studio lighting, clear silhouette at small sizes. Front view, symmetric wearable bottom rim centered near x50%, y72% of square canvas. Generous transparent margins around the entire object. Truly transparent background with clean alpha. No head, person, chibi, face, body, hands, stand outside the specified item, floor, cast shadow, text, lettering, numbers, labels, logos or watermark.",
+      "source": "C:\\Users\\Admin\\.codex\\generated_images\\01a178cf-6332-7552-a193-d6cb8aa61723\\exec-374c1773-9f5a-494b-867d-0eb7d555a8fa.png",
+      "destination": "C:/Users/Admin/PycharmProjects/progaplatform/tower/static/tower/sets/nis-chessplayer/v1/head.png"
+    },
+    {
+      "hero": "nis-chessplayer",
+      "slot": "prop",
+      "prompt": "Use case: stylized-concept. Asset type: one isolated handheld prop sprite for an educational avatar game, nis-chessplayer set. Subject: one elegant ivory chess knight piece on a dark round base. Premium soft sculpted 3D game object, matte materials, refined diffuse studio lighting, clear silhouette at small sizes. Slight three-quarter view, full object centered on a square canvas. Generous transparent margins around the entire object. Truly transparent background with clean alpha. No head, person, chibi, face, body, hands, stand outside the specified item, floor, cast shadow, text, lettering, numbers, labels, logos or watermark.",
+      "source": "C:\\Users\\Admin\\.codex\\generated_images\\01a178cf-6332-7552-a193-d6cb8aa61723\\exec-ee9d14d8-328a-4e81-b283-a7483332ed07.png",
+      "destination": "C:/Users/Admin/PycharmProjects/progaplatform/tower/static/tower/sets/nis-chessplayer/v1/prop.png"
+    },
+    {
+      "hero": "nis-chessplayer",
+      "slot": "background",
+      "prompt": "Use case: stylized-concept. Asset type: full-bleed landscape 16:9 background illustration for an educational collection dashboard, nis-chessplayer set. Premium soft 3D matte game illustration. Palette and motifs: midnight navy, warm ivory and charcoal; quiet checker geometry and distant soft chess silhouettes. Keep the central 65 percent calm, very dark and nearly empty for readable learning panels; arrange restrained dimensional motifs in the far side edges and bottom corners. Diffuse lighting, elegant spacious design, no large central object. Opaque edge-to-edge image. No characters, people, chibi, faces, animals, text, code, letters, numbers, logos, watermark, buttons or UI.",
+      "source": "C:\\Users\\Admin\\.codex\\generated_images\\01a178cf-6332-7552-a193-d6cb8aa61723\\exec-1bdecfb4-d3ef-4f6f-b408-5bf68bea0bb2.png",
+      "destination": "C:/Users/Admin/PycharmProjects/progaplatform/tower/static/tower/sets/nis-chessplayer/v1/background.png"
+    },
+    {
+      "hero": "nis-inventor",
+      "slot": "head",
+      "prompt": "Use case: stylized-concept. Asset type: one isolated wearable headwear sprite for an educational avatar game, nis-inventor set. Subject: navy workshop cap with bronze seam piping and a small turquoise button. Premium soft sculpted 3D game object, matte materials, refined diffuse studio lighting, clear silhouette at small sizes. Front view, symmetric wearable bottom rim centered near x50%, y72% of square canvas. Generous transparent margins around the entire object. Truly transparent background with clean alpha. No head, person, chibi, face, body, hands, stand outside the specified item, floor, cast shadow, text, lettering, numbers, labels, logos or watermark.",
+      "source": "C:\\Users\\Admin\\.codex\\generated_images\\01a178cf-6332-7552-a193-d6cb8aa61723\\exec-9c2de09e-50bf-45c0-bb71-600b4e55ab85.png",
+      "destination": "C:/Users/Admin/PycharmProjects/progaplatform/tower/static/tower/sets/nis-inventor/v1/head.png"
+    },
+    {
+      "hero": "nis-inventor",
+      "slot": "prop",
+      "prompt": "Use case: stylized-concept. Asset type: one isolated handheld prop sprite for an educational avatar game, nis-inventor set. Subject: small whimsical mechanical wind-up toy with brass wheels, turquoise housing, and a tiny side winding key, no face. Premium soft sculpted 3D game object, matte materials, refined diffuse studio lighting, clear silhouette at small sizes. Slight three-quarter view, full object centered on a square canvas. Generous transparent margins around the entire object. Truly transparent background with clean alpha. No head, person, chibi, face, body, hands, stand outside the specified item, floor, cast shadow, text, lettering, numbers, labels, logos or watermark.",
+      "source": "C:\\Users\\Admin\\.codex\\generated_images\\01a178cf-6332-7552-a193-d6cb8aa61723\\exec-e83622d9-b8c0-427c-89b1-a67f544dc5d3.png",
+      "destination": "C:/Users/Admin/PycharmProjects/progaplatform/tower/static/tower/sets/nis-inventor/v1/prop.png"
+    },
+    {
+      "hero": "nis-inventor",
+      "slot": "background",
+      "prompt": "Use case: stylized-concept. Asset type: full-bleed landscape 16:9 background illustration for an educational collection dashboard, nis-inventor set. Premium soft 3D matte game illustration. Palette and motifs: navy, turquoise and antique bronze; softly sculpted gears and concentric workshop shapes. Keep the central 65 percent calm, very dark and nearly empty for readable learning panels; arrange restrained dimensional motifs in the far side edges and bottom corners. Diffuse lighting, elegant spacious design, no large central object. Opaque edge-to-edge image. No characters, people, chibi, faces, animals, text, code, letters, numbers, logos, watermark, buttons or UI.",
+      "source": "C:\\Users\\Admin\\.codex\\generated_images\\01a178cf-6332-7552-a193-d6cb8aa61723\\exec-f9da7982-dc6d-496b-a273-789894a80756.png",
+      "destination": "C:/Users/Admin/PycharmProjects/progaplatform/tower/static/tower/sets/nis-inventor/v1/background.png"
+    },
+    {
+      "hero": "nis-mathematician",
+      "slot": "head",
+      "prompt": "Use case: stylized-concept. Asset type: isolated collectible headwear sprite for an educational avatar game, mathematician set. One elegant dark navy academic mortarboard with a small warm golden tassel and muted turquoise trim. Premium soft sculpted 3D game item, matte fabric, refined diffuse lighting. Front view with slight visibility of the upper planes, symmetric wearable brim, full object centered on a square canvas. Brim center near x50%, y72% of canvas, generous transparent margins on every side. No head, no person, no face, no body, no hands, no stand, no floor, no text, no numbers, no lettering, no logos, no watermark. The background must be truly transparent, clean alpha; no cast shadow outside the object.",
+      "source": "C:/Users/Admin/.codex/generated_images/01a178cf-6332-7552-a193-d6cb8aa61723/exec-b73d62f3-c26c-41fe-b542-b26ddc4b9182.png",
+      "destination": "C:/Users/Admin/PycharmProjects/progaplatform/tower/static/tower/sets/nis-mathematician/v1/head.png"
+    }
+  ]
+}

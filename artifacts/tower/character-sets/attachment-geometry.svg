@@ -1,0 +1,234 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="976" height="838" viewBox="0 0 976 838" role="img" aria-labelledby="title description">
+<title id="title">Универсальные крепления аватарки</title>
+<desc id="description">Одна шапка и один предмет на пяти фигурах. Три варианта крепления предмета. Красные точки показывают совпадение опоры предмета и фигуры.</desc>
+<rect width="976" height="838" fill="#101a29"/>
+<g font-family="Arial, sans-serif">
+<text x="20" y="34" fill="#f5d797" font-size="24">Контракт креплений · версия 1</text>
+<text x="20" y="61" fill="#c3d3e7" font-size="14">Красная точка — совмещение опоры предмета с креплением фигуры.</text>
+<text x="20" y="84" fill="#c3d3e7" font-size="14">Схематические предметы; окончательная графика и калибровка — этап 2.</text>
+<g transform="translate(18 109)" data-shape="square" data-anchor="hand">
+  <rect width="176" height="216" rx="14" fill="#1c2a3c"/>
+  <text x="12" y="24" fill="#f5d797" font-size="15">square · hand</text>
+  <g transform="translate(29 76)">
+    <polygon points="0,0 1,0 1,1 0,1" transform="scale(110)" fill="#537ee8"/>
+    <g transform="matrix(0.240625 0 -0 0.240625 -6.6 -100.32)" data-item="head">
+      <path d="M48 435 L80 185 Q256 45 432 185 L464 435 Z" fill="#f4c76c" stroke="#3d2d20" stroke-width="12"/>
+      <path d="M0 435 H512" stroke="#fff0c6" stroke-width="30"/>
+    </g>
+    <g transform="matrix(0.109277427 -0.0232276342 0.0232276342 0.109277427 54.0787043 57.171253)" data-item="prop">
+      <rect x="60" y="26" width="392" height="460" rx="20" fill="#67c9bd" stroke="#193e43" stroke-width="18"/>
+      <path d="M256 40 V470 M100 100 H210 M300 100 H412" stroke="#e2fff7" stroke-width="16"/>
+    </g><circle cx="55" cy="4.4" r="3" fill="#ff6d7b" stroke="#fff"/><circle cx="88" cy="79.2" r="3" fill="#ff6d7b" stroke="#fff"/>
+  </g>
+</g>
+<g transform="translate(206 109)" data-shape="diamond" data-anchor="hand">
+  <rect width="176" height="216" rx="14" fill="#1c2a3c"/>
+  <text x="12" y="24" fill="#f5d797" font-size="15">diamond · hand</text>
+  <g transform="translate(29 76)">
+    <polygon points="0.5,0.008 0.992,0.5 0.5,0.992 0.008,0.5" transform="scale(110)" fill="#537ee8"/>
+    <g transform="matrix(0.17325 0 -0 0.17325 10.648 -68.7984)" data-item="head">
+      <path d="M48 435 L80 185 Q256 45 432 185 L464 435 Z" fill="#f4c76c" stroke="#3d2d20" stroke-width="12"/>
+      <path d="M0 435 H512" stroke="#fff0c6" stroke-width="30"/>
+    </g>
+    <g transform="matrix(0.109277427 -0.0232276342 0.0232276342 0.109277427 50.7787043 52.771253)" data-item="prop">
+      <rect x="60" y="26" width="392" height="460" rx="20" fill="#67c9bd" stroke="#193e43" stroke-width="18"/>
+      <path d="M256 40 V470 M100 100 H210 M300 100 H412" stroke="#e2fff7" stroke-width="16"/>
+    </g><circle cx="55" cy="6.6" r="3" fill="#ff6d7b" stroke="#fff"/><circle cx="84.7" cy="74.8" r="3" fill="#ff6d7b" stroke="#fff"/>
+  </g>
+</g>
+<g transform="translate(394 109)" data-shape="triangle" data-anchor="hand">
+  <rect width="176" height="216" rx="14" fill="#1c2a3c"/>
+  <text x="12" y="24" fill="#f5d797" font-size="15">triangle · hand</text>
+  <g transform="translate(29 76)">
+    <polygon points="0.5,0 1,1 0,1" transform="scale(110)" fill="#537ee8"/>
+    <g transform="matrix(0.15640625 0 -0 0.15640625 14.96 -60.368)" data-item="head">
+      <path d="M48 435 L80 185 Q256 45 432 185 L464 435 Z" fill="#f4c76c" stroke="#3d2d20" stroke-width="12"/>
+      <path d="M0 435 H512" stroke="#fff0c6" stroke-width="30"/>
+    </g>
+    <g transform="matrix(0.109277427 -0.0232276342 0.0232276342 0.109277427 49.6787043 63.771253)" data-item="prop">
+      <rect x="60" y="26" width="392" height="460" rx="20" fill="#67c9bd" stroke="#193e43" stroke-width="18"/>
+      <path d="M256 40 V470 M100 100 H210 M300 100 H412" stroke="#e2fff7" stroke-width="16"/>
+    </g><circle cx="55" cy="7.7" r="3" fill="#ff6d7b" stroke="#fff"/><circle cx="83.6" cy="85.8" r="3" fill="#ff6d7b" stroke="#fff"/>
+  </g>
+</g>
+<g transform="translate(582 109)" data-shape="pentagon" data-anchor="hand">
+  <rect width="176" height="216" rx="14" fill="#1c2a3c"/>
+  <text x="12" y="24" fill="#f5d797" font-size="15">pentagon · hand</text>
+  <g transform="translate(29 76)">
+    <polygon points="0.5,0 1,0.38 0.82,1 0.18,1 0,0.38" transform="scale(110)" fill="#537ee8"/>
+    <g transform="matrix(0.1876875 0 -0 0.1876875 6.952 -73.9816)" data-item="head">
+      <path d="M48 435 L80 185 Q256 45 432 185 L464 435 Z" fill="#f4c76c" stroke="#3d2d20" stroke-width="12"/>
+      <path d="M0 435 H512" stroke="#fff0c6" stroke-width="30"/>
+    </g>
+    <g transform="matrix(0.109277427 -0.0232276342 0.0232276342 0.109277427 54.0787043 57.171253)" data-item="prop">
+      <rect x="60" y="26" width="392" height="460" rx="20" fill="#67c9bd" stroke="#193e43" stroke-width="18"/>
+      <path d="M256 40 V470 M100 100 H210 M300 100 H412" stroke="#e2fff7" stroke-width="16"/>
+    </g><circle cx="55" cy="7.7" r="3" fill="#ff6d7b" stroke="#fff"/><circle cx="88" cy="79.2" r="3" fill="#ff6d7b" stroke="#fff"/>
+  </g>
+</g>
+<g transform="translate(770 109)" data-shape="hexagon" data-anchor="hand">
+  <rect width="176" height="216" rx="14" fill="#1c2a3c"/>
+  <text x="12" y="24" fill="#f5d797" font-size="15">hexagon · hand</text>
+  <g transform="translate(29 76)">
+    <polygon points="0.25,0 0.75,0 1,0.5 0.75,1 0.25,1 0,0.5" transform="scale(110)" fill="#537ee8"/>
+    <g transform="matrix(0.1973125 0 -0 0.1973125 4.488 -81.4704)" data-item="head">
+      <path d="M48 435 L80 185 Q256 45 432 185 L464 435 Z" fill="#f4c76c" stroke="#3d2d20" stroke-width="12"/>
+      <path d="M0 435 H512" stroke="#fff0c6" stroke-width="30"/>
+    </g>
+    <g transform="matrix(0.109277427 -0.0232276342 0.0232276342 0.109277427 55.1787043 52.771253)" data-item="prop">
+      <rect x="60" y="26" width="392" height="460" rx="20" fill="#67c9bd" stroke="#193e43" stroke-width="18"/>
+      <path d="M256 40 V470 M100 100 H210 M300 100 H412" stroke="#e2fff7" stroke-width="16"/>
+    </g><circle cx="55" cy="4.4" r="3" fill="#ff6d7b" stroke="#fff"/><circle cx="89.1" cy="74.8" r="3" fill="#ff6d7b" stroke="#fff"/>
+  </g>
+</g>
+<g transform="translate(18 342)" data-shape="square" data-anchor="side">
+  <rect width="176" height="216" rx="14" fill="#1c2a3c"/>
+  <text x="12" y="24" fill="#f5d797" font-size="15">square · side</text>
+  <g transform="translate(29 76)">
+    <polygon points="0,0 1,0 1,1 0,1" transform="scale(110)" fill="#537ee8"/>
+    <g transform="matrix(0.240625 0 -0 0.240625 -6.6 -100.32)" data-item="head">
+      <path d="M48 435 L80 185 Q256 45 432 185 L464 435 Z" fill="#f4c76c" stroke="#3d2d20" stroke-width="12"/>
+      <path d="M0 435 H512" stroke="#fff0c6" stroke-width="30"/>
+    </g>
+    <g transform="matrix(0.103125 0 -0 0.103125 74.8 50.6)" data-item="prop">
+      <rect x="60" y="26" width="392" height="460" rx="20" fill="#67c9bd" stroke="#193e43" stroke-width="18"/>
+      <path d="M256 40 V470 M100 100 H210 M300 100 H412" stroke="#e2fff7" stroke-width="16"/>
+    </g><circle cx="55" cy="4.4" r="3" fill="#ff6d7b" stroke="#fff"/><circle cx="101.2" cy="77" r="3" fill="#ff6d7b" stroke="#fff"/>
+  </g>
+</g>
+<g transform="translate(206 342)" data-shape="diamond" data-anchor="side">
+  <rect width="176" height="216" rx="14" fill="#1c2a3c"/>
+  <text x="12" y="24" fill="#f5d797" font-size="15">diamond · side</text>
+  <g transform="translate(29 76)">
+    <polygon points="0.5,0.008 0.992,0.5 0.5,0.992 0.008,0.5" transform="scale(110)" fill="#537ee8"/>
+    <g transform="matrix(0.17325 0 -0 0.17325 10.648 -68.7984)" data-item="head">
+      <path d="M48 435 L80 185 Q256 45 432 185 L464 435 Z" fill="#f4c76c" stroke="#3d2d20" stroke-width="12"/>
+      <path d="M0 435 H512" stroke="#fff0c6" stroke-width="30"/>
+    </g>
+    <g transform="matrix(0.103125 0 -0 0.103125 73.7 39.6)" data-item="prop">
+      <rect x="60" y="26" width="392" height="460" rx="20" fill="#67c9bd" stroke="#193e43" stroke-width="18"/>
+      <path d="M256 40 V470 M100 100 H210 M300 100 H412" stroke="#e2fff7" stroke-width="16"/>
+    </g><circle cx="55" cy="6.6" r="3" fill="#ff6d7b" stroke="#fff"/><circle cx="100.1" cy="66" r="3" fill="#ff6d7b" stroke="#fff"/>
+  </g>
+</g>
+<g transform="translate(394 342)" data-shape="triangle" data-anchor="side">
+  <rect width="176" height="216" rx="14" fill="#1c2a3c"/>
+  <text x="12" y="24" fill="#f5d797" font-size="15">triangle · side</text>
+  <g transform="translate(29 76)">
+    <polygon points="0.5,0 1,1 0,1" transform="scale(110)" fill="#537ee8"/>
+    <g transform="matrix(0.15640625 0 -0 0.15640625 14.96 -60.368)" data-item="head">
+      <path d="M48 435 L80 185 Q256 45 432 185 L464 435 Z" fill="#f4c76c" stroke="#3d2d20" stroke-width="12"/>
+      <path d="M0 435 H512" stroke="#fff0c6" stroke-width="30"/>
+    </g>
+    <g transform="matrix(0.103125 0 -0 0.103125 71.5 63.8)" data-item="prop">
+      <rect x="60" y="26" width="392" height="460" rx="20" fill="#67c9bd" stroke="#193e43" stroke-width="18"/>
+      <path d="M256 40 V470 M100 100 H210 M300 100 H412" stroke="#e2fff7" stroke-width="16"/>
+    </g><circle cx="55" cy="7.7" r="3" fill="#ff6d7b" stroke="#fff"/><circle cx="97.9" cy="90.2" r="3" fill="#ff6d7b" stroke="#fff"/>
+  </g>
+</g>
+<g transform="translate(582 342)" data-shape="pentagon" data-anchor="side">
+  <rect width="176" height="216" rx="14" fill="#1c2a3c"/>
+  <text x="12" y="24" fill="#f5d797" font-size="15">pentagon · side</text>
+  <g transform="translate(29 76)">
+    <polygon points="0.5,0 1,0.38 0.82,1 0.18,1 0,0.38" transform="scale(110)" fill="#537ee8"/>
+    <g transform="matrix(0.1876875 0 -0 0.1876875 6.952 -73.9816)" data-item="head">
+      <path d="M48 435 L80 185 Q256 45 432 185 L464 435 Z" fill="#f4c76c" stroke="#3d2d20" stroke-width="12"/>
+      <path d="M0 435 H512" stroke="#fff0c6" stroke-width="30"/>
+    </g>
+    <g transform="matrix(0.103125 0 -0 0.103125 73.7 46.2)" data-item="prop">
+      <rect x="60" y="26" width="392" height="460" rx="20" fill="#67c9bd" stroke="#193e43" stroke-width="18"/>
+      <path d="M256 40 V470 M100 100 H210 M300 100 H412" stroke="#e2fff7" stroke-width="16"/>
+    </g><circle cx="55" cy="7.7" r="3" fill="#ff6d7b" stroke="#fff"/><circle cx="100.1" cy="72.6" r="3" fill="#ff6d7b" stroke="#fff"/>
+  </g>
+</g>
+<g transform="translate(770 342)" data-shape="hexagon" data-anchor="side">
+  <rect width="176" height="216" rx="14" fill="#1c2a3c"/>
+  <text x="12" y="24" fill="#f5d797" font-size="15">hexagon · side</text>
+  <g transform="translate(29 76)">
+    <polygon points="0.25,0 0.75,0 1,0.5 0.75,1 0.25,1 0,0.5" transform="scale(110)" fill="#537ee8"/>
+    <g transform="matrix(0.1973125 0 -0 0.1973125 4.488 -81.4704)" data-item="head">
+      <path d="M48 435 L80 185 Q256 45 432 185 L464 435 Z" fill="#f4c76c" stroke="#3d2d20" stroke-width="12"/>
+      <path d="M0 435 H512" stroke="#fff0c6" stroke-width="30"/>
+    </g>
+    <g transform="matrix(0.103125 0 -0 0.103125 74.8 40.7)" data-item="prop">
+      <rect x="60" y="26" width="392" height="460" rx="20" fill="#67c9bd" stroke="#193e43" stroke-width="18"/>
+      <path d="M256 40 V470 M100 100 H210 M300 100 H412" stroke="#e2fff7" stroke-width="16"/>
+    </g><circle cx="55" cy="4.4" r="3" fill="#ff6d7b" stroke="#fff"/><circle cx="101.2" cy="67.1" r="3" fill="#ff6d7b" stroke="#fff"/>
+  </g>
+</g>
+<g transform="translate(18 575)" data-shape="square" data-anchor="ground">
+  <rect width="176" height="216" rx="14" fill="#1c2a3c"/>
+  <text x="12" y="24" fill="#f5d797" font-size="15">square · ground</text>
+  <g transform="translate(29 76)">
+    <polygon points="0,0 1,0 1,1 0,1" transform="scale(110)" fill="#537ee8"/>
+    <g transform="matrix(0.240625 0 -0 0.240625 -6.6 -100.32)" data-item="head">
+      <path d="M48 435 L80 185 Q256 45 432 185 L464 435 Z" fill="#f4c76c" stroke="#3d2d20" stroke-width="12"/>
+      <path d="M0 435 H512" stroke="#fff0c6" stroke-width="30"/>
+    </g>
+    <g transform="matrix(0.1203125 0 -0 0.1203125 51.7 49.28)" data-item="prop">
+      <rect x="60" y="26" width="392" height="460" rx="20" fill="#67c9bd" stroke="#193e43" stroke-width="18"/>
+      <path d="M256 40 V470 M100 100 H210 M300 100 H412" stroke="#e2fff7" stroke-width="16"/>
+    </g><circle cx="55" cy="4.4" r="3" fill="#ff6d7b" stroke="#fff"/><circle cx="82.5" cy="107.8" r="3" fill="#ff6d7b" stroke="#fff"/>
+  </g>
+</g>
+<g transform="translate(206 575)" data-shape="diamond" data-anchor="ground">
+  <rect width="176" height="216" rx="14" fill="#1c2a3c"/>
+  <text x="12" y="24" fill="#f5d797" font-size="15">diamond · ground</text>
+  <g transform="translate(29 76)">
+    <polygon points="0.5,0.008 0.992,0.5 0.5,0.992 0.008,0.5" transform="scale(110)" fill="#537ee8"/>
+    <g transform="matrix(0.17325 0 -0 0.17325 10.648 -68.7984)" data-item="head">
+      <path d="M48 435 L80 185 Q256 45 432 185 L464 435 Z" fill="#f4c76c" stroke="#3d2d20" stroke-width="12"/>
+      <path d="M0 435 H512" stroke="#fff0c6" stroke-width="30"/>
+    </g>
+    <g transform="matrix(0.1203125 0 -0 0.1203125 51.7 49.28)" data-item="prop">
+      <rect x="60" y="26" width="392" height="460" rx="20" fill="#67c9bd" stroke="#193e43" stroke-width="18"/>
+      <path d="M256 40 V470 M100 100 H210 M300 100 H412" stroke="#e2fff7" stroke-width="16"/>
+    </g><circle cx="55" cy="6.6" r="3" fill="#ff6d7b" stroke="#fff"/><circle cx="82.5" cy="107.8" r="3" fill="#ff6d7b" stroke="#fff"/>
+  </g>
+</g>
+<g transform="translate(394 575)" data-shape="triangle" data-anchor="ground">
+  <rect width="176" height="216" rx="14" fill="#1c2a3c"/>
+  <text x="12" y="24" fill="#f5d797" font-size="15">triangle · ground</text>
+  <g transform="translate(29 76)">
+    <polygon points="0.5,0 1,1 0,1" transform="scale(110)" fill="#537ee8"/>
+    <g transform="matrix(0.15640625 0 -0 0.15640625 14.96 -60.368)" data-item="head">
+      <path d="M48 435 L80 185 Q256 45 432 185 L464 435 Z" fill="#f4c76c" stroke="#3d2d20" stroke-width="12"/>
+      <path d="M0 435 H512" stroke="#fff0c6" stroke-width="30"/>
+    </g>
+    <g transform="matrix(0.1203125 0 -0 0.1203125 51.7 49.28)" data-item="prop">
+      <rect x="60" y="26" width="392" height="460" rx="20" fill="#67c9bd" stroke="#193e43" stroke-width="18"/>
+      <path d="M256 40 V470 M100 100 H210 M300 100 H412" stroke="#e2fff7" stroke-width="16"/>
+    </g><circle cx="55" cy="7.7" r="3" fill="#ff6d7b" stroke="#fff"/><circle cx="82.5" cy="107.8" r="3" fill="#ff6d7b" stroke="#fff"/>
+  </g>
+</g>
+<g transform="translate(582 575)" data-shape="pentagon" data-anchor="ground">
+  <rect width="176" height="216" rx="14" fill="#1c2a3c"/>
+  <text x="12" y="24" fill="#f5d797" font-size="15">pentagon · ground</text>
+  <g transform="translate(29 76)">
+    <polygon points="0.5,0 1,0.38 0.82,1 0.18,1 0,0.38" transform="scale(110)" fill="#537ee8"/>
+    <g transform="matrix(0.1876875 0 -0 0.1876875 6.952 -73.9816)" data-item="head">
+      <path d="M48 435 L80 185 Q256 45 432 185 L464 435 Z" fill="#f4c76c" stroke="#3d2d20" stroke-width="12"/>
+      <path d="M0 435 H512" stroke="#fff0c6" stroke-width="30"/>
+    </g>
+    <g transform="matrix(0.1203125 0 -0 0.1203125 51.7 49.28)" data-item="prop">
+      <rect x="60" y="26" width="392" height="460" rx="20" fill="#67c9bd" stroke="#193e43" stroke-width="18"/>
+      <path d="M256 40 V470 M100 100 H210 M300 100 H412" stroke="#e2fff7" stroke-width="16"/>
+    </g><circle cx="55" cy="7.7" r="3" fill="#ff6d7b" stroke="#fff"/><circle cx="82.5" cy="107.8" r="3" fill="#ff6d7b" stroke="#fff"/>
+  </g>
+</g>
+<g transform="translate(770 575)" data-shape="hexagon" data-anchor="ground">
+  <rect width="176" height="216" rx="14" fill="#1c2a3c"/>
+  <text x="12" y="24" fill="#f5d797" font-size="15">hexagon · ground</text>
+  <g transform="translate(29 76)">
+    <polygon points="0.25,0 0.75,0 1,0.5 0.75,1 0.25,1 0,0.5" transform="scale(110)" fill="#537ee8"/>
+    <g transform="matrix(0.1973125 0 -0 0.1973125 4.488 -81.4704)" data-item="head">
+      <path d="M48 435 L80 185 Q256 45 432 185 L464 435 Z" fill="#f4c76c" stroke="#3d2d20" stroke-width="12"/>
+      <path d="M0 435 H512" stroke="#fff0c6" stroke-width="30"/>
+    </g>
+    <g transform="matrix(0.1203125 0 -0 0.1203125 51.7 49.28)" data-item="prop">
+      <rect x="60" y="26" width="392" height="460" rx="20" fill="#67c9bd" stroke="#193e43" stroke-width="18"/>
+      <path d="M256 40 V470 M100 100 H210 M300 100 H412" stroke="#e2fff7" stroke-width="16"/>
+    </g><circle cx="55" cy="4.4" r="3" fill="#ff6d7b" stroke="#fff"/><circle cx="82.5" cy="107.8" r="3" fill="#ff6d7b" stroke="#fff"/>
+  </g>
+</g>
+</g></svg>

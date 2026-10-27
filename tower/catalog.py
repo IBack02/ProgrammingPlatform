@@ -6,7 +6,7 @@ from urllib.parse import quote, urlsplit
 
 from django.conf import settings
 from django.core.exceptions import ImproperlyConfigured
-from django.templatetags.static import static
+from .asset_delivery import asset_url
 
 
 MANIFEST_PATH = Path(__file__).parent / "content" / "cards.json"
@@ -39,7 +39,7 @@ def presentation_catalog(language="ru"):
             "rarity": definition["rarity"], "rarity_label": rarity["labels"][language],
             "stars": range(rarity["stars"]), "star_count": rarity["stars"],
             "portrait_url": portrait_url(definition["portrait"]),
-            "frame_url": static(rarity["frame"]),
+            "frame_url": asset_url(rarity["frame"].removeprefix("tower/")),
         })
     rarities = [{"id": key, "label": data["labels"][language], "stars": data["stars"]}
                 for key, data in manifest["rarities"].items()]

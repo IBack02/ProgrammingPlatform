@@ -9,6 +9,7 @@ from tower.models import (
     PlayerCosmetic, PlayerHero, WalletEntry,
 )
 from .wallet import WalletError, _locked_wallet, _perform, _request_id
+from .character_sets import grant_character_set
 
 
 SHAPES = ("square", "diamond", "triangle", "pentagon", "hexagon")
@@ -59,7 +60,7 @@ def _draw(config, guaranteed=False):
     raise WalletError("catalog_unavailable", 409)
 
 
-def _grant(player, hero, quantity):
+def _grant(player, hero, quantity, operation=None):
     row, _ = PlayerHero.objects.get_or_create(player=player, hero=hero)
     added = min(quantity, max(0, hero.required_fragments - row.fragments))
     row.fragments += added
@@ -67,8 +68,11 @@ def _grant(player, hero, quantity):
     if completed:
         row.assembled_at = timezone.now()
     row.save(update_fields=["fragments", "assembled_at"])
-    return {"hero_id": hero.pk, "quantity": quantity, "added": added, "overflow": quantity - added,
-            "fragments": row.fragments, "required": hero.required_fragments, "completed": completed}
+    result = {"hero_id": hero.pk, "quantity": quantity, "added": added, "overflow": quantity - added,
+              "fragments": row.fragments, "required": hero.required_fragments, "completed": completed}
+    if row.assembled_at:
+        result["character_set"] = grant_character_set(player=player, hero=hero, operation=operation)
+    return result
 
 
 @transaction.atomic
@@ -87,6 +91,7 @@ def open_pack(*, student, offer, version, request_id):
     if type(price) is not int or price <= 0:
         raise WalletError("catalog_unavailable", 409)
     result = _debit(student, key, price, "pack_open", "Коллекционный пак NIS", f"pack:{version}")
+    operation = GameOperation.objects.get(entries__id=result["entry_id"])
     player = wallet.player
     before = player.pack_misses
     guaranteed = before >= config["pity_after"]
@@ -94,7 +99,7 @@ def open_pack(*, student, offer, version, request_id):
     for index in range(config["slots"]):
         slug, rarity = _draw(config, guaranteed and index == 0)
         hero = HeroDefinition.objects.get(pk=slug)
-        drop = _grant(player, hero, config["fragments_per_slot"])
+        drop = _grant(player, hero, config["fragments_per_slot"], operation=operation)
         drop["rarity"] = rarity
         drop["shards"] = drop["overflow"] * config["overflow_rate"]
         drops.append(drop)
@@ -126,7 +131,8 @@ def exchange_fragments(*, student, hero_id, quantity, request_id):
     if quantity > hero.required_fragments - (row.fragments if row else 0):
         raise WalletError("already_collected", 409)
     result = _debit(student, key, hero.shard_cost * quantity, "fragment_exchange", f"Фрагменты: {hero.name}", f"hero:{hero.pk}", WalletEntry.Currency.SHARDS)
-    drop = _grant(wallet.player, hero, quantity)
+    operation = GameOperation.objects.get(entries__id=result["entry_id"])
+    drop = _grant(wallet.player, hero, quantity, operation=operation)
     return _finish(result, payload, drop=drop)
 
 
@@ -136,7 +142,7 @@ def buy_cosmetic(*, student, cosmetic_id, request_id):
     wallet, key, replay = _start(student, "cosmetic_purchase", request_id, payload)
     if replay:
         return replay
-    item = CosmeticDefinition.objects.filter(pk=cosmetic_id, is_active=True).first()
+    item = CosmeticDefinition.objects.filter(pk=cosmetic_id, is_active=True, acquisition="purchase").first()
     if not item:
         raise WalletError("catalog_unavailable", 409)
     if PlayerCosmetic.objects.filter(player=wallet.player, cosmetic=item).exists():
@@ -156,7 +162,8 @@ def save_avatar(*, student, shape, color, accessories, theme):
         raise WalletError("invalid_avatar")
     if theme != "midnight":
         selected["theme"] = theme
-    owned = {row.cosmetic_id: row.cosmetic for row in PlayerCosmetic.objects.filter(player=wallet.player).select_related("cosmetic")}
+    owned = {row.cosmetic_id: row.cosmetic for row in PlayerCosmetic.objects.filter(
+        player=wallet.player, cosmetic__acquisition="purchase").select_related("cosmetic")}
     if any(slug not in owned or owned[slug].slot != slot for slot, slug in selected.items()):
         raise WalletError("item_not_owned", 403)
     player = wallet.player

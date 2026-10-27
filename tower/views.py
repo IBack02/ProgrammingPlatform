@@ -11,6 +11,7 @@ from django.views.decorators.http import require_GET, require_http_methods
 from core.ui_translations import UI_TRANSLATIONS, get_ui_lang
 
 from .permissions import managed_classes, tower_student_required, tower_teacher_required
+from .collection_security import collection_unlocked_required
 from .catalog import presentation_catalog
 from .wallet_views import student_wallet_context, wallet_errors
 from .services.audit import record_access_change
@@ -52,6 +53,7 @@ def _set_class_access(request, class_id, enabled):
 
 @require_GET
 @tower_student_required
+@collection_unlocked_required
 @wallet_errors
 def home(request):
     return render(request, "tower/home.html", student_wallet_context(request))

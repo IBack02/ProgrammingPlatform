@@ -165,6 +165,7 @@ def _clear_student_auth(request: HttpRequest) -> None:
         "student_selected_session_id",
         "student_selected_class_id",
         "guest_lease_token",
+        "tower_collection_access",
     ]:
         request.session.pop(key, None)
 
@@ -293,7 +294,7 @@ def _student_class_ids(student_id: int, *, primary_class_id: int | None = None) 
     )
     if primary_class_id:
         class_ids.add(primary_class_id)
-    elif not class_ids:
+    else:
         fallback = Student.objects.filter(id=student_id).values_list(
             "class_group_id", flat=True
         ).first()
@@ -1171,6 +1172,8 @@ def student_task_detail(request: HttpRequest, task_id: int):
 
     ss, now = _get_or_create_student_session(student_id, session)
     progress = _get_or_create_progress(ss, task, now)
+    from tower.services.companion_sources import record_learning_visit
+    record_learning_visit(student_id=student_id, module=task, module_type="coding_task")
     read_only_mode = bool(
         progress.status == StudentTaskProgress.Status.SOLVED and progress.locked_after_solve
     )
@@ -1235,6 +1238,10 @@ def student_theory_module_detail(request: HttpRequest, module_id: int):
     session = module.session
     if not _student_can_access_session(session, class_id=class_id, student_id=student_id):
         return JsonResponse({"ok": False, "error": "session is not accessible"}, status=403)
+
+    _get_or_create_student_session(student_id, session)
+    from tower.services.companion_sources import record_learning_visit
+    record_learning_visit(student_id=student_id, module=module, module_type="theory_material")
 
     from tower.services.rewards import learning_reward
     learning_reward(student_id=student_id,
@@ -1390,6 +1397,8 @@ def student_theory_quiz_detail(request: HttpRequest, module_id: int):
         return JsonResponse({"ok": False, "error": "session is not accessible"}, status=403)
 
     ss, _ = _get_or_create_student_session(student_id, session)
+    from tower.services.companion_sources import record_learning_visit
+    record_learning_visit(student_id=student_id, module=module, module_type="theory_quiz")
     last_attempt = (
         StudentTheoryQuizAttempt.objects.filter(student_session=ss, module=module)
         .order_by("-attempt_no")

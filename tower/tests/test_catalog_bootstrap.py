@@ -19,12 +19,16 @@ class CatalogBootstrapTests(WalletFixtures, TestCase):
         cls.create_accounts()
 
     def setUp(self):
-        self.apps = MigrationExecutor(connection).loader.project_state(
-            [("tower", "0003_cosmeticdefinition_packversion_and_more")],
-        ).apps
+        # Remove later catalog publications using their historical managers before
+        # reproducing the older, genuinely empty catalog installation.
+        current = MigrationExecutor(connection).loader.project_state().apps
+        current.get_model("tower", "CosmeticDefinition").objects.filter(acquisition="character_set").delete()
+        for name in ("CharacterSetPublication", "CharacterSetVersion"):
+            current.get_model("tower", name).objects.all().delete()
+        self.apps = current
         self.migration = importlib.import_module("tower.migrations.0004_seed_initial_catalog")
-        # Use historical models, just as migrate does, to reproduce an installation
-        # whose schema exists but whose initial catalogue was never published.
+        # Use historical models matching the test database's current schema.
+        # Fresh migrations also exercise this function against its original schema.
         for name in ("PackOffer", "PackVersion", "HeroDefinition", "CosmeticDefinition"):
             self.apps.get_model("tower", name).objects.all().delete()
 

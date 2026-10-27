@@ -81,6 +81,7 @@ class CardPreviewAccessTests(TestCase):
         session = self.client.session
         session.update({"student_id": student.pk, "student_class_id": group.pk, "student_auth_version": auth_version(student.pin_hash)})
         session.save()
+        self.client.post("/tower/login/", {"password": "Collection7!", "confirmation": "Collection7!"})
         response = self.client.get("/tower/")
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'data-collection-state="undiscovered"', count=12)
