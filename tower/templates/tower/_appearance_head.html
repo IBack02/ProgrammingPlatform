@@ -1,0 +1,14 @@
+{% load static %}{% if tower_appearance %}
+<link rel="stylesheet" href="{% static 'tower/platform-appearance.css' %}">
+<style id="tower-appearance-style">
+  :root {
+    {% if tower_appearance.selected.background %}--tower-background: url("{{ tower_appearance.selected.background.url }}");{% endif %}
+    {% if tower_appearance.selected.ui_decoration %}--tower-ui-decoration: url("{{ tower_appearance.selected.ui_decoration.url }}");{% endif %}
+  }
+</style>
+<script>
+  {% if tower_appearance.selected.background %}document.documentElement.classList.add("tower-has-background");{% endif %}
+  {% if tower_appearance.selected.ui_decoration %}document.documentElement.classList.add("tower-has-decoration");{% endif %}
+</script>
+<script src="{% static 'tower/portal-appearance.js' %}" defer></script>
+{% endif %}

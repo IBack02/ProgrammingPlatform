@@ -2,12 +2,6 @@
 (() => {
   const root = document.getElementById("tower-personal-strip");
   if (!root) return;
-  const equipped = JSON.parse(document.getElementById("tower-equipped-data").textContent);
-  if (equipped.background?.url) {
-    const image = new Image();
-    image.onload = () => { document.body.style.setProperty("--tower-background", `url("${equipped.background.url}")`); document.body.classList.add("tower-custom-background"); };
-    image.src = equipped.background.url;
-  }
   root.addEventListener("error", event => { if (event.target.tagName === "IMG") event.target.hidden = true; }, true);
   const companion = document.getElementById("tower-companion");
   const key = `tower-companion-open:${root.dataset.player}`;

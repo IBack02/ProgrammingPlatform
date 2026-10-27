@@ -10,9 +10,10 @@
   <script src="{% static 'tower/collection-security.js' %}" defer></script>
   <link rel="stylesheet" href="{% static 'tower/appearance-editor.css' %}">
   <script src="{% static 'tower/appearance-editor.js' %}" defer></script>
+  {% include 'tower/_appearance_head.html' %}
 </head>
 <body><main class="journal journal--live">
-  <header class="journal-header"><div><p class="journal-eyebrow">NIS · {{ T.journal_your_space }}</p><h1>{{ T.tower_title }}</h1></div><div class="collection-header-actions"><form method="post" action="{% url 'tower:collection_lock' %}">{% csrf_token %}<button class="journal-back" type="submit">{{ T.journal_password_lock }}</button></form><a class="journal-back" href="/student/">{{ T.tower_back_lesson }}</a></div></header>
+  <header class="journal-header"><div><p class="journal-eyebrow">NIS · {{ T.journal_your_space }}</p><h1>{{ T.tower_title }}</h1></div><a class="journal-back" href="/student/">{{ T.tower_back_lesson }}</a></header>
   <div class="journal-overview">
     <div><span>{{ T.journal_collection_progress }}</span><strong>{{ collected_count }} <small>/ {{ cards|length }}</small></strong></div>
     <div><span>{{ T.wallet_niscoin }}</span><strong>{{ wallet.niscoin }}</strong></div>

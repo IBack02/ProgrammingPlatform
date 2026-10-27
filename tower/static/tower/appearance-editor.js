@@ -21,7 +21,11 @@
     const stage = document.getElementById("appearance-stage");
     stage.dataset.theme = draft.theme;
     stage.style.backgroundImage = chosen.background?.url ? `url("${chosen.background.url}")` : "";
-    for (const [slot, id] of [["ui_decoration", "appearance-decoration"], ["ui_loader", "appearance-loader"], ["companion", "appearance-companion"]]) {
+    const decoration = document.getElementById("appearance-decoration");
+    decoration.hidden = !chosen.ui_decoration?.url;
+    if (chosen.ui_decoration?.url) decoration.style.setProperty("--tower-ui-decoration", `url("${chosen.ui_decoration.url}")`);
+    else decoration.style.removeProperty("--tower-ui-decoration");
+    for (const [slot, id] of [["ui_loader", "appearance-loader"], ["companion", "appearance-companion"]]) {
       const image = document.getElementById(id);
       const item = chosen[slot];
       image.hidden = !item?.url;

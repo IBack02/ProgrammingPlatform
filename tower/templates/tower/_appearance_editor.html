@@ -4,7 +4,7 @@
 <form method="post" action="{% url 'tower:student_action' 'appearance' %}" id="appearance-form" class="journal-panel appearance-workspace" data-section="{{ appearance_section }}" data-companion-only="{{ request.GET.companion_only }}">
   {% csrf_token %}
   <aside class="appearance-preview" aria-label="{{ T.journal_preview }}">
-    <div class="appearance-stage" id="appearance-stage"><div id="appearance-avatar"></div><img id="appearance-decoration" alt="" hidden><img id="appearance-companion" alt="" hidden></div>
+    <div class="appearance-stage" id="appearance-stage"><div class="appearance-preview-panel"><div id="appearance-avatar"></div><span class="tower-panel-decoration" id="appearance-decoration" aria-hidden="true" hidden></span></div><img id="appearance-companion" alt="" hidden></div>
     <strong>{{ T.journal_preview }}</strong><p class="journal-muted">{{ T.journal_preview_hint }}</p>
     <p id="appearance-dirty" role="status" aria-live="polite" hidden>{{ T.journal_unsaved }}</p>
     <div class="appearance-loader-sample"><img id="appearance-loader" alt="" hidden><span>{{ T.journal_loader_preview }}</span></div>

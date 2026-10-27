@@ -11,7 +11,7 @@ from django.urls import reverse
 from django.utils import timezone
 
 from core.security import auth_version
-from tower.collection_security import IDLE_SECONDS, SESSION_KEY, set_initial_password
+from tower.collection_security import SESSION_KEY, set_initial_password
 from tower.models import CollectionCredential, GameOperation, TowerAuditEvent, TowerPlayer, Wallet
 from .wallet_fixtures import WalletFixtures
 
@@ -112,26 +112,40 @@ class CollectionSecurityTests(WalletFixtures, TestCase):
         self.client = self.account_client(collection_access=False)
         self.assertEqual(self.client.post(self.login_url, {"password": "Collection7!"}, REMOTE_ADDR="192.0.2.1").status_code, 429)
 
-    def test_lesson_navigation_locks_but_api_poll_does_not(self):
+    def test_lesson_navigation_keeps_journal_unlocked_until_account_logout(self):
         self.enter()
         self.assertEqual(self.client.get(reverse("tower:status")).status_code, 200)
         self.assertEqual(self.client.get(reverse("tower:wallet")).status_code, 200)
         self.client.get("/student/")
+        self.client.get("/student/dashboard/")
+        self.client.get("/student/exams/")
+        self.assertIn(SESSION_KEY, self.client.session)
+        self.assertEqual(self.client.get(reverse("tower:wallet")).status_code, 200)
+        self.assertEqual(self.client.get(reverse("tower:home")).status_code, 200)
+        self.client.post(reverse("student_logout_page"))
         self.assertNotIn(SESSION_KEY, self.client.session)
+        self.assertEqual(self.client.get(reverse("tower:wallet")).status_code, 401)
+        self.client = self.account_client(collection_access=False)
         self.assertEqual(self.client.get(reverse("tower:wallet")).status_code, 403)
+        self.assertEqual(self.enter().status_code, 302)
 
-    def test_idle_timeout_and_student_switch_invalidate_grant(self):
+    def test_no_separate_idle_timeout_but_student_switch_invalidates_grant(self):
         self.enter()
         session = self.client.session
-        session[SESSION_KEY] = {**session[SESSION_KEY], "last_seen": timezone.now().timestamp() - IDLE_SECONDS - 1}
+        # Old grants from the previous release also lose their separate idle timeout.
+        session[SESSION_KEY] = {**session[SESSION_KEY], "last_seen": timezone.now().timestamp() - 6 * 3600}
         session.save()
-        self.assertEqual(self.client.get(reverse("tower:wallet")).status_code, 403)
-        self.enter()
+        self.assertEqual(self.client.get(reverse("tower:wallet")).status_code, 200)
         session = self.client.session
         session.update({"student_id": self.other_student.pk, "student_class_id": self.other_student.class_group_id,
                         "student_auth_version": auth_version(self.other_student.pin_hash)})
         session.save()
         self.assertEqual(self.client.get(reverse("tower:wallet")).status_code, 403)
+
+    def test_api_logout_also_clears_collection_access(self):
+        self.enter()
+        self.assertEqual(self.client.post(reverse("student_logout")).status_code, 200)
+        self.assertNotIn(SESSION_KEY, self.client.session)
 
     def test_disabled_access_and_guests_cannot_set_password(self):
         self.group.tower_enabled = False

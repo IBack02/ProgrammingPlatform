@@ -145,10 +145,24 @@ class AppearanceTests(WalletFixtures, TestCase):
             session = client.session
             session["ui_lang"] = language
             session.save()
-            for page in ("student_portal_page", "student_dashboard_page", "student_exams_page"):
+            for page in ("student_portal_page", "student_dashboard_page", "student_exams_page", "student_peer_assessment_page"):
                 response = client.get(reverse(page))
                 self.assertContains(response, 'id="tower-personal-strip"')
                 self.assertContains(response, 'id="tower-companion"')
+                self.assertContains(response, 'id="tower-appearance-style"')
+                self.assertContains(response, "tower-has-background")
+                self.assertContains(response, "tower-has-decoration")
+                self.assertNotContains(response, 'class="tower-motif"')
+
+    def test_global_background_on_journal_password_and_account_pages(self):
+        save_appearance(student=self.student, **self.payload())
+        client = self.account_client()
+        for url in (reverse("tower:home"), reverse("student_change_pin_page")):
+            response = client.get(url)
+            self.assertContains(response, 'id="tower-appearance-style"')
+            self.assertContains(response, "--tower-background:")
+        client.post(reverse("tower:collection_lock"))
+        self.assertContains(client.get(reverse("tower:collection_login")), 'id="tower-appearance-style"')
 
     def test_unlocking_another_set_does_not_replace_chosen_appearance(self):
         values = self.payload()

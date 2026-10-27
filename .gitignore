@@ -1,3 +1,5 @@
 /staticfiles/
 /artifacts/tower/postgres-test-runtime/
 /artifacts/tower/collection-preview/runtime/
+/artifacts/tower/character-sets/runtime/
+/artifacts/tower/backups/

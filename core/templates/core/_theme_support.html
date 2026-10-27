@@ -69,18 +69,18 @@
   html[data-theme="light"][data-theme-role="teacher"] body{
     background-image:url("{% static 'teacher.png' %}") !important;
   }
-  html[data-theme="light"][data-theme-role="student"] body{
+  html[data-theme="light"][data-theme-role="student"]:not(.tower-has-background) body{
     background-image:url("{% static 'student.png' %}") !important;
   }
   html[data-theme="dark"][data-theme-role="teacher"] body{
     background-color:var(--theme-deep) !important;
     background-image:url("{% static 'teaacher_night.png' %}") !important;
   }
-  html[data-theme="dark"][data-theme-role="student"] body{
+  html[data-theme="dark"][data-theme-role="student"]:not(.tower-has-background) body{
     background-color:var(--theme-deep) !important;
     background-image:url("{% static 'student_night.png' %}") !important;
   }
-  html[data-theme="dark"][data-theme-role="student"] body .content{
+  html[data-theme="dark"][data-theme-role="student"]:not(.tower-has-background) body .content{
     background-color:var(--theme-deep) !important;
     background-image:url("{% static 'student_night.png' %}") !important;
   }
@@ -532,3 +532,4 @@
     }
   })();
 </script>
+{% include 'tower/_appearance_head.html' %}

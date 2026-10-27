@@ -1,8 +1,6 @@
 {% load static %}{% if tower_appearance %}
-<link rel="stylesheet" href="{% static 'tower/platform-appearance.css' %}">
 {{ tower_appearance.selected|json_script:'tower-equipped-data' }}
 <footer class="tower-personal-strip" id="tower-personal-strip" data-player="{{ tower_appearance_player }}">
-  {% if tower_appearance.selected.ui_decoration %}<img class="tower-motif" src="{{ tower_appearance.selected.ui_decoration.url }}" alt="" aria-hidden="true">{% endif %}
   <a href="{% url 'tower:home' %}?tab=appearance" class="tower-appearance-link">{{ T.journal_change_appearance }}</a>
   <span class="tower-request-status" id="tower-request-status" role="status" hidden>{% if tower_appearance.selected.ui_loader %}<img src="{{ tower_appearance.selected.ui_loader.url }}" data-animation="{{ tower_appearance.selected.ui_loader.animation }}" alt="">{% endif %}<span>{{ T.journal_loading }}</span></span>
   {% if tower_appearance.selected.companion %}
