@@ -1,0 +1,130 @@
+/* Shared student layouts work independently of collection access and cosmetics. */
+html[data-theme-role="student"] body{min-width:0}
+html[data-theme-role="student"] :is(.wrap,.shell,.workspace,.main,.scroll,.grid,.panel,.card,.paper,.question-card){min-width:0}
+html[data-theme-role="student"] :is(.title,.question-prompt,.instructions,.prompt,.question-title){overflow-wrap:anywhere}
+html[data-theme-role="student"] :is(.top-actions,.actions){flex-wrap:wrap;min-width:0}
+html[data-theme-role="student"] :is(img,video,iframe){max-width:100%}
+html[data-theme-role="student"] :is(input,select,textarea,button){max-width:100%}
+html[data-theme-role="student"] :is(.topbar,.top)>div{min-width:0}
+.student-exams .sidebar{position:sticky}
+@media(max-width:880px){.student-exams .sidebar{position:relative;top:auto}}
+
+.student-portal *,.student-portal *::before,.student-portal *::after{box-sizing:border-box}
+.student-portal .layout{height:100vh;height:100dvh;width:100%;min-width:0}
+.student-portal .sidebarWrap{flex:none;min-width:0}
+.student-portal .sidebar{flex:none;min-width:240px}
+.student-portal .content{flex:1;min-width:0;container-type:inline-size;container-name:student-workspace}
+.student-portal .student-account-header{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;align-items:start}
+.student-portal .student-account-header>div:first-child{grid-column:1;grid-row:1;min-width:0}
+.student-portal .student-account-header .topRight{grid-column:2;grid-row:1 / span 2;display:flex;flex-direction:column;align-items:stretch;gap:8px;min-width:0}
+.student-portal .student-portal-nav{grid-column:1;grid-row:2;display:flex;gap:8px;flex-wrap:wrap;min-width:0;align-items:stretch}
+.student-portal .student-portal-nav a{display:flex;align-items:center;justify-content:center;min-width:0;white-space:normal;overflow-wrap:anywhere;text-align:center;font-size:12px;padding:8px 10px;border-radius:10px;border:1px solid var(--border);background:var(--card)}
+.student-portal .student-account-header :is(button,select){min-height:42px;width:100%;font-size:13px}
+.student-portal .student-account-header form{margin:0;max-width:100%}
+.student-portal .student-account-header .topRight.has-theme-control{display:grid;grid-template-columns:minmax(0,1fr) 44px;align-items:center}
+.student-portal .topRight.has-theme-control>.langForm{grid-column:1 / -1}
+.student-portal .student-account-header .site-theme-toggle{position:static;inset:auto;width:44px;height:42px;box-shadow:none;min-height:42px}
+.student-portal :is(#studentName,#studentClass,#sessionTitle,#sessionTime,#sessionDesc,.gameStatusPill){overflow-wrap:anywhere}
+.student-portal .student-module-menu>summary{display:none}
+.student-portal .student-module-menu-content{min-width:0}
+.student-portal .contentSplit{min-width:0;height:100%;min-height:0}
+.student-portal :is(.leftPane,.rightPane){min-width:0;min-height:0}
+.student-portal .leftPane{flex:none}
+.student-portal .rightPane{flex:1}
+.student-portal .contentSplit[data-mode="theory_material"] .rightPane,
+.student-portal .contentSplit:not([data-mode="coding_task"])>.splitResizer,
+.student-portal .contentSplit[data-mode="game"]>.leftPane{display:none}
+.student-portal .contentSplit[data-mode="theory_material"]>.leftPane{width:100%!important;max-width:none;padding-right:0}
+.student-portal .contentSplit[data-mode="theory_quiz"]{display:block;overflow:auto}
+.student-portal .contentSplit[data-mode="theory_quiz"]>:is(.leftPane,.rightPane){display:block;width:100%!important;max-width:960px;margin:0 auto;padding:0;overflow:visible}
+.student-portal .contentSplit[data-mode="theory_quiz"]>.rightPane{margin-top:12px}
+.student-portal .contentSplit[data-mode="game"]>.rightPane{width:100%;max-width:1180px;margin:0 auto;padding:0}
+.student-portal #hintsPanel{margin-top:12px}
+.student-portal .student-hints>summary{cursor:pointer;min-height:24px;line-height:24px}
+.student-portal .student-hints[open]>summary{margin-bottom:10px}
+.student-portal #studentWorkspace:focus{outline:none}
+.student-portal :is(.card,.quizQuestion,.gameArenaInner,.gameLobby,.wonderPlayArea){min-width:0;max-width:100%}
+.student-portal :is(#taskStatement,#taskConstraints,.theoryBlock,.quizQuestion,.gamePromptSentence,.wonderQuestion,.gameRankRow){overflow-wrap:anywhere}
+.student-portal :is(#codeArea,.quizQuestion input:not([type="radio"]):not([type="checkbox"]),.quizQuestion textarea,.quizQuestion select,.tournamentAnswerInput){width:100%;min-width:0;box-sizing:border-box}
+.student-portal .quizOption :is(input[type="radio"],input[type="checkbox"]){width:18px;height:18px;flex:none;margin:2px 0}
+.student-portal :is(.editorFooter,.quizMatchRow,.gameTop,.wonderHeadline){flex-wrap:wrap}
+.student-portal :is(.quizMatchRow select,.quizMatchRow input){flex:1;min-width:0}
+.student-portal :is(.theoryBlock pre,#topFragment,#bottomFragment,#stdoutBox,#stderrBox){max-width:100%;overflow:auto}
+.student-portal .theoryBlock table{display:block;max-width:100%;overflow-x:auto;white-space:normal}
+.student-portal .imageViewerContent img{max-width:min(92vw,1600px)}
+.student-portal .gameStatusPill{max-width:100%;white-space:normal}
+.student-portal :is(.tournamentBoard,.tournamentBracketViewport){min-width:0;max-width:100%}
+.student-portal .wonderStudentBoard{min-width:0}
+.student-portal .wonderKeyboard{min-width:0}
+.student-portal .gameDuelScore{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);gap:12px}
+.student-portal .gameDuelScore>.gamePlayerIdentity{max-width:none;flex-direction:column;text-align:center;justify-content:center;gap:8px}
+.student-portal .gameDuelScore .gamePlayerName{overflow-wrap:anywhere;white-space:normal}
+
+@container student-workspace (max-width:760px){
+  .student-portal .contentSplit[data-mode="coding_task"]{display:block;height:auto;overflow:visible}
+  .student-portal .contentSplit[data-mode="coding_task"]>:is(.leftPane,.rightPane){width:100%!important;max-width:none;overflow:visible;padding:0}
+  .student-portal .contentSplit[data-mode="coding_task"]>.rightPane{margin-top:12px}
+  .student-portal .contentSplit>.splitResizer{display:none}
+  .student-portal .wonderStudentBoard{grid-template-columns:minmax(0,1fr)}
+  .student-portal .wonderStudentLog{max-height:240px}
+  .student-portal .wonderKeyboard{grid-template-columns:repeat(7,minmax(0,1fr))}
+}
+@media(max-width:1180px){
+  .student-portal .contentSplit[data-mode="coding_task"]{display:block;height:auto}
+  .student-portal .contentSplit[data-mode="coding_task"]>:is(.leftPane,.rightPane){width:100%!important;max-width:none;overflow:visible;padding:0}
+  .student-portal .contentSplit[data-mode="coding_task"]>.rightPane{margin-top:12px}
+  .student-portal .splitResizer{display:none}
+}
+@media(max-width:980px){
+  .student-portal .layout{display:block;height:auto;min-height:100vh;min-height:100dvh;overflow:visible}
+  .student-portal .sidebarWrap{display:block;height:auto}
+  .student-portal .sidebar{width:100%!important;min-width:0;max-width:none;height:auto;overflow:visible;padding:14px}
+  .student-portal .resizer{display:none}
+  .student-portal .content{width:100%;min-width:0;padding:12px;overflow:visible}
+  .student-portal .contentSplit{height:auto;min-height:0;overflow:visible}
+  .student-portal .contentSplit>:is(.leftPane,.rightPane){width:100%!important;max-width:none;overflow:visible;padding:0}
+  .student-portal .student-module-menu{border:1px solid var(--border);border-radius:12px;background:var(--card)}
+  .student-portal .student-module-menu>summary{display:list-item;padding:12px 14px;cursor:pointer;font-weight:700;min-height:44px}
+  .student-portal .student-module-menu-content{padding:0 12px 12px}
+  .student-portal .student-module-menu-content>.card{box-shadow:none;margin-top:0}
+  .student-portal .taskbtn{min-height:44px}
+  .student-portal :is(input,textarea,select){font-size:16px}
+  .student-portal .gameArenaCard{min-height:0}
+  .student-portal .gameLobby{padding:24px 12px}
+  .student-portal .gamePromptStage{padding:16px 12px;margin-top:16px}
+  .student-portal .gameCurrentResponder{flex-wrap:wrap;text-align:center}
+  .student-portal .wonderStudentBoard{grid-template-columns:minmax(0,1fr)}
+  .student-portal .theoryMediaFrame{height:auto;min-height:180px;aspect-ratio:16/9;max-height:60vh}
+  .student-portal .theoryVideo{height:100%;min-height:180px}
+  .student-portal .editorFooter{gap:12px;align-items:stretch}
+  .student-portal .editorFooter button{min-height:44px}
+  .student-portal #codeArea{height:clamp(220px,34dvh,360px);font-size:16px}
+  .student-portal .sidebar .tower-personal-strip{margin:12px 0 0;min-height:0}
+  html[data-theme-role="student"] :is(.topbar,.top){flex-wrap:wrap;gap:12px}
+  html[data-theme-role="student"] .top-actions{width:100%;gap:8px}
+  html[data-theme-role="student"] .top-actions select{min-width:0;flex:1}
+  html[data-theme-role="student"] .grid>*{min-width:0}
+  html[data-theme-role="student"] :is(.shell,.scroll){padding:12px}
+  html[data-theme-role="student"][data-theme] body.student-portal .content{background-image:none!important;background-color:transparent!important}
+}
+@media(max-width:520px){
+  .student-portal .sidebar{padding:12px}
+  .student-portal .content{padding:12px}
+  .student-portal .student-account-header{gap:10px}
+  .student-portal .card{padding:12px}
+  .student-portal .gameTop{gap:8px}
+  .student-portal .gameStatusPill{font-size:10px;padding:5px 8px}
+  .student-portal .gamePromptSentence{font-size:20px}
+  .student-portal .wonderQuestion{font-size:clamp(18px,6vw,26px)}
+  .student-portal .wonderKeyboard{grid-template-columns:repeat(5,minmax(0,1fr));gap:5px}
+  .student-portal .wonderLetterBtn{min-width:0;min-height:42px;padding:6px 2px;font-size:16px}
+  .student-portal .wonderPlayArea{padding:10px}
+  .student-portal .gameDuelScore{gap:8px;padding:12px 0}
+  .student-portal .gameDuelScore>.gamePlayerIdentity{font-size:12px}
+  .student-portal .gameDuelNumbers{font-size:24px}
+  .student-portal .gameSubmitRow button{width:100%;min-height:44px}
+  .student-portal .editorFooter button{width:100%}
+  html[data-theme-role="student"] .wrap{padding:12px}
+  html[data-theme-role="student"] :is(.shell,.scroll){padding:12px}
+  html[data-theme-role="student"] .chart-switch{max-width:100%;flex-wrap:wrap}
+}

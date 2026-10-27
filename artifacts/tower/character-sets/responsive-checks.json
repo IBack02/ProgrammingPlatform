@@ -1,0 +1,333 @@
+{
+  "coding": [
+    {
+      "available": 305,
+      "editorWidth": 285,
+      "mode": "coding_task",
+      "page": 305,
+      "sideWidth": 305,
+      "taskWidth": 285,
+      "themeInHeader": true,
+      "viewport": 320
+    },
+    {
+      "available": 345,
+      "editorWidth": 325,
+      "mode": "coding_task",
+      "page": 345,
+      "sideWidth": 345,
+      "taskWidth": 325,
+      "themeInHeader": true,
+      "viewport": 360
+    },
+    {
+      "available": 375,
+      "editorWidth": 355,
+      "mode": "coding_task",
+      "page": 375,
+      "sideWidth": 375,
+      "taskWidth": 355,
+      "themeInHeader": true,
+      "viewport": 390
+    },
+    {
+      "available": 753,
+      "editorWidth": 729,
+      "mode": "coding_task",
+      "page": 753,
+      "sideWidth": 753,
+      "taskWidth": 729,
+      "themeInHeader": true,
+      "viewport": 768
+    },
+    {
+      "available": 1024,
+      "editorWidth": 680,
+      "mode": "coding_task",
+      "page": 1024,
+      "sideWidth": 300,
+      "taskWidth": 680,
+      "themeInHeader": true,
+      "viewport": 1024
+    },
+    {
+      "available": 1440,
+      "editorWidth": 518,
+      "mode": "coding_task",
+      "page": 1440,
+      "sideWidth": 300,
+      "taskWidth": 570,
+      "themeInHeader": true,
+      "viewport": 1440
+    }
+  ],
+  "quiz": [
+    {
+      "available": 305,
+      "page": 305,
+      "quizWidth": 285,
+      "radios": [
+        18,
+        18,
+        18
+      ],
+      "titleVisible": "block",
+      "viewport": 320
+    },
+    {
+      "available": 375,
+      "page": 375,
+      "quizWidth": 355,
+      "radios": [
+        18,
+        18,
+        18
+      ],
+      "titleVisible": "block",
+      "viewport": 390
+    },
+    {
+      "available": 753,
+      "page": 753,
+      "quizWidth": 729,
+      "radios": [
+        18,
+        18,
+        18
+      ],
+      "titleVisible": "block",
+      "viewport": 768
+    },
+    {
+      "available": 1024,
+      "page": 1024,
+      "quizWidth": 665,
+      "radios": [
+        18,
+        18,
+        18
+      ],
+      "titleVisible": "block",
+      "viewport": 1024
+    },
+    {
+      "available": 1440,
+      "page": 1440,
+      "quizWidth": 960,
+      "radios": [
+        18,
+        18,
+        18
+      ],
+      "titleVisible": "block",
+      "viewport": 1440
+    }
+  ],
+  "tournament": [
+    {
+      "available": 320,
+      "avatars": 2,
+      "page": 320,
+      "score": "1 : 0",
+      "taskHidden": "none",
+      "viewport": 320
+    },
+    {
+      "available": 390,
+      "avatars": 2,
+      "page": 390,
+      "score": "1 : 0",
+      "taskHidden": "none",
+      "viewport": 390
+    },
+    {
+      "available": 768,
+      "avatars": 2,
+      "page": 768,
+      "score": "1 : 0",
+      "taskHidden": "none",
+      "viewport": 768
+    },
+    {
+      "available": 1024,
+      "avatars": 2,
+      "page": 1024,
+      "score": "1 : 0",
+      "taskHidden": "none",
+      "viewport": 1024
+    },
+    {
+      "available": 1440,
+      "avatars": 2,
+      "page": 1440,
+      "score": "1 : 0",
+      "taskHidden": "none",
+      "viewport": 1440
+    }
+  ],
+  "wonder": [
+    {
+      "answerArea": 259,
+      "available": 305,
+      "columns": 5,
+      "page": 305,
+      "viewport": 320
+    },
+    {
+      "answerArea": 329,
+      "available": 375,
+      "columns": 5,
+      "page": 375,
+      "viewport": 390
+    },
+    {
+      "answerArea": 699,
+      "available": 753,
+      "columns": 7,
+      "page": 753,
+      "viewport": 768
+    },
+    {
+      "answerArea": 635,
+      "available": 1024,
+      "columns": 7,
+      "page": 1024,
+      "viewport": 1024
+    },
+    {
+      "answerArea": 760,
+      "available": 1440,
+      "columns": 10,
+      "page": 1440,
+      "viewport": 1440
+    }
+  ],
+  "theory": [
+    {
+      "available": 320,
+      "editorHidden": "none",
+      "page": 320,
+      "viewport": 320
+    },
+    {
+      "available": 390,
+      "editorHidden": "none",
+      "page": 390,
+      "viewport": 390
+    },
+    {
+      "available": 768,
+      "editorHidden": "none",
+      "page": 768,
+      "viewport": 768
+    },
+    {
+      "available": 1440,
+      "editorHidden": "none",
+      "page": 1440,
+      "viewport": 1440
+    }
+  ],
+  "exams": [
+    {
+      "available": 305,
+      "page": 305,
+      "sidebar": "relative",
+      "viewport": 320
+    },
+    {
+      "available": 390,
+      "page": 390,
+      "sidebar": "relative",
+      "viewport": 390
+    },
+    {
+      "available": 768,
+      "page": 768,
+      "sidebar": "relative",
+      "viewport": 768
+    },
+    {
+      "available": 1440,
+      "page": 1440,
+      "sidebar": "sticky",
+      "viewport": 1440
+    }
+  ],
+  "otherPages": [
+    {
+      "available": 305,
+      "page": "/student/dashboard/",
+      "viewport": 320,
+      "width": 305
+    },
+    {
+      "available": 375,
+      "page": "/student/dashboard/",
+      "viewport": 390,
+      "width": 375
+    },
+    {
+      "available": 753,
+      "page": "/student/dashboard/",
+      "viewport": 768,
+      "width": 753
+    },
+    {
+      "available": 1440,
+      "page": "/student/dashboard/",
+      "viewport": 1440,
+      "width": 1440
+    },
+    {
+      "available": 305,
+      "page": "/student/peer-assessment/",
+      "viewport": 320,
+      "width": 305
+    },
+    {
+      "available": 375,
+      "page": "/student/peer-assessment/",
+      "viewport": 390,
+      "width": 375
+    },
+    {
+      "available": 753,
+      "page": "/student/peer-assessment/",
+      "viewport": 768,
+      "width": 753
+    },
+    {
+      "available": 1425,
+      "page": "/student/peer-assessment/",
+      "viewport": 1440,
+      "width": 1425
+    }
+  ],
+  "draftPreserved": [
+    {
+      "available": 305,
+      "draft": "print(\"Проверка мобильного редактора\")",
+      "page": 305,
+      "viewport": 320
+    },
+    {
+      "available": 753,
+      "draft": "print(\"Проверка мобильного редактора\")",
+      "page": 753,
+      "viewport": 768
+    },
+    {
+      "available": 1440,
+      "draft": "print(\"Проверка мобильного редактора\")",
+      "page": 1440,
+      "viewport": 1440
+    },
+    {
+      "available": 375,
+      "draft": "print(\"Проверка мобильного редактора\")",
+      "page": 375,
+      "viewport": 390
+    }
+  ]
+}

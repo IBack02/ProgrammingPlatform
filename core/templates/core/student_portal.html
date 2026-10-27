@@ -533,15 +533,16 @@
     }
   </style>
   {% include "core/_theme_support.html" %}
+  <script src="{% static 'core/student-responsive.js' %}" defer></script>
   {% include "core/_game_avatar.html" %}
 {% include "core/_tournament_live.html" %}
 </head>
-<body class="module-bg-coding">
+<body class="student-portal module-bg-coding">
 <div class="layout">
 
   <div class="sidebarWrap">
     <div class="sidebar" id="sidebar">
-      <div class="top">
+      <div class="top student-account-header">
         <div>
           <div class="title" id="studentName">{{ T.student_portal_title }}</div>
           <div class="small" id="studentClass"></div>
@@ -563,11 +564,17 @@
             {% csrf_token %}
             <button class="ghost" type="submit">{{ T.logout }}</button>
           </form>
+
+        </div>
+        <nav class="student-portal-nav" aria-label="{{ T.student_portal_title }}">
           <a class="ghost" href="/student/dashboard/" style="text-decoration:none;">{{ T.dashboard|default:"Dashboard" }}</a>
           {% if tower_can_enter %}<a class="ghost" href="{% url 'tower:home' %}" style="text-decoration:none;">{{ T.tower_title }}</a>{% endif %}
-        </div>
+        </nav>
       </div>
 
+      <details class="student-module-menu" id="studentModuleMenu" open>
+        <summary>{{ T.modules }}</summary>
+        <div class="student-module-menu-content">
       <div class="card">
         <div class="title" id="sessionTitle">{{ T.session }}</div>
         <div class="small" id="sessionTime"></div>
@@ -575,10 +582,41 @@
       </div>
 
       <div id="taskList"></div>
+        </div>
+      </details>
 
       {% include 'tower/_platform_appearance.html' %}
-      <div class="card" id="hintsPanel">
-        <div class="hintPanelTitle">{{ T.hints }}</div>
+    </div>
+
+    <div class="resizer" id="sidebarResizer" title="Drag to resize"></div>
+  </div>
+
+  <div class="content" id="studentWorkspace" tabindex="-1">
+    <div id="statusBox" class="msg" style="display:none;"></div>
+
+    <div class="contentSplit" data-mode="coding_task">
+      <div class="leftPane" id="taskPane">
+        <div class="card" id="taskCard" style="display:none;">
+          <div class="title" id="taskTitle"></div>
+          <div class="small muted" id="taskMeta"></div>
+          <hr>
+
+          <div><b>{{ T.task_statement }}</b></div>
+          <div id="taskStatement"></div>
+
+          <div id="constraintsSection" style="margin-top:10px;display:none;">
+            <div class="small"><b>{{ T.constraints }}</b></div>
+            <div class="small" id="taskConstraints"></div>
+          </div>
+
+          <div style="margin-top:12px;"></div>
+          <div class="small"><b>{{ T.visible_tests }}</b></div>
+          <div id="visibleTests"></div>
+
+          <div id="moduleBlocks" class="theoryContent"></div>
+        </div>
+      <details class="card student-hints" id="hintsPanel" style="display:none" open>
+        <summary class="hintPanelTitle">{{ T.hints }}</summary>
         <div class="tiny">{{ T.hints_unlock_note }}</div>
 
         <div class="hintGrid" style="margin-top:10px;">
@@ -609,36 +647,7 @@
             <div class="flipBack code-font" id="hintBack3"></div>
           </div>
         </div>
-      </div>
-    </div>
-
-    <div class="resizer" id="sidebarResizer" title="Drag to resize"></div>
-  </div>
-
-  <div class="content">
-    <div id="statusBox" class="msg" style="display:none;"></div>
-
-    <div class="contentSplit">
-      <div class="leftPane" id="taskPane">
-        <div class="card" id="taskCard" style="display:none;">
-          <div class="title" id="taskTitle"></div>
-          <div class="small muted" id="taskMeta"></div>
-          <hr>
-
-          <div><b>{{ T.task_statement }}</b></div>
-          <div id="taskStatement"></div>
-
-          <div id="constraintsSection" style="margin-top:10px;display:none;">
-            <div class="small"><b>{{ T.constraints }}</b></div>
-            <div class="small" id="taskConstraints"></div>
-          </div>
-
-          <div style="margin-top:12px;"></div>
-          <div class="small"><b>{{ T.visible_tests }}</b></div>
-          <div id="visibleTests"></div>
-
-          <div id="moduleBlocks" class="theoryContent"></div>
-        </div>
+      </details>
       </div>
 
       <div class="splitResizer" id="contentResizer" title="Drag to resize"></div>
@@ -647,7 +656,7 @@
         <div class="card" id="editorCard" style="display:none;">
           <div class="row" style="justify-content:space-between;">
             <div>
-              <div class="title">{{ T.your_code }}</div>
+              <div class="title">{{ T.student_code_editor }}</div>
               <div class="small muted">{{ T.judge0_note }}</div>
             </div>
           </div>
@@ -1125,39 +1134,10 @@
   }
 
   function setContentMode(moduleType){
-    const taskPane = qs("taskPane");
-    const editorPane = qs("editorPane");
-    const resizer = qs("contentResizer");
-
-    taskPane.style.width = "";
-    taskPane.style.maxWidth = "";
-    taskPane.style.display = "block";
-    editorPane.style.display = "block";
-    editorPane.style.paddingLeft = "10px";
-    editorPane.style.maxWidth = "";
-    editorPane.style.margin = "";
-    resizer.style.display = "block";
-
-    if (moduleType === "theory_material"){
-      resizer.style.display = "none";
-      editorPane.style.display = "none";
-      taskPane.style.width = "100%";
-      taskPane.style.maxWidth = "100%";
-    } else if (moduleType === "theory_quiz"){
-      resizer.style.display = "none";
-      taskPane.style.display = "none";
-      editorPane.style.display = "block";
-      editorPane.style.paddingLeft = "0";
-      editorPane.style.maxWidth = "960px";
-      editorPane.style.margin = "0 auto";
-    } else if (moduleType === "game"){
-      resizer.style.display = "none";
-      taskPane.style.display = "none";
-      editorPane.style.display = "block";
-      editorPane.style.paddingLeft = "0";
-      editorPane.style.maxWidth = "1180px";
-      editorPane.style.margin = "0 auto";
-    }
+    const split = qs("studentWorkspace").querySelector(".contentSplit");
+    split.dataset.mode = ["theory_material", "theory_quiz", "game"].includes(moduleType) ? moduleType : "coding_task";
+    // Clear only a manually resized coding split when changing module type.
+    qs("taskPane").style.removeProperty("width");
   }
 
   {% include "core/_learning_renderers.html" %}
@@ -1186,6 +1166,7 @@
     const max = opts.max ?? 600;
 
     resizerEl.addEventListener("mousedown", (e) => {
+      if (getComputedStyle(resizerEl).display === "none") return;
       dragging = true;
       document.body.style.userSelect = "none";
       e.preventDefault();
@@ -1211,6 +1192,7 @@
     let dragging = false;
 
     resizerEl.addEventListener("mousedown", (e) => {
+      if (getComputedStyle(resizerEl).display === "none") return;
       dragging = true;
       document.body.style.userSelect = "none";
       e.preventDefault();
@@ -1966,7 +1948,10 @@
       btn.textContent = `${t.position}. ${t.title}`;
       btn.appendChild(badge);
 
-      btn.onclick = () => openTask(t.id, t.module_type || "coding_task", btn);
+      btn.onclick = async () => {
+        await openTask(t.id, t.module_type || "coding_task", btn);
+        document.dispatchEvent(new Event("student-module-selected"));
+      };
       list.appendChild(btn);
     });
   }

@@ -33,7 +33,7 @@
   </style>
   {% include "core/_theme_support.html" %}
 </head>
-<body>
+<body class="student-exams">
 <header class="topbar">
   <div><div class="brand">{{ T.exam_practice }}</div><div class="account-line">{{ request.session.student_name }}{% if not request.session.guest_lease_token %} | <a href="/student/change-pin/">{{ T.change_pin }}</a>{% endif %}</div></div>
   <div class="actions">
