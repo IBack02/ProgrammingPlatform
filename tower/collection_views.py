@@ -16,6 +16,7 @@ from .models import (CharacterSetEntitlement, CharacterSetPublication, CosmeticD
 from .permissions import tower_student_required
 from .collection_security import collection_unlocked_required
 from .asset_delivery import asset_url
+from .ui_corners import presentation_asset_path
 from .services.collection import COLORS, SHAPES, buy_cosmetic, exchange_fragments, open_pack, save_avatar, set_favorite
 from .services.wallet import WalletError
 from .services.appearance import SELECTION_SLOTS, appearance_context, save_appearance
@@ -46,7 +47,7 @@ def journal_context(request):
         grant = getattr(entitlement, "fulfilment", None)
         set_version = publications.get(card["id"]) or (grant.version if grant else None)
         components = [{"id": component["id"], "label": component["labels"].get(language, component["id"]),
-                       "url": asset_url(component["asset"]["path"]), "placeholder": component.get("placeholder", False)}
+                       "url": asset_url(presentation_asset_path(card["id"], component["slot"], component["asset"]["path"])), "placeholder": component.get("placeholder", False)}
                       for component in set_version.config["components"].values()] if set_version else []
         cards.append({**card, "fragments": fragments, "required": definition.required_fragments,
             "state": "collected" if assembled else "collecting" if fragments else "undiscovered",

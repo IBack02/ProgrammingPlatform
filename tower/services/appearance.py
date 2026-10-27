@@ -5,6 +5,7 @@ from tower.avatar_geometry import place_attachment
 from tower.character_contracts import SetComponent, load_avatar_geometry
 from tower.models import PlayerCosmetic
 from tower.asset_delivery import asset_url
+from tower.ui_corners import presentation_asset_path
 from .collection import COLORS, SHAPES
 from .wallet import WalletError, _locked_wallet
 
@@ -47,7 +48,7 @@ def item_presentation(item, language="en"):
     if item.acquisition != "character_set":
         return result
     component = SetComponent.model_validate(item.appearance)
-    result.update(url=asset_url(component.asset.path), placeholder=component.placeholder,
+    result.update(url=asset_url(presentation_asset_path(item.set_version.hero_id, item.slot, component.asset.path)), placeholder=component.placeholder,
                   hero_id=item.set_version.hero_id, hero_name=item.set_version.hero.name,
                   animation=component.animation)
     if component.attachment:

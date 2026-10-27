@@ -1,0 +1,65 @@
+{
+  "schema_version": 1,
+  "corners": {
+    "nis-coder": {
+      "path": "sets/nis-coder/v1/ui-corner.svg",
+      "width": 128,
+      "height": 128
+    },
+    "nis-artist": {
+      "path": "sets/nis-artist/v1/ui-corner.svg",
+      "width": 128,
+      "height": 128
+    },
+    "nis-astronomer": {
+      "path": "sets/nis-astronomer/v1/ui-corner.svg",
+      "width": 128,
+      "height": 128
+    },
+    "nis-biologist": {
+      "path": "sets/nis-biologist/v1/ui-corner.svg",
+      "width": 128,
+      "height": 128
+    },
+    "nis-chemist": {
+      "path": "sets/nis-chemist/v1/ui-corner.svg",
+      "width": 128,
+      "height": 128
+    },
+    "nis-chessplayer": {
+      "path": "sets/nis-chessplayer/v1/ui-corner.svg",
+      "width": 128,
+      "height": 128
+    },
+    "nis-debater": {
+      "path": "sets/nis-debater/v1/ui-corner.svg",
+      "width": 128,
+      "height": 128
+    },
+    "nis-inventor": {
+      "path": "sets/nis-inventor/v1/ui-corner.svg",
+      "width": 128,
+      "height": 128
+    },
+    "nis-mathematician": {
+      "path": "sets/nis-mathematician/v1/ui-corner.svg",
+      "width": 128,
+      "height": 128
+    },
+    "nis-musician": {
+      "path": "sets/nis-musician/v1/ui-corner.svg",
+      "width": 128,
+      "height": 128
+    },
+    "nis-physicist": {
+      "path": "sets/nis-physicist/v1/ui-corner.svg",
+      "width": 128,
+      "height": 128
+    },
+    "nis-roboticist": {
+      "path": "sets/nis-roboticist/v1/ui-corner.svg",
+      "width": 128,
+      "height": 128
+    }
+  }
+}

@@ -1,0 +1,81 @@
+{
+  "bucket": "dbug-tower-assets",
+  "public_base": "https://pub-d45cf87f435a45e1b45efc0397382c5d.r2.dev",
+  "files": 12,
+  "verified_at_utc": "2026-10-27T15:57:01.093668+00:00",
+  "verification": "Public bytes, length and SHA-256 verified",
+  "assets": [
+    {
+      "path": "sets/nis-artist/v1/ui-corner.svg",
+      "key": "tower/bb7d5a0c37365176adafdc3dfb8b73e7f381baa18b9f7d644c944fd0105bd4b8/sets/nis-artist/v1/ui-corner.svg",
+      "sha256": "bb7d5a0c37365176adafdc3dfb8b73e7f381baa18b9f7d644c944fd0105bd4b8",
+      "content_type": "image/svg+xml"
+    },
+    {
+      "path": "sets/nis-astronomer/v1/ui-corner.svg",
+      "key": "tower/34cfc3c4792b5de9b6fc859e4e882c5c57bc00d9ac642eedf6eb36dfd2c914da/sets/nis-astronomer/v1/ui-corner.svg",
+      "sha256": "34cfc3c4792b5de9b6fc859e4e882c5c57bc00d9ac642eedf6eb36dfd2c914da",
+      "content_type": "image/svg+xml"
+    },
+    {
+      "path": "sets/nis-biologist/v1/ui-corner.svg",
+      "key": "tower/d50dcb00ba2cbbe864514e1639182b6213875af50b6e15c6872a4210ed765a91/sets/nis-biologist/v1/ui-corner.svg",
+      "sha256": "d50dcb00ba2cbbe864514e1639182b6213875af50b6e15c6872a4210ed765a91",
+      "content_type": "image/svg+xml"
+    },
+    {
+      "path": "sets/nis-chemist/v1/ui-corner.svg",
+      "key": "tower/15ceddaaeda35c031fe9a69cee925ce67159e22d3f6ee81132e8c5d3f69952b8/sets/nis-chemist/v1/ui-corner.svg",
+      "sha256": "15ceddaaeda35c031fe9a69cee925ce67159e22d3f6ee81132e8c5d3f69952b8",
+      "content_type": "image/svg+xml"
+    },
+    {
+      "path": "sets/nis-chessplayer/v1/ui-corner.svg",
+      "key": "tower/617b4b6acfb88edb8a22bd837ec7e9a07752e6838faf000c5d5d9387fc5388c7/sets/nis-chessplayer/v1/ui-corner.svg",
+      "sha256": "617b4b6acfb88edb8a22bd837ec7e9a07752e6838faf000c5d5d9387fc5388c7",
+      "content_type": "image/svg+xml"
+    },
+    {
+      "path": "sets/nis-coder/v1/ui-corner.svg",
+      "key": "tower/f44a9c8ad80e2ed4d4723bf4a70e02da9b79fbc0dd0abb1d51d93edae727825d/sets/nis-coder/v1/ui-corner.svg",
+      "sha256": "f44a9c8ad80e2ed4d4723bf4a70e02da9b79fbc0dd0abb1d51d93edae727825d",
+      "content_type": "image/svg+xml"
+    },
+    {
+      "path": "sets/nis-debater/v1/ui-corner.svg",
+      "key": "tower/8472ef75ee0becef8e2fa703c10dded7e669f42b6e28359b146560a218ceeaeb/sets/nis-debater/v1/ui-corner.svg",
+      "sha256": "8472ef75ee0becef8e2fa703c10dded7e669f42b6e28359b146560a218ceeaeb",
+      "content_type": "image/svg+xml"
+    },
+    {
+      "path": "sets/nis-inventor/v1/ui-corner.svg",
+      "key": "tower/d1cbe4d772a3d94b9ac4ad0510026832937f4cc7df5f73e9e5b0af895a571659/sets/nis-inventor/v1/ui-corner.svg",
+      "sha256": "d1cbe4d772a3d94b9ac4ad0510026832937f4cc7df5f73e9e5b0af895a571659",
+      "content_type": "image/svg+xml"
+    },
+    {
+      "path": "sets/nis-mathematician/v1/ui-corner.svg",
+      "key": "tower/1cdc819e4b804ccbbfdd8e62fa8eb87ffade7c86814989525b6c46be5ad4e0e4/sets/nis-mathematician/v1/ui-corner.svg",
+      "sha256": "1cdc819e4b804ccbbfdd8e62fa8eb87ffade7c86814989525b6c46be5ad4e0e4",
+      "content_type": "image/svg+xml"
+    },
+    {
+      "path": "sets/nis-musician/v1/ui-corner.svg",
+      "key": "tower/584b477793ef4641bdc77c60a09281b53916004540caa88c7550bb3bb1cb04d7/sets/nis-musician/v1/ui-corner.svg",
+      "sha256": "584b477793ef4641bdc77c60a09281b53916004540caa88c7550bb3bb1cb04d7",
+      "content_type": "image/svg+xml"
+    },
+    {
+      "path": "sets/nis-physicist/v1/ui-corner.svg",
+      "key": "tower/1e69b2c1daa79b4ef7e6765f03228db1dd371d5dd106cec55142fdd2eff637cf/sets/nis-physicist/v1/ui-corner.svg",
+      "sha256": "1e69b2c1daa79b4ef7e6765f03228db1dd371d5dd106cec55142fdd2eff637cf",
+      "content_type": "image/svg+xml"
+    },
+    {
+      "path": "sets/nis-roboticist/v1/ui-corner.svg",
+      "key": "tower/f6b58ed36e83d16502e5fe3dac2c1b47035d81033481fd5f68b4ddd7a6ec98b2/sets/nis-roboticist/v1/ui-corner.svg",
+      "sha256": "f6b58ed36e83d16502e5fe3dac2c1b47035d81033481fd5f68b4ddd7a6ec98b2",
+      "content_type": "image/svg+xml"
+    }
+  ]
+}

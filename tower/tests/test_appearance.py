@@ -171,3 +171,33 @@ class AppearanceTests(WalletFixtures, TestCase):
         grant_character_set(player=self.player, hero=card.hero)
         self.player.refresh_from_db()
         self.assertEqual(appearance_context(self.player)["values"], values)
+
+    def test_corner_variant_preserves_owned_item_and_published_art(self):
+        save_appearance(student=self.student, **self.payload())
+        self.player.refresh_from_db()
+        item = self.player.cosmetics.select_related("cosmetic").get(cosmetic_id="nis-artist-ui-decoration").cosmetic
+        original = item.appearance["asset"]["path"]
+        selected = appearance_context(self.player)["selected"]["ui_decoration"]
+        self.assertEqual(selected["id"], item.pk)
+        self.assertIn("ui-corner", selected["url"])
+        item.refresh_from_db()
+        self.assertEqual(item.appearance["asset"]["path"], original)
+
+    def test_tournament_and_wonder_payloads_keep_participant_equipment(self):
+        from core.game_views import _tournament_round_data, _wonder_round_data
+        from core.models import TournamentMatch
+        save_appearance(student=self.student, **self.payload())
+        avatar = saved_avatar(self.student)
+        lesson = Session.objects.create(title="Avatar modes", author=self.teacher, status="running")
+        for index, rubric in enumerate(("tournament", "wonder_field"), 1):
+            module = GameModule.objects.create(session=lesson, position=index, title=rubric, rubric=rubric)
+            rnd = GameRound.objects.create(module=module, class_group=self.group, moderator=self.teacher,
+                run_number=1, status="running", turn_order=[self.student.pk], prompt_snapshot=[])
+            participant = GameParticipant.objects.create(round=rnd, student=self.student, **avatar)
+            if rubric == "tournament":
+                TournamentMatch.objects.create(round=rnd, stage_number=1, match_number=1, player_one=participant)
+                row = _tournament_round_data(rnd)["tournament_matches"][0]["player_one"]
+            else:
+                row = _wonder_round_data(rnd)["turn_order"][0]
+            self.assertEqual(row["avatar_shape"], avatar["avatar_shape"])
+            self.assertEqual(row["avatar_accessories"], avatar["avatar_accessories"])

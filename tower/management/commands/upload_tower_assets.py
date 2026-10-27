@@ -10,7 +10,8 @@ from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
 
 from tower.asset_delivery import asset_key, public_base_url, validated_asset_path
-from tower.character_assets import inspect_set
+from tower.character_assets import inspect_asset, inspect_set
+from tower.ui_corners import corner_assets
 from tower.character_contracts import load_character_sets
 
 
@@ -21,6 +22,9 @@ def upload_inventory():
         paths.update(component.asset.path for component in entry.components.values())
     cards = json.loads((Path(__file__).resolve().parents[2] / "content/cards.json").read_text(encoding="utf-8"))
     paths.update(rarity["frame"].removeprefix("tower/") for rarity in cards["rarities"].values())
+    for asset in corner_assets().values():
+        inspect_asset(asset)
+        paths.add(asset.path)
     return [{"path": path, "local": validated_asset_path(path), "key": asset_key(path),
              "sha256": hashlib.sha256(validated_asset_path(path).read_bytes()).hexdigest(),
              "content_type": {".png": "image/png", ".webp": "image/webp", ".svg": "image/svg+xml"}[Path(path).suffix]} for path in sorted(paths)]

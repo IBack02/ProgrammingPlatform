@@ -16,7 +16,7 @@ from tower.set_preview_views import preview_context
 class AssetDeliveryTests(SimpleTestCase):
     def test_all_published_assets_and_frames_get_content_addressed_https_urls(self):
         rows = upload_inventory()
-        self.assertEqual(len(rows), 76)
+        self.assertEqual(len(rows), 88)
         for row in rows:
             url = asset_url(row["path"])
             self.assertEqual(url, f'https://assets.example.com/tower/{row["sha256"]}/{row["path"]}')
@@ -44,7 +44,7 @@ class AssetDeliveryTests(SimpleTestCase):
     def test_dry_run_never_uploads_or_makes_network_requests(self, session, boto):
         output = io.StringIO()
         call_command("upload_tower_assets", stdout=output)
-        self.assertIn("76 files", output.getvalue())
+        self.assertIn("88 files", output.getvalue())
         boto.assert_not_called()
         session.assert_not_called()
 

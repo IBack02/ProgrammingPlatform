@@ -18,6 +18,7 @@
     const accessories = {...draft.selections};
     accessories._set_items = [chosen.head?.attachment, chosen.prop?.attachment].filter(Boolean);
     document.getElementById("appearance-avatar").innerHTML = gameAvatarHtml({avatar_shape: draft.shape, avatar_color: draft.color, avatar_accessories: accessories});
+    animateGameAvatars(document.getElementById("appearance-avatar"));
     const stage = document.getElementById("appearance-stage");
     stage.dataset.theme = draft.theme;
     stage.style.backgroundImage = chosen.background?.url ? `url("${chosen.background.url}")` : "";

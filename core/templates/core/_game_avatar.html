@@ -12,9 +12,14 @@
   .gameEye.left{left:8px}
   .gameEye.right{right:8px}
   .gameEye:after{content:"";position:absolute;width:5px;height:5px;background:#0f172a;border-radius:50%;left:3px;top:4px;transform:translateX(var(--gaze-x,-2px))}
-  .gameAvatar.blinking .gameEye{animation:gameBlink .18s ease-in-out}
-  @keyframes gameBlink{0%,100%{transform:scaleY(1)}50%{transform:scaleY(.08)}}
-  @media(prefers-reduced-motion:reduce){.gameEye:after{transform:none}.gameAvatar.blinking .gameEye{animation:none}}
+  .gameAvatar[data-animated] .gameEye:after{animation:gameGaze var(--gaze-period) steps(1,end) infinite;animation-delay:var(--gaze-delay)}
+  .gameAvatar[data-animated] .gameEye{animation:gameBlink var(--blink-period) linear infinite;animation-delay:var(--blink-delay)}
+  @keyframes gameGaze{0%,100%{transform:translateX(-2px)}50%{transform:translateX(2px)}}
+  @keyframes gameBlink{0%,97.8%,100%{transform:scaleY(1)}98.9%{transform:scaleY(.08)}}
+  .gamePlayerIdentity{display:inline-flex;align-items:center;gap:8px;min-width:0}.gamePlayerName{min-width:0;overflow:hidden;text-overflow:ellipsis}.gameAvatarPortrait{display:inline-grid;place-items:center;width:34px;height:34px;flex:none;position:relative}.gameAvatarPortrait>.gameAvatar{transform:scale(.64);transform-origin:center}
+  .tournamentPlayer .gameAvatarPortrait,.tournament-player .gameAvatarPortrait{width:24px;height:24px}.tournamentPlayer .gameAvatarPortrait>.gameAvatar,.tournament-player .gameAvatarPortrait>.gameAvatar{transform:scale(.48)}.tournamentPlayer .gamePlayerName,.tournament-player .gamePlayerName{white-space:nowrap}
+  .gameDuelScore{display:flex;align-items:center;justify-content:center;gap:18px;flex-wrap:wrap;padding:12px 8px}.gameDuelScore>.gamePlayerIdentity{max-width:40%;font-size:14px}.gameDuelScore .gamePlayerName{white-space:normal}.gameDuelNumbers{font-variant-numeric:tabular-nums;white-space:nowrap}.gameCurrentResponder{display:flex;align-items:center;justify-content:center;gap:12px;margin:12px 0}.gameCurrentResponder .gameAvatarPortrait{width:54px;height:54px}.gameCurrentResponder .gameAvatarPortrait>.gameAvatar{transform:scale(1)}
+  @media(prefers-reduced-motion:reduce){.gameAvatar[data-animated] .gameEye:after,.gameAvatar[data-animated] .gameEye{animation:none}.gameEye:after{transform:none}}
 </style>
 <script>
   function gameAvatarHtml(player){
@@ -32,28 +37,36 @@
         `<image href="${escapeHtml(item.url)}" width="${Number(item.width)}" height="${Number(item.height)}" transform="${escapeHtml(item.matrices[player.avatar_shape])}"/>`).join("");
       return content ? `<svg class="tower-set-attachments tower-set-attachments--${layer}" viewBox="0 0 100 100" aria-hidden="true">${content}</svg>` : "";
     };
-    return `<div class="gameAvatar" style="--runner-color:${escapeHtml(player.avatar_color)}">${attachments("behind")}<div class="gameAvatarBody ${escapeHtml(player.avatar_shape)}"></div><span class="gameEye left"></span><span class="gameEye right"></span>${accessories}${attachments("front")}</div>`;
+    const motionKey = player.student_id ?? player.id ?? `${player.avatar_shape}:${player.avatar_color}`;
+    return `<div class="gameAvatar" data-motion-key="${escapeHtml(String(motionKey))}" style="--runner-color:${escapeHtml(player.avatar_color)}">${attachments("behind")}<div class="gameAvatarBody ${escapeHtml(player.avatar_shape)}"></div><span class="gameEye left"></span><span class="gameEye right"></span>${accessories}${attachments("front")}</div>`;
   }
 
   function animateGameAvatars(container){
     container.querySelectorAll(".gameAvatar:not([data-animated])").forEach(avatar => {
       avatar.dataset.animated = "true";
-      let lookingLeft = true;
-      function changeGaze(){
-        if (!avatar.isConnected) return;
-        lookingLeft = !lookingLeft;
-        avatar.style.setProperty("--gaze-x", lookingLeft ? "-2px" : "2px");
-        // Pick a new hold duration each time so participants do not move in unison.
-        setTimeout(changeGaze, 2700 + Math.random() * 300);
-      }
-      function blink(){
-        if (!avatar.isConnected) return;
-        avatar.classList.add("blinking");
-        setTimeout(() => avatar.classList.remove("blinking"), 180);
-        setTimeout(blink, 8000 + Math.random() * 1000);
-      }
-      setTimeout(changeGaze, 2700 + Math.random() * 300);
-      setTimeout(blink, 8000 + Math.random() * 1000);
+      let seed = 0;
+      for (const char of avatar.dataset.motionKey || "avatar") seed = (Math.imul(seed, 31) + char.charCodeAt(0)) >>> 0;
+      seed = Math.imul(seed ^ (seed >>> 16), 0x7feb352d) >>> 0;
+      seed = Math.imul(seed ^ (seed >>> 15), 0x846ca68b) >>> 0;
+      seed = (seed ^ (seed >>> 16)) >>> 0;
+      const gazePeriod = 5400 + seed % 601, blinkPeriod = 8000 + seed % 1001;
+      // Negative delays retain the participant's phase even when live polling replaces nodes.
+      const now = performance.now() + seed;
+      avatar.style.setProperty("--gaze-period", `${gazePeriod}ms`);
+      avatar.style.setProperty("--gaze-delay", `${-(now % gazePeriod)}ms`);
+      avatar.style.setProperty("--blink-period", `${blinkPeriod}ms`);
+      avatar.style.setProperty("--blink-delay", `${-(now % blinkPeriod)}ms`);
     });
+  }
+
+  function gameParticipantLabelHtml(player, fallback="—"){
+    if (!player) return `<span class="gamePlayerName">${escapeHtml(fallback)}</span>`;
+    return `<span class="gamePlayerIdentity"><span class="gameAvatarPortrait" aria-hidden="true">${gameAvatarHtml(player)}</span><span class="gamePlayerName">${escapeHtml(player.student_name || fallback)}</span></span>`;
+  }
+
+  function renderGameDuelScore(container, match){
+    container.classList.add("gameDuelScore");
+    container.innerHTML = `${gameParticipantLabelHtml(match.player_one)}<strong class="gameDuelNumbers">${Number(match.score_one)} : ${Number(match.score_two)}</strong>${gameParticipantLabelHtml(match.player_two)}`;
+    animateGameAvatars(container);
   }
 </script>

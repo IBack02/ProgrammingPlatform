@@ -23,7 +23,7 @@ class CharacterArtTests(SimpleTestCase):
     def test_two_complete_pilot_sets_have_verified_files_including_explicit_placeholders(self):
         manifest = release_manifest()
         self.assertEqual({entry["hero_id"] for entry in manifest["sets"]}, set(PREVIEW_HEROES))
-        self.assertEqual(sum(len(entry["assets"]) for entry in manifest["sets"]), 12)
+        self.assertEqual(sum(len(entry["assets"]) for entry in manifest["sets"]), 14)
         for entry in manifest["sets"]:
             for asset in entry["assets"]:
                 self.assertGreater(asset["bytes"], 100)
@@ -53,7 +53,7 @@ class CharacterArtTests(SimpleTestCase):
             call_command("prepare_character_assets", archive=path, stdout=io.StringIO())
             with ZipFile(path) as archive:
                 manifest = json.loads(archive.read("manifest.json"))
-                self.assertEqual(len(archive.namelist()), 13)
+                self.assertEqual(len(archive.namelist()), 15)
                 for entry in manifest["sets"]:
                     for asset in entry["assets"]:
                         self.assertEqual(archive.read(asset["path"]), (ASSET_ROOT / asset["path"]).read_bytes())

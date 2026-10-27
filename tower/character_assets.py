@@ -53,6 +53,7 @@ def inspect_set(entry, *, root=ASSET_ROOT):
 
 
 def release_manifest(hero_ids=PREVIEW_HEROES):
+    from .ui_corners import corner_assets
     catalog = load_character_sets()
     profiles = load_behavior_profiles()
     profiles.check_references(catalog)
@@ -61,7 +62,8 @@ def release_manifest(hero_ids=PREVIEW_HEROES):
     if {entry.hero_id for entry in entries} != requested:
         raise ValueError("Unknown character requested for packaging.")
     return {"schema_version": 1, "sets": [{"hero_id": entry.hero_id, "revision": entry.revision,
-            "assets": inspect_set(entry)} for entry in entries]}
+            "assets": inspect_set(entry) + ([{**inspect_asset(corner_assets()[entry.hero_id]), "slot": "ui_decoration_corner", "placeholder": False}]
+                if entry.hero_id in corner_assets() else [])} for entry in entries]}
 
 
 def verify_public_assets(base_url, manifest, *, session=None):
