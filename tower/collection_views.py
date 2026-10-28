@@ -17,7 +17,7 @@ from .permissions import tower_student_required
 from .collection_security import collection_unlocked_required
 from .asset_delivery import asset_url
 from .ui_corners import presentation_asset_path
-from .services.collection import COLORS, SHAPES, buy_cosmetic, exchange_fragments, open_pack, save_avatar, set_favorite
+from .services.collection import COLORS, SHAPES, buy_cosmetic, exchange_fragments, legendary_chance, open_pack, save_avatar, set_favorite
 from .services.wallet import WalletError
 from .services.appearance import SELECTION_SLOTS, appearance_context, save_appearance
 from .wallet_views import positive_id, student_wallet_context, wallet_errors
@@ -67,6 +67,13 @@ def journal_context(request):
             "chances": [{"label": rarity["label"], "weight": config["weights"][rarity["id"]], "id": rarity["id"]} for rarity in catalog["rarities"]],
             "remaining": max(0, config["pity_after"] - player.pack_misses),
             "guaranteed": player.pack_misses >= config["pity_after"]}
+        chance = legendary_chance(config, player.pack_cycle_position)
+        if chance is not None:
+            total = sum(config["weights"].values())
+            pack.update(legendary_chance=chance / 100, cycle_pack=player.pack_cycle_position + 1,
+                cycle_length=len(config["legendary_cycle_bps"]),
+                chances=[{"label": rarity["label"], "weight": round(100 * config["weights"][rarity["id"]] / total, 2),
+                          "id": rarity["id"]} for rarity in catalog["rarities"] if rarity["id"] != "legendary"])
     openings = player.pack_openings.select_related("version")
     before_opening = positive_id(request.GET.get("openings_before"), optional=True)
     history = list((openings.filter(pk__lt=before_opening) if before_opening else openings)[:11])

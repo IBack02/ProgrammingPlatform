@@ -2,7 +2,6 @@
 {{ tower_appearance.selected|json_script:'tower-equipped-data' }}
 <footer class="tower-personal-strip" id="tower-personal-strip" data-player="{{ tower_appearance_player }}">
   <a href="{% url 'tower:home' %}?tab=appearance" class="tower-appearance-link">{{ T.journal_change_appearance }}</a>
-  <span class="tower-request-status" id="tower-request-status" role="status" hidden>{% if tower_appearance.selected.ui_loader %}<img src="{{ tower_appearance.selected.ui_loader.url }}" data-animation="{{ tower_appearance.selected.ui_loader.animation }}" alt="">{% endif %}<span>{{ T.journal_loading }}</span></span>
   {% if tower_appearance.selected.companion %}
   <details class="tower-companion" id="tower-companion" data-generation-enabled="{{ tower_companion_enabled|yesno:'true,false' }}">
     <summary>{{ tower_appearance.selected.companion.hero_name }} · {{ T.journal_companion }}<span class="companion-ready" id="companion-ready" hidden aria-label="{{ T.journal_companion_ready }}">!</span></summary>

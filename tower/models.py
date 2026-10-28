@@ -35,6 +35,7 @@ class TowerPlayer(models.Model):
     student = models.OneToOneField("core.Student", on_delete=models.PROTECT, related_name="tower_player")
     created_at = models.DateTimeField(auto_now_add=True)
     pack_misses = models.PositiveSmallIntegerField(default=0)
+    pack_cycle_position = models.PositiveSmallIntegerField(default=0)
     avatar_shape = models.CharField(max_length=16, default="square")
     avatar_color = models.CharField(max_length=7, default="#3b82f6")
     avatar_accessories = models.JSONField(default=dict, blank=True)

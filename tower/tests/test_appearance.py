@@ -153,6 +153,17 @@ class AppearanceTests(WalletFixtures, TestCase):
                 self.assertContains(response, "tower-has-background")
                 self.assertContains(response, "tower-has-decoration")
                 self.assertNotContains(response, 'class="tower-motif"')
+                self.assertContains(response, 'data-student-loader')
+                self.assertContains(response, 'data-animation="rotate"')
+                self.assertContains(response, 'data-image="')
+
+    def test_default_loader_without_selected_items_or_tower_access(self):
+        client = self.account_client(self.other_student)
+        for enabled in (True, False):
+            with override_settings(TOWER_ENABLED=enabled):
+                response = client.get(reverse("student_portal_page"))
+                self.assertContains(response, 'data-student-loader')
+                self.assertNotContains(response, 'data-image=')
 
     def test_global_background_on_journal_password_and_account_pages(self):
         save_appearance(student=self.student, **self.payload())

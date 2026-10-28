@@ -1,0 +1,8 @@
+.student-page-loading{position:fixed;right:16px;bottom:16px;z-index:10000;display:flex;align-items:center;gap:10px;box-sizing:border-box;max-width:calc(100vw - 32px);padding:10px 15px;border:1px solid #9bb0c866;border-radius:14px;background:#f5f8fcee;color:#1b3045;box-shadow:0 4px 22px #102a4326;font:600 13px/1.4 Arial,sans-serif;pointer-events:none;overflow-wrap:anywhere}
+.student-page-loading[hidden],.student-page-loading [hidden]{display:none!important}
+.student-page-loading img{width:36px;height:36px;object-fit:contain;flex:none}.student-page-loading img[data-animation=rotate]{animation:studentPageSpin 1.7s linear infinite}
+.student-page-loading__default{box-sizing:border-box;width:26px;height:26px;flex:none;border:3px solid #b6d4e7;border-top-color:#237cb0;border-radius:50%;animation:studentPageSpin 1s linear infinite}
+html[data-theme=dark] .student-page-loading{background:#14273aee;color:#edf5ff;border-color:#57789988}
+@keyframes studentPageSpin{to{transform:rotate(360deg)}}
+@media(max-width:520px){.student-page-loading{right:12px;bottom:max(12px,env(safe-area-inset-bottom));max-width:calc(100vw - 24px)}}
+@media(prefers-reduced-motion:reduce){.student-page-loading img[data-animation],.student-page-loading__default{animation:none}}

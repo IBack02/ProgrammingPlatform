@@ -17,18 +17,4 @@
     new MutationObserver(quiet).observe(document.body, {attributes: true, attributeFilter: ["class"]});
     quiet();
   }
-  const status = document.getElementById("tower-request-status");
-  const originalFetch = window.fetch;
-  let pending = 0;
-  // Ignore background polling and timed games; only foreground learning requests use the loader.
-  window.fetch = async function(input, options) {
-    let foreground = false;
-    try {
-      const url = new URL(typeof input === "string" || input instanceof URL ? input : input.url, location.href);
-      foreground = url.origin === location.origin && /^\/api\/student\/(?:task\/\d+(?:\/submit|\/hint\/\d+)?|theory-module\/\d+|theory-quiz\/\d+(?:\/submit)?|dashboard)\/?$/.test(url.pathname);
-    } catch (_) {}
-    if (foreground) { pending += 1; status.hidden = false; }
-    try { return await originalFetch.call(this, input, options); }
-    finally { if (foreground) { pending -= 1; status.hidden = pending === 0; } }
-  };
 })();

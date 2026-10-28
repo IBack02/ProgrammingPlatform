@@ -199,3 +199,34 @@ for _lang, _labels in {
            "set_chibi_placeholder": "Temporary chibi placeholder"},
 }.items():
     JOURNAL_TEXT[_lang].update(_labels)
+
+for _lang, _labels in {
+    "ru": {
+        "pack_contents": "Три выпадения: по 2 фрагмента обычного, редкого или эпического персонажа, либо 1 легендарный фрагмент. Эпическому персонажу нужно 6 фрагментов, легендарному — 1.",
+        "legendary_pack_chance": "Шанс легендарного фрагмента в следующем паке",
+        "cycle_pack": "Пак цикла",
+        "pack_slots": "выпадения",
+        "overflow_hint": "Обычному и редкому персонажу нужно 10 фрагментов, эпическому — 6, легендарному — 1. Каждый лишний фрагмент превращается в 1 универсальный осколок. Осколки можно обменять на нужные фрагменты в коллекции.",
+        "odds_hint": "Таблица показывает шансы обычных слотов без легендарного выпадения и гарантии редкого+. Легендарный фрагмент проверяется один раз на весь пак и заменяет один случайный слот.",
+        "pity_hint": "Шанс легендарного фрагмента плавно растёт с 0,6% на первом паке до 5% на десятом. После десятого пака цикл начинается заново с 0,6%, независимо от выпадений. После 4 паков подряд только с обычными фрагментами первый слот следующего — редкий или эпический (22:7); это не увеличивает шанс легендарного фрагмента.",
+    },
+    "kk": {
+        "pack_contents": "Үш түсім: кәдімгі, сирек не эпикалық кейіпкердің 2 бөлігі немесе 1 аңыз бөлігі. Эпикалық кейіпкерге 6 бөлік, аңыз кейіпкеріне 1 бөлік қажет.",
+        "legendary_pack_chance": "Келесі пакта аңыз бөлігінің түсу ықтималдығы",
+        "cycle_pack": "Цикл пағы",
+        "pack_slots": "түсім",
+        "overflow_hint": "Кәдімгі және сирек кейіпкерге 10 бөлік, эпикалыққа 6, аңыз кейіпкеріне 1 бөлік қажет. Әр артық бөлік 1 әмбебап сыныққа айналады. Сынықтарды қажетті бөліктерге айырбастауға болады.",
+        "odds_hint": "Кестеде аңыз түсімі мен сирек+ кепілдігінсіз слоттардың ықтималдығы берілген. Аңыз бөлігі бүкіл пак үшін бір рет тексеріліп, бір кездейсоқ слотты алмастырады.",
+        "pity_hint": "Аңыз бөлігінің ықтималдығы бірінші пактағы 0,6%-дан оныншы пакта 5%-ға дейін өседі. Оныншы пактан кейін, нәтижеге қарамастан, цикл 0,6%-дан қайта басталады. Қатарынан 4 пакта тек кәдімгі бөліктер түссе, келесі пактың бірінші слоты сирек не эпикалық болады (22:7); бұл аңыз бөлігінің ықтималдығын арттырмайды.",
+    },
+    "en": {
+        "pack_contents": "Three drops: 2 common, rare or epic fragments each, or 1 legendary fragment. Epic characters require 6 fragments; legendary characters require 1.",
+        "legendary_pack_chance": "Legendary fragment chance in the next pack",
+        "cycle_pack": "Cycle pack",
+        "pack_slots": "drops",
+        "overflow_hint": "Common and rare characters require 10 fragments, epic characters 6, and legendary characters 1. Each surplus fragment becomes 1 universal shard. Exchange shards for specific fragments in your collection.",
+        "odds_hint": "The table shows ordinary slot odds without a legendary drop or rare+ protection. A legendary roll is made once per pack and replaces one random slot.",
+        "pity_hint": "The legendary chance rises from 0.6% on pack one to 5% on pack ten. After pack ten it resets to 0.6%, regardless of drops. After 4 common-only packs, the next pack's first slot is rare or epic (22:7); this does not increase the legendary chance.",
+    },
+}.items():
+    JOURNAL_TEXT[_lang].update(_labels)

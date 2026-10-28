@@ -1,7 +1,8 @@
 {
   "offer": "school",
-  "version": "school-v1",
-  "pack": {"price": 50, "slots": 3, "fragments_per_slot": 2, "weights": {"common": 70, "rare": 22, "epic": 7, "legendary": 1}, "pity_after": 4, "overflow_rate": 1},
+  "version": "school-v2",
+  "required_fragments": {"common": 10, "rare": 10, "epic": 6, "legendary": 1},
+  "pack": {"price": 50, "slots": 3, "fragments_per_slot": 2, "weights": {"common": 70, "rare": 22, "epic": 7, "legendary": 0}, "pity_after": 4, "overflow_rate": 1, "legendary_cycle_bps": [60, 109, 158, 207, 256, 304, 353, 402, 451, 500], "legendary_fragments": 1},
   "shard_costs": {"common": 2, "rare": 4, "epic": 8, "legendary": 16},
   "cosmetics": [
     {"slug": "cap", "slot": "head", "price": 30, "labels": {"ru": "Кепка", "kk": "Кепка", "en": "Cap"}},

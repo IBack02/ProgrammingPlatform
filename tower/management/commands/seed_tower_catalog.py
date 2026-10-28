@@ -18,7 +18,7 @@ class Command(BaseCommand):
         for card in manifest["cards"]:
             HeroDefinition.objects.get_or_create(slug=card["id"], defaults={
                 "name": card["name"], "rarity": card["rarity"], "roles": card["roles"],
-                "portrait": card["portrait"], "required_fragments": 10,
+                "portrait": card["portrait"], "required_fragments": economy["required_fragments"][card["rarity"]],
                 "shard_cost": economy["shard_costs"][card["rarity"]],
             })
         config = {**economy["pack"], "heroes": {rarity: [card["id"] for card in manifest["cards"] if card["rarity"] == rarity] for rarity in manifest["rarities"]}}

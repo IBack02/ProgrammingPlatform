@@ -54,8 +54,9 @@
     <div class="journal-section-heading"><div><h2>{{ T.journal_packs }}</h2><p>{{ T.journal_pack_hint }}</p></div></div>
     {% if pack %}<section class="pack-offer journal-panel">
       <div class="pack-art" aria-hidden="true"><span>NIS</span><b>✦</b><small>COLLECTION</small></div>
-      <div class="pack-offer-copy"><p class="journal-eyebrow">{{ T.journal_school_pack }}</p><h2>{{ pack.slots }} × {{ pack.fragments_per_slot }} {{ T.journal_fragment_unit }}</h2><p>{{ T.journal_pack_contents }}</p>
+      <div class="pack-offer-copy"><p class="journal-eyebrow">{{ T.journal_school_pack }}</p><h2>{{ pack.slots }} {{ T.journal_pack_slots }}</h2><p>{{ T.journal_pack_contents }}</p>
         <p class="pack-guarantee">{% if pack.guaranteed %}{{ T.journal_guaranteed_now }}{% else %}{{ T.journal_guarantee_progress }}: {{ player.pack_misses }}/{{ pack.pity_after }}{% endif %}</p>
+        {% if pack.legendary_cycle_bps %}<p class="pack-guarantee">{{ T.journal_legendary_pack_chance }}: <strong>{{ pack.legendary_chance }}%</strong> · {{ T.journal_cycle_pack }} {{ pack.cycle_pack }}/{{ pack.cycle_length }}</p>{% endif %}
         <form method="post" action="{% url 'tower:student_action' 'pack' %}" data-purchase-form>{% csrf_token %}
           <input type="hidden" name="request_id" value="{{ request_id }}"><input type="hidden" name="offer" value="{{ pack.slug }}"><input type="hidden" name="version" value="{{ pack.version }}">
           <button class="journal-button journal-button--gold" {% if wallet.niscoin < pack.price %}disabled{% endif %}>{{ T.journal_buy_open }} · {{ pack.price }} {{ T.wallet_niscoin }}</button>

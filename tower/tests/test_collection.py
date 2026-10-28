@@ -24,8 +24,14 @@ class CollectionTests(WalletFixtures, TestCase):
         cls.create_accounts()
         call_command("seed_tower_catalog", stdout=io.StringIO())
 
+    def setUp(self):
+        # These legacy fulfilment tests control ordinary slot draws independently.
+        gate = patch("tower.services.collection._legendary_slot", return_value=None)
+        gate.start()
+        self.addCleanup(gate.stop)
+
     def pack(self, **values):
-        return open_pack(student=self.student, offer="school", version="school-v1", request_id=values.get("request_id", uuid.uuid4()))
+        return open_pack(student=self.student, offer="school", version="school-v2", request_id=values.get("request_id", uuid.uuid4()))
 
     def action(self, action, values, client=None):
         return (client or self.account_client()).post(reverse("tower:student_action_api", args=[action]), json.dumps(values), content_type="application/json")
@@ -35,7 +41,7 @@ class CollectionTests(WalletFixtures, TestCase):
 
     def test_catalog_seed_is_idempotent_without_player_rewards(self):
         call_command("seed_tower_catalog", stdout=io.StringIO())
-        self.assertEqual((HeroDefinition.objects.count(), PackVersion.objects.count(), CosmeticDefinition.objects.filter(acquisition="purchase").count()), (12, 1, 7))
+        self.assertEqual((HeroDefinition.objects.count(), PackVersion.objects.count(), CosmeticDefinition.objects.filter(acquisition="purchase").count()), (12, 2, 7))
         self.assertFalse(TowerPlayer.objects.exists())
 
     @patch("tower.services.collection._draw", return_value=("nis-coder", "common"))
@@ -107,7 +113,7 @@ class CollectionTests(WalletFixtures, TestCase):
 
     def test_published_versions_and_receipts_cannot_be_edited(self):
         with self.assertRaises(ValidationError):
-            PackVersion.objects.get().save()
+            PackVersion.objects.get(slug="school-v2").save()
         self.award(amount=50)
         self.pack()
         with self.assertRaises(ValidationError):
@@ -183,7 +189,7 @@ class CollectionTests(WalletFixtures, TestCase):
         page = client.get(reverse("tower:home"))
         self.assertContains(page, 'data-collection-state="undiscovered"', count=12)
         self.assertNotContains(page, 'class="collection-card__portrait"')
-        response = client.post(reverse("tower:student_action", args=["pack"]), {"offer": "school", "version": "school-v1", "request_id": uuid.uuid4()})
+        response = client.post(reverse("tower:student_action", args=["pack"]), {"offer": "school", "version": "school-v2", "request_id": uuid.uuid4()})
         self.assertEqual(response.status_code, 302)
         self.assertContains(client.get(response.url), 'id="pack-result"')
         self.assertEqual(self.account_client(self.other_student).get(response.url).status_code, 404)
@@ -192,7 +198,7 @@ class CollectionTests(WalletFixtures, TestCase):
 
     def test_api_schema_csrf_and_revoked_permissions(self):
         self.award(amount=100)
-        payload = {"offer": "school", "version": "school-v1", "request_id": str(uuid.uuid4())}
+        payload = {"offer": "school", "version": "school-v2", "request_id": str(uuid.uuid4())}
         self.assertEqual(self.action("pack", {**payload, "price": 0}).status_code, 400)
         self.assertEqual(self.action("pack", payload, self.account_client(self.teacher)).status_code, 403)
         csrf_client = self.account_client(csrf=True)
@@ -214,7 +220,7 @@ class CollectionTests(WalletFixtures, TestCase):
     @patch("tower.services.collection.secrets.choice", side_effect=lambda values: values[0])
     def test_draw_boundaries_match_published_weights_even_when_json_key_order_changes(self, choice):
         from tower.services.collection import _draw
-        config = PackVersion.objects.get().config
+        config = PackVersion.objects.get(slug="school-v1").config
         config["weights"] = {key: config["weights"][key] for key in ("rare", "legendary", "common", "epic")}
         for ticket, rarity in [(0,"common"), (69,"common"), (70,"rare"), (91,"rare"), (92,"epic"), (98,"epic"), (99,"legendary")]:
             with patch("tower.services.collection.secrets.randbelow", return_value=ticket):

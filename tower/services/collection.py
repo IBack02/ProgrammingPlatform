@@ -75,6 +75,18 @@ def _grant(player, hero, quantity, operation=None):
     return result
 
 
+def legendary_chance(config, position):
+    """Basis points per pack, independent of rare-slot protection and its outcome."""
+    cycle = config.get("legendary_cycle_bps")
+    return cycle[position % len(cycle)] if cycle else None
+
+
+def _legendary_slot(config, chance):
+    if chance is not None and secrets.randbelow(10000) >= 10000 - chance:
+        return secrets.randbelow(config["slots"])
+    return None
+
+
 @transaction.atomic
 def open_pack(*, student, offer, version, request_id):
     payload = {"offer": _identifier(offer), "version": _identifier(version)}
@@ -95,17 +107,26 @@ def open_pack(*, student, offer, version, request_id):
     player = wallet.player
     before = player.pack_misses
     guaranteed = before >= config["pity_after"]
+    cycle_before = player.pack_cycle_position
+    chance = legendary_chance(config, cycle_before)
+    legendary_slot = _legendary_slot(config, chance)
     drops, rare_found = [], False
     for index in range(config["slots"]):
-        slug, rarity = _draw(config, guaranteed and index == 0)
+        if index == legendary_slot:
+            slug, rarity = secrets.choice(config["heroes"]["legendary"]), "legendary"
+        else:
+            slug, rarity = _draw(config, guaranteed and index == 0)
         hero = HeroDefinition.objects.get(pk=slug)
-        drop = _grant(player, hero, config["fragments_per_slot"], operation=operation)
+        quantity = config.get("legendary_fragments", config["fragments_per_slot"]) if rarity == "legendary" else config["fragments_per_slot"]
+        drop = _grant(player, hero, quantity, operation=operation)
         drop["rarity"] = rarity
         drop["shards"] = drop["overflow"] * config["overflow_rate"]
         drops.append(drop)
         rare_found = rare_found or rarity != "common"
     player.pack_misses = 0 if rare_found else before + 1
-    player.save(update_fields=["pack_misses"])
+    if chance is not None:
+        player.pack_cycle_position = (cycle_before + 1) % len(config["legendary_cycle_bps"])
+    player.save(update_fields=["pack_misses", "pack_cycle_position"])
     surplus = sum(drop["shards"] for drop in drops)
     if surplus:
         _perform(student_id=student.pk, currency=WalletEntry.Currency.SHARDS, delta=surplus,
@@ -113,7 +134,9 @@ def open_pack(*, student, offer, version, request_id):
             actor_scope=f"student:{student.pk}", source=WalletEntry.Source.OVERFLOW, reference=f"pack:{version}")
     opening = PackOpening.objects.create(player=player, operation_id=GameOperation.objects.get(entries__id=result["entry_id"]).pk,
         version=listing.version, cost=price, drops=drops, pity_before=before, pity_after=player.pack_misses)
-    return _finish(result, payload, opening_id=opening.pk, drops=drops, shards=surplus, pity=player.pack_misses, guaranteed=guaranteed)
+    return _finish(result, payload, opening_id=opening.pk, drops=drops, shards=surplus, pity=player.pack_misses,
+        guaranteed=guaranteed, legendary_chance_bps=chance, cycle_before=cycle_before,
+        cycle_after=player.pack_cycle_position)
 
 
 @transaction.atomic

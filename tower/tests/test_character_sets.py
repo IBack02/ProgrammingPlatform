@@ -35,8 +35,14 @@ class CharacterSetGrantTests(WalletFixtures, TestCase):
         cls.create_accounts()
         call_command("seed_tower_catalog", stdout=io.StringIO())
 
+    def setUp(self):
+        # These legacy fulfilment tests control ordinary slot draws independently.
+        gate = patch("tower.services.collection._legendary_slot", return_value=None)
+        gate.start()
+        self.addCleanup(gate.stop)
+
     def pack(self, key=None):
-        return open_pack(student=self.student, offer="school", version="school-v1", request_id=key or uuid.uuid4())
+        return open_pack(student=self.student, offer="school", version="school-v2", request_id=key or uuid.uuid4())
 
     def card(self, hero="nis-coder", fragments=10, assembled=True):
         player = TowerPlayer.objects.get(student=self.student)
@@ -251,11 +257,12 @@ class CharacterSetConcurrencyTests(WalletFixtures, TransactionTestCase):
         self.assertEqual((CharacterSetEntitlement.objects.count(), PlayerCharacterSet.objects.count(), PlayerCosmetic.objects.count()), (1, 1, 6))
         self.assertEqual(Wallet.objects.get().niscoin, 100)
 
+    @patch("tower.services.collection._legendary_slot", return_value=None)
     @patch("tower.services.collection._draw", return_value=("nis-coder", "common"))
-    def test_concurrent_pack_assemblies_have_one_entitlement_and_six_items(self, draw):
+    def test_concurrent_pack_assemblies_have_one_entitlement_and_six_items(self, draw, gate):
         PlayerHero.objects.create(player=TowerPlayer.objects.get(), hero_id="nis-coder", fragments=8)
         def open_one():
-            return open_pack(student=self.student, offer="school", version="school-v1", request_id=uuid.uuid4())
+            return open_pack(student=self.student, offer="school", version="school-v2", request_id=uuid.uuid4())
         result = self.parallel(open_one, open_one)
         self.assertTrue(all(kind == "ok" for kind, _ in result))
         self.assertEqual((PackOpening.objects.count(), PlayerCharacterSet.objects.count(), PlayerCosmetic.objects.count()), (2, 1, 6))

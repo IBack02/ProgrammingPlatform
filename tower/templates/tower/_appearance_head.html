@@ -12,3 +12,7 @@
 </script>
 <script src="{% static 'tower/portal-appearance.js' %}" defer></script>
 {% endif %}
+{% if tower_appearance or request.session.student_id %}
+<link rel="stylesheet" href="{% static 'tower/page-loading.css' %}">
+<script src="{% static 'tower/page-loading.js' %}" data-student-loader data-label="{{ T.journal_loading }}"{% if tower_appearance.selected.ui_loader %} data-image="{{ tower_appearance.selected.ui_loader.url }}" data-animation="{{ tower_appearance.selected.ui_loader.animation }}"{% endif %}></script>
+{% endif %}
