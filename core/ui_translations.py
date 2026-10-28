@@ -964,7 +964,7 @@ UI_TRANSLATIONS = {
     },
 }
 
-DEFAULT_UI_LANG = "en"
+DEFAULT_UI_LANG = "ru"
 SUPPORTED_UI_LANGS = {"ru", "kk", "en"}
 
 
