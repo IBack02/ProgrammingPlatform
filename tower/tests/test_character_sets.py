@@ -163,7 +163,7 @@ class CharacterSetGrantTests(WalletFixtures, TestCase):
         client = self.account_client()
         response = client.get(reverse("tower:home"), {"hero": "nis-coder"})
         self.assertContains(response, 'data-set-received="true"')
-        self.assertContains(response, "companion-placeholder.")
+        self.assertNotContains(response, "companion-placeholder.")
         response = client.get(reverse("tower:home"), {"hero": "nis-biologist"})
         self.assertTrue(response.context["hero_detail"]["set_pending"])
         shop = client.get(reverse("tower:home"), {"tab": "avatar"})
@@ -202,11 +202,11 @@ class CharacterSetGrantTests(WalletFixtures, TestCase):
     def test_initial_migration_preserves_newer_publication_and_deliberate_pause(self):
         original = CharacterSetVersion.objects.get(slug="nis-coder-v1")
         config = copy.deepcopy(original.config)
-        config["revision"] = 2
+        config["revision"] = 3
         for component in config["components"].values():
-            component["asset"]["path"] = component["asset"]["path"].replace("/v1/", "/v2/")
-        newer = CharacterSetVersion.objects.create(slug="nis-coder-v2", hero=original.hero,
-            revision=2, config=config, behavior=original.behavior, asset_manifest=[])
+            component["asset"]["path"] = component["asset"]["path"].replace("/v1/", "/v3/")
+        newer = CharacterSetVersion.objects.create(slug="nis-coder-v3", hero=original.hero,
+            revision=3, config=config, behavior=original.behavior, asset_manifest=[])
         CharacterSetPublication.objects.filter(hero=original.hero).update(version=newer, is_active=False)
         migration = importlib.import_module("tower.migrations.0006_publish_initial_character_sets")
         apps = MigrationExecutor(connection).loader.project_state().apps

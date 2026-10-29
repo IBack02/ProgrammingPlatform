@@ -20,7 +20,7 @@ from .wallet_fixtures import WalletFixtures
 
 
 class CharacterArtTests(SimpleTestCase):
-    def test_two_complete_pilot_sets_have_verified_files_including_explicit_placeholders(self):
+    def test_two_complete_pilot_sets_have_verified_files_including_supplied_chibi(self):
         manifest = release_manifest()
         self.assertEqual({entry["hero_id"] for entry in manifest["sets"]}, set(PREVIEW_HEROES))
         self.assertEqual(sum(len(entry["assets"]) for entry in manifest["sets"]), 14)
@@ -28,17 +28,19 @@ class CharacterArtTests(SimpleTestCase):
             for asset in entry["assets"]:
                 self.assertGreater(asset["bytes"], 100)
                 self.assertEqual(len(asset["sha256"]), 64)
-                self.assertEqual(asset["placeholder"], asset["slot"] == "companion")
+                self.assertFalse(asset["placeholder"])
 
-    def test_all_twelve_helpers_use_authored_placeholders_until_supplied(self):
+    def test_all_twelve_helpers_use_supplied_transparent_pngs(self):
         for entry in load_character_sets().sets:
             component = entry.components["companion"]
-            self.assertTrue(component.placeholder)
-            self.assertIn("placeholder", component.asset.path)
-            inspect_asset(component.asset)
+            self.assertFalse(component.placeholder)
+            self.assertTrue(component.asset.path.endswith('/companion.png'))
+            inspect_asset(component.asset, require_alpha=True)
 
     def test_placeholder_is_explicit_and_cannot_impersonate_finished_character_art(self):
         data = load_character_sets().model_dump()
+        data["sets"][0]["components"]["companion"]["asset"] = {
+            "path": "sets/nis-coder/v2/companion-placeholder.svg", "width": 512, "height": 512}
         data["sets"][0]["components"]["companion"]["placeholder"] = False
         with self.assertRaises(ValidationError):
             CharacterSetCatalog.model_validate(data)
@@ -138,7 +140,7 @@ class CharacterArtTests(SimpleTestCase):
                 call_command("import_tower_chibi", directory=incoming, stdout=io.StringIO())
                 updated = reader()
                 entry = next(row for row in updated.sets if row.hero_id == "nis-coder")
-                self.assertEqual((entry.revision, entry.status, entry.components["companion"].placeholder), (2, "draft", False))
+                self.assertEqual((entry.revision, entry.status, entry.components["companion"].placeholder), (3, "draft", False))
                 destination = assets / entry.components["companion"].asset.path
                 self.assertEqual(destination.read_bytes(), source.read_bytes())
                 before = manifest.read_bytes()
@@ -164,7 +166,7 @@ class SetArtPreviewTests(WalletFixtures, TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "data-avatar-shape=", count=25)
         self.assertContains(response, "head.png")
-        self.assertContains(response, "companion-placeholder.svg")
+        self.assertContains(response, "companion.png")
         self.assertFalse(TowerPlayer.objects.exists())
         self.assertFalse(PlayerCosmetic.objects.exists())
 

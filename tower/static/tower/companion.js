@@ -26,7 +26,11 @@
     if (!visible() || !current || acknowledged.has(current.id) || acknowledging.has(current.id)) return;
     const id = current.id;
     acknowledging.add(id);
-    try { await api("acknowledge", {message_id:id}); acknowledged.add(id); }
+    try {
+      await api("acknowledge", {message_id:id});
+      acknowledged.add(id);
+      if (panel.dataset.state !== "ready") badge.hidden = true;
+    }
     catch (_) { /* Keep the saved reply for a later acknowledgement. */ }
     finally { acknowledging.delete(id); }
   }
@@ -34,8 +38,10 @@
     clearTimeout(timer);
     current = data.message || null;
     const quiet = data.state === "quiet" || data.state === "inactive" || surface() !== "learning";
+    panel.dataset.state = data.state;
     panel.hidden = quiet;
-    badge.hidden = data.state !== "ready" || quiet;
+    if (quiet) panel.open = false;
+    badge.hidden = quiet || !(data.state === "ready" || (current && !current.delivered && !acknowledged.has(current.id)));
     button.disabled = data.state !== "ready" || busy;
     thinking.hidden = data.state !== "generating" && !busy;
     form.setAttribute("aria-busy", String(!thinking.hidden));
@@ -70,7 +76,7 @@
     if (busy) return;
     if (surface() !== "learning") { clearTimeout(timer); panel.hidden=true; return; }
     try { render(await getStatus()); }
-    catch (_) { label.textContent=label.dataset.unavailable;button.disabled=true;timer=setTimeout(refresh,15000); }
+    catch (_) { label.textContent=label.dataset.unavailable;button.disabled=true;badge.hidden=true;timer=setTimeout(refresh,15000); }
   }
   form.addEventListener("submit", async event => {
     event.preventDefault();

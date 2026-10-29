@@ -99,7 +99,6 @@ html[data-theme-role="student"] :is(.topbar,.top)>div{min-width:0}
   .student-portal .editorFooter{gap:12px;align-items:stretch}
   .student-portal .editorFooter button{min-height:44px}
   .student-portal #codeArea{height:clamp(220px,34dvh,360px);font-size:16px}
-  .student-portal .sidebar .tower-personal-strip{margin:12px 0 0;min-height:0}
   html[data-theme-role="student"] :is(.topbar,.top){flex-wrap:wrap;gap:12px}
   html[data-theme-role="student"] .top-actions{width:100%;gap:8px}
   html[data-theme-role="student"] .top-actions select{min-width:0;flex:1}

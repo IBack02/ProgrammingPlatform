@@ -66,7 +66,7 @@ class CharacterCatalogContractTests(SimpleTestCase):
             ("head", "id", "nis-chemist-head"),
             ("head", "slot", "prop"),
             ("companion", "behavior_profile", "nis-chemist"),
-            ("head", "asset", {"path": "sets/nis-coder/v2/head.webp", "width": 512, "height": 512}),
+            ("head", "asset", {"path": "sets/nis-coder/v99/head.webp", "width": 512, "height": 512}),
         ):
             data = self.catalog_data()
             data["sets"][0]["components"][slot][field] = value

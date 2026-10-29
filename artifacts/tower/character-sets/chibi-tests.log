@@ -1,0 +1,14 @@
+Creating test database for alias 'default'...
+
+.........................................................................................................................Companion generation failed: message=9844e358-ac26-4259-954a-1c6ab52994d9 type=ValueError
+......Companion generation failed: message=13077cb6-c455-468c-ace0-99cbff78b62f type=SourceReservationError
+..Companion generation failed: message=e38546e1-9783-43ba-82ec-f6a96a6aa215 type=APITimeoutError
+............................................................................................................................sssssssss..ssssss
+----------------------------------------------------------------------
+Ran 270 tests in 22.632s
+
+OK (skipped=15)
+Destroying test database for alias 'default'...
+
+Found 270 test(s).
+System check identified no issues (0 silenced).

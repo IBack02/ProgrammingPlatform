@@ -1,19 +1,25 @@
 {% load static %}{% if tower_appearance %}
 {{ tower_appearance.selected|json_script:'tower-equipped-data' }}
-<footer class="tower-personal-strip" id="tower-personal-strip" data-player="{{ tower_appearance_player }}">
-  <a href="{% url 'tower:home' %}?tab=appearance" class="tower-appearance-link">{{ T.journal_change_appearance }}</a>
-  {% if tower_appearance.selected.companion %}
+{% if tower_appearance.selected.companion %}
+<aside class="tower-companion-dock" id="tower-personal-strip" data-player="{{ tower_appearance_player }}">
   <details class="tower-companion" id="tower-companion" data-generation-enabled="{{ tower_companion_enabled|yesno:'true,false' }}">
-    <summary>{{ tower_appearance.selected.companion.hero_name }} · {{ T.journal_companion }}<span class="companion-ready" id="companion-ready" hidden aria-label="{{ T.journal_companion_ready }}">!</span></summary>
-    <div class="companion-identity"><img src="{{ tower_appearance.selected.companion.url }}" alt="{{ tower_appearance.selected.companion.label }}"><a href="{% url 'tower:home' %}?tab=appearance&amp;section=companion">{{ T.journal_choose_companion }}</a></div>
+    <summary id="companion-toggle" aria-label="{{ tower_appearance.selected.companion.hero_name }} · {{ T.journal_companion }}" title="{{ tower_appearance.selected.companion.hero_name }} · {{ T.journal_companion }}">
+      <img class="companion-chibi" src="{{ tower_appearance.selected.companion.url }}" alt="" width="128" height="128">
+      <span class="companion-ready" id="companion-ready" hidden aria-label="{{ T.journal_companion_ready }}">!</span>
+    </summary>
+    <div class="tower-companion-card">
+    <div class="companion-card-header"><strong>{{ tower_appearance.selected.companion.hero_name }} · {{ T.journal_companion }}</strong><button type="button" id="companion-close" aria-label="{{ T.journal_close }}">×</button></div>
+    <a class="companion-choose" href="{% url 'tower:home' %}?tab=appearance&amp;section=companion">{{ T.journal_choose_companion }}</a>
     {% if tower_companion_enabled %}<div class="companion-chat" id="companion-chat">
       <p class="companion-state" id="companion-state" role="status" aria-live="polite" data-ready="{{ T.journal_companion_ready }}" data-empty="{{ T.journal_companion_empty }}" data-generating="{{ T.journal_companion_generating }}" data-cooldown="{{ T.journal_companion_cooldown }}" data-retry="{{ T.journal_companion_retry }}" data-unavailable="{{ T.journal_companion_unavailable }}"></p>
       <div class="companion-bubble" id="companion-bubble" hidden><span id="companion-sender"></span><p id="companion-text"></p><a id="companion-link">{{ T.journal_companion_open_source }}</a></div>
       <div id="companion-thinking" class="companion-thinking" hidden aria-hidden="true"><i></i><i></i><i></i></div>
       <form id="companion-generate-form">{% csrf_token %}<button type="submit" id="companion-generate" disabled>{{ T.journal_companion_generate }}</button></form>
     </div>{% endif %}
-  </details>{% endif %}
-</footer>
+    </div>
+  </details>
+</aside>
+{% endif %}
 <script src="{% static 'tower/platform-appearance.js' %}" defer></script>
 {% if tower_companion_enabled %}<script src="{% static 'tower/companion.js' %}" defer></script>{% endif %}
 {% endif %}

@@ -149,6 +149,10 @@ class AppearanceTests(WalletFixtures, TestCase):
                 response = client.get(reverse(page))
                 self.assertContains(response, 'id="tower-personal-strip"')
                 self.assertContains(response, 'id="tower-companion"')
+                self.assertContains(response, 'class="tower-companion-dock"')
+                self.assertContains(response, 'class="companion-chibi"')
+                self.assertNotContains(response, 'class="tower-personal-strip"')
+                self.assertNotContains(response, 'class="tower-appearance-link"')
                 self.assertContains(response, 'id="tower-appearance-style"')
                 self.assertContains(response, "tower-has-background")
                 self.assertContains(response, "tower-has-decoration")
@@ -156,6 +160,11 @@ class AppearanceTests(WalletFixtures, TestCase):
                 self.assertContains(response, 'data-student-loader')
                 self.assertContains(response, 'data-animation="rotate"')
                 self.assertContains(response, 'data-image="')
+
+    def test_no_empty_footer_when_no_companion_is_selected(self):
+        response = self.account_client().get(reverse("student_portal_page"))
+        self.assertNotContains(response, 'id="tower-personal-strip"')
+        self.assertNotContains(response, 'class="tower-companion-dock"')
 
     def test_default_loader_without_selected_items_or_tower_access(self):
         client = self.account_client(self.other_student)

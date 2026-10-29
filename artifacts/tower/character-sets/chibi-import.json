@@ -1,0 +1,62 @@
+{
+  "nis-artist": {
+    "source": "docs/chibi/nis-artist.png",
+    "asset": "tower/static/tower/sets/nis-artist/v2/companion.png",
+    "sha256": "f4fb6c8f7a9575b20be8f0a3cc544153fea7eaa78d63014cab963f0b224ae17e"
+  },
+  "nis-astronomer": {
+    "source": "docs/chibi/nis-astronomer.png",
+    "asset": "tower/static/tower/sets/nis-astronomer/v2/companion.png",
+    "sha256": "55bd30d2b2bea8dd9c2806790180547f9b1a13967b38ef30086cfbbc97ef4881"
+  },
+  "nis-biologist": {
+    "source": "docs/chibi/nis-biologist.png",
+    "asset": "tower/static/tower/sets/nis-biologist/v2/companion.png",
+    "sha256": "43b82fbe74290400d6ca896d948fea681547052cbd576103eb4a47132edf26b1"
+  },
+  "nis-chemist": {
+    "source": "docs/chibi/nis-chemist.png",
+    "asset": "tower/static/tower/sets/nis-chemist/v2/companion.png",
+    "sha256": "85a12dcb75c44b1be767f891916e6862336744acd036766ccebd66869cab13e6"
+  },
+  "nis-chessplayer": {
+    "source": "docs/chibi/nis-chessplayer.png",
+    "asset": "tower/static/tower/sets/nis-chessplayer/v2/companion.png",
+    "sha256": "0fb44f597ab91feeb4fba9033b54bbda50ac252d4cb5683975614af55b5e2d36"
+  },
+  "nis-coder": {
+    "source": "docs/chibi/nis-coder.png",
+    "asset": "tower/static/tower/sets/nis-coder/v2/companion.png",
+    "sha256": "da9a5a672066acf89574a5327533b2b5dc40d64b6eba8f5fa91aef76c6243901"
+  },
+  "nis-debater": {
+    "source": "docs/chibi/nis-debater.png",
+    "asset": "tower/static/tower/sets/nis-debater/v2/companion.png",
+    "sha256": "d649f8464d62c37d9338b134669374efa6560b77ac9ae6099aa3d292e31a2112"
+  },
+  "nis-inventor": {
+    "source": "docs/chibi/nis-inventor.png",
+    "asset": "tower/static/tower/sets/nis-inventor/v2/companion.png",
+    "sha256": "26bce4abcf5d8a638f474e83d01749c1a007824e93a635f2ddda57c3fc5ca6d7"
+  },
+  "nis-mathematician": {
+    "source": "docs/chibi/nis-mathematician.png",
+    "asset": "tower/static/tower/sets/nis-mathematician/v2/companion.png",
+    "sha256": "111a3ef20e46e9eb4e51ff1ca84c62b71ebab652054e72ec938040c697723964"
+  },
+  "nis-musician": {
+    "source": "docs/chibi/nis-musician.png",
+    "asset": "tower/static/tower/sets/nis-musician/v2/companion.png",
+    "sha256": "b66cb74675bc8c239d79ec127beef30e9f8fec68367444b30f2081a64c448268"
+  },
+  "nis-physicist": {
+    "source": "docs/chibi/nis-physicist.png",
+    "asset": "tower/static/tower/sets/nis-physicist/v2/companion.png",
+    "sha256": "94354389e0c1d1a0dbb75987f8d982353d100f31cb1e609972c9493d32efb74c"
+  },
+  "nis-roboticist": {
+    "source": "docs/chibi/nis-roboticist.png",
+    "asset": "tower/static/tower/sets/nis-roboticist/v2/companion.png",
+    "sha256": "cf1a0275546324ac6d2c49236ca8b413745960a13853e3346b9b678c6d51e767"
+  }
+}
