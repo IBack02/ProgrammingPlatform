@@ -230,3 +230,56 @@ for _lang, _labels in {
     },
 }.items():
     JOURNAL_TEXT[_lang].update(_labels)
+
+
+for _lang, _labels in {
+    "ru": {
+        "pack_tap": "Нажми на бустер, чтобы оторвать верхушку",
+        "pack_tear": "Вскрыть бустер",
+        "pack_turn": "Нажимай на карты, чтобы увидеть персонажей",
+        "pack_flip": "Перевернуть карту",
+        "pack_all_revealed": "Все карты открыты!",
+        "pack_skip": "Показать результат сразу",
+        "pack_continue": "Продолжить",
+        "pack_repeat": "Повторить анимацию",
+        "surplus_fragment": "лишний фрагмент",
+        "convert_shards": "Обменять осколки на нишкоины",
+        "conversion_hint": "Курс: 1 осколок = 5 нишкоинов. Укажи количество осколков для обмена.",
+        "convert": "Обменять",
+        "overflow_hint": "Обычному и редкому персонажу нужно 10 фрагментов, эпическому — 6, легендарному — 1. Лишние фрагменты превращаются в осколки по редкости персонажа. Осколки можно потратить на фрагменты или обменять на нишкоины по курсу 1:5.",
+    },
+    "kk": {
+        "pack_tap": "Үстін жыртып ашу үшін бустерді бас",
+        "pack_tear": "Бустерді ашу",
+        "pack_turn": "Кейіпкерлерді көру үшін карталарды бас",
+        "pack_flip": "Картаны аудару",
+        "pack_all_revealed": "Барлық карта ашылды!",
+        "pack_skip": "Нәтижені бірден көрсету",
+        "pack_continue": "Жалғастыру",
+        "pack_repeat": "Анимацияны қайталау",
+        "surplus_fragment": "артық бөлік",
+        "convert_shards": "Сынықтарды нишкойнға айырбастау",
+        "conversion_hint": "Бағам: 1 сынық = 5 нишкойн. Айырбастайтын сынық санын енгіз.",
+        "convert": "Айырбастау",
+        "overflow_hint": "Кәдімгі және сирек кейіпкерге 10 бөлік, эпикалыққа 6, аңыз кейіпкеріне 1 бөлік қажет. Артық бөліктер сиректікке қарай сыныққа айналады. Сынықтарды бөлік алуға немесе 1:5 бағамымен нишкойнға айырбастауға болады.",
+    },
+    "en": {
+        "pack_tap": "Tap the booster to tear the top open",
+        "pack_tear": "Tear open booster",
+        "pack_turn": "Tap each card to reveal its character",
+        "pack_flip": "Turn over card",
+        "pack_all_revealed": "All cards revealed!",
+        "pack_skip": "Show results now",
+        "pack_continue": "Continue",
+        "pack_repeat": "Replay animation",
+        "surplus_fragment": "surplus fragment",
+        "convert_shards": "Exchange shards for niscoins",
+        "conversion_hint": "Rate: 1 shard = 5 niscoins. Enter the number of shards to exchange.",
+        "convert": "Exchange",
+        "overflow_hint": "Common and rare characters need 10 fragments, epic 6, and legendary 1. Surplus fragments become shards according to rarity. Use shards for specific fragments or exchange them for niscoins at a 1:5 rate.",
+    },
+}.items():
+    JOURNAL_TEXT[_lang].update(_labels)
+
+for _lang, _label in {"ru": "Сколько осколков", "kk": "Сынық саны", "en": "Number of shards"}.items():
+    JOURNAL_TEXT[_lang]["shard_quantity"] = _label

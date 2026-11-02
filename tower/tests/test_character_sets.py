@@ -42,7 +42,7 @@ class CharacterSetGrantTests(WalletFixtures, TestCase):
         self.addCleanup(gate.stop)
 
     def pack(self, key=None):
-        return open_pack(student=self.student, offer="school", version="school-v2", request_id=key or uuid.uuid4())
+        return open_pack(student=self.student, offer="school", version="school-v3", request_id=key or uuid.uuid4())
 
     def card(self, hero="nis-coder", fragments=10, assembled=True):
         player = TowerPlayer.objects.get(student=self.student)
@@ -262,7 +262,7 @@ class CharacterSetConcurrencyTests(WalletFixtures, TransactionTestCase):
     def test_concurrent_pack_assemblies_have_one_entitlement_and_six_items(self, draw, gate):
         PlayerHero.objects.create(player=TowerPlayer.objects.get(), hero_id="nis-coder", fragments=8)
         def open_one():
-            return open_pack(student=self.student, offer="school", version="school-v2", request_id=uuid.uuid4())
+            return open_pack(student=self.student, offer="school", version="school-v3", request_id=uuid.uuid4())
         result = self.parallel(open_one, open_one)
         self.assertTrue(all(kind == "ok" for kind, _ in result))
         self.assertEqual((PackOpening.objects.count(), PlayerCharacterSet.objects.count(), PlayerCosmetic.objects.count()), (2, 1, 6))

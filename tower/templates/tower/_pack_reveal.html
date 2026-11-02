@@ -1,0 +1,28 @@
+<div class="pack-reveal" data-pack-reveal data-receipt="{{ player.pk }}:{{ opening.pk }}" hidden
+     data-sealed-label="{{ T.journal_pack_tap }}" data-cards-label="{{ T.journal_pack_turn }}" data-done-label="{{ T.journal_pack_all_revealed }}">
+  <p class="pack-reveal-status" role="status" aria-live="polite">{{ T.journal_pack_tap }}</p>
+  <div class="booster-stage">
+    <button type="button" class="nis-booster" aria-label="{{ T.journal_pack_tear }}">
+      <span class="booster-shadow" aria-hidden="true"></span>
+      <span class="booster-body" aria-hidden="true"><span class="booster-brand">NIS</span><span class="booster-orbit">✦</span><span class="booster-title">COLLECTION</span><span class="booster-edition">{{ T.journal_school_pack }}</span><span class="booster-bottom"></span></span>
+      <span class="booster-tear" aria-hidden="true"><span>✦ NIS COLLECTION ✦</span></span>
+      <span class="booster-tear-hint" aria-hidden="true">↗</span>
+    </button>
+  </div>
+  <div class="reveal-card-grid" hidden>
+    {% for drop in opening_cards %}
+    <div class="reveal-card reveal-card--{{ drop.card.rarity }}" data-reveal-card style="--deal-index:{{ forloop.counter0 }}">
+      <button type="button" class="reveal-flip" aria-label="{{ T.journal_pack_flip }} {{ forloop.counter }}" aria-pressed="false" data-card-name="{{ drop.card.name }} · {{ drop.card.rarity_label }}">
+        <span class="reveal-card-light" aria-hidden="true"></span>
+        <span class="reveal-rotor">
+          <span class="reveal-back" aria-hidden="true"><span>NIS</span><b>✦</b><small>COLLECTION</small></span>
+          <span class="reveal-front" aria-hidden="true">{% include 'tower/_collection_card.html' with card=drop.card only %}</span>
+        </span>
+      </button>
+      <div class="reveal-card-copy" hidden><strong>{{ drop.card.name }} · +{{ drop.quantity }} {{ T.journal_fragment_unit }}</strong><span>{{ drop.fragments }}/{{ drop.required }}{% if drop.completed %} · {{ T.journal_new_card }}{% endif %}</span>{% if drop.shards %}<span>+{{ drop.shards }} {{ T.wallet_shards }}</span>{% endif %}</div>
+    </div>
+    {% endfor %}
+  </div>
+  <div class="pack-reveal-actions"><button type="button" class="journal-button" data-reveal-skip>{{ T.journal_pack_skip }}</button><button type="button" class="journal-button journal-button--gold" data-reveal-finish hidden>{{ T.journal_pack_continue }}</button></div>
+</div>
+<button type="button" class="journal-button" data-reveal-repeat hidden>{{ T.journal_pack_repeat }}</button>

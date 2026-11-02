@@ -6,7 +6,7 @@ from django.utils import timezone
 
 from tower.models import (
     CosmeticDefinition, GameOperation, HeroDefinition, PackOffer, PackOpening,
-    PlayerCosmetic, PlayerHero, WalletEntry,
+    PlayerCosmetic, PlayerHero, TowerAuditEvent, WalletEntry, MAX_BALANCE,
 )
 from .wallet import WalletError, _locked_wallet, _perform, _request_id
 from .character_sets import grant_character_set
@@ -15,6 +15,7 @@ from .character_sets import grant_character_set
 SHAPES = ("square", "diamond", "triangle", "pentagon", "hexagon")
 COLORS = ("#3b82f6", "#ef4444", "#f59e0b", "#10b981", "#8b5cf6", "#ec4899", "#06b6d4", "#64748b")
 ACCESSORY_SLOTS = ("head", "glasses", "mustache")
+SHARD_NISCOIN_RATE = 5
 
 
 def _identifier(value):
@@ -41,10 +42,10 @@ def _finish(result, payload, **extra):
     return operation.result
 
 
-def _debit(student, key, amount, action, reason, reference, currency=WalletEntry.Currency.NISCOIN):
+def _debit(student, key, amount, action, reason, reference, currency=WalletEntry.Currency.NISCOIN, source=None):
     return _perform(student_id=student.pk, currency=currency, delta=-amount, reason=reason,
         request_id=key, action=action, actor_scope=f"student:{student.pk}",
-        source=WalletEntry.Source.EXCHANGE if currency == WalletEntry.Currency.SHARDS else WalletEntry.Source.PURCHASE,
+        source=source or (WalletEntry.Source.EXCHANGE if currency == WalletEntry.Currency.SHARDS else WalletEntry.Source.PURCHASE),
         reference=reference)
 
 
@@ -120,7 +121,8 @@ def open_pack(*, student, offer, version, request_id):
         quantity = config.get("legendary_fragments", config["fragments_per_slot"]) if rarity == "legendary" else config["fragments_per_slot"]
         drop = _grant(player, hero, quantity, operation=operation)
         drop["rarity"] = rarity
-        drop["shards"] = drop["overflow"] * config["overflow_rate"]
+        rate = config.get("overflow_rates", {}).get(rarity, config["overflow_rate"])
+        drop["shards"] = drop["overflow"] * rate
         drops.append(drop)
         rare_found = rare_found or rarity != "common"
     player.pack_misses = 0 if rare_found else before + 1
@@ -157,6 +159,34 @@ def exchange_fragments(*, student, hero_id, quantity, request_id):
     operation = GameOperation.objects.get(entries__id=result["entry_id"])
     drop = _grant(wallet.player, hero, quantity, operation=operation)
     return _finish(result, payload, drop=drop)
+
+
+@transaction.atomic
+def convert_shards(*, student, quantity, request_id):
+    if type(quantity) is not int or not 1 <= quantity <= MAX_BALANCE // SHARD_NISCOIN_RATE:
+        raise WalletError("invalid_amount")
+    payload = {"quantity": quantity}
+    wallet, key, replay = _start(student, "shards_to_coins", request_id, payload)
+    if replay:
+        return replay
+    coins = quantity * SHARD_NISCOIN_RATE
+    before = wallet.niscoin
+    if before + coins > MAX_BALANCE:
+        raise WalletError("balance_limit", 409)
+    result = _debit(student, key, quantity, "shards_to_coins", "Обмен осколков на нишкоины",
+                    "shards-to-coins:5", WalletEntry.Currency.SHARDS, source=WalletEntry.Source.CONVERSION)
+    operation = GameOperation.objects.get(entries__id=result["entry_id"])
+    wallet.niscoin = before + coins
+    wallet.updated_at = timezone.now()
+    wallet.save(update_fields=["niscoin", "updated_at"])
+    credit = WalletEntry.objects.create(wallet=wallet, operation=operation,
+        currency=WalletEntry.Currency.NISCOIN, delta=coins, balance_after=wallet.niscoin,
+        reason="Нишкоины за обмен осколков", source=WalletEntry.Source.CONVERSION, reference="shards-to-coins:5")
+    TowerAuditEvent.objects.create(event_type=WalletEntry.Source.CONVERSION, student_id=student.pk, entry=credit,
+        metadata={"currency": WalletEntry.Currency.NISCOIN, "before": before, "after": wallet.niscoin,
+                  "delta": coins, "shards": quantity, "rate": SHARD_NISCOIN_RATE})
+    return _finish(result, payload, shards_spent=quantity, coins_received=coins, rate=SHARD_NISCOIN_RATE,
+                   credit_entry_id=credit.pk, niscoin=wallet.niscoin, universal_shards=result["balance_after"])
 
 
 @transaction.atomic

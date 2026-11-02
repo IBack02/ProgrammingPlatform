@@ -1,0 +1,69 @@
+# Booster reveals and shard exchange
+
+## Pack presentation
+
+After the server completes a pack purchase, the saved receipt shows a sealed foil
+NIS booster. Clicking it tears off the upper seal. Three cards emerge from its
+center with their backs visible. Each card turns once when clicked or activated
+with the keyboard. Epic cards have violet edge light; legendary cards have gold
+edge light and rotating rays. Reduced-motion preferences disable movement while
+retaining the reveal steps and rarity colors. The booster is native HTML/CSS;
+existing portraits and frames continue to use their Cloudflare asset URLs.
+
+The opening animation sends no purchase requests. All outcomes, fragment grants
+and duplicate rewards are committed before it appears. Session storage remembers
+the torn seal and revealed cards per player/receipt. Reload resumes that state.
+Skipping or replaying changes only presentation. Without JavaScript, the normal
+receipt remains visible. Storage is optional. Old receipts can also be replayed,
+using their original saved drops and shard rewards.
+
+## Economy
+
+The school offer now uses immutable `school-v3`; pack price remains 50 niscoins.
+Only surplus fragments generate shards. Unlock thresholds, slot quantities,
+legendary chance cycle, rare-slot protection and fragment purchase costs remain
+unchanged. Previously earned shards and old receipts are preserved.
+
+| Rarity | Shards per surplus fragment | Fragments per drop | Fully duplicate drop | At 5 niscoins per shard |
+| --- | ---: | ---: | ---: | ---: |
+| Common | 1 | 2 | 2 shards | 10 niscoins |
+| Rare | 2 | 2 | 4 shards | 20 niscoins |
+| Epic | 4 | 2 | 8 shards | 40 niscoins |
+| Legendary | 16 | 1 | 16 shards | 80 niscoins |
+
+The doubling of value per full duplicate drop accounts for the legendary slot's
+single fragment. Partial duplicates pay only for the actual surplus quantity.
+For a completely assembled collection, the expected return over the repeating
+10-pack legendary cycle is about 44.9642 niscoins per 50-niscoin pack, including
+the existing common-only protection. This assumes every earned shard is converted.
+Ordinary incomplete collections return less because needed fragments are retained.
+An individual rare pack can return more than its purchase cost.
+
+The Wallet tab converts a positive whole number of shards at the server-owned
+rate of 5. One transaction debits shards and credits niscoins with two entries in
+one operation, plus audits. The existing student/wallet locks serialize exchanges
+with packs and other wallet changes. Idempotent request IDs prevent duplicate
+application; changed retry quantities conflict. A failed leg, insufficient shards
+or a balance cap rolls back the entire exchange. Access, journal unlock and CSRF
+checks apply; client-supplied exchange rates are rejected.
+
+Migration `0014_pack_rewards_and_conversion` adds the ledger source label and
+publishes the frozen v3 config. Disabled offers and separately published newer
+offers remain intact. New rates apply to new purchases after migration.
+
+## Deployment and verification
+
+Push source, templates, new CSS/JS, tests and migration, then run:
+
+```sh
+python manage.py migrate
+python manage.py collectstatic --noinput
+```
+
+No new environment variables or artwork upload is required. Validation covers
+279 Tower tests on SQLite (17 database-specific skips), plus 22 PostgreSQL exchange
+and pack concurrency checks. Browser QA uses a separate fake-account database:
+normal/reduced motion, seal tear, epic/legendary flips, resume, skip/replay,
+keyboard activation, 320/390 px layouts, and an actual 3-shard → 15-niscoin exchange.
+Normal motion was exercised in an isolated preview because the test browser itself
+requests reduced motion. Preview overrides are not part of application code.

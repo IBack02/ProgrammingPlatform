@@ -21,15 +21,15 @@ class CollectionRulesTests(WalletFixtures, TestCase):
     def setUpTestData(cls):
         cls.create_accounts()
 
-    def pack(self, key=None, version="school-v2"):
+    def pack(self, key=None, version="school-v3"):
         return open_pack(student=self.student, offer="school", version=version, request_id=key or uuid.uuid4())
 
     def test_thresholds_and_seed_match_frozen_migration(self):
         self.assertEqual(set(HeroDefinition.objects.filter(rarity="epic").values_list("required_fragments", flat=True)), {6})
         self.assertEqual(set(HeroDefinition.objects.filter(rarity="legendary").values_list("required_fragments", flat=True)), {1})
         call_command("seed_tower_catalog", stdout=io.StringIO())
-        self.assertEqual(PackVersion.objects.count(), 2)
-        self.assertEqual(PackOffer.objects.get(pk="school").version.slug, "school-v2")
+        self.assertEqual(PackVersion.objects.count(), 3)
+        self.assertEqual(PackOffer.objects.get(pk="school").version.slug, "school-v3")
 
     def test_exact_legendary_roll_boundaries_and_cap(self):
         config = PackVersion.objects.get(slug="school-v2").config

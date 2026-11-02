@@ -92,6 +92,7 @@ class WalletEntry(AppendOnlyModel):
         CORRECTION = "correction", "Administrator correction"
         EXCHANGE = "fragment_exchange", "Fragment exchange"
         OVERFLOW = "fragment_overflow", "Surplus fragments"
+        CONVERSION = "shard_conversion", "Shards to niscoins"
 
     wallet = models.ForeignKey(Wallet, on_delete=models.PROTECT, related_name="entries")
     operation = models.ForeignKey(GameOperation, on_delete=models.PROTECT, related_name="entries")

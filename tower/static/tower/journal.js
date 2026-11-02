@@ -69,3 +69,12 @@ function previewAvatar() {
 }
 avatarForm?.addEventListener("change", previewAvatar);
 previewAvatar();
+const conversionQuantity = document.querySelector("[data-conversion-rate]");
+conversionQuantity?.addEventListener("input", () => {
+  const total = document.querySelector("[data-conversion-total]");
+  if (!total) return;
+  const label = total.dataset.currency || total.textContent.replace(/^\s*\d+\s*/, "");
+  total.dataset.currency = label;
+  const quantity = Number(conversionQuantity.value);
+  total.textContent = `${Number.isSafeInteger(quantity) && quantity > 0 ? quantity * Number(conversionQuantity.dataset.conversionRate) : 0} ${label}`;
+});

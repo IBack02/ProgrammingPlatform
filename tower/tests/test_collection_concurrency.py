@@ -23,7 +23,7 @@ class CollectionConcurrencyTests(WalletFixtures, TransactionTestCase):
         call_command("seed_tower_catalog", stdout=io.StringIO())
 
     def pack(self, key):
-        return open_pack(student=self.student, offer="school", version="school-v2", request_id=key)
+        return open_pack(student=self.student, offer="school", version="school-v3", request_id=key)
 
     def test_identical_request_keeps_one_charge_and_one_random_result(self):
         self.award(amount=100)

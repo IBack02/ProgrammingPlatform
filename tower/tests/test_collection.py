@@ -31,7 +31,7 @@ class CollectionTests(WalletFixtures, TestCase):
         self.addCleanup(gate.stop)
 
     def pack(self, **values):
-        return open_pack(student=self.student, offer="school", version="school-v2", request_id=values.get("request_id", uuid.uuid4()))
+        return open_pack(student=self.student, offer="school", version="school-v3", request_id=values.get("request_id", uuid.uuid4()))
 
     def action(self, action, values, client=None):
         return (client or self.account_client()).post(reverse("tower:student_action_api", args=[action]), json.dumps(values), content_type="application/json")
@@ -41,7 +41,7 @@ class CollectionTests(WalletFixtures, TestCase):
 
     def test_catalog_seed_is_idempotent_without_player_rewards(self):
         call_command("seed_tower_catalog", stdout=io.StringIO())
-        self.assertEqual((HeroDefinition.objects.count(), PackVersion.objects.count(), CosmeticDefinition.objects.filter(acquisition="purchase").count()), (12, 2, 7))
+        self.assertEqual((HeroDefinition.objects.count(), PackVersion.objects.count(), CosmeticDefinition.objects.filter(acquisition="purchase").count()), (12, 3, 7))
         self.assertFalse(TowerPlayer.objects.exists())
 
     @patch("tower.services.collection._draw", return_value=("nis-coder", "common"))
@@ -189,7 +189,7 @@ class CollectionTests(WalletFixtures, TestCase):
         page = client.get(reverse("tower:home"))
         self.assertContains(page, 'data-collection-state="undiscovered"', count=12)
         self.assertNotContains(page, 'class="collection-card__portrait"')
-        response = client.post(reverse("tower:student_action", args=["pack"]), {"offer": "school", "version": "school-v2", "request_id": uuid.uuid4()})
+        response = client.post(reverse("tower:student_action", args=["pack"]), {"offer": "school", "version": "school-v3", "request_id": uuid.uuid4()})
         self.assertEqual(response.status_code, 302)
         self.assertContains(client.get(response.url), 'id="pack-result"')
         self.assertEqual(self.account_client(self.other_student).get(response.url).status_code, 404)
@@ -198,7 +198,7 @@ class CollectionTests(WalletFixtures, TestCase):
 
     def test_api_schema_csrf_and_revoked_permissions(self):
         self.award(amount=100)
-        payload = {"offer": "school", "version": "school-v2", "request_id": str(uuid.uuid4())}
+        payload = {"offer": "school", "version": "school-v3", "request_id": str(uuid.uuid4())}
         self.assertEqual(self.action("pack", {**payload, "price": 0}).status_code, 400)
         self.assertEqual(self.action("pack", payload, self.account_client(self.teacher)).status_code, 403)
         csrf_client = self.account_client(csrf=True)

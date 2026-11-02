@@ -7,6 +7,8 @@
   <link rel="stylesheet" href="{% static 'tower/journal.css' %}">
   <link rel="stylesheet" href="{% static 'tower/collection.css' %}">
   <script src="{% static 'tower/journal.js' %}" defer></script>
+  <link rel="stylesheet" href="{% static 'tower/pack-opening.css' %}">
+  <script src="{% static 'tower/pack-opening.js' %}" defer></script>
   <script src="{% static 'tower/collection-security.js' %}" defer></script>
   <link rel="stylesheet" href="{% static 'tower/appearance-editor.css' %}">
   <script src="{% static 'tower/appearance-editor.js' %}" defer></script>
@@ -63,10 +65,11 @@
         </form>{% if wallet.niscoin < pack.price %}<p class="journal-muted">{{ T.journal_need_coins }}</p>{% endif %}
       </div>
     </section>
-    <details class="journal-panel pack-rules"><summary>{{ T.journal_odds }}</summary><div class="pack-odds">{% for chance in pack.chances %}<div><span>{{ chance.label }}</span><strong>{{ chance.weight }}%</strong></div>{% endfor %}</div><p>{{ T.journal_odds_hint }}</p><p>{{ T.journal_pity_hint }}</p><p>{{ T.journal_overflow_hint }}</p></details>
+    <details class="journal-panel pack-rules"><summary>{{ T.journal_odds }}</summary><div class="pack-odds">{% for chance in pack.chances %}<div><span>{{ chance.label }}</span><strong>{{ chance.weight }}%</strong></div>{% endfor %}</div><p>{{ T.journal_odds_hint }}</p><p>{{ T.journal_pity_hint }}</p><p>{{ T.journal_overflow_hint }}</p><div class="pack-odds">{% for rate in pack.overflow_chances %}<div><span>{{ rate.label }} · 1 {{ T.journal_surplus_fragment }}</span><strong>{{ rate.shards }} {{ T.wallet_shards }}</strong></div>{% endfor %}</div><a class="journal-button" href="?tab=wallet">{{ T.journal_convert_shards }}</a></details>
     {% else %}<p class="journal-error">{{ T.journal_error_catalog_unavailable }}</p>{% endif %}
     {% if opening %}<section class="journal-panel pack-result" id="pack-result" aria-labelledby="pack-result-title"><p class="journal-eyebrow">{{ T.journal_opening }} #{{ opening.pk }} · {{ opening.created_at|date:'d.m.Y H:i' }}</p><h2 id="pack-result-title">{{ T.journal_pack_result }}</h2><p>{{ T.journal_result_saved }}</p>
-      <div class="pack-drops">{% for drop in opening_cards %}<div>{% include 'tower/_collection_card.html' with card=drop.card only %}<div class="pack-drop-copy"><strong>{{ drop.card.name }} · +{{ drop.quantity }} {{ T.journal_fragment_unit }}</strong><span>{{ drop.fragments }}/{{ drop.required }}{% if drop.completed %} · {{ T.journal_new_card }}{% endif %}</span>{% if drop.shards %}<span>+{{ drop.shards }} {{ T.wallet_shards }} · {{ T.journal_surplus }}</span>{% endif %}</div></div>{% endfor %}</div>
+      {% include 'tower/_pack_reveal.html' %}
+      <div class="pack-drops" data-pack-summary>{% for drop in opening_cards %}<div>{% include 'tower/_collection_card.html' with card=drop.card only %}<div class="pack-drop-copy"><strong>{{ drop.card.name }} · +{{ drop.quantity }} {{ T.journal_fragment_unit }}</strong><span>{{ drop.fragments }}/{{ drop.required }}{% if drop.completed %} · {{ T.journal_new_card }}{% endif %}</span>{% if drop.shards %}<span>+{{ drop.shards }} {{ T.wallet_shards }} · {{ T.journal_surplus }}</span>{% endif %}</div></div>{% endfor %}</div>
       <a class="journal-button" href="?tab=collection">{{ T.journal_to_collection }}</a>
     </section>{% endif %}
     <section class="journal-panel" id="opening-history"><h2>{{ T.journal_opening_history }}</h2>{% for receipt in recent_openings %}<a class="pack-history-row" href="?tab=packs&amp;opening_id={{ receipt.pk }}#pack-result"><span>{{ T.journal_school_pack }} #{{ receipt.pk }}<small>{{ receipt.created_at|date:'d.m.Y H:i' }} · {{ receipt.version.slug }}</small></span><b>−{{ receipt.cost }} {{ T.wallet_niscoin }} →</b></a>{% empty %}<p>{{ T.journal_no_openings }}</p>{% endfor %}{% if older_openings_url %}<a class="journal-button" href="{{ older_openings_url }}">{{ T.wallet_older }}</a>{% endif %}</section>
@@ -77,6 +80,14 @@
     </article>{% endfor %}</div></section>
   {% elif active_tab == 'wallet' %}
     <section class="wallet-summary"><div><p class="journal-eyebrow">{{ T.wallet_balance }}</p><strong class="wallet-total">{{ wallet.niscoin }} <span>{{ T.wallet_niscoin }}</span></strong><p>{{ wallet.universal_shards }} {{ T.wallet_shards }}</p></div><p>{{ T.wallet_earning_hint }}</p></section>
+    <section class="journal-panel"><h2>{{ T.journal_convert_shards }}</h2><p>{{ T.journal_conversion_hint }}</p>
+      <form method="post" action="{% url 'tower:student_action' 'convert' %}" data-purchase-form class="shard-conversion-form">
+        {% csrf_token %}<input type="hidden" name="request_id" value="{{ request_id }}">
+        <label>{{ T.journal_shard_quantity }}<input name="quantity" type="number" min="1" max="{{ max_convertible_shards }}" value="1" required data-conversion-rate="{{ shard_niscoin_rate }}" {% if not max_convertible_shards %}disabled{% endif %}></label>
+        <output data-conversion-total>{{ shard_niscoin_rate }} {{ T.wallet_niscoin }}</output>
+        <button class="journal-button journal-button--gold" {% if not max_convertible_shards %}disabled{% endif %}>{{ T.journal_convert }}</button>
+      </form>
+    </section>
     <section class="wallet-panel"><h2>{{ T.wallet_history }}</h2>{% include 'tower/_wallet_history.html' %}</section>
   {% endif %}
 

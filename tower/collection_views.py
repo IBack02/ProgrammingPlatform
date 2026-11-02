@@ -12,12 +12,12 @@ from django.views.decorators.http import require_GET, require_POST
 from core.ui_translations import UI_TRANSLATIONS, get_ui_lang
 from .catalog import presentation_catalog
 from .models import (CharacterSetEntitlement, CharacterSetPublication, CosmeticDefinition,
-                     HeroDefinition, PackOffer, PlayerCosmetic, PlayerHero)
+                     HeroDefinition, PackOffer, PlayerCosmetic, PlayerHero, MAX_BALANCE)
 from .permissions import tower_student_required
 from .collection_security import collection_unlocked_required
 from .asset_delivery import asset_url
 from .ui_corners import presentation_asset_path
-from .services.collection import COLORS, SHAPES, buy_cosmetic, exchange_fragments, legendary_chance, open_pack, save_avatar, set_favorite
+from .services.collection import COLORS, SHAPES, SHARD_NISCOIN_RATE, buy_cosmetic, convert_shards, exchange_fragments, legendary_chance, open_pack, save_avatar, set_favorite
 from .services.wallet import WalletError
 from .services.appearance import SELECTION_SLOTS, appearance_context, save_appearance
 from .wallet_views import positive_id, student_wallet_context, wallet_errors
@@ -74,6 +74,8 @@ def journal_context(request):
                 cycle_length=len(config["legendary_cycle_bps"]),
                 chances=[{"label": rarity["label"], "weight": round(100 * config["weights"][rarity["id"]] / total, 2),
                           "id": rarity["id"]} for rarity in catalog["rarities"] if rarity["id"] != "legendary"])
+        pack["overflow_chances"] = [{"label": rarity["label"],
+            "shards": config.get("overflow_rates", {}).get(rarity["id"], config["overflow_rate"])} for rarity in catalog["rarities"]]
     openings = player.pack_openings.select_related("version")
     before_opening = positive_id(request.GET.get("openings_before"), optional=True)
     history = list((openings.filter(pk__lt=before_opening) if before_opening else openings)[:11])
@@ -100,6 +102,8 @@ def journal_context(request):
         "discovered_count": sum(card["fragments"] > 0 for card in cards),
         "favorite_cards": [card for card in cards if card["favorite"]],
         "hero_detail": detail, "pack": pack, "opening": opening, "opening_cards": opening_cards,
+        "shard_niscoin_rate": SHARD_NISCOIN_RATE,
+        "max_convertible_shards": min(wallet.universal_shards, (MAX_BALANCE - wallet.niscoin) // SHARD_NISCOIN_RATE),
         "recent_openings": history[:10],
         "older_openings_url": "?" + urlencode({"tab": "packs", "openings_before": history[9].pk}) + "#opening-history" if len(history) > 10 else "",
         "cosmetic_items": items, "avatar_slots": slots,
@@ -152,7 +156,7 @@ def student_action(request, action):
         else:
             values = request.POST.dict()
             values.pop("csrfmiddlewaretoken", None)
-            if action == "exchange":
+            if action in ("exchange", "convert"):
                 values["quantity"] = positive_id(values.get("quantity"))
             if action == "favorite":
                 if values.get("favorite") not in ("true", "false"):
@@ -163,6 +167,7 @@ def student_action(request, action):
             if action == "appearance":
                 values["selections"] = {slot: values.pop(slot, "") for slot in SELECTION_SLOTS}
         schemas = {"pack": {"offer", "version", "request_id"}, "exchange": {"hero_id", "quantity", "request_id"},
+                   "convert": {"quantity", "request_id"},
                    "cosmetic": {"cosmetic_id", "request_id"}, "favorite": {"hero_id", "favorite"},
                    "avatar": {"shape", "color", "accessories", "theme"},
                    "appearance": {"shape", "color", "selections", "theme"}}
@@ -174,6 +179,8 @@ def student_action(request, action):
             result, tab = open_pack(student=student, **values), "packs"
         elif action == "exchange":
             result = exchange_fragments(student=student, **values)
+        elif action == "convert":
+            result, tab = convert_shards(student=student, **values), "wallet"
         elif action == "cosmetic":
             result, tab = buy_cosmetic(student=student, **values), "avatar"
         elif action == "avatar":
@@ -190,7 +197,7 @@ def student_action(request, action):
         context = journal_context(request)
         text = UI_TRANSLATIONS[get_ui_lang(request)]
         context["journal_error"] = text.get("journal_error_" + exc.code, text.get("wallet_error_" + exc.code, text["wallet_form_invalid"]))
-        context["active_tab"] = {"pack": "packs", "cosmetic": "avatar", "avatar": "avatar", "appearance": "avatar"}.get(action, "collection")
+        context["active_tab"] = {"pack": "packs", "convert": "wallet", "cosmetic": "avatar", "avatar": "avatar", "appearance": "avatar"}.get(action, "collection")
         if action == "appearance":
             # Preserve valid draft choices after a rejected submission.
             known = {item["id"]: item["slot"] for item in context["wardrobe"]["items"]}
