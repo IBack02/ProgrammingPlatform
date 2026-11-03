@@ -19,9 +19,14 @@
   placeThemeControl();
   document.addEventListener("DOMContentLoaded", placeThemeControl, {once:true});
   document.addEventListener("student-module-selected", () => {
-    if (!narrow.matches) return;
-    menu.open = false;
-    workspace.focus({preventScroll: true});
-    workspace.scrollIntoView({block: "start", behavior: "auto"});
+    if (narrow.matches) {
+      menu.open = false;
+      workspace.focus({preventScroll: true});
+    }
+    // Desktop panes and the mobile document have independent scroll positions.
+    const start = {top: 0, left: 0, behavior: "auto"};
+    workspace.scrollTo(start);
+    workspace.querySelectorAll(".contentSplit, .leftPane, .rightPane, textarea").forEach(pane => pane.scrollTo(start));
+    window.scrollTo(start);
   });
 })();

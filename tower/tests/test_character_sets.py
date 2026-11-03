@@ -65,15 +65,16 @@ class CharacterSetGrantTests(WalletFixtures, TestCase):
         self.assertEqual(PlayerCosmetic.objects.count(), 6)
         self.assertEqual(Wallet.objects.get().niscoin, 50)
 
-    def test_exchange_assembly_grants_set_without_extra_currency_operations(self):
+    def test_retired_exchange_cannot_grant_character_sets(self):
         adjust_wallet(admin=self.admin, student_id=self.student.pk, currency="universal_shards", delta=100,
                       reason="Test", request_id=uuid.uuid4())
         before = WalletEntry.objects.count()
-        result = exchange_fragments(student=self.student, hero_id="nis-artist", quantity=10, request_id=uuid.uuid4())
-        self.assertTrue(result["drop"]["character_set"]["granted"])
-        self.assertEqual(PlayerCosmetic.objects.count(), 6)
-        self.assertEqual(WalletEntry.objects.count(), before + 1)
-        self.assertEqual(Wallet.objects.get().universal_shards, 60)
+        with self.assertRaises(WalletError):
+            exchange_fragments(student=self.student, hero_id="nis-artist", quantity=10, request_id=uuid.uuid4())
+        self.assertFalse(PlayerCosmetic.objects.exists())
+        self.assertFalse(CharacterSetEntitlement.objects.exists())
+        self.assertEqual(WalletEntry.objects.count(), before)
+        self.assertEqual(Wallet.objects.get().universal_shards, 100)
 
     @patch("tower.services.collection._draw", return_value=("nis-coder", "common"))
     def test_failing_set_grant_rolls_back_pack_money_fragments_receipt_and_right(self, draw):

@@ -11,7 +11,7 @@ from django.test import TestCase, override_settings
 
 from tower.models import (CharacterSetEntitlement, HeroDefinition, PackOffer, PackOpening, PackVersion,
                           PlayerCharacterSet, PlayerCosmetic, PlayerHero, TowerPlayer, Wallet)
-from tower.services.collection import _legendary_slot, exchange_fragments, legendary_chance, open_pack
+from tower.services.collection import _legendary_slot, legendary_chance, open_pack
 from .wallet_fixtures import WalletFixtures
 
 
@@ -73,18 +73,16 @@ class CollectionRulesTests(WalletFixtures, TestCase):
         self.assertEqual(TowerPlayer.objects.get().pack_cycle_position, 9)
         self.assertEqual(legendary_chance(PackOffer.objects.get().version.config, 9), 500)
 
-    def test_six_epic_fragments_unlock_once_and_reconcile_wallet(self):
-        self.shards_for_test()
-        result = exchange_fragments(student=self.student, hero_id="nis-physicist", quantity=6, request_id=uuid.uuid4())
-        self.assertTrue(result["drop"]["completed"])
+    @patch("tower.services.collection._legendary_slot", return_value=None)
+    @patch("tower.services.collection._draw", return_value=("nis-physicist", "epic"))
+    def test_six_epic_fragments_unlock_once_and_reconcile_wallet(self, draw, gate):
+        self.award(amount=50)
+        result = self.pack()
+        self.assertEqual([drop["completed"] for drop in result["drops"]], [False, False, True])
         self.assertEqual(PlayerCosmetic.objects.count(), 6)
-        self.assertEqual(Wallet.objects.get().universal_shards, 52)
+        self.assertEqual(Wallet.objects.get().niscoin, 0)
+        self.assertEqual(PlayerHero.objects.get(hero_id="nis-physicist").fragments, 6)
         call_command("reconcile_tower_wallets", stdout=io.StringIO())
-
-    def shards_for_test(self):
-        from tower.services.wallet import adjust_wallet
-        adjust_wallet(admin=self.admin, student_id=self.student.pk, currency="universal_shards", delta=100,
-                      reason="Test fragments", request_id=uuid.uuid4())
 
     @patch("tower.services.collection._legendary_slot", return_value=None)
     @patch("tower.services.collection._draw", return_value=("nis-coder", "common"))

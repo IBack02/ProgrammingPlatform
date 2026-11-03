@@ -60,11 +60,11 @@ class CollectionConcurrencyTests(WalletFixtures, TransactionTestCase):
         self.assertIn(("error", "already_owned"), results)
         self.assertEqual((Wallet.objects.get().niscoin, PlayerCosmetic.objects.count()), (70, 1))
 
-    def test_concurrent_exchange_cannot_overfill_or_charge_twice(self):
+    def test_concurrent_legacy_exchanges_are_both_denied(self):
         adjust_wallet(admin=self.admin, student_id=self.student.pk, currency="universal_shards", delta=100, reason="Test", request_id=uuid.uuid4())
         def exchange():
             return exchange_fragments(student=self.student, hero_id="nis-coder", quantity=10, request_id=uuid.uuid4())
         results = self.parallel(exchange, exchange)
-        self.assertEqual(sorted(kind for kind, result in results), ["error", "ok"])
-        self.assertIn(("error", "already_collected"), results)
-        self.assertEqual((Wallet.objects.get().universal_shards, PlayerHero.objects.get().fragments), (80, 10))
+        self.assertEqual(results, [("error", "fragment_exchange_disabled"), ("error", "fragment_exchange_disabled")])
+        self.assertEqual(Wallet.objects.get().universal_shards, 100)
+        self.assertFalse(PlayerHero.objects.exists())

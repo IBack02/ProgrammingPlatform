@@ -52,11 +52,6 @@ window.addEventListener("pageshow", () => {
 });
 const dialog = document.getElementById("hero-detail");
 if (dialog?.showModal) { dialog.close(); dialog.showModal(); }
-const quantity = document.querySelector("[data-shard-unit]");
-quantity?.addEventListener("input", () => {
-  const total = document.querySelector("[data-shard-total]");
-  if (total) total.textContent = String(Math.max(0, Number(quantity.value) || 0) * Number(quantity.dataset.shardUnit));
-});
 const avatarForm = document.getElementById("avatar-form");
 function previewAvatar() {
   if (!avatarForm || typeof gameAvatarHtml !== "function") return;

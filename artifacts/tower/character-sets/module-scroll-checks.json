@@ -1,0 +1,57 @@
+[
+  {
+    "case": "desktop theory to theory",
+    "positions": [
+      {
+        "target": "studentWorkspace",
+        "top": 0
+      },
+      {
+        "target": "contentSplit",
+        "top": 0
+      },
+      {
+        "target": "taskPane",
+        "top": 0
+      },
+      {
+        "target": "editorPane",
+        "top": 0
+      }
+    ]
+  },
+  {
+    "case": "desktop quiz to quiz",
+    "positions": [
+      {
+        "target": "studentWorkspace",
+        "top": 0
+      },
+      {
+        "target": "contentSplit",
+        "top": 0
+      },
+      {
+        "target": "taskPane",
+        "top": 0
+      },
+      {
+        "target": "editorPane",
+        "top": 0
+      }
+    ]
+  },
+  {
+    "case": "coding draft preserved",
+    "top": 0,
+    "preserved": true
+  },
+  {
+    "case": "mobile coding to theory",
+    "before": 2532,
+    "menuOpen": false,
+    "title": "Ещё одна длинная теория",
+    "top": 0,
+    "workspace": 0
+  }
+]

@@ -7,6 +7,7 @@ from django.core.exceptions import PermissionDenied, ValidationError
 from django.core.management import call_command
 from django.test import TestCase, override_settings
 from django.urls import reverse
+from django.utils import timezone
 
 from core.models import GameModule, GameParticipant, GameRound, Session
 from core.game_views import _participant_row
@@ -119,29 +120,46 @@ class CollectionTests(WalletFixtures, TestCase):
         with self.assertRaises(ValidationError):
             PackOpening.objects.get().delete()
 
-    def test_targeted_exchange_checks_cost_assembles_and_is_idempotent(self):
+    def test_retired_fragment_exchange_never_changes_money_or_inventory(self):
         self.shards()
         values = dict(student=self.student, hero_id="nis-coder", quantity=10, request_id=uuid.uuid4())
-        result = exchange_fragments(**values)
-        self.assertTrue(result["drop"]["completed"])
-        self.assertEqual(Wallet.objects.get().universal_shards, 80)
-        self.assertTrue(exchange_fragments(**values)["replayed"])
-        with self.assertRaises(WalletError):
-            exchange_fragments(**{**values, "request_id": uuid.uuid4()})
+        before = GameOperation.objects.count(), WalletEntry.objects.count()
+        for key in (values["request_id"], values["request_id"], uuid.uuid4()):
+            with self.assertRaises(WalletError) as denied:
+                exchange_fragments(**{**values, "request_id": key})
+            self.assertEqual(denied.exception.code, "fragment_exchange_disabled")
+        self.assertEqual(Wallet.objects.get().universal_shards, 100)
+        self.assertEqual((GameOperation.objects.count(), WalletEntry.objects.count()), before)
+        self.assertFalse(PlayerHero.objects.exists())
         call_command("reconcile_tower_wallets", stdout=io.StringIO())
 
-    def test_exchange_rejects_overfill_insufficient_shards_and_forged_quantities(self):
+    def test_old_exchange_http_routes_are_disabled_and_removed_from_character_dialog(self):
         self.shards(amount=1)
         values = {"hero_id": "nis-coder", "quantity": 1, "request_id": str(uuid.uuid4())}
-        self.assertEqual(self.action("exchange", values).json()["error"], "insufficient_funds")
-        for value in [True, 1.5, "1", 0, 11]:
-            self.assertEqual(self.action("exchange", {**values, "quantity": value}).status_code, 400)
+        for value in [1, True, 1.5, "1", 0, 11]:
+            response = self.action("exchange", {**values, "quantity": value})
+            self.assertEqual(response.status_code, 403)
+            self.assertEqual(response.json()["error"], "fragment_exchange_disabled")
+        client = self.account_client()
+        self.assertEqual(client.post(reverse("tower:student_action", args=["exchange"]), values).status_code, 403)
+        for language in ("ru", "kk", "en"):
+            session = client.session
+            session["ui_lang"] = language
+            session.save()
+            page = client.get(reverse("tower:home"), {"hero": "nis-coder"})
+            self.assertNotContains(page, reverse("tower:student_action", args=["exchange"]))
+            self.assertNotContains(page, "data-shard-unit")
+            self.assertNotContains(page, "completion_cost")
+            self.assertContains(page, '?tab=packs')
         self.assertFalse(PlayerHero.objects.exists())
+        self.assertEqual(Wallet.objects.get().universal_shards, 1)
 
     def test_favorites_are_only_assembled_cards_and_limited_to_three(self):
         self.shards(amount=1000)
         for hero_id in ["nis-coder", "nis-mathematician", "nis-chemist", "nis-artist"]:
-            exchange_fragments(student=self.student, hero_id=hero_id, quantity=10, request_id=uuid.uuid4())
+            hero = HeroDefinition.objects.get(pk=hero_id)
+            PlayerHero.objects.create(player=TowerPlayer.objects.get(student=self.student), hero=hero,
+                                      fragments=hero.required_fragments, assembled_at=timezone.now())
         for hero_id in ["nis-coder", "nis-mathematician", "nis-chemist"]:
             set_favorite(student=self.student, hero_id=hero_id, favorite=True)
         with self.assertRaises(WalletError):

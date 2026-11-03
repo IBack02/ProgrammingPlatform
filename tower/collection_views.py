@@ -17,7 +17,7 @@ from .permissions import tower_student_required
 from .collection_security import collection_unlocked_required
 from .asset_delivery import asset_url
 from .ui_corners import presentation_asset_path
-from .services.collection import COLORS, SHAPES, SHARD_NISCOIN_RATE, buy_cosmetic, convert_shards, exchange_fragments, legendary_chance, open_pack, save_avatar, set_favorite
+from .services.collection import COLORS, SHAPES, SHARD_NISCOIN_RATE, buy_cosmetic, convert_shards, legendary_chance, open_pack, save_avatar, set_favorite
 from .services.wallet import WalletError
 from .services.appearance import SELECTION_SLOTS, appearance_context, save_appearance
 from .wallet_views import positive_id, student_wallet_context, wallet_errors
@@ -42,7 +42,6 @@ def journal_context(request):
         row = progress.get(card["id"])
         fragments = row.fragments if row else 0
         assembled = bool(row and row.assembled_at)
-        missing = max(0, definition.required_fragments - fragments)
         entitlement = entitlements.get(card["id"])
         grant = getattr(entitlement, "fulfilment", None)
         set_version = publications.get(card["id"]) or (grant.version if grant else None)
@@ -52,7 +51,6 @@ def journal_context(request):
         cards.append({**card, "fragments": fragments, "required": definition.required_fragments,
             "state": "collected" if assembled else "collecting" if fragments else "undiscovered",
             "collected": assembled, "favorite": bool(row and row.is_favorite),
-            "missing": missing, "shard_cost": definition.shard_cost, "completion_cost": missing * definition.shard_cost,
             "set_received": grant is not None, "set_pending": assembled and grant is None, "set_components": components,
             "detail_url": "?" + urlencode({"tab": "collection", "hero": card["id"]}) + "#hero-detail"})
     selected_hero = request.GET.get("hero")
@@ -145,7 +143,10 @@ def journal(request):
 @wallet_errors
 def student_action(request, action):
     is_json = request.path.startswith("/api/")
+    values = {}
     try:
+        if action == "exchange":
+            raise WalletError("fragment_exchange_disabled", 403)
         if is_json:
             try:
                 values = json.loads(request.body)
@@ -156,7 +157,7 @@ def student_action(request, action):
         else:
             values = request.POST.dict()
             values.pop("csrfmiddlewaretoken", None)
-            if action in ("exchange", "convert"):
+            if action == "convert":
                 values["quantity"] = positive_id(values.get("quantity"))
             if action == "favorite":
                 if values.get("favorite") not in ("true", "false"):
@@ -166,7 +167,7 @@ def student_action(request, action):
                 values["accessories"] = {slot: values.pop(slot, "") for slot in ("head", "glasses", "mustache")}
             if action == "appearance":
                 values["selections"] = {slot: values.pop(slot, "") for slot in SELECTION_SLOTS}
-        schemas = {"pack": {"offer", "version", "request_id"}, "exchange": {"hero_id", "quantity", "request_id"},
+        schemas = {"pack": {"offer", "version", "request_id"},
                    "convert": {"quantity", "request_id"},
                    "cosmetic": {"cosmetic_id", "request_id"}, "favorite": {"hero_id", "favorite"},
                    "avatar": {"shape", "color", "accessories", "theme"},
@@ -177,8 +178,6 @@ def student_action(request, action):
         result, tab = {}, "collection"
         if action == "pack":
             result, tab = open_pack(student=student, **values), "packs"
-        elif action == "exchange":
-            result = exchange_fragments(student=student, **values)
         elif action == "convert":
             result, tab = convert_shards(student=student, **values), "wallet"
         elif action == "cosmetic":
@@ -217,8 +216,6 @@ def student_action(request, action):
             }
         if "request_id" in values:
             context["request_id"] = values["request_id"]
-        if action == "exchange":
-            context["hero_detail"] = next((card for card in context["cards"] if card["id"] == values.get("hero_id")), None)
         return render(request, "tower/journal.html", context, status=exc.status)
     if is_json:
         return JsonResponse({"ok": True, **result})

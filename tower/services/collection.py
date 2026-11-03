@@ -141,24 +141,9 @@ def open_pack(*, student, offer, version, request_id):
         cycle_after=player.pack_cycle_position)
 
 
-@transaction.atomic
 def exchange_fragments(*, student, hero_id, quantity, request_id):
-    if type(quantity) is not int or not 1 <= quantity <= 10:
-        raise WalletError("invalid_amount")
-    payload = {"hero_id": _identifier(hero_id), "quantity": quantity}
-    wallet, key, replay = _start(student, "fragment_exchange", request_id, payload)
-    if replay:
-        return replay
-    hero = HeroDefinition.objects.filter(pk=hero_id, is_active=True).first()
-    if not hero:
-        raise WalletError("catalog_unavailable", 409)
-    row = PlayerHero.objects.filter(player=wallet.player, hero=hero).first()
-    if quantity > hero.required_fragments - (row.fragments if row else 0):
-        raise WalletError("already_collected", 409)
-    result = _debit(student, key, hero.shard_cost * quantity, "fragment_exchange", f"Фрагменты: {hero.name}", f"hero:{hero.pk}", WalletEntry.Currency.SHARDS)
-    operation = GameOperation.objects.get(entries__id=result["entry_id"])
-    drop = _grant(wallet.player, hero, quantity, operation=operation)
-    return _finish(result, payload, drop=drop)
+    """Reject legacy callers without changing balances or historical receipts."""
+    raise WalletError("fragment_exchange_disabled", 403)
 
 
 @transaction.atomic

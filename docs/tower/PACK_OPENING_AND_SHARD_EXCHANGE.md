@@ -21,8 +21,10 @@ Without JavaScript, the normal receipt remains visible. Storage is optional.
 
 The school offer now uses immutable `school-v3`; pack price remains 50 niscoins.
 Only surplus fragments generate shards. Unlock thresholds, slot quantities,
-legendary chance cycle, rare-slot protection and fragment purchase costs remain
-unchanged. Previously earned shards and old receipts are preserved.
+legendary chance cycle and rare-slot protection remain unchanged. Previously
+earned shards and old receipts are preserved. Buying character fragments with
+shards is no longer available. Character fragments drop from packs; shards can
+still be converted to niscoins at the 1:5 rate.
 
 | Rarity | Shards per surplus fragment | Fragments per drop | Fully duplicate drop | At 5 niscoins per shard |
 | --- | ---: | ---: | ---: | ---: |
@@ -46,6 +48,11 @@ with packs and other wallet changes. Idempotent request IDs prevent duplicate
 application; changed retry quantities conflict. A failed leg, insufficient shards
 or a balance cap rolls back the entire exchange. Access, journal unlock and CSRF
 checks apply; client-supplied exchange rates are rejected.
+
+The former fragment-exchange form and its price preview have been removed.
+Legacy HTML/API requests and service calls are rejected with
+`fragment_exchange_disabled` before any debit or grant. Historical exchange
+ledger entries, fragment totals and acquired character sets remain intact.
 
 Migration `0014_pack_rewards_and_conversion` adds the ledger source label and
 publishes the frozen v3 config. Disabled offers and separately published newer
