@@ -1,6 +1,6 @@
 from django.urls import path
 from django.views.generic import RedirectView
-from . import exam_reports, exam_views, game_views, guest_views, lesson_views, module_import, module_order, peer_views, views
+from . import exam_reports, exam_views, exam_work_export, game_views, guest_views, lesson_views, module_import, module_order, peer_views, views
 
 urlpatterns = [
     path("guest/<uuid:token>/", guest_views.guest_entry, name="guest_entry"),
@@ -202,6 +202,8 @@ path(
         exam_views.teacher_exam_attempt_grade_page,
         name="teacher_exam_attempt_grade_page",
     ),
+    path("teacher/exams/attempts/<int:attempt_id>/download/", exam_work_export.teacher_exam_attempt_download, name="teacher_exam_attempt_download"),
+    path("teacher/exams/answers/<int:answer_id>/diagram/", exam_work_export.teacher_exam_answer_diagram_download, name="teacher_exam_answer_diagram_download"),
     path("api/teacher/exams/", exam_views.teacher_exams_api, name="teacher_exams_api"),
     path("api/teacher/exams/import-json/", exam_views.teacher_exam_import_api, name="teacher_exam_import_api"),
     path("api/teacher/exams/<int:exam_id>/", exam_views.teacher_exam_detail_api, name="teacher_exam_detail_api"),

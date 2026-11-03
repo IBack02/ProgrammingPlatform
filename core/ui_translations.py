@@ -2471,3 +2471,10 @@ for _lang_code, _extra in COLLECTION_SECURITY_TEXT.items():
     UI_TRANSLATIONS[_lang_code].update({"journal_" + key: value for key, value in _extra.items()})
 for _lang_code, _extra in JOURNAL_TEXT.items():
     UI_TRANSLATIONS[_lang_code].update({"journal_" + key: value for key, value in _extra.items()})
+
+for _lang_code, _extra in {
+    "ru": {"exam_download_work": "Скачать работу Word", "exam_download_saved_grades": "В файл включаются сохранённые оценки учителя."},
+    "kk": {"exam_download_work": "Жұмысты Word форматында жүктеу", "exam_download_saved_grades": "Файлға мұғалімнің сақталған бағалары енгізіледі."},
+    "en": {"exam_download_work": "Download work as Word", "exam_download_saved_grades": "The file includes saved teacher grades."},
+}.items():
+    UI_TRANSLATIONS[_lang_code].update(_extra)

@@ -7,6 +7,7 @@
   *{box-sizing:border-box}
   .grade-top{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
   .back-link{display:inline-flex;padding:9px 13px;border:1px solid var(--grade-line);border-radius:10px;background:#fff;color:var(--grade-ink);text-decoration:none;font-weight:800}
+  .work-download{display:flex;flex-direction:column;gap:5px}.work-download small{color:var(--grade-muted);max-width:290px;font-size:12px}.work-download .back-link{background:var(--grade-blue);color:#fff;justify-content:center}
   .summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:14px}
   .summary-card{border:1px solid var(--grade-line);border-radius:13px;padding:13px;background:#fff}
   .summary-label{font-size:12px;color:var(--grade-muted);font-weight:800}
@@ -38,6 +39,7 @@
 <div class="grade-top">
   <a class="back-link" href="/teacher/exams/">{{ T.back_to_exams }}</a>
   <div><b>{{ attempt.student.full_name }}</b> · {{ attempt.student.class_group.name }}</div>
+  <div class="work-download"><a class="back-link" href="{% url 'teacher_exam_attempt_download' attempt.pk %}" download>{{ T.exam_download_work }}</a><small>{{ T.exam_download_saved_grades }}</small></div>
 </div>
 
 <section class="summary">

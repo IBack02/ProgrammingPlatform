@@ -1,0 +1,13 @@
+Creating test database for alias 'default'...
+
+................Exam report analysis unavailable: RuntimeError
+...........
+----------------------------------------------------------------------
+Ran 27 tests in 2.671s
+
+OK
+Destroying test database for alias 'default'...
+
+Found 27 test(s).
+System check identified no issues (0 silenced).
+No changes detected
