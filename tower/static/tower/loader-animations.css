@@ -1,0 +1,25 @@
+.tower-loader{transform-origin:50% 50%}
+.tower-loader[data-animation=rotate]{animation:towerLoaderSpin 1.7s linear infinite}
+.tower-loader[data-animation=geometry]{animation:towerLoaderGeometry 2.4s ease-in-out infinite}
+.tower-loader[data-animation=flask]{animation:towerLoaderFlask 2s ease-in-out infinite;transform-origin:50% 85%}
+.tower-loader[data-animation=robot]{animation:towerLoaderRobot 1.8s ease-in-out infinite}
+.tower-loader[data-animation=palette]{animation:towerLoaderPalette 2.6s ease-in-out infinite}
+.tower-loader[data-animation=leaf]{animation:towerLoaderLeaf 2.8s ease-in-out infinite;transform-origin:28% 78%}
+.tower-loader[data-animation=wave]{animation:towerLoaderWave 1.5s ease-in-out infinite}
+.tower-loader[data-animation=speech]{animation:towerLoaderSpeech 1.9s ease-in-out infinite;transform-origin:30% 80%}
+.tower-loader[data-animation=orbit]{animation:towerLoaderOrbit 3s linear infinite}
+.tower-loader[data-animation=note]{animation:towerLoaderNote 1.8s ease-in-out infinite}
+.tower-loader[data-animation=fade]{animation:towerLoaderFade 2.2s ease-in-out infinite}
+.tower-loader[data-animation=gear]{animation:towerLoaderSpin 2.4s steps(24,end) infinite}
+@keyframes towerLoaderSpin{to{transform:rotate(360deg)}}
+@keyframes towerLoaderGeometry{0%,100%{transform:rotate(-12deg) scale(.9)}50%{transform:rotate(12deg) scale(1.08)}}
+@keyframes towerLoaderFlask{0%,60%,100%{transform:rotate(0)}15%{transform:rotate(-10deg)}30%{transform:rotate(9deg)}45%{transform:rotate(-5deg)}}
+@keyframes towerLoaderRobot{0%,60%,100%{transform:translateY(0) rotate(0)}20%{transform:translateY(-12%) rotate(-5deg)}40%{transform:translateY(-12%) rotate(5deg)}75%{transform:translateY(0) scale(1.05,.95)}}
+@keyframes towerLoaderPalette{0%,100%{transform:rotate(-18deg)}50%{transform:rotate(18deg)}}
+@keyframes towerLoaderLeaf{0%,100%{transform:rotate(-8deg) translateY(3%)}50%{transform:rotate(10deg) translateY(-5%)}}
+@keyframes towerLoaderWave{0%,100%{transform:scaleY(.65)}50%{transform:scaleY(1.12)}}
+@keyframes towerLoaderSpeech{0%,100%{transform:scale(.85);opacity:.55}35%,65%{transform:scale(1.06);opacity:1}}
+@keyframes towerLoaderOrbit{0%{transform:rotate(0) scale(.92)}50%{transform:rotate(180deg) scale(1.06)}100%{transform:rotate(360deg) scale(.92)}}
+@keyframes towerLoaderNote{0%,100%{transform:translateX(-15%) rotate(-7deg)}50%{transform:translateX(15%) rotate(7deg)}}
+@keyframes towerLoaderFade{0%,100%{opacity:0;transform:translateY(5%) scale(.92)}45%,60%{opacity:1;transform:translateY(0) scale(1)}}
+@media(prefers-reduced-motion:reduce){.tower-loader[data-animation]{animation:none;transform:none;opacity:1}}

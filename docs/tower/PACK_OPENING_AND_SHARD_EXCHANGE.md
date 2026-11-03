@@ -13,9 +13,9 @@ existing portraits and frames continue to use their Cloudflare asset URLs.
 The opening animation sends no purchase requests. All outcomes, fragment grants
 and duplicate rewards are committed before it appears. Session storage remembers
 the torn seal and revealed cards per player/receipt. Reload resumes that state.
-Skipping or replaying changes only presentation. Without JavaScript, the normal
-receipt remains visible. Storage is optional. Old receipts can also be replayed,
-using their original saved drops and shard rewards.
+After all three cards have been turned, Continue shows the saved receipt. There
+are no skip or replay controls; completed receipts remain visible on later visits.
+Without JavaScript, the normal receipt remains visible. Storage is optional.
 
 ## Economy
 
@@ -63,7 +63,22 @@ python manage.py collectstatic --noinput
 No new environment variables or artwork upload is required. Validation covers
 279 Tower tests on SQLite (17 database-specific skips), plus 22 PostgreSQL exchange
 and pack concurrency checks. Browser QA uses a separate fake-account database:
-normal/reduced motion, seal tear, epic/legendary flips, resume, skip/replay,
+normal/reduced motion, seal tear, epic/legendary flips, resume, completion,
 keyboard activation, 320/390 px layouts, and an actual 3-shard → 15-niscoin exchange.
 Normal motion was exercised in an isolated preview because the test browser itself
 requests reduced motion. Preview overrides are not part of application code.
+
+## Loader motion and return navigation
+
+Each character loader now has its own motion, shared by the live loading indicator,
+appearance editor and teacher set preview. The coder orbit spins; the geometry
+rocks and scales; the flask shakes; the robot bounces; the palette swings; the leaf
+sways; the wave stretches; the speech bubble pulses; the planet rotates on a
+breathing orbit; the note moves left and right; the chess piece fades in and out;
+and the gear rotates in steps. Default loading uses the existing spinner. Reduced
+motion keeps the symbols still and visible.
+
+These are CSS presentation profiles in `tower/ui_loaders.py` and
+`loader-animations.css`; existing published set metadata and R2 artwork are
+unchanged. No migration or artwork upload is needed for these adjustments.
+The journal and its password page return to `/student/dashboard/`.

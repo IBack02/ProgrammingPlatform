@@ -64,6 +64,7 @@
     indicator.append(fallback);
     if (config.dataset.image) {
       const image = document.createElement("img");
+      image.className = "tower-loader";
       image.alt = "";
       image.hidden = true;
       image.dataset.animation = config.dataset.animation || "";

@@ -11,7 +11,6 @@
   const grid = stage.querySelector(".reveal-card-grid");
   const status = stage.querySelector(".pack-reveal-status");
   const finishButton = stage.querySelector("[data-reveal-finish]");
-  const repeat = document.querySelector("[data-reveal-repeat]");
   let state = {torn: false, revealed: [], complete: false};
   let tearing = false, tearTimer, flipTimer;
   try {
@@ -54,8 +53,11 @@
     save();
     stage.hidden = true;
     summary.hidden = false;
-    repeat.hidden = false;
-    repeat.focus({preventScroll: true});
+    const firstCard = summary.querySelector(".collection-card");
+    if (firstCard) {
+      firstCard.tabIndex = -1;
+      firstCard.focus({preventScroll: true});
+    }
   }
   booster.addEventListener("click", () => {
     if (tearing || state.torn) return;
@@ -74,25 +76,8 @@
     paint();
     if (state.revealed.length === cards.length) flipTimer = setTimeout(() => finishButton.focus({preventScroll: true}), reduced ? 0 : 700);
   }));
-  stage.querySelector("[data-reveal-skip]").addEventListener("click", complete);
   finishButton.addEventListener("click", complete);
-  repeat.addEventListener("click", () => {
-    state = {torn: false, revealed: [], complete: false};
-    tearing = false;
-    save();
-    cards.forEach((card, i) => card.querySelector("button").setAttribute("aria-label", `${stage.dataset.cardsLabel} ${i + 1}`));
-    paint();
-    status.textContent = stage.dataset.sealedLabel;
-    grid.hidden = true;
-    boosterStage.hidden = false;
-    boosterStage.classList.remove("is-tearing");
-    booster.disabled = false;
-    stage.hidden = false;
-    summary.hidden = true;
-    repeat.hidden = true;
-    booster.focus({preventScroll: true});
-  });
-  if (state.complete) { repeat.hidden = false; return; }
+  if (state.complete) return;
   stage.hidden = false;
   summary.hidden = true;
   // Start portrait requests before a card is turned, without affecting its result.

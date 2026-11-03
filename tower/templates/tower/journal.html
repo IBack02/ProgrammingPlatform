@@ -15,7 +15,7 @@
   {% include 'tower/_appearance_head.html' %}
 </head>
 <body><main class="journal journal--live">
-  <header class="journal-header"><div><p class="journal-eyebrow">NIS · {{ T.journal_your_space }}</p><h1>{{ T.tower_title }}</h1></div><a class="journal-back" href="/student/">{{ T.tower_back_lesson }}</a></header>
+  <header class="journal-header"><div><p class="journal-eyebrow">NIS · {{ T.journal_your_space }}</p><h1>{{ T.tower_title }}</h1></div><a class="journal-back" href="{% url 'student_dashboard_page' %}">{{ T.journal_back_dashboard }}</a></header>
   <div class="journal-overview">
     <div><span>{{ T.journal_collection_progress }}</span><strong>{{ collected_count }} <small>/ {{ cards|length }}</small></strong></div>
     <div><span>{{ T.wallet_niscoin }}</span><strong>{{ wallet.niscoin }}</strong></div>

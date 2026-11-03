@@ -15,7 +15,7 @@
       <h1>{% if tower_preview %}{{ T.tower_card_catalog }}{% else %}{{ T.tower_title }}{% endif %}</h1>
     </div>
     {% if tower_preview %}<a class="journal-back" href="{% url 'tower:teacher' %}">{{ T.tower_back_management }}</a>
-    {% else %}<a class="journal-back" href="/student/">{{ T.tower_back_lesson }}</a>{% endif %}
+    {% else %}<a class="journal-back" href="{% url 'student_dashboard_page' %}">{{ T.journal_back_dashboard }}</a>{% endif %}
   </header>
   {% if tower_preview %}
     <p class="journal-intro">{{ T.tower_catalog_hint }}</p>

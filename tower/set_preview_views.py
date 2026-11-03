@@ -10,6 +10,7 @@ from tower.character_preview import SHAPE_POINTS
 from tower.permissions import tower_teacher_required
 from tower.asset_delivery import asset_url
 from tower.ui_corners import presentation_asset_path
+from tower.ui_loaders import loader_animation
 
 
 def preview_context(params):
@@ -43,7 +44,8 @@ def preview_context(params):
     bundles = []
     for hero, entry in entries.items():
         components = [{"id": slot, "label": item.labels.ru, "url": asset_url(presentation_asset_path(hero, slot, item.asset.path)),
-                       "placeholder": item.placeholder} for slot, item in entry.components.items()]
+                       "placeholder": item.placeholder,
+                       "animation": loader_animation(hero, slot, item.animation)} for slot, item in entry.components.items()]
         bundles.append({"hero": hero, "name": cards[hero]["name"], "role": cards[hero]["role"],
                         "components": components, "example": profiles[hero].examples["ru"][0],
                         "tone": profiles[hero].tone})

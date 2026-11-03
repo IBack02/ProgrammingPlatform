@@ -26,5 +26,5 @@
     <button type="submit">{% if password_setup %}{{ T.journal_password_create_enter }}{% else %}{{ T.journal_password_enter }}{% endif %}</button>
   </form>
   <p class="collection-auth-hint">{{ T.journal_password_forgot }}</p>
-  <a href="/student/">{{ T.tower_back_lesson }}</a>
+  <a href="{% url 'student_dashboard_page' %}">{{ T.journal_back_dashboard }}</a>
 </main></body></html>
