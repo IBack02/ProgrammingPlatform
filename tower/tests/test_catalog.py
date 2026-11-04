@@ -28,7 +28,7 @@ class CardPresentationTests(SimpleTestCase):
                 self.assertEqual(html.count('<svg '), count)
                 self.assertIn('class="collection-card__portrait"', html)
                 self.assertIn('class="collection-card__frame"', html)
-                self.assertIn(f'https://images.example.org/chars/{card["id"]}.png', html)
+                self.assertIn(f'https://images.example.org/chars/{card["id"]}', html)
                 self.assertIsNotNone(finders.find(f"tower/frames/{rarity}.webp"))
 
     def test_all_portrait_names_are_unique_and_manifest_has_portrait_aspect(self):

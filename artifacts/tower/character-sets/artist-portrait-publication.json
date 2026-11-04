@@ -1,0 +1,12 @@
+{
+  "portrait": "chars/nis-artist-ebefea8fb5a3.png",
+  "public_url": "https://pub-d45cf87f435a45e1b45efc0397382c5d.r2.dev/chars/nis-artist-ebefea8fb5a3.png",
+  "bytes": 1982385,
+  "sha256": "ebefea8fb5a30ef3b60c99aedcc643ef12c86b01dab09efa0c2fa5cef0273fa5",
+  "verified_urls": [
+    "https://pub-d45cf87f435a45e1b45efc0397382c5d.r2.dev/chars/nis-artist-ebefea8fb5a3.png",
+    "https://pub-d45cf87f435a45e1b45efc0397382c5d.r2.dev/chars/nis-artist.png"
+  ],
+  "verified_at_utc": "2026-11-04T03:19:03.805342+00:00",
+  "verification": "public image matches original upload byte for byte"
+}
