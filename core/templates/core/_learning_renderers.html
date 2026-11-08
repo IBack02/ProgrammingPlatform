@@ -57,11 +57,12 @@
   function setHiddenTheoryText(wrap, text){
     const content = wrap.querySelector(".theory-spoiler-text");
     const cover = wrap.querySelector(".theory-spoiler-cover");
+    const label = cover.querySelector(".theory-spoiler-label");
     const revealed = typeof text === "string";
     content.textContent = revealed ? text : "";
     content.hidden = !revealed;
     if (cover.tagName === "BUTTON"){
-      cover.textContent = revealed ? UI.hideTheoryText : UI.revealTheoryText;
+      label.textContent = revealed ? UI.hideTheoryText : UI.revealTheoryText;
       cover.setAttribute("aria-expanded", String(revealed));
       cover.classList.toggle("revealed", revealed);
     } else {
@@ -94,6 +95,13 @@
         wrap.className = "theoryBlock theory-spoiler";
         const cover = document.createElement(onReveal ? "button" : "span");
         cover.className = "theory-spoiler-cover";
+        const mask = document.createElement("span");
+        mask.className = "theory-spoiler-mask";
+        mask.setAttribute("aria-hidden", "true");
+        mask.textContent = onReveal ? block.content : "█████ ███████ ████████ ████ ██████";
+        const label = document.createElement("span");
+        label.className = "theory-spoiler-label";
+        cover.append(mask, label);
         const content = document.createElement("div");
         content.className = "theory-spoiler-text";
         content.id = `theory-spoiler-text-${block.id}`;
@@ -106,7 +114,7 @@
             finally { cover.disabled = false; }
           });
         } else {
-          cover.textContent = UI.hiddenTheoryText;
+          label.textContent = UI.hiddenTheoryText;
           wrap.setAttribute("aria-live", "polite");
         }
         wrap.append(cover, content);

@@ -155,7 +155,9 @@
       <div style="margin-top:12px;display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end;">
         <a class="btn" id="tasksLink" href="#" style="text-decoration:none;">{{ T.open_modules }}</a>
         <a class="btn" id="lessonLink" href="#">{{ T.lesson_mode }}</a>
+        <button class="btn" id="lessonPlanBtn" type="button">{{ T.lesson_plan_build }}</button>
       </div>
+      <p id="lessonPlanStatus" class="muted" role="status"></p>
     </div>
   </div>
 </div>
@@ -195,10 +197,14 @@
   let sessionsCache = [];
   let publicSessionsCache = [];
   let busy = false;
+  let planPending = false;
+  const planButton = document.getElementById("lessonPlanBtn");
+  const planStatus = document.getElementById("lessonPlanStatus");
 
   function setBusy(state){
     busy = state;
     document.querySelectorAll("button").forEach(btn => btn.disabled = state);
+    planButton.disabled = state || planPending;
   }
 
   function getCookie(name){
@@ -385,6 +391,7 @@
 
   async function selectSession(id, showMessage=false){
     if (!(await flushSessionChanges())) return;
+    if (selectedId !== id) planStatus.textContent = "";
     selectedId = id;
     applySessionSearch();
 
@@ -489,6 +496,39 @@
     event.preventDefault();
     if(await flushSessionChanges())window.location.href=link.href;
   }));
+  planButton.addEventListener("click", async () => {
+    if (!selectedId || planPending || busy) return;
+    const sessionId = selectedId;
+    planPending = true;
+    planButton.disabled = true;
+    try {
+      if (!(await flushSessionChanges()) || selectedId !== sessionId) return;
+      planStatus.textContent = "{{ T.lesson_plan_building|escapejs }}";
+      const response = await fetch(`/api/teacher/sessions/${sessionId}/lesson-plan/`, {
+        method: "POST",
+        credentials: "same-origin",
+        headers: {"X-CSRFToken": getCookie("csrftoken")},
+      });
+      if (!response.ok || !response.headers.get("content-type")?.startsWith("application/vnd.openxmlformats-officedocument.wordprocessingml.document")) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.error || "{{ T.lesson_plan_unavailable|escapejs }}");
+      }
+      const url = URL.createObjectURL(await response.blob());
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `lesson-plan-${sessionId}.docx`;
+      document.body.append(link);
+      link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+      if (selectedId === sessionId) planStatus.textContent = "{{ T.lesson_plan_downloaded|escapejs }}";
+    } catch (error) {
+      if (selectedId === sessionId) planStatus.textContent = error.message;
+    } finally {
+      planPending = false;
+      planButton.disabled = busy;
+    }
+  });
   window.addEventListener("online",()=>flushSessionChanges());
   window.addEventListener("beforeunload",event=>{
     if(pendingChanges||failedChanges||savesQueued){event.preventDefault();event.returnValue="";}

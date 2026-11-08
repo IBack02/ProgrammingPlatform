@@ -1,6 +1,6 @@
 from django.urls import path
 from django.views.generic import RedirectView
-from . import exam_reports, exam_views, exam_work_export, game_views, guest_views, lesson_views, module_import, module_order, peer_views, views
+from . import exam_reports, exam_views, exam_work_export, game_views, guest_views, lesson_plan, lesson_views, module_import, module_order, peer_views, views
 
 urlpatterns = [
     path("guest/<uuid:token>/", guest_views.guest_entry, name="guest_entry"),
@@ -12,6 +12,7 @@ urlpatterns = [
     path("api/teacher/tasks/<int:task_id>/submissions/<int:submission_id>/", lesson_views.teacher_lesson_submissions, name="teacher_lesson_submission_detail"),
     path("api/teacher/students/bulk/", views.teacher_students_bulk_api, name="teacher_students_bulk_api"),
     path("teacher/sessions/<int:session_id>/lesson/", lesson_views.teacher_lesson_page, name="teacher_lesson_page"),
+    path("api/teacher/sessions/<int:session_id>/lesson-plan/", lesson_plan.teacher_lesson_plan, name="teacher_lesson_plan"),
     path("api/teacher/theory-modules/<int:module_id>/highlights/", lesson_views.teacher_highlights, name="teacher_highlights"),
     path("api/teacher/theory-modules/<int:module_id>/blocks/<int:block_id>/reveal/", lesson_views.teacher_reveal_theory_block, name="teacher_reveal_theory_block"),
     path("api/student/theory-module/<int:module_id>/highlights/", lesson_views.student_highlights, name="student_highlights"),

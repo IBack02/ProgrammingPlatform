@@ -9,6 +9,7 @@ from django.shortcuts import get_object_or_404
 from django.views.decorators.http import require_POST
 
 from .exam_views import _json_body, _teacher
+from .theory_disclosures import normalize_theory_disclosures
 from .models import (
     GameModule,
     MindRacePrompt,
@@ -274,7 +275,8 @@ def _prepare_theory_blocks(value) -> list[dict]:
                 "content": content,
             }
         )
-    return result
+    normalized = normalize_theory_disclosures(result)
+    return _array(normalized, "blocks")
 
 
 def _prepare_choices(value, question_ordinal: int) -> list[dict]:

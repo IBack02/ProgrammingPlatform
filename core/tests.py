@@ -557,6 +557,31 @@ class ModuleJsonImportTests(TestCase):
             content_type="application/json",
         )
 
+    def test_import_converts_html_disclosure_without_changing_code_examples(self):
+        html = '<details><summary>Reveal model answer [4 marks]</summary><p>Test &lt;limit&gt;</p></details>'
+        payload = {
+            "action": "create_modules",
+            "modules": [{
+                "module_type": "theory_material", "title": "Disclosures",
+                "blocks": [
+                    {"ordinal": 1, "block_type": "text", "content": "Question\n" + html},
+                    {"ordinal": 2, "block_type": "code", "content": html},
+                    {"ordinal": 3, "block_type": "text", "content": "The <details> tag creates a disclosure."},
+                ],
+            }],
+        }
+        response = self._import(payload)
+        self.assertEqual(response.status_code, 200, response.content)
+        blocks = TheoryMaterialModule.objects.get(session=self.session).blocks
+        self.assertEqual(list(blocks.values_list("ordinal", "block_type", "content")), [
+            (1, "text", "Question"), (2, "text", "Reveal model answer [4 marks]"),
+            (3, "hidden_text", "Test <limit>"), (4, "code", html),
+            (5, "text", "The <details> tag creates a disclosure."),
+        ])
+        payload["modules"][0]["blocks"][0]["content"] = "<details><summary>Reveal"
+        self.assertEqual(self._import(payload).status_code, 400)
+        self.assertEqual(TheoryMaterialModule.objects.filter(session=self.session).count(), 1)
+
     def test_imports_medium_image_url_with_encoded_path_and_markdown_links(self):
         image_url = (
             "https://miro.medium.com/v2/resize%3Afit%3A2000/"

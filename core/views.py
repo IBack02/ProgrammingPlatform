@@ -26,6 +26,7 @@ from django.views.decorators.http import require_GET, require_http_methods, requ
 
 
 from .judge0_client import create_batch_submissions, wait_batch
+from .theory_disclosures import normalize_theory_disclosures
 from .ai_assist import (
     build_prompt_snapshot,
     call_openai_hint,
@@ -3831,53 +3832,43 @@ def teacher_generate_theory_module_api(request: HttpRequest, module_id: int):
         title = (payload.get("title") or "").strip()
         blocks = payload.get("blocks") or []
 
+        clean_blocks = []
+        used_ordinals = set()
+        for raw in blocks:
+            ordinal = int(raw.get("ordinal") or 0)
+            block_type = (raw.get("block_type") or "").strip()
+            heading_level = (raw.get("heading_level") or "").strip()
+            content = (raw.get("content") or "").rstrip()
+            if ordinal < 1 or ordinal in used_ordinals or not content:
+                continue
+            if block_type not in TheoryMaterialBlock.BlockType.values or _theory_media_error(block_type, content):
+                continue
+            if block_type == "heading" and heading_level not in {"h1", "h2"}:
+                heading_level = "h2"
+            if block_type != "heading":
+                heading_level = ""
+            used_ordinals.add(ordinal)
+            clean_blocks.append({
+                "ordinal": ordinal, "block_type": block_type, "heading_level": heading_level, "content": content,
+            })
+
+        try:
+            clean_blocks = normalize_theory_disclosures(clean_blocks)
+        except ValueError as exc:
+            return JsonResponse({"ok": False, "error": str(exc)}, status=502)
+        if not clean_blocks:
+            return JsonResponse({"ok": False, "error": "AI returned no valid blocks"}, status=502)
+
         with transaction.atomic():
+            module = TheoryMaterialModule.objects.select_for_update().get(id=module.id)
             if title:
                 module.title = title
             module.ai_prompt = prompt
             module.save(update_fields=["title", "ai_prompt", "updated_at"])
-
-            TheoryMaterialBlock.objects.filter(module=module).delete()
-
-            clean_blocks = []
-            used_ordinals = set()
-
-            for raw in blocks:
-                ordinal = int(raw.get("ordinal") or 0)
-                block_type = (raw.get("block_type") or "").strip()
-                heading_level = (raw.get("heading_level") or "").strip()
-                content = (raw.get("content") or "").rstrip()
-
-                if ordinal < 1 or ordinal in used_ordinals or not content:
-                    continue
-
-                if block_type not in TheoryMaterialBlock.BlockType.values:
-                    continue
-
-                if block_type == "heading" and heading_level not in {"h1", "h2"}:
-                    heading_level = "h2"
-                if block_type != "heading":
-                    heading_level = ""
-
-                if _theory_media_error(block_type, content):
-                    continue
-
-                used_ordinals.add(ordinal)
-                clean_blocks.append(
-                    TheoryMaterialBlock(
-                        module=module,
-                        ordinal=ordinal,
-                        block_type=block_type,
-                        heading_level=heading_level,
-                        content=content,
-                    )
-                )
-
-            if not clean_blocks:
-                transaction.set_rollback(True)
-                return JsonResponse({"ok": False, "error": "AI returned no valid blocks"}, status=502)
-
-            TheoryMaterialBlock.objects.bulk_create(clean_blocks)
+            module.blocks.all().delete()
+            TheoryMaterialBlock.objects.bulk_create([
+                TheoryMaterialBlock(module=module, **block) for block in clean_blocks
+            ])
 
         module = TheoryMaterialModule.objects.prefetch_related("blocks").get(id=module.id)
         return JsonResponse({"ok": True, "module": _serialize_theory_module(module)})

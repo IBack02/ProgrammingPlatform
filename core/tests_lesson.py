@@ -1,6 +1,8 @@
 import json
+from unittest.mock import patch
 
 from django.test import Client, TestCase
+from django.urls import reverse
 
 from .models import (ClassGroup, LessonHighlight, Session, Student, StudentTheoryQuizAttempt,
                      Teacher, TheoryMaterialBlock, TheoryMaterialModule, TheoryQuizChoice,
@@ -84,6 +86,22 @@ class LessonTests(TestCase):
         )
         self.assertEqual(student.get(self.student_url).json()["revealed_blocks"], {})
         self.assertEqual(self.client.put(url, payload, content_type="application/json").status_code, 409)
+
+    @patch("core.views.call_openai_theory_material")
+    def test_generated_theory_converts_disclosure_and_rejects_incomplete_markup(self, generate):
+        url = reverse("teacher_generate_theory_module_api", args=[self.module.id])
+        content = "<details><summary>Reveal</summary>Teacher answer</details>"
+        block = {"ordinal": 1, "block_type": "text", "content": content}
+        generate.return_value = {"data": {"blocks": [block]}}
+        response = self.client.post(url, {"prompt": "Add a question"}, content_type="application/json")
+        self.assertEqual(response.status_code, 200, response.content)
+        expected = [("text", "Reveal"), ("hidden_text", "Teacher answer")]
+        self.assertEqual(list(self.module.blocks.values_list("block_type", "content")), expected)
+
+        block["content"] = "<details><summary>Unfinished"
+        response = self.client.post(url, {"prompt": "Add a question"}, content_type="application/json")
+        self.assertEqual(response.status_code, 502)
+        self.assertEqual(list(self.module.blocks.values_list("block_type", "content")), expected)
 
     def test_permissions(self):
         self.assertEqual(Client().get(self.url).status_code, 401)
