@@ -1,14 +1,35 @@
 """Teacher lesson presentation, practice quizzes and class-scoped annotations."""
+from hashlib import sha256
+
 from django.http import JsonResponse
+from django.db import transaction
 from django.db.models import Q
 from django.shortcuts import get_object_or_404, render
+from django.views.decorators.cache import never_cache
 from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views.decorators.http import require_GET, require_http_methods
 
 from . import views
-from .models import LessonHighlight, TheoryMaterialModule, Submission
+from .models import LessonHighlight, TheoryMaterialBlock, TheoryMaterialModule, Submission
 
 MARKER_COLORS = {"yellow", "green", "blue", "pink", "purple", "orange", "red"}
+
+
+def _block_revision(block):
+    return sha256(block.content.encode("utf-8")).hexdigest()
+
+
+def _lesson_theory_state(module, state):
+    revealed = {}
+    if state and state.revealed_blocks:
+        for block in module.blocks.filter(
+            block_type=TheoryMaterialBlock.BlockType.HIDDEN_TEXT, pk__in=state.revealed_blocks
+        ):
+            if state.revealed_blocks[str(block.pk)] == _block_revision(block):
+                revealed[str(block.pk)] = block.content
+    return JsonResponse({
+        "ok": True, "ranges": state.ranges if state else [], "revealed_blocks": revealed,
+    })
 
 
 @require_GET
@@ -95,9 +116,39 @@ def teacher_highlights(request, module_id):
         state, _ = LessonHighlight.objects.update_or_create(module=module, class_group=group, defaults={"ranges": clean})
     else:
         state = LessonHighlight.objects.filter(module=module, class_group=group).first()
-    return JsonResponse({"ok": True, "ranges": state.ranges if state else []})
+    return _lesson_theory_state(module, state)
 
 
+@require_http_methods(["PUT"])
+def teacher_reveal_theory_block(request, module_id, block_id):
+    teacher = views._get_logged_in_teacher(request)
+    if not teacher:
+        return views._teacher_api_unauthorized()
+    module = views._require_theory_module_owner_or_404(module_id, teacher)
+    class_id = request.GET.get("class_id", "")
+    if not class_id.isdigit():
+        return JsonResponse({"ok": False, "error": "Select a class"}, status=400)
+    group = get_object_or_404(module.session.allowed_classes, id=int(class_id), owner=teacher)
+    data = views._json_body(request)
+    if type(data.get("revealed")) is not bool or not isinstance(data.get("content"), str):
+        return JsonResponse({"ok": False, "error": "Invalid reveal request"}, status=400)
+    with transaction.atomic():
+        block = get_object_or_404(
+            module.blocks, pk=block_id, block_type=TheoryMaterialBlock.BlockType.HIDDEN_TEXT,
+        )
+        if data["content"] != block.content:
+            return JsonResponse({"ok": False, "error": "Text has changed; reload the module"}, status=409)
+        state, _ = LessonHighlight.objects.select_for_update().get_or_create(module=module, class_group=group)
+        key = str(block.pk)
+        if data["revealed"]:
+            state.revealed_blocks[key] = _block_revision(block)
+        else:
+            state.revealed_blocks.pop(key, None)
+        state.save(update_fields=["revealed_blocks", "updated_at"])
+        return _lesson_theory_state(module, state)
+
+
+@never_cache
 @require_GET
 def student_highlights(request, module_id):
     student_id, class_id = views._get_student_from_session(request)
@@ -108,7 +159,7 @@ def student_highlights(request, module_id):
         return JsonResponse({"ok": False, "error": "session is not accessible"}, status=403)
     active_class_id = views._student_session_class_id(module.session, student_id=student_id, preferred_class_id=class_id)
     state = LessonHighlight.objects.filter(module=module, class_group_id=active_class_id).first()
-    return JsonResponse({"ok": True, "ranges": state.ranges if state else []})
+    return _lesson_theory_state(module, state)
 
 
 @require_http_methods(["GET", "POST"])

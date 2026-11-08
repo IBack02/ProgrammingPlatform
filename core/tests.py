@@ -664,6 +664,11 @@ class ModuleJsonImportTests(TestCase):
                             "block_type": "attachment",
                             "content": "https://drive.google.com/file/d/test_file_id/view",
                         },
+                        {
+                            "ordinal": 3,
+                            "block_type": "hidden_text",
+                            "content": "Use \"C:\\projects\".\nThen run the script.",
+                        },
                     ],
                 },
                 {
@@ -732,7 +737,10 @@ class ModuleJsonImportTests(TestCase):
                             "title": "Final",
                             "question_count": 1,
                             "questions": [
-                                {"ordinal": 1, "prompt": "Output function", "answer": "print"}
+                                {
+                                    "ordinal": 1, "question_type": "single_choice",
+                                    "prompt": "Output function", "choices": ["input", "print"], "correct_choice": 1,
+                                }
                             ],
                         }
                     ],
@@ -753,6 +761,7 @@ class ModuleJsonImportTests(TestCase):
         theory = TheoryMaterialModule.objects.get(session=self.session)
         attachment = theory.blocks.get(block_type=TheoryMaterialBlock.BlockType.ATTACHMENT)
         self.assertIn("drive.google.com", attachment.content)
+        self.assertEqual(theory.blocks.get(block_type="hidden_text").content, 'Use "C:\\projects".\nThen run the script.')
 
         quiz = TheoryQuizModule.objects.get(session=self.session)
         self.assertEqual(quiz.questions.count(), 3)
@@ -762,7 +771,9 @@ class ModuleJsonImportTests(TestCase):
         self.assertEqual(GameModule.objects.filter(session=self.session).count(), 3)
         self.assertEqual(MindRacePrompt.objects.count(), 1)
         self.assertEqual(WonderFieldQuestion.objects.count(), 1)
-        self.assertEqual(TournamentStage.objects.count(), 1)
+        question = TournamentStage.objects.get().questions.get()
+        self.assertEqual(question.choices, ["input", "print"])
+        self.assertEqual(question.answer, "print")
         self.assertEqual(
             list(GameModule.objects.filter(session=self.session).values_list("position", flat=True)),
             [4, 5, 6],

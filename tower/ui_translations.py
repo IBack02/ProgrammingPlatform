@@ -122,14 +122,17 @@ for _lang, _labels in {
     "ru": {"companion_ready":"Можно получить новую реплику", "companion_empty":"Пока нет подходящего учебного материала.",
         "companion_generating":"Секунду, я думаю…", "companion_cooldown":"Следующая реплика после",
         "companion_retry":"Не получилось. Можно повторить после", "companion_unavailable":"Помощник временно недоступен. Попробуй позже.",
+        "companion_paused":"Сообщения на паузе до завершения экзамена или игры.",
         "companion_open_source":"Открыть материал", "companion_generate":"Напомни о важном"},
     "kk": {"companion_ready":"Жаңа хабарлама алуға болады", "companion_empty":"Әзірге сәйкес оқу материалы жоқ.",
         "companion_generating":"Бір сәт, ойланып жатырмын…", "companion_cooldown":"Келесі хабарлама уақыты:",
         "companion_retry":"Сәтсіз болды. Қайта көру уақыты:", "companion_unavailable":"Көмекші уақытша қолжетімсіз. Кейінірек қайтала.",
+        "companion_paused":"Хабарламалар емтихан немесе ойын аяқталғанша тоқтатылды.",
         "companion_open_source":"Материалды ашу", "companion_generate":"Маңыздысын еске сал"},
     "en": {"companion_ready":"A new message is available", "companion_empty":"There is no suitable learning material yet.",
         "companion_generating":"One moment, thinking…", "companion_cooldown":"Next message after",
         "companion_retry":"That did not work. Try again after", "companion_unavailable":"Your companion is temporarily unavailable. Try again later.",
+        "companion_paused":"Messages are paused until the exam or game ends.",
         "companion_open_source":"Open material", "companion_generate":"Remind me what matters"},
 }.items():
     JOURNAL_TEXT[_lang].update(_labels)

@@ -49,6 +49,10 @@
   .game-host{border:1px solid #bae6fd;border-radius:14px;padding:14px;background:linear-gradient(135deg,#f0f9ff,#fff7ed)}
   .game-prompt-row{border:1px solid #e5e7eb;border-radius:12px;padding:12px;margin-top:10px;background:#fff}
   .game-prompt-row textarea{min-height:76px}
+  .tournament-question-editor{display:grid;gap:8px;margin:8px 0;min-width:0}
+  .tournament-question-editor [hidden]{display:none}
+  .tournament-choice-row{display:grid;grid-template-columns:auto minmax(0,1fr);gap:8px;align-items:center;margin-top:8px}
+  .tournament-choice-row textarea{box-sizing:border-box;width:100%;min-height:48px}
   .game-preview{padding:8px 10px;border-radius:9px;background:#0f172a;color:#e2e8f0;margin-top:8px;white-space:pre-wrap}
   .module-json-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px;margin-top:12px}
   .module-json-area{width:100%;min-height:260px;resize:vertical;font-family:Consolas,"Courier New",monospace;font-size:12px;line-height:1.45}
@@ -166,6 +170,7 @@
           <select id="blockType" class="select-ui">
             <option value="heading">heading</option>
             <option value="text">text</option>
+            <option value="hidden_text">{{ T.hidden_theory_text }}</option>
             <option value="code">code</option>
             <option value="image">image</option>
             <option value="video">video</option>
@@ -268,10 +273,10 @@
           <div class="row" style="margin-top:10px;">
             <select id="tournamentQuestionStage" class="select-ui" style="min-width:160px;"></select>
             <input id="tournamentQuestionOrdinal" class="input-ui" type="number" min="1" value="1" style="width:75px;">
-            <input id="tournamentAnswer" class="input-ui" placeholder="{{ T.correct_answer }}" style="flex:1;">
             <button id="tournamentAddQuestionBtn" class="btn" type="button">{{ T.add_question }}</button>
           </div>
           <textarea id="tournamentPrompt" class="textarea-ui" placeholder="{{ T.question_prompt }}" style="width:100%;height:80px;margin-top:8px;"></textarea>
+          <div id="tournamentNewAnswer" class="tournament-question-editor"></div>
         </div>
       </div>
 
@@ -356,7 +361,9 @@
         {ordinal: 3, block_type: "code", content: "value = 10\nprint(type(value))"},
         {ordinal: 4, block_type: "image", content: "https://example.com/diagram.png"},
         {ordinal: 5, block_type: "video", content: "https://www.youtube.com/watch?v=VIDEO_ID"},
-        {ordinal: 6, block_type: "attachment", content: "https://drive.google.com/file/d/FILE_ID/view"}
+        {ordinal: 6, block_type: "attachment", content: "https://drive.google.com/file/d/FILE_ID/view"},
+        {ordinal: 7, block_type: "text", content: "Which type represents true or false?"},
+        {ordinal: 8, block_type: "hidden_text", content: "The bool type."}
       ]
     }],
     theory_quiz: [{
@@ -428,9 +435,9 @@
             title: "Round 1",
             question_count: 3,
             questions: [
-              {ordinal: 1, prompt: "Keyword for a condition?", answer: "if"},
-              {ordinal: 2, prompt: "Keyword for a loop over a sequence?", answer: "for"},
-              {ordinal: 3, prompt: "Function that displays output?", answer: "print"}
+              {ordinal: 1, question_type: "open_text", prompt: "Keyword for a condition?", answer: "if"},
+              {ordinal: 2, question_type: "single_choice", prompt: "Keyword for a loop over a sequence?", choices: ["if", "for", "def"], correct_choice: 1},
+              {ordinal: 3, question_type: "open_text", prompt: "Function that displays output?", answer: "print"}
             ]
           }
         ]
@@ -454,9 +461,12 @@
     return `Create valid JSON for ProgrammingPlatform lesson-module import. Return exactly one JSON object without markdown fences, comments, or explanations.
 
 STRICT JSON ENCODING RULES:
-- Write every key exactly as shown. Underscores are ordinary characters: use "module_type", never "module\\_type". Never put a backslash before an underscore.
+- Write every key exactly as shown. Underscores are ordinary characters: use "module_type", never "module\\_type". The sequence \\_ is not a JSON escape.
 - Use double quotes around every key and string value. Inside a JSON string, escape a quote as \\" and a backslash as \\\\.
 - Encode line breaks inside string values as \\n. Never place a literal unescaped line break inside a JSON string.
+- Use JSON literals true, false, and null, without quotes. Separate fields and array items with commas, with no trailing commas.
+- Never use undefined, NaN, Infinity, single-quoted strings, JavaScript expressions, or placeholders for required values.
+- Preserve the exact text of code and input/output. If code contains a literal backslash followed by n, encode that pair as \\\\n in JSON.
 - Operators and punctuation such as *, <, >, <=, >=, /, :, and _ do not need escaping.
 - Use raw HTTPS URLs. Never wrap a URL in Markdown, never escape / or _, and never emit HTML entities such as &quot; or &#x20;.
 - Before returning the result, validate it with JSON.parse. If JSON.parse fails, fix the JSON. Output only the validated object.
@@ -481,8 +491,9 @@ CODING_TASK RULES:
 - hints.enabled controls all hints. Each level uses enabled and unlock_attempts.
 
 THEORY_MATERIAL RULES:
-- block_type is "heading", "text", "code", "image", "video", or "attachment".
+- block_type is "heading", "text", "hidden_text", "code", "image", "video", or "attachment".
 - heading requires heading_level "h1" or "h2"; omit heading_level for every other block.
+- For a question with a delayed reveal, put the question in a "text" block and the answer in a separate "hidden_text" block using the content field.
 - image content must be an HTTPS image URL. video content must be a YouTube HTTPS URL.
 - Put only the raw URL in media content, not Markdown like [text](url) or ![image](url).
 - attachment content must be an existing HTTPS Google Drive file URL. Never invent a Drive URL.
@@ -497,7 +508,9 @@ GAME RULES:
 - rubric is "mind_race", "wonder_field", or "tournament".
 - mind_race uses prompts; missing_text must occur verbatim in sentence.
 - wonder_field uses questions with prompt and answer.
-- tournament uses stages. question_count must be odd and between 1 and 19; each stage question requires prompt and answer.
+- tournament uses stages. question_count must be odd and between 1 and 19. Include exactly question_count questions per stage for a playable tournament. Question ordinals must be unique within the stage.
+- Every tournament question needs a prompt. For "question_type": "open_text", provide a string answer and omit choices and correct_choice.
+- For "question_type": "single_choice", provide 2 to 6 distinct, non-empty choice strings (up to 300 characters each). Set correct_choice to the integer index of the sole correct option (0 means first). Omit answer. A wrong choice awards the point to the opponent and closes the question.
 
 Replace example content with the requested educational material while preserving the exact schema.`;
   }
@@ -903,17 +916,119 @@ Replace example content with the requested educational material while preserving
     const previousStage=Number(qs("tournamentQuestionStage").value||0);
     qs("tournamentQuestionStage").innerHTML=rows.map(stage=>`<option value="${stage.id}">${stage.ordinal}. ${escapeHtml(stage.title||"{{ T.tournament_round|escapejs }}")}</option>`).join("");
     if(rows.some(stage=>stage.id===previousStage))qs("tournamentQuestionStage").value=String(previousStage);
-    qs("tournamentStagesList").innerHTML=rows.map(stage=>`<div class="game-prompt-row"><div class="row"><input id="tour_stage_ord_${stage.id}" class="input-ui" type="number" min="1" value="${stage.ordinal}" style="width:70px"><input id="tour_stage_title_${stage.id}" class="input-ui" value="${escapeHtml(stage.title)}" style="flex:1"><input id="tour_stage_count_${stage.id}" class="input-ui" type="number" min="1" max="19" step="2" value="${stage.question_count}" style="width:80px"><button class="btn" onclick="saveTournamentStage(${stage.id})">{{ T.save }}</button><button class="btn" onclick="deleteTournamentStage(${stage.id})">{{ T.delete }}</button></div><div class="muted" style="margin-top:7px">{{ T.questions }}: ${(stage.questions||[]).length}/${stage.question_count}</div>${(stage.questions||[]).map(q=>`<div style="border-top:1px solid #e5e7eb;margin-top:8px;padding-top:8px"><div class="row"><input id="tour_q_ord_${q.id}" class="input-ui" type="number" min="1" value="${q.ordinal}" style="width:70px"><input id="tour_q_answer_${q.id}" class="input-ui" value="${escapeHtml(q.answer)}" style="flex:1"><button class="btn" onclick="saveTournamentQuestion(${q.id})">{{ T.save }}</button><button class="btn" onclick="deleteTournamentQuestion(${q.id})">{{ T.delete }}</button></div><textarea id="tour_q_prompt_${q.id}" class="textarea-ui" style="width:100%;margin-top:6px">${escapeHtml(q.prompt)}</textarea></div>`).join("")}</div>`).join("");
+    qs("tournamentStagesList").innerHTML = rows.map(stage => `
+      <div class="game-prompt-row">
+        <div class="row">
+          <input id="tour_stage_ord_${stage.id}" class="input-ui" type="number" min="1" value="${stage.ordinal}" style="width:70px">
+          <input id="tour_stage_title_${stage.id}" class="input-ui" value="${escapeHtml(stage.title)}" style="flex:1">
+          <input id="tour_stage_count_${stage.id}" class="input-ui" type="number" min="1" max="19" step="2" value="${stage.question_count}" style="width:80px">
+          <button type="button" class="btn" onclick="saveTournamentStage(${stage.id})">{{ T.save }}</button>
+          <button type="button" class="btn" onclick="deleteTournamentStage(${stage.id})">{{ T.delete }}</button>
+        </div>
+        <div class="muted" style="margin-top:7px">{{ T.questions }}: ${(stage.questions || []).length}/${stage.question_count}</div>
+        ${(stage.questions || []).map(q => `
+          <div style="border-top:1px solid var(--border,#e5e7eb);margin-top:8px;padding-top:8px">
+            <div class="row">
+              <input id="tour_q_ord_${q.id}" class="input-ui" type="number" min="1" value="${q.ordinal}" style="width:70px">
+              <button type="button" class="btn" onclick="saveTournamentQuestion(${q.id})">{{ T.save }}</button>
+              <button type="button" class="btn" onclick="deleteTournamentQuestion(${q.id})">{{ T.delete }}</button>
+            </div>
+            <textarea id="tour_q_prompt_${q.id}" class="textarea-ui" style="width:100%;margin-top:6px">${escapeHtml(q.prompt)}</textarea>
+            <div id="tour_q_fields_${q.id}" class="tournament-question-editor"></div>
+          </div>`).join("")}
+      </div>`).join("");
+    rows.forEach(stage => (stage.questions || []).forEach(question => {
+      setupTournamentQuestionEditor(qs(`tour_q_fields_${question.id}`), question);
+    }));
     const used=new Set(rows.map(row=>Number(row.ordinal)));let next=1;while(used.has(next))next+=1;qs("tournamentStageOrdinal").value=String(next);
     const selected=rows.find(row=>Number(row.id)===Number(qs("tournamentQuestionStage").value))||rows[0];
     const questionUsed=new Set((selected?.questions||[]).map(row=>Number(row.ordinal)));let questionNext=1;while(questionUsed.has(questionNext))questionNext+=1;qs("tournamentQuestionOrdinal").value=String(questionNext);
   }
 
+  function setupTournamentQuestionEditor(root, question = {}){
+    root.innerHTML = `
+      <select class="select-ui tour-type" aria-label="{{ T.question_type|escapejs }}">
+        <option value="open_text">{{ T.open_text_question|escapejs }}</option>
+        <option value="single_choice">{{ T.exam_test_question|escapejs }}</option>
+      </select>
+      <input class="input-ui tour-open-answer" maxlength="300" placeholder="{{ T.correct_answer|escapejs }}" aria-label="{{ T.correct_answer|escapejs }}">
+      <div class="tour-choice-fields">
+        <div class="muted">{{ T.tournament_choices_help|escapejs }}</div>
+        <label>{{ T.exam_test_options|escapejs }}
+          <select class="select-ui tour-choice-count">${[2,3,4,5,6].map(n => `<option>${n}</option>`).join("")}</select>
+        </label>
+        ${Array.from({length:6}, (_, index) => `
+          <div class="tournament-choice-row">
+            <input type="radio" name="${root.id}-correct" value="${index}" aria-label="{{ T.correct_answer|escapejs }} ${index + 1}">
+            <textarea class="textarea-ui" rows="1" maxlength="300" aria-label="{{ T.exam_option_text|escapejs }} ${index + 1}" placeholder="{{ T.exam_option_text|escapejs }} ${index + 1}"></textarea>
+          </div>`).join("")}
+      </div>`;
+    const type = root.querySelector(".tour-type");
+    const answer = root.querySelector(".tour-open-answer");
+    const fields = root.querySelector(".tour-choice-fields");
+    const count = root.querySelector(".tour-choice-count");
+    const rows = [...root.querySelectorAll(".tournament-choice-row")];
+    type.value = question.question_type || "open_text";
+    answer.value = type.value === "open_text" ? question.answer || "" : "";
+    count.value = question.choices?.length || 2;
+    rows.forEach((row, index) => {
+      row.querySelector("textarea").value = question.choices?.[index] || "";
+      row.querySelector("input").checked = question.correct_choice === index;
+    });
+    function sync(){
+      const isChoice = type.value === "single_choice";
+      answer.hidden = isChoice;
+      fields.hidden = !isChoice;
+      rows.forEach((row, index) => {
+        row.hidden = index >= Number(count.value);
+        if (row.hidden) row.querySelector("input").checked = false;
+      });
+    }
+    type.addEventListener("change", sync);
+    count.addEventListener("change", sync);
+    sync();
+  }
+
+  function tournamentQuestionAnswer(root){
+    const question_type = root.querySelector(".tour-type").value;
+    if (question_type === "open_text"){
+      return {question_type, answer:root.querySelector(".tour-open-answer").value};
+    }
+    const checked = root.querySelector("input[type=radio]:checked");
+    if (!checked){
+      setMsg("{{ T.tournament_choose_correct|escapejs }}");
+      return null;
+    }
+    const choices = [...root.querySelectorAll(".tournament-choice-row:not([hidden]) textarea")].map(input => input.value);
+    return {question_type, choices, correct_choice:Number(checked.value)};
+  }
+
   async function addTournamentStage(){const res=await api(`/api/teacher/game-modules/${selectedModuleId}/tournament-stages/`,"POST",{ordinal:qs("tournamentStageOrdinal").value,title:qs("tournamentStageTitle").value,question_count:qs("tournamentQuestionCount").value});if(!res.data.ok)return setMsg(res.data.error);qs("tournamentStageTitle").value="";await openModule(currentSelectedItem())}
   async function saveTournamentStage(id){const res=await api(`/api/teacher/tournament-stages/${id}/`,"PATCH",{ordinal:qs(`tour_stage_ord_${id}`).value,title:qs(`tour_stage_title_${id}`).value,question_count:qs(`tour_stage_count_${id}`).value});if(!res.data.ok)return setMsg(res.data.error);await openModule(currentSelectedItem())}
   async function deleteTournamentStage(id){const res=await api(`/api/teacher/tournament-stages/${id}/`,"DELETE");if(!res.data.ok)return setMsg(res.data.error);await openModule(currentSelectedItem())}
-  async function addTournamentQuestion(){const stageId=Number(qs("tournamentQuestionStage").value||0);if(!stageId)return setMsg("{{ T.add_round_first|escapejs }}");const res=await api(`/api/teacher/tournament-stages/${stageId}/questions/`,"POST",{ordinal:qs("tournamentQuestionOrdinal").value,prompt:qs("tournamentPrompt").value,answer:qs("tournamentAnswer").value});if(!res.data.ok)return setMsg(res.data.error);qs("tournamentPrompt").value="";qs("tournamentAnswer").value="";await openModule(currentSelectedItem())}
-  async function saveTournamentQuestion(id){const res=await api(`/api/teacher/tournament-questions/${id}/`,"PATCH",{ordinal:qs(`tour_q_ord_${id}`).value,prompt:qs(`tour_q_prompt_${id}`).value,answer:qs(`tour_q_answer_${id}`).value});if(!res.data.ok)return setMsg(res.data.error);await openModule(currentSelectedItem())}
+  async function addTournamentQuestion(){
+    const stageId = Number(qs("tournamentQuestionStage").value || 0);
+    if (!stageId) return setMsg("{{ T.add_round_first|escapejs }}");
+    const root = qs("tournamentNewAnswer");
+    const answer = tournamentQuestionAnswer(root);
+    if (!answer) return;
+    const res = await api(`/api/teacher/tournament-stages/${stageId}/questions/`, "POST", {
+      ordinal:qs("tournamentQuestionOrdinal").value, prompt:qs("tournamentPrompt").value, ...answer
+    });
+    if (!res.data.ok) return setMsg(res.data.error);
+    qs("tournamentPrompt").value = "";
+    setupTournamentQuestionEditor(root, {question_type:answer.question_type});
+    await openModule(currentSelectedItem());
+  }
+  async function saveTournamentQuestion(id){
+    const answer = tournamentQuestionAnswer(qs(`tour_q_fields_${id}`));
+    if (!answer) return;
+    const res = await api(`/api/teacher/tournament-questions/${id}/`, "PATCH", {
+      ordinal:qs(`tour_q_ord_${id}`).value, prompt:qs(`tour_q_prompt_${id}`).value, ...answer
+    });
+    if (!res.data.ok) return setMsg(res.data.error);
+    await openModule(currentSelectedItem());
+  }
   async function deleteTournamentQuestion(id){const res=await api(`/api/teacher/tournament-questions/${id}/`,"DELETE");if(!res.data.ok)return setMsg(res.data.error);await openModule(currentSelectedItem())}
 
   function renderGameModule(module){
@@ -1330,6 +1445,7 @@ Replace example content with the requested educational material while preserving
   syncQuestionTypeFields();
   syncCreateTypeFields();
   syncBlockTypeFields();
+  setupTournamentQuestionEditor(qs("tournamentNewAnswer"));
   resetMatchingPairs();
   refreshModulePrompt();
   loadSessions();

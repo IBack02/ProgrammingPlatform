@@ -50,6 +50,41 @@ class LessonTests(TestCase):
             self.assertEqual(self.put(ranges).status_code, 400)
         self.assertEqual(LessonHighlight.objects.get().ranges[0]["end"], 5)
 
+    def test_hidden_text_is_revealed_only_to_the_selected_class(self):
+        content = "Hidden answer <example>\nSecond line"
+        block = self.client.post(
+            f"/api/teacher/theory-modules/{self.module.id}/blocks/",
+            {"ordinal": 2, "block_type": "hidden_text", "content": content},
+            content_type="application/json",
+        )
+        self.assertEqual(block.status_code, 201)
+        block_id = str(block.json()["block"]["id"])
+        url = f"/api/teacher/theory-modules/{self.module.id}/blocks/{block_id}/reveal/?class_id={self.group.id}"
+        student = self.student_client(self.group)
+        other_student = self.student_client(self.other_group)
+        self.assertNotContains(student.get(f"/api/student/theory-module/{self.module.id}"), "Hidden answer")
+        self.assertEqual(student.get(self.student_url).json()["revealed_blocks"], {})
+        payload = {"revealed": True, "content": content}
+        self.assertEqual(student.put(url, payload, content_type="application/json").status_code, 401)
+
+        self.assertEqual(self.client.put(url, payload, content_type="application/json").status_code, 200)
+        self.put([])
+        self.assertEqual(student.get(self.student_url).json()["revealed_blocks"], {block_id: content})
+        self.assertEqual(other_student.get(self.student_url).json()["revealed_blocks"], {})
+        self.assertEqual(self.client.get(self.url).json()["revealed_blocks"], {block_id: content})
+
+        payload["revealed"] = False
+        self.assertEqual(self.client.put(url, payload, content_type="application/json").status_code, 200)
+        self.assertEqual(student.get(self.student_url).json()["revealed_blocks"], {})
+        payload["revealed"] = True
+        self.client.put(url, payload, content_type="application/json")
+        self.client.patch(
+            f"/api/teacher/theory-blocks/{block_id}/", {"content": "Updated answer"},
+            content_type="application/json",
+        )
+        self.assertEqual(student.get(self.student_url).json()["revealed_blocks"], {})
+        self.assertEqual(self.client.put(url, payload, content_type="application/json").status_code, 409)
+
     def test_permissions(self):
         self.assertEqual(Client().get(self.url).status_code, 401)
         self.assertEqual(Client().get(self.student_url).status_code, 401)

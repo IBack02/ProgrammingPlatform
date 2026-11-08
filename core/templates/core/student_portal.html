@@ -447,6 +447,26 @@
     }
     .tournamentAnswerInput::placeholder{color:#94a3b8;font-weight:500}
     .tournamentAnswerInput:focus{border-color:#0284c7;box-shadow:0 0 0 4px rgba(14,165,233,.2),0 10px 24px rgba(14,165,233,.18)}
+    .tournamentChoices{margin-top:12px}
+    .tournamentChoices[hidden]{display:none}
+    .tournamentChoiceGrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:8px}
+    .tournamentChoiceGrid .tournamentChoice{
+      display:flex;align-items:center;gap:12px;min-height:68px;padding:12px;
+      border:1px solid #ffffff35;border-radius:10px;background:var(--choice-color);color:#fff;
+      box-shadow:inset 0 -4px #0003;font:inherit;font-weight:700;text-align:left;cursor:pointer;
+    }
+    .tournamentChoiceGrid .tournamentChoice:hover:not(:disabled){filter:brightness(1.12)}
+    .tournamentChoiceGrid .tournamentChoice:focus-visible{outline:3px solid #38bdf8;outline-offset:3px}
+    .tournamentChoiceGrid .tournamentChoice:disabled{opacity:.65;cursor:default}
+    .tournamentChoice:nth-child(1){--choice-color:#b92045}
+    .tournamentChoice:nth-child(2){--choice-color:#1b53b3}
+    .tournamentChoice:nth-child(3){--choice-color:#8b5800}
+    .tournamentChoice:nth-child(4){--choice-color:#287633}
+    .tournamentChoice:nth-child(5){--choice-color:#6927a6}
+    .tournamentChoice:nth-child(6){--choice-color:#006b6b}
+    .tournamentChoiceShape{flex:none;font-size:23px;line-height:1}
+    .tournamentChoiceText{min-width:0;overflow-wrap:anywhere;white-space:pre-wrap}
+    @media(max-width:520px){.tournamentChoiceGrid{grid-template-columns:1fr}}
     .tournamentMiniNotice{
       display:none;
       width:min(100%,680px);
@@ -585,7 +605,6 @@
         </div>
       </details>
 
-      {% include 'tower/_platform_appearance.html' %}
     </div>
 
     <div class="resizer" id="sidebarResizer" title="Drag to resize"></div>
@@ -776,7 +795,11 @@
                 <div class="gamePromptSentence" id="tournamentPrompt" style="margin-top:12px;"></div>
                 <input id="tournamentAnswerInput" class="tournamentAnswerInput" type="text" maxlength="300" autocomplete="off" spellcheck="false" placeholder="{{ T.game_type_answer }}" aria-label="{{ T.game_answer }}">
                 <button id="tournamentSubmitBtn" class="primary" type="button" style="margin-top:10px;">{{ T.game_check_answer }}</button>
-                <div id="tournamentFeedback" class="gameFeedback"></div>
+                <div id="tournamentChoices" class="tournamentChoices" hidden>
+                  <div class="small" id="tournamentChoiceRule">{{ T.tournament_choice_rule }}</div>
+                  <div class="tournamentChoiceGrid" id="tournamentChoiceGrid" role="group" aria-labelledby="tournamentPrompt" aria-describedby="tournamentChoiceRule"></div>
+                </div>
+                <div id="tournamentFeedback" class="gameFeedback" role="status"></div>
                 <div id="tournamentMiniNotice" class="tournamentMiniNotice" role="status" aria-live="polite"></div>
               </div>
             </div>
@@ -789,6 +812,7 @@
   </div>
 </div>
 
+{% include 'tower/_platform_appearance.html' %}
 <div id="imageViewerOverlay" class="imageViewerOverlay" aria-hidden="true">
   <div id="imageViewerStage" class="imageViewerStage">
     <div id="imageViewerContent" class="imageViewerContent">
@@ -893,9 +917,11 @@
     ,tournamentEliminated: "{{ T.tournament_eliminated|escapejs }}"
     ,tournamentChampion: "{{ T.tournament_champion|escapejs }}"
     ,tournamentMiniWon: "{{ T.tournament_mini_won|escapejs }}"
+    ,tournamentOpponentPoint: "{{ T.tournament_wrong_choice|escapejs }}"
     ,tournamentMiniLost: "{{ T.tournament_mini_lost|escapejs }}"
     ,tournamentNextQuestion: "{{ T.tournament_next_question|escapejs }}"
     ,downloadAttachment: "{{ T.download_attachment|escapejs }}"
+    ,hiddenTheoryText: "{{ T.hidden_theory_text_wait|escapejs }}"
     ,invalidAttachment: "{{ T.invalid_attachment_url|escapejs }}"
   };
 
@@ -1149,7 +1175,10 @@
     try {
       const res = await apiGet(`/api/student/theory-module/${moduleId}/highlights/`);
       if (token !== lessonHighlightToken) return;
-      if (res.data.ok) applyLessonMarkers(res.data.ranges);
+      if (res.data.ok){
+        applyLessonMarkers(res.data.ranges);
+        applyHiddenTheoryTexts(res.data.revealed_blocks);
+      }
     } catch (error) {
       // Keep the current content during a temporary network interruption.
     } finally {
@@ -1641,21 +1670,44 @@
     }
     const play = qs("tournamentPlay");
     const input = qs("tournamentAnswerInput");
-    const canAnswer = Boolean(match?.current_question && round.can_answer_tournament);
-    const questionKey = canAnswer ? `${round.id}:${match.id}:${match.current_question.index}` : "";
+    const question = match?.current_question;
+    const canAnswer = Boolean(question && round.can_answer_tournament);
+    const isChoice = canAnswer && question.question_type === "single_choice";
+    const questionKey = canAnswer ? `${round.id}:${match.id}:${question.index}` : "";
     const questionChanged = play.dataset.question !== questionKey;
     if (questionChanged){
       play.dataset.question = questionKey;
       input.value = "";
       qs("tournamentFeedback").textContent = "";
+      const grid = qs("tournamentChoiceGrid");
+      grid.replaceChildren();
+      if (isChoice){
+        const shapes = ["▲", "◆", "●", "■", "★", "⬟"];
+        question.choices.forEach((choice, index) => {
+          const button = document.createElement("button");
+          button.className = "tournamentChoice";
+          button.type = "button";
+          const shape = document.createElement("span");
+          shape.className = "tournamentChoiceShape";
+          shape.textContent = shapes[index];
+          shape.setAttribute("aria-hidden", "true");
+          const label = document.createElement("span");
+          label.className = "tournamentChoiceText";
+          label.textContent = choice;
+          button.append(shape, label);
+          button.addEventListener("click", () => submitTournamentAnswer(index));
+          grid.append(button);
+        });
+      }
     }
     play.style.display = "block";
-    input.style.display = canAnswer ? "block" : "none";
-    qs("tournamentSubmitBtn").style.display = canAnswer ? "inline-block" : "none";
+    input.style.display = canAnswer && !isChoice ? "block" : "none";
+    qs("tournamentSubmitBtn").style.display = canAnswer && !isChoice ? "inline-block" : "none";
+    qs("tournamentChoices").hidden = !isChoice;
     if (canAnswer){
       renderGameDuelScore(qs("tournamentMatchScore"), match);
-      qs("tournamentPrompt").textContent = match.current_question.prompt;
-      if (questionChanged) input.focus({preventScroll: true});
+      qs("tournamentPrompt").textContent = question.prompt;
+      if (questionChanged && !isChoice) input.focus({preventScroll: true});
     } else {
       if (match?.player_one && match?.player_two) renderGameDuelScore(qs("tournamentMatchScore"), match);
       else qs("tournamentMatchScore").textContent = round.me?.finish_place === 1 ? UI.tournamentChampion : (round.tournament_eliminated ? UI.tournamentEliminated : UI.tournamentWaitingMatch);
@@ -1673,6 +1725,7 @@
     const button = qs("tournamentSubmitBtn");
     button.disabled = !canAnswer || gameAnswerPending || seconds > 0;
     button.textContent = seconds > 0 ? formatStr(UI.statusCooldown, {seconds}) : UI.gameCheckAnswer;
+    qs("tournamentChoiceGrid").querySelectorAll("button").forEach(choice => { choice.disabled = button.disabled; });
     if (canAnswer && seconds > 0) tournamentCooldownTimer = setTimeout(updateTournamentSubmitButton, 100);
   }
 
@@ -1704,22 +1757,23 @@
     const grid=qs("studentTournamentGrid");if(!grid)return;const svg=grid.querySelector(".tournamentBracketLines");if(!svg)return;const gridRect=grid.getBoundingClientRect();svg.setAttribute("width",grid.scrollWidth);svg.setAttribute("height",grid.scrollHeight);svg.setAttribute("viewBox",`0 0 ${grid.scrollWidth} ${grid.scrollHeight}`);const stageCount=grid.querySelectorAll(".tournamentStage").length;const paths=[];for(let stageNumber=1;stageNumber<stageCount;stageNumber+=1){const sources=Array.from(grid.querySelectorAll(`[data-student-bracket-stage="${stageNumber}"]`));const targets=Array.from(grid.querySelectorAll(`[data-student-bracket-stage="${stageNumber+1}"]`));sources.forEach((source,index)=>{const target=targets[Math.floor(index/2)];if(!target)return;const from=source.getBoundingClientRect();const to=target.getBoundingClientRect();const x1=from.right-gridRect.left;const y1=from.top-gridRect.top+from.height/2;const x2=to.left-gridRect.left;const y2=to.top-gridRect.top+to.height/2;const middle=x1+(x2-x1)/2;paths.push(`<path d="M ${x1} ${y1} H ${middle} V ${y2} H ${x2}" fill="none" stroke="#60a5fa" stroke-width="2"/>`)})}svg.innerHTML=paths.join("");
   }
 
-  async function submitTournamentAnswer(){
+  async function submitTournamentAnswer(choiceIndex){
     const match = (currentGameRound?.tournament_matches || []).find(
       row => Number(row.id) === Number(currentGameRound.my_tournament_match_id)
     );
     const answer = qs("tournamentAnswerInput").value;
-    if (!match?.current_question || !currentGameRound.can_answer_tournament || gameAnswerPending || Date.now() < tournamentCooldownUntil || !answer.trim()) return;
+    if (!match?.current_question || !currentGameRound.can_answer_tournament || gameAnswerPending || Date.now() < tournamentCooldownUntil) return;
+    const isChoice = match.current_question.question_type === "single_choice";
+    if (isChoice ? !Number.isInteger(choiceIndex) : !answer.trim()) return;
     const roundId = currentGameRound.id;
     const stateEpoch = ++gameStateEpoch;
-    const button = qs("tournamentSubmitBtn");
     gameAnswerPending = true;
     stopStudentGamePolling();
-    button.disabled = true;
+    updateTournamentSubmitButton();
     const res = await apiPost(`/api/student/game-rounds/${roundId}/tournament-answer/`, {
       match_id: match.id,
       question_index: match.current_question.index,
-      answer
+      ...(isChoice ? {choice_index:choiceIndex} : {answer})
     });
     gameAnswerPending = false;
     updateTournamentSubmitButton();
@@ -1733,10 +1787,12 @@
       scheduleStudentGamePoll(roundId);
       return;
     }
-    qs("tournamentFeedback").textContent = res.data.stale
-      ? ""
-      : (res.data.correct ? UI.gameCorrect : UI.gameIncorrect);
     renderStudentGameRound(res.data.round);
+    if (!res.data.stale){
+      qs("tournamentFeedback").textContent = res.data.gave_opponent_point
+        ? UI.tournamentOpponentPoint
+        : (res.data.correct ? UI.gameCorrect : UI.gameIncorrect);
+    }
   }
 
   async function submitWonderLetter(){

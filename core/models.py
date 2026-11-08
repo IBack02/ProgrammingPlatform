@@ -247,6 +247,7 @@ class TheoryMaterialBlock(models.Model):
     class BlockType(models.TextChoices):
         HEADING = "heading", "Heading"
         TEXT = "text", "Text"
+        HIDDEN_TEXT = "hidden_text", "Hidden text"
         CODE = "code", "Code"
         IMAGE = "image", "Image"
         VIDEO = "video", "Video"
@@ -290,6 +291,7 @@ class LessonHighlight(models.Model):
     module = models.ForeignKey(TheoryMaterialModule, on_delete=models.CASCADE, related_name="lesson_highlights")
     class_group = models.ForeignKey(ClassGroup, on_delete=models.CASCADE)
     ranges = models.JSONField(default=list)
+    revealed_blocks = models.JSONField(default=dict, blank=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
@@ -489,10 +491,16 @@ class TournamentStage(models.Model):
 
 
 class TournamentQuestion(models.Model):
+    class Type(models.TextChoices):
+        OPEN = "open_text", "Open text"
+        CHOICE = "single_choice", "Single choice"
+
     stage = models.ForeignKey(TournamentStage, on_delete=models.CASCADE, related_name="questions")
     ordinal = models.PositiveIntegerField()
     prompt = models.TextField()
     answer = models.CharField(max_length=300)
+    question_type = models.CharField(max_length=16, choices=Type.choices, default=Type.OPEN)
+    choices = models.JSONField(default=list, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -662,6 +670,7 @@ class TournamentAnswerAttempt(models.Model):
     is_correct = models.BooleanField(default=False)
     was_current = models.BooleanField(default=True)
     won_question = models.BooleanField(default=False)
+    gave_opponent_point = models.BooleanField(default=False)
     submitted_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

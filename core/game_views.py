@@ -223,10 +223,20 @@ def _serialize_wonder_question(question):
     }
 
 
-def _serialize_tournament_question(question, include_answer=True):
-    data = {"id": question.id, "ordinal": question.ordinal, "prompt": question.prompt}
-    if include_answer:
-        data["answer"] = question.answer
+def _tournament_question_snapshot(question):
+    return {
+        "ordinal": question.ordinal,
+        "prompt": question.prompt,
+        "answer": question.answer,
+        "question_type": question.question_type,
+        "choices": question.choices,
+    }
+
+
+def _serialize_tournament_question(question):
+    data = {"id": question.id, **_tournament_question_snapshot(question)}
+    if question.question_type == TournamentQuestion.Type.CHOICE:
+        data["correct_choice"] = question.choices.index(question.answer)
     return data
 
 
@@ -252,15 +262,45 @@ def _validate_tournament_stage(data, stage=None):
     return ordinal, count, title
 
 
+def validate_tournament_question_answer(data, previous=None):
+    previous_type = previous.question_type if previous else TournamentQuestion.Type.OPEN
+    question_type = data.get("question_type", previous_type)
+    if question_type not in TournamentQuestion.Type.values:
+        raise ValueError("question_type must be open_text or single_choice")
+
+    if question_type == TournamentQuestion.Type.OPEN:
+        if "choices" in data or "correct_choice" in data:
+            raise ValueError("choices and correct_choice are only allowed for single_choice")
+        answer = data.get("answer", previous.answer if previous and question_type == previous_type else "")
+        if not isinstance(answer, str) or not answer.strip() or len(answer.strip()) > 300:
+            raise ValueError("answer must contain between 1 and 300 characters")
+        return {"question_type": question_type, "answer": answer.strip(), "choices": []}
+
+    if "answer" in data:
+        raise ValueError("use correct_choice instead of answer for single_choice")
+    existing_choices = previous.choices if previous and question_type == previous_type else []
+    choices = data.get("choices", existing_choices)
+    if not isinstance(choices, list) or not 2 <= len(choices) <= 6:
+        raise ValueError("single_choice requires between 2 and 6 choices")
+    if any(not isinstance(choice, str) or not choice.strip() or len(choice.strip()) > 300 for choice in choices):
+        raise ValueError("each choice must contain between 1 and 300 characters")
+    choices = [choice.strip() for choice in choices]
+    if len(set(choices)) != len(choices):
+        raise ValueError("choices must be distinct")
+    correct = data.get("correct_choice")
+    if "correct_choice" not in data and existing_choices and previous.answer in choices:
+        correct = choices.index(previous.answer)
+    if type(correct) is not int or not 0 <= correct < len(choices):
+        raise ValueError("correct_choice must be a zero-based index into choices")
+    return {"question_type": question_type, "answer": choices[correct], "choices": choices}
+
+
 def _validate_tournament_question(data, question=None):
     ordinal = _positive_int(data.get("ordinal", question.ordinal if question else 1), "ordinal", 50)
     prompt = str(data.get("prompt", question.prompt if question else "") or "").strip()
-    answer = str(data.get("answer", question.answer if question else "") or "").strip()
     if not prompt or len(prompt) > 3000:
         raise ValueError("prompt must contain between 1 and 3000 characters")
-    if not answer or len(answer) > 300:
-        raise ValueError("answer must contain between 1 and 300 characters")
-    return ordinal, prompt, answer
+    return {"ordinal": ordinal, "prompt": prompt, **validate_tournament_question_answer(data, question)}
 
 
 def _tournament_preparation_ms(match):
@@ -291,6 +331,8 @@ def _tournament_match_row(match, snapshot):
             "index": match.current_question_index,
             "ordinal": current.get("ordinal", match.current_question_index + 1),
             "prompt": current.get("prompt", ""),
+            "question_type": current.get("question_type", TournamentQuestion.Type.OPEN),
+            "choices": current.get("choices", []),
         } if current and match.status == TournamentMatch.Status.RUNNING and not _tournament_preparation_ms(match) else None,
         "last_question_result": {
             "question_index": match.last_question_index,
@@ -372,6 +414,7 @@ def _tournament_answer_attempt_rows(round_obj):
             "is_correct": attempt.is_correct,
             "was_current": attempt.was_current,
             "won_question": attempt.won_question,
+            "gave_opponent_point": attempt.gave_opponent_point,
             "submitted_at": attempt.submitted_at.isoformat(),
         })
     return rows
@@ -584,6 +627,7 @@ def _tournament_answer_cooldown_ms(participant):
         participant.tournament_answer_attempts.filter(
             was_current=True,
             is_correct=False,
+            gave_opponent_point=False,
             submitted_at__gt=now - timedelta(seconds=cooldown_seconds),
         )
         .order_by("-submitted_at")
@@ -1020,8 +1064,7 @@ def teacher_tournament_questions_api(request: HttpRequest, stage_id: int):
         module__session__author=teacher,
         module__rubric=GameModule.Rubric.TOURNAMENT,
     )
-    ordinal, prompt, answer = _validate_tournament_question(_json_body(request))
-    question = TournamentQuestion.objects.create(stage=stage, ordinal=ordinal, prompt=prompt, answer=answer)
+    question = TournamentQuestion.objects.create(stage=stage, **_validate_tournament_question(_json_body(request)))
     return JsonResponse({"ok": True, "question": _serialize_tournament_question(question)}, status=201)
 
 
@@ -1039,8 +1082,8 @@ def teacher_tournament_question_detail_api(request: HttpRequest, question_id: in
     if request.method == "DELETE":
         question.delete()
         return JsonResponse({"ok": True})
-    ordinal, prompt, answer = _validate_tournament_question(_json_body(request), question)
-    question.ordinal, question.prompt, question.answer = ordinal, prompt, answer
+    for field, value in _validate_tournament_question(_json_body(request), question).items():
+        setattr(question, field, value)
     question.save()
     return JsonResponse({"ok": True, "question": _serialize_tournament_question(question)})
 
@@ -1166,10 +1209,7 @@ def teacher_game_start_round_api(request: HttpRequest, round_id: int):
                 snapshot.append({
                     "title": stage.title,
                     "question_count": stage.question_count,
-                    "questions": [
-                        {"ordinal": row.ordinal, "prompt": row.prompt, "answer": row.answer}
-                        for row in questions
-                    ],
+                    "questions": [_tournament_question_snapshot(row) for row in questions],
                 })
             secrets.SystemRandom().shuffle(participants)
             round_obj.prompt_snapshot = snapshot
@@ -1524,7 +1564,7 @@ def student_tournament_answer_api(request: HttpRequest, round_id: int):
         return _api_error("answer rate limit exceeded", 429)
     data = _json_body(request)
     answer = str(data.get("answer") or "")
-    if not answer.strip() or len(answer) > 300:
+    if "choice_index" not in data and (not answer.strip() or len(answer) > 300):
         raise ValueError("answer must contain between 1 and 300 characters")
     match_id = _positive_int(data.get("match_id"), "match_id", 2_000_000_000)
     try:
@@ -1562,6 +1602,19 @@ def student_tournament_answer_api(request: HttpRequest, round_id: int):
         questions = stage.get("questions", [])
         if question_index < 0 or question_index >= len(questions):
             return _api_error("tournament question is unavailable", 409)
+        question = questions[question_index]
+        is_choice = question.get("question_type") == TournamentQuestion.Type.CHOICE
+        if is_choice:
+            choices = question["choices"]
+            choice_index = data.get("choice_index")
+            if "answer" in data or type(choice_index) is not int or not 0 <= choice_index < len(choices):
+                raise ValueError("choice_index must identify one of the available choices")
+            answer = choices[choice_index]
+            is_correct = answer == question["answer"]
+        else:
+            if "choice_index" in data:
+                raise ValueError("an open question requires a text answer")
+            is_correct = _normalize_answer(answer) == _normalize_answer(question["answer"])
         is_current = question_index == match.current_question_index
         cooldown_ms = _tournament_answer_cooldown_ms(participant) if is_current else 0
         if cooldown_ms:
@@ -1574,16 +1627,16 @@ def student_tournament_answer_api(request: HttpRequest, round_id: int):
             }, status=429)
             response["Retry-After"] = str(ceil(cooldown_ms / 1000))
             return response
-        is_correct = _normalize_answer(answer) == _normalize_answer(
-            questions[question_index]["answer"]
-        )
-        answer_attempt = TournamentAnswerAttempt.objects.create(
+        gives_opponent_point = is_current and is_choice and not is_correct
+        TournamentAnswerAttempt.objects.create(
             match=match,
             participant=participant,
             question_index=question_index,
             answer=answer,
             is_correct=is_correct,
             was_current=is_current,
+            won_question=is_current and is_correct,
+            gave_opponent_point=gives_opponent_point,
         )
         if not is_current:
             return JsonResponse({
@@ -1597,25 +1650,27 @@ def student_tournament_answer_api(request: HttpRequest, round_id: int):
         if not is_correct:
             participant.wrong_answers += 1
             participant.save(update_fields=["wrong_answers", "last_answer_at"])
-            return JsonResponse({"ok": True, "correct": False, "round": _student_round_state(round_obj, student)})
+            if not gives_opponent_point:
+                return JsonResponse({"ok": True, "correct": False, "round": _student_round_state(round_obj, student)})
+        else:
+            participant.correct_answers += 1
+            participant.progress = max(participant.progress, match.stage_number)
+            participant.save(update_fields=["correct_answers", "last_answer_at", "progress"])
 
-        answer_attempt.won_question = True
-        answer_attempt.save(update_fields=["won_question"])
-        if participant.id == match.player_one_id:
+        point_winner_id = participant.id
+        if gives_opponent_point:
+            point_winner_id = match.player_two_id if participant.id == match.player_one_id else match.player_one_id
+        if point_winner_id == match.player_one_id:
             match.score_one += 1
         else:
             match.score_two += 1
-        participant.correct_answers += 1
-        participant.last_answer_at = resolved_at
-        participant.progress = max(participant.progress, match.stage_number)
-        participant.save(update_fields=["correct_answers", "last_answer_at", "progress"])
         match.last_question_index = question_index
-        match.last_question_winner = participant
+        match.last_question_winner_id = point_winner_id
         match.last_question_resolved_at = resolved_at
         wins_required = (int(stage["question_count"]) // 2) + 1
         won = match.score_one >= wins_required or match.score_two >= wins_required
         if won:
-            match.winner = participant
+            match.winner_id = point_winner_id
             match.status = TournamentMatch.Status.FINISHED
             match.finished_at = resolved_at
         else:
@@ -1626,8 +1681,9 @@ def student_tournament_answer_api(request: HttpRequest, round_id: int):
 
     return JsonResponse({
         "ok": True,
-        "correct": True,
-        "match_won": won,
+        "correct": is_correct,
+        "gave_opponent_point": gives_opponent_point,
+        "match_won": won and is_correct,
         "round": _student_round_state(round_obj, student),
     })
 

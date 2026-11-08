@@ -6,12 +6,22 @@
   let indicator;
   let pending = 1;
   let showTimer;
-  const afterPaint = callback => requestAnimationFrame(() => requestAnimationFrame(callback));
+  function afterPaint(callback) {
+    if (document.hidden) callback();
+    else requestAnimationFrame(() => requestAnimationFrame(callback));
+  }
   function render() {
     if (!indicator) return;
-    clearTimeout(showTimer);
-    if (!pending) indicator.hidden = true;
-    else if (indicator.hidden) showTimer = setTimeout(() => { indicator.hidden = pending === 0; }, 120);
+    if (!pending) {
+      clearTimeout(showTimer);
+      showTimer = null;
+      indicator.hidden = true;
+    } else if (indicator.hidden && !showTimer) {
+      showTimer = setTimeout(() => {
+        showTimer = null;
+        indicator.hidden = pending === 0;
+      }, 120);
+    }
   }
   function begin() {
     pending += 1;
@@ -58,10 +68,13 @@
     indicator.hidden = true;
     indicator.setAttribute("role", "status");
     indicator.setAttribute("aria-live", "polite");
+    const card = document.createElement("div");
+    card.className = "student-page-loading__card";
+    indicator.append(card);
     const fallback = document.createElement("span");
     fallback.className = "student-page-loading__default";
     fallback.setAttribute("aria-hidden", "true");
-    indicator.append(fallback);
+    card.append(fallback);
     if (config.dataset.image) {
       const image = document.createElement("img");
       image.className = "tower-loader";
@@ -71,11 +84,11 @@
       image.addEventListener("load", () => { fallback.hidden = true; image.hidden = false; });
       image.addEventListener("error", () => { fallback.hidden = false; image.hidden = true; });
       image.src = config.dataset.image;
-      indicator.append(image);
+      card.append(image);
     }
     const label = document.createElement("span");
     label.textContent = config.dataset.label || "Загрузка…";
-    indicator.append(label);
+    card.append(label);
     document.body.append(indicator);
     render();
 

@@ -11,7 +11,7 @@
     <div class="companion-card-header"><strong>{{ tower_appearance.selected.companion.hero_name }} · {{ T.journal_companion }}</strong><button type="button" id="companion-close" aria-label="{{ T.journal_close }}">×</button></div>
     <a class="companion-choose" href="{% url 'tower:home' %}?tab=appearance&amp;section=companion">{{ T.journal_choose_companion }}</a>
     {% if tower_companion_enabled %}<div class="companion-chat" id="companion-chat">
-      <p class="companion-state" id="companion-state" role="status" aria-live="polite" data-ready="{{ T.journal_companion_ready }}" data-empty="{{ T.journal_companion_empty }}" data-generating="{{ T.journal_companion_generating }}" data-cooldown="{{ T.journal_companion_cooldown }}" data-retry="{{ T.journal_companion_retry }}" data-unavailable="{{ T.journal_companion_unavailable }}"></p>
+      <p class="companion-state" id="companion-state" role="status" aria-live="polite" data-ready="{{ T.journal_companion_ready }}" data-empty="{{ T.journal_companion_empty }}" data-generating="{{ T.journal_companion_generating }}" data-cooldown="{{ T.journal_companion_cooldown }}" data-retry="{{ T.journal_companion_retry }}" data-paused="{{ T.journal_companion_paused }}" data-unavailable="{{ T.journal_companion_unavailable }}"></p>
       <div class="companion-bubble" id="companion-bubble" hidden><span id="companion-sender"></span><p id="companion-text"></p><a id="companion-link">{{ T.journal_companion_open_source }}</a></div>
       <div id="companion-thinking" class="companion-thinking" hidden aria-hidden="true"><i></i><i></i><i></i></div>
       <form id="companion-generate-form">{% csrf_token %}<button type="submit" id="companion-generate" disabled>{{ T.journal_companion_generate }}</button></form>

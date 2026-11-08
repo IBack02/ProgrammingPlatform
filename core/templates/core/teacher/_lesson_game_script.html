@@ -94,13 +94,15 @@
       const submissions=rows.map(row=>{
         const kind=!row.was_current?"stale":(row.is_correct?"correct":"incorrect");
         const label=(row.is_correct?"{{ T.tournament_answer_correct|escapejs }}":"{{ T.tournament_answer_incorrect|escapejs }}")+(!row.was_current?" · {{ T.tournament_answer_stale|escapejs }}":"");
-        const winner=row.won_question?` · {{ T.tournament_question_winner|escapejs }}`:"";
+        const winner=row.won_question?` · {{ T.tournament_question_winner|escapejs }}`:(row.gave_opponent_point?` · {{ T.tournament_point_to_opponent|escapejs }}`:"");
         return `<div class="tournament-submission ${kind}"><div><b>${escapeHtml(row.student_name)}</b><div class="muted">${escapeHtml(new Date(row.submitted_at).toLocaleTimeString())}</div></div><div class="tournament-submitted-text">${escapeHtml(row.answer)}</div><span class="tournament-answer-status">${escapeHtml(label+winner)}</span></div>`;
       }).join("");
       const expected=showExpectedAnswer&&first.correct_answer!==undefined?`<div class="tournament-expected"><b>{{ T.tournament_expected_answer|escapejs }}:</b> ${escapeHtml(first.correct_answer)}</div>`:"";
       return `<article class="tournament-question-log"><h4>#${first.question_ordinal} · ${escapeHtml(first.question_prompt)}</h4>${expected}${submissions}</article>`;
     }).join("");
-    const liveQuestion=match.preparation_ms>0?`<p class="tournament-preparation">{{ T.tournament_prepare|escapejs }} ${Math.ceil(match.preparation_ms/1000)}</p>`:(match.current_question?`<article class="tournament-question-log"><h4>#${match.current_question.index+1} · ${escapeHtml(match.current_question.prompt)}</h4></article>`:"");
+    const question=match.current_question;
+    const options=question?.choices?.length ? `<ol>${question.choices.map(choice=>`<li>${escapeHtml(choice)}</li>`).join("")}</ol>` : "";
+    const liveQuestion=match.preparation_ms>0?`<p class="tournament-preparation">{{ T.tournament_prepare|escapejs }} ${Math.ceil(match.preparation_ms/1000)}</p>`:(question?`<article class="tournament-question-log"><h4>#${question.index+1} · ${escapeHtml(question.prompt)}</h4>${options}</article>`:"");
     qs("tournamentAnswersBody").innerHTML=`${liveQuestion}<div class="tournament-answer-summary"><span class="tournament-answer-pill">{{ T.tournament_submissions|escapejs }}: ${attempts.length}</span><span class="tournament-answer-pill">{{ T.tournament_correct_count|escapejs }}: ${attempts.filter(row=>row.won_question).length}</span></div>${groupHtml||`<div class="muted" style="padding:24px 0;text-align:center;">{{ T.tournament_no_answers|escapejs }}</div>`}`;
   }
 

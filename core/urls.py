@@ -13,6 +13,7 @@ urlpatterns = [
     path("api/teacher/students/bulk/", views.teacher_students_bulk_api, name="teacher_students_bulk_api"),
     path("teacher/sessions/<int:session_id>/lesson/", lesson_views.teacher_lesson_page, name="teacher_lesson_page"),
     path("api/teacher/theory-modules/<int:module_id>/highlights/", lesson_views.teacher_highlights, name="teacher_highlights"),
+    path("api/teacher/theory-modules/<int:module_id>/blocks/<int:block_id>/reveal/", lesson_views.teacher_reveal_theory_block, name="teacher_reveal_theory_block"),
     path("api/student/theory-module/<int:module_id>/highlights/", lesson_views.student_highlights, name="student_highlights"),
     path("api/teacher/theory-quizzes/<int:module_id>/practice/", lesson_views.teacher_practice_quiz, name="teacher_practice_quiz"),
     # Student auth API

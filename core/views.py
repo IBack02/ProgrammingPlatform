@@ -64,6 +64,8 @@ from .models import (
     GameParticipant,
     MindRacePrompt,
     PeerAssessmentReview,
+    TournamentQuestion,
+    TournamentStage,
 
 )
 from .ui_translations import SUPPORTED_UI_LANGS, UI_TRANSLATIONS, get_ui_lang
@@ -671,13 +673,13 @@ def _theory_media_error(block_type: str, content: str) -> str:
     return ""
 
 
-def _serialize_theory_block(block: TheoryMaterialBlock):
+def _serialize_theory_block(block: TheoryMaterialBlock, *, hide_spoiler=False):
     return {
         "id": block.id,
         "ordinal": block.ordinal,
         "block_type": block.block_type,
         "heading_level": block.heading_level or "",
-        "content": block.content,
+        "content": "" if hide_spoiler and block.block_type == TheoryMaterialBlock.BlockType.HIDDEN_TEXT else block.content,
     }
 
 
@@ -1256,7 +1258,10 @@ def student_theory_module_detail(request: HttpRequest, module_id: int):
             "title": module.title,
             "topic": module.topic,
             "module_type": "theory_material",
-            "blocks": [_serialize_theory_block(b) for b in module.blocks.all().order_by("ordinal", "id")],
+            "blocks": [
+                _serialize_theory_block(b, hide_spoiler=True)
+                for b in module.blocks.all().order_by("ordinal", "id")
+            ],
         },
     })
 
@@ -3149,7 +3154,7 @@ def teacher_session_clone_api(request: HttpRequest, session_id: int):
 
             source_games = list(
                 GameModule.objects.filter(session=source)
-                .prefetch_related("prompts")
+                .prefetch_related("prompts", "tournament_stages__questions")
                 .order_by("position", "id")
             )
             for game in source_games:
@@ -3171,6 +3176,18 @@ def teacher_session_clone_api(request: HttpRequest, session_id: int):
                     )
                     for prompt in game.prompts.all().order_by("ordinal", "id")
                 ])
+                for stage in game.tournament_stages.all():
+                    stage_clone = TournamentStage.objects.create(
+                        module=game_clone, ordinal=stage.ordinal, title=stage.title,
+                        question_count=stage.question_count,
+                    )
+                    TournamentQuestion.objects.bulk_create([
+                        TournamentQuestion(
+                            stage=stage_clone, ordinal=question.ordinal, prompt=question.prompt,
+                            answer=question.answer, question_type=question.question_type, choices=question.choices,
+                        )
+                        for question in stage.questions.all()
+                    ])
 
         return JsonResponse({"ok": True, "session": _serialize_session(clone)}, status=201)
     except Exception as e:
@@ -3667,14 +3684,7 @@ def teacher_theory_blocks_api(request: HttpRequest, module_id: int):
         if ordinal < 1:
             return JsonResponse({"ok": False, "error": "ordinal must be >= 1"}, status=400)
 
-        if block_type not in {
-            TheoryMaterialBlock.BlockType.HEADING,
-            TheoryMaterialBlock.BlockType.TEXT,
-            TheoryMaterialBlock.BlockType.CODE,
-            TheoryMaterialBlock.BlockType.IMAGE,
-            TheoryMaterialBlock.BlockType.VIDEO,
-            TheoryMaterialBlock.BlockType.ATTACHMENT,
-        }:
+        if block_type not in TheoryMaterialBlock.BlockType.values:
             return JsonResponse({"ok": False, "error": "invalid block_type"}, status=400)
 
         if not content.strip():
@@ -3747,14 +3757,7 @@ def teacher_theory_block_detail_api(request: HttpRequest, block_id: int):
 
         if "block_type" in data:
             block_type = (data.get("block_type") or "").strip()
-            if block_type not in {
-                TheoryMaterialBlock.BlockType.HEADING,
-                TheoryMaterialBlock.BlockType.TEXT,
-                TheoryMaterialBlock.BlockType.CODE,
-                TheoryMaterialBlock.BlockType.IMAGE,
-                TheoryMaterialBlock.BlockType.VIDEO,
-                TheoryMaterialBlock.BlockType.ATTACHMENT,
-            }:
+            if block_type not in TheoryMaterialBlock.BlockType.values:
                 return JsonResponse({"ok": False, "error": "invalid block_type"}, status=400)
             block.block_type = block_type
 
@@ -3848,7 +3851,7 @@ def teacher_generate_theory_module_api(request: HttpRequest, module_id: int):
                 if ordinal < 1 or ordinal in used_ordinals or not content:
                     continue
 
-                if block_type not in {"heading", "text", "code", "image", "video", "attachment"}:
+                if block_type not in TheoryMaterialBlock.BlockType.values:
                     continue
 
                 if block_type == "heading" and heading_level not in {"h1", "h2"}:

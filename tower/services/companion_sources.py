@@ -268,7 +268,9 @@ def stored_source_url(*, student, message, now=None):
             return None
         module_type, module_id = message.resource_type, resource.pk if resource else None
     elif message.resource_type == "theory_block":
-        block = TheoryMaterialBlock.objects.select_related("module__session").filter(pk=message.resource_id, module__is_active=True).first()
+        block = TheoryMaterialBlock.objects.select_related("module__session").filter(
+            pk=message.resource_id, module__is_active=True, block_type=TheoryMaterialBlock.BlockType.TEXT,
+        ).first()
         resource = block.module if block else None
         module_type, module_id = "theory_material", resource.pk if resource else None
     if resource is None:

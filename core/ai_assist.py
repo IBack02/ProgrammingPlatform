@@ -185,7 +185,7 @@ class FullSolutionLevel3(BaseModel):
     code: str
 class TheoryMaterialBlockSchema(BaseModel):
     ordinal: int
-    block_type: Literal["heading", "text", "code", "image", "video", "attachment"]
+    block_type: Literal["heading", "text", "hidden_text", "code", "image", "video", "attachment"]
     heading_level: Optional[Literal["h1", "h2"]] = None
     content: str
 
@@ -384,9 +384,10 @@ def call_openai_theory_material(prompt_snapshot: str) -> dict:
     system_rules = (
         "You are a Python teacher creating a theory learning module for students.\n"
         "Return a structured lesson using blocks only.\n"
-        "Allowed block types: heading, text, code, image, video, attachment.\n"
+        "Allowed block types: heading, text, hidden_text, code, image, video, attachment.\n"
         "For heading blocks, heading_level must be h1 or h2.\n"
-        "For text, code, image, video and attachment blocks, heading_level must be null or omitted.\n"
+        "For all other blocks, heading_level must be null or omitted.\n"
+        "For a lecture question with a delayed reveal, put the question in a text block and its answer in a separate hidden_text block.\n"
         "For image blocks, content must be a direct image URL.\n"
         "For video blocks, content must be a YouTube URL.\n"
         "For attachment blocks, content must be an exact Google Drive HTTPS URL explicitly provided by the teacher; never invent a file URL.\n"

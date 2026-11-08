@@ -70,7 +70,8 @@
   const UI = {
     failedLoadModules:"{{ T.failed_load_tasks|escapejs }}",saveFailed:"{{ T.save_failed|escapejs }}",
     quizQuestion:"{{ T.quiz_question|escapejs }}",quizCorrect:"{{ T.quiz_correct|escapejs }}",quizIncorrect:"{{ T.quiz_incorrect|escapejs }}",
-    invalidAttachment:"{{ T.invalid_attachment_url|escapejs }}",downloadAttachment:"{{ T.download_attachment|escapejs }}"
+    invalidAttachment:"{{ T.invalid_attachment_url|escapejs }}",downloadAttachment:"{{ T.download_attachment|escapejs }}",
+    revealTheoryText:"{{ T.reveal_theory_text|escapejs }}",hideTheoryText:"{{ T.hide_theory_text|escapejs }}"
   };
   function qs(id){return document.getElementById(id)}
   function setMsg(text){qs("msg").textContent=text||""}
@@ -103,11 +104,28 @@
     lessonRanges=[]; delete qs("moduleBlocks").dataset.markers; applyLessonMarkers([]);
     qs("markerEnabled").disabled=!classId; qs("clearMarkers").disabled=!classId;
     if(!classId)return;
+    applyHiddenTheoryTexts({});
     const res=await api(`/api/teacher/theory-modules/${id}/highlights/?class_id=${classId}`);
     if(token!==loadToken || classId!==qs("gameClassSelect").value)return;
     if(!res.data.ok)return setMsg(res.data.error);
     lessonRanges=res.data.ranges.filter(r=>qs("moduleBlocks").querySelector(`[data-block-id="${r.block_id}"]`)?.textContent===r.text);
     applyLessonMarkers(lessonRanges);
+    applyHiddenTheoryTexts(res.data.revealed_blocks);
+  }
+  async function revealTheoryBlock(block, revealed, wrap){
+    const classId = qs("gameClassSelect").value;
+    if (!classId){
+      setHiddenTheoryText(wrap, revealed ? block.content : undefined);
+      return;
+    }
+    const token = loadToken;
+    const res = await api(
+      `/api/teacher/theory-modules/${selectedModuleId}/blocks/${block.id}/reveal/?class_id=${classId}`,
+      "PUT", {revealed, content:block.content}
+    );
+    if (token !== loadToken || classId !== qs("gameClassSelect").value) return;
+    if (!res.data.ok) return setMsg(res.data.error);
+    setHiddenTheoryText(wrap, res.data.revealed_blocks[String(block.id)]);
   }
   async function saveMarkers(clear=false){
     if(markerSaving || selectedModuleType!=="theory_material" || !qs("gameClassSelect").value)return;
@@ -141,7 +159,7 @@
     const module=res.data.module;
     qs("lessonTopic").textContent=module.topic||"";
     if(item.module_type==="theory_material"){
-      qs("theoryPane").hidden=false;renderTheoryBlocks(module.blocks);await loadMarkers();
+      qs("theoryPane").hidden=false;renderTheoryBlocks(module.blocks, revealTheoryBlock);await loadMarkers();
     }else if(item.module_type==="theory_quiz"){
       questions=module.questions;qs("quizPane").hidden=false;qs("quizInstructions").textContent=module.instructions;
       renderQuizQuestionsStudent(questions,quizDrafts.get(item.id));qs("quizScore").textContent="";renderQuizResults([]);

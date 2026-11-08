@@ -435,6 +435,8 @@ def _prepare_wonder_questions(value) -> list[dict]:
 
 
 def _prepare_tournament_stages(value) -> list[dict]:
+    from .game_views import validate_tournament_question_answer
+
     result = []
     for ordinal, row in _ordinal_rows(value, "stages"):
         _reject_unknown(
@@ -449,25 +451,21 @@ def _prepare_tournament_stages(value) -> list[dict]:
         for question_ordinal, question in _ordinal_rows(
             row.get("questions"), f"stages[{ordinal}].questions"
         ):
-            _reject_unknown(
-                question,
-                {"ordinal", "prompt", "answer"},
-                f"stages[{ordinal}].questions[{question_ordinal}]",
-            )
+            context = f"stages[{ordinal}].questions[{question_ordinal}]"
+            _reject_unknown(question, {"ordinal", "prompt", "answer", "question_type", "choices", "correct_choice"}, context)
+            try:
+                answer_fields = validate_tournament_question_answer(question)
+            except ValueError as exc:
+                raise ValueError(f"{context}: {exc}") from exc
             questions.append(
                 {
                     "ordinal": question_ordinal,
                     "prompt": _text(
                         question.get("prompt"),
-                        f"stages[{ordinal}].questions[{question_ordinal}].prompt",
+                        f"{context}.prompt",
                         required=True,
                     ),
-                    "answer": _text(
-                        question.get("answer"),
-                        f"stages[{ordinal}].questions[{question_ordinal}].answer",
-                        maximum=300,
-                        required=True,
-                    ),
+                    **answer_fields,
                 }
             )
         if len(questions) > count:

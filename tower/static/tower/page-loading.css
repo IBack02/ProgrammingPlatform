@@ -1,8 +1,8 @@
-.student-page-loading{position:fixed;right:16px;bottom:16px;z-index:10000;display:flex;align-items:center;gap:10px;box-sizing:border-box;max-width:calc(100vw - 32px);padding:10px 15px;border:1px solid #9bb0c866;border-radius:14px;background:#f5f8fcee;color:#1b3045;box-shadow:0 4px 22px #102a4326;font:600 13px/1.4 Arial,sans-serif;pointer-events:none;overflow-wrap:anywhere}
+.student-page-loading{position:fixed;inset:0;z-index:10000;display:grid;place-items:center;background:#0a12249c;pointer-events:none}
+.student-page-loading__card{display:grid;justify-items:center;gap:12px;box-sizing:border-box;max-width:calc(100vw - 24px);padding:20px 26px;border:1px solid #9bb0c866;border-radius:16px;background:#f5f8fc;color:#1b3045;box-shadow:0 8px 30px #07101e66;font:600 14px/1.4 Arial,sans-serif;text-align:center;overflow-wrap:anywhere}
 .student-page-loading[hidden],.student-page-loading [hidden]{display:none!important}
-.student-page-loading img{width:36px;height:36px;object-fit:contain;flex:none}
-.student-page-loading__default{box-sizing:border-box;width:26px;height:26px;flex:none;border:3px solid #b6d4e7;border-top-color:#237cb0;border-radius:50%;animation:studentPageSpin 1s linear infinite}
-html[data-theme=dark] .student-page-loading{background:#14273aee;color:#edf5ff;border-color:#57789988}
+.student-page-loading img{width:52px;height:52px;object-fit:contain}
+.student-page-loading__default{box-sizing:border-box;width:40px;height:40px;border:3px solid #b6d4e7;border-top-color:#237cb0;border-radius:50%;animation:studentPageSpin 1s linear infinite}
+html[data-theme=dark] .student-page-loading__card{background:#14273a;color:#edf5ff;border-color:#57789988}
 @keyframes studentPageSpin{to{transform:rotate(360deg)}}
-@media(max-width:520px){.student-page-loading{right:12px;bottom:max(12px,env(safe-area-inset-bottom));max-width:calc(100vw - 24px)}}
 @media(prefers-reduced-motion:reduce){.student-page-loading__default{animation:none}}

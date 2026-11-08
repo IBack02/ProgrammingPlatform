@@ -808,6 +808,74 @@ class MindRaceGameTests(TestCase):
         )
         return round_obj, match, players
 
+    def test_tournament_choice_penalty_resolves_question_and_can_decide_match(self):
+        module = GameModule.objects.create(
+            session=self.session, title="Choice cup", position=1, rubric=GameModule.Rubric.TOURNAMENT,
+        )
+        stage = self._json(
+            self.teacher_client, "post", f"/api/teacher/game-modules/{module.id}/tournament-stages/",
+            {"title": "Final", "question_count": 3},
+        ).json()["stage"]
+        edit_url = f"/api/teacher/tournament-stages/{stage['id']}/questions/"
+        question = {"question_type": "single_choice", "prompt": "Select the Python literal",
+                    "choices": ["true", "True"], "correct_choice": 1}
+        invalid = self._json(self.teacher_client, "post", edit_url, {**question, "correct_choice": 2})
+        self.assertEqual(invalid.status_code, 400)
+        for ordinal in (1, 2, 3):
+            created = self._json(self.teacher_client, "post", edit_url, {**question, "ordinal": ordinal})
+            self.assertEqual(created.status_code, 201, created.content)
+            self.assertEqual(created.json()["question"]["correct_choice"], 1)
+
+        round_id = self._open_round(module.id, self.class_a)["id"]
+        for client in (self.client_a, self.client_a2):
+            self.assertEqual(self._json(client, "post", f"/api/student/game-module/{module.id}/ready/").status_code, 200)
+        started = self._json(self.teacher_client, "post", f"/api/teacher/game-rounds/{round_id}/start/")
+        self.assertEqual(started.status_code, 200, started.content)
+        match = TournamentMatch.objects.get(round_id=round_id)
+        match.started_at = timezone.now()
+        match.save(update_fields=["started_at"])
+        state_url = f"/api/student/game-rounds/{round_id}/state/"
+        state = self.client_a.get(state_url).json()["round"]
+        current = state["tournament_matches"][0]["current_question"]
+        self.assertEqual(current["choices"], question["choices"])
+        self.assertNotIn("answer", current)
+        self.assertNotIn("correct_choice", current)
+        answer_url = f"/api/student/game-rounds/{round_id}/tournament-answer/"
+        payload = {"match_id": match.id, "question_index": 0, "choice_index": 0}
+        self.assertEqual(self._json(self.client_a, "post", answer_url, {**payload, "choice_index": True}).status_code, 400)
+
+        wrong = self._json(self.client_a, "post", answer_url, payload).json()
+        self.assertFalse(wrong["correct"])
+        self.assertTrue(wrong["gave_opponent_point"])
+        self.assertEqual(wrong["round"]["tournament_answer_cooldown_ms"], 0)
+        self.assertEqual(wrong["round"]["tournament_matches"][0]["current_question"]["index"], 1)
+        self.assertTrue(self.client_a2.get(state_url).json()["round"]["tournament_question_result"]["won"])
+
+        late = self._json(self.client_a2, "post", answer_url, {**payload, "choice_index": 1}).json()
+        self.assertTrue(late["stale"])
+        correct = self._json(
+            self.client_a, "post", answer_url, {**payload, "question_index": 1, "choice_index": 1},
+        ).json()
+        self.assertTrue(correct["correct"])
+        final = self._json(self.client_a, "post", answer_url, {**payload, "question_index": 2}).json()
+        self.assertFalse(final["match_won"])
+        self.assertEqual(final["round"]["status"], GameRound.Status.FINISHED)
+        match.refresh_from_db()
+        self.assertEqual(match.winner.student_id, self.student_a2.id)
+        self.assertEqual(sorted([match.score_one, match.score_two]), [1, 2])
+        self.assertEqual(TournamentAnswerAttempt.objects.filter(match=match, gave_opponent_point=True).count(), 2)
+        self.session.is_shared_template = True
+        self.session.save(update_fields=["is_shared_template"])
+        other_teacher = Teacher.objects.create(full_name="Other teacher", pin_hash="!", is_active=True)
+        copied = self._json(
+            self._teacher_client(other_teacher), "post", f"/api/teacher/sessions/{self.session.id}/clone/",
+        )
+        self.assertEqual(copied.status_code, 201)
+        clone = GameModule.objects.get(session_id=copied.json()["session"]["id"])
+        copied_question = clone.tournament_stages.get().questions.get(ordinal=1)
+        self.assertEqual((copied_question.question_type, copied_question.choices, copied_question.answer),
+                         ("single_choice", ["true", "True"], "True"))
+
     def test_tournament_expected_answers_are_only_revealed_after_play_ends(self):
         round_obj, match, players = self._cooldown_tournament()
         TournamentAnswerAttempt.objects.create(

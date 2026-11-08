@@ -39,8 +39,6 @@
     current = data.message || null;
     const quiet = data.state === "quiet" || data.state === "inactive" || surface() !== "learning";
     panel.dataset.state = data.state;
-    panel.hidden = quiet;
-    if (quiet) panel.open = false;
     badge.hidden = quiet || !(data.state === "ready" || (current && !current.delivered && !acknowledged.has(current.id)));
     button.disabled = data.state !== "ready" || busy;
     thinking.hidden = data.state !== "generating" && !busy;
@@ -54,8 +52,8 @@
       else link.removeAttribute("href");
       if (current.delivered) acknowledged.add(current.id);
     }
-    const states = {ready:"ready", empty:"empty", generating:"generating", cooldown:"cooldown", retry_wait:"retry", unavailable:"unavailable"};
-    label.textContent = quiet ? "" : label.dataset[states[data.state] || "unavailable"];
+    const states = {ready:"ready", empty:"empty", generating:"generating", cooldown:"cooldown", retry_wait:"retry", quiet:"paused", unavailable:"unavailable"};
+    label.textContent = label.dataset[states[data.state] || "unavailable"];
     if (data.next_available_at && (data.state === "cooldown" || data.state === "retry_wait")) {
       const at = new Date(data.next_available_at);
       if (!Number.isNaN(at.valueOf())) label.textContent += ` ${at.toLocaleTimeString(document.documentElement.lang, {hour:"2-digit",minute:"2-digit"})}`;
@@ -74,7 +72,7 @@
   }
   async function refresh() {
     if (busy) return;
-    if (surface() !== "learning") { clearTimeout(timer); panel.hidden=true; return; }
+    if (surface() !== "learning") { clearTimeout(timer); return; }
     try { render(await getStatus()); }
     catch (_) { label.textContent=label.dataset.unavailable;button.disabled=true;badge.hidden=true;timer=setTimeout(refresh,15000); }
   }
