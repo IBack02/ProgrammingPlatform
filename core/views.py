@@ -23,6 +23,7 @@ from django.utils.dateparse import parse_datetime
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views.decorators.http import require_GET, require_http_methods, require_POST
+from openai import OpenAIError
 
 
 from .judge0_client import create_batch_submissions, wait_batch
@@ -33,9 +34,8 @@ from .ai_assist import (
     sanitize_no_code,
     build_solution_prompt_snapshot,
     call_openai_solution,
-    build_theory_open_answer_prompt_snapshot,
     build_theory_material_prompt_snapshot,
-    call_openai_theory_open_answer,
+    call_openai_theory_open_answers,
     call_openai_theory_material,
 )
 from .models import (
@@ -1307,14 +1307,21 @@ def _public_quiz_questions(module, student_id):
     return questions_out
 
 
-def _grade_theory_quiz(module, answers, student_id):
-    session = module.session
-    results = []
-    correct_answers = 0
-    total_questions = 0
+class TheoryQuizGradingUnavailable(RuntimeError):
+    pass
 
-    for question in module.questions.all().order_by("ordinal", "id"):
-        total_questions += 1
+
+def _theory_quiz_unavailable_response(request):
+    return JsonResponse({
+        "ok": False, "error": UI_TRANSLATIONS[get_ui_lang(request)]["quiz_grading_unavailable"],
+    }, status=503)
+
+
+def _grade_theory_quiz(module, answers, student_id):
+    results = []
+    pending = []
+
+    for question in module.questions.all():
         answer_key = str(question.id)
         student_value = answers.get(answer_key)
         is_correct = False
@@ -1325,7 +1332,7 @@ def _grade_theory_quiz(module, answers, student_id):
                 selected_id = int(student_value)
             except (TypeError, ValueError):
                 selected_id = None
-            correct_choice = question.choices.filter(is_correct=True).order_by("ordinal", "id").first()
+            correct_choice = next((choice for choice in question.choices.all() if choice.is_correct), None)
             is_correct = bool(correct_choice and selected_id == correct_choice.id)
             feedback = "" if is_correct else "Incorrect choice."
 
@@ -1334,7 +1341,7 @@ def _grade_theory_quiz(module, answers, student_id):
             expected_map = {
                 _quiz_match_token(student_id, question.id, pair.id, "left"):
                 _quiz_match_token(student_id, question.id, pair.id, "right")
-                for pair in question.pairs.all().order_by("ordinal", "id")
+                for pair in question.pairs.all()
             }
             clean_submitted_map = {
                 str(left): str(right)
@@ -1351,28 +1358,16 @@ def _grade_theory_quiz(module, answers, student_id):
                 is_correct = True
                 feedback = ""
             elif student_answer and model_answer:
-                try:
-                    prompt_snapshot = build_theory_open_answer_prompt_snapshot(
-                        session_title=session.title,
-                        session_description=session.description,
-                        module_title=module.title,
-                        question_prompt=question.prompt,
-                        model_answer=model_answer,
-                        student_answer=student_answer,
-                        accept_suitable_answer=question.accept_suitable_answer,
-                    )
-                    ai_result = call_openai_theory_open_answer(prompt_snapshot).get("data") or {}
-                    is_correct = bool(ai_result.get("is_correct"))
-                    feedback = (ai_result.get("feedback") or "").strip()
-                except Exception:
-                    is_correct = False
-                    feedback = "Answer could not be verified automatically."
+                pending.append({
+                    "question_id": question.id,
+                    "prompt": question.prompt,
+                    "model_answer": model_answer,
+                    "student_answer": student_answer,
+                    "accept_suitable_answer": question.accept_suitable_answer,
+                })
             else:
                 is_correct = False
                 feedback = "Answer is required."
-
-        if is_correct:
-            correct_answers += 1
 
         results.append({
             "question_id": question.id,
@@ -1382,6 +1377,23 @@ def _grade_theory_quiz(module, answers, student_id):
             "feedback": feedback,
         })
 
+    if pending:
+        try:
+            evaluations = call_openai_theory_open_answers(
+                session=module.session, module_title=module.title, questions=pending,
+            )
+        except (OpenAIError, RuntimeError, ValueError) as exc:
+            logger.warning(
+                "Theory quiz %s: failed to grade %s open answers (%s)", module.pk, len(pending), type(exc).__name__,
+            )
+            raise TheoryQuizGradingUnavailable from exc
+        for row in results:
+            evaluation = evaluations.get(row["question_id"])
+            if evaluation is not None:
+                row.update(is_correct=evaluation.is_correct, feedback=evaluation.feedback.strip())
+
+    total_questions = len(results)
+    correct_answers = sum(row["is_correct"] for row in results)
     score_percent = round((correct_answers * 100.0 / total_questions), 2) if total_questions > 0 else 0.0
 
     return results, correct_answers, total_questions, score_percent
@@ -1467,23 +1479,26 @@ def student_theory_quiz_submit(request: HttpRequest, module_id: int):
     if not isinstance(answers, dict):
         return JsonResponse({"ok": False, "error": "answers must be an object"}, status=400)
 
+    try:
+        results, correct_answers, total_questions, score_percent = _grade_theory_quiz(module, answers, student_id)
+    except TheoryQuizGradingUnavailable:
+        return _theory_quiz_unavailable_response(request)
+
     ss, _ = _get_or_create_student_session(student_id, session)
-    next_attempt_no = (
-        StudentTheoryQuizAttempt.objects.filter(student_session=ss, module=module).count() + 1
-    )
-
-    results, correct_answers, total_questions, score_percent = _grade_theory_quiz(module, answers, student_id)
-
-    attempt = StudentTheoryQuizAttempt.objects.create(
-        student_session=ss,
-        module=module,
-        attempt_no=next_attempt_no,
-        score_percent=score_percent,
-        correct_answers=correct_answers,
-        total_questions=total_questions,
-        answers_json=answers,
-        result_json={"results": results},
-    )
+    with transaction.atomic():
+        StudentSession.objects.select_for_update().only("pk").get(pk=ss.pk)
+        previous = StudentTheoryQuizAttempt.objects.filter(student_session=ss, module=module)
+        next_attempt_no = (previous.aggregate(last=Max("attempt_no"))["last"] or 0) + 1
+        attempt = previous.create(
+            student_session=ss,
+            module=module,
+            attempt_no=next_attempt_no,
+            score_percent=score_percent,
+            correct_answers=correct_answers,
+            total_questions=total_questions,
+            answers_json=answers,
+            result_json={"results": results},
+        )
 
     if total_questions and correct_answers == total_questions:
         from tower.services.rewards import learning_reward

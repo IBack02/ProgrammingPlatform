@@ -994,6 +994,7 @@
   async function parseJsonResponse(r){
     const ct = r.headers.get("content-type") || "";
     if (!ct.includes("application/json")){
+      if (r.status >= 500) return {status: r.status, data: {ok: false}};
       const text = await r.text();
       return {
         status: r.status,
@@ -1026,17 +1027,21 @@
   }
 
   async function apiPost(url, body){
-    const r = await fetch(url, {
-      method: "POST",
-      credentials: "include",
-      headers: {
-        "Content-Type": "application/json",
-        "Accept": "application/json",
-        "X-CSRFToken": getCookie("csrftoken")
-      },
-      body: JSON.stringify(body)
-    });
-    return parseJsonResponse(r);
+    try {
+      const r = await fetch(url, {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+          "Accept": "application/json",
+          "X-CSRFToken": getCookie("csrftoken")
+        },
+        body: JSON.stringify(body)
+      });
+      return await parseJsonResponse(r);
+    } catch {
+      return {status: 0, data: {ok: false}};
+    }
   }
 
   function escapeHtml(s){
@@ -1783,7 +1788,7 @@
         renderStudentGameRound(res.data.round);
         return;
       }
-      qs("tournamentFeedback").textContent = res.data.error || UI.gameIncorrect;
+      qs("tournamentFeedback").textContent = res.data.error || "{{ T.answer_save_failed|escapejs }}";
       scheduleStudentGamePoll(roundId);
       return;
     }
@@ -1806,7 +1811,7 @@
     gameAnswerPending = false;
     selectedWonderLetter = "";
     if (!res.data.ok){
-      showStatus(res.data.error || UI.gameIncorrect);
+      showStatus(res.data.error || "{{ T.answer_save_failed|escapejs }}");
       await pollStudentGame(currentGameRound.id);
       return;
     }
@@ -1814,22 +1819,21 @@
     renderStudentGameRound(res.data.round);
   }
 
-  function scheduleStudentGamePoll(roundId){
+  function scheduleStudentGamePoll(roundId, delay = 900){
     stopStudentGamePolling();
     if (!roundId || currentModuleType !== "game") return;
-    gamePollTimer = setTimeout(() => pollStudentGame(roundId), 900);
+    gamePollTimer = setTimeout(() => pollStudentGame(roundId), delay);
   }
 
   async function pollStudentGame(roundId){
     if (currentModuleType !== "game" || currentGameRound?.id !== roundId) return;
     const stateEpoch = gameStateEpoch;
-    const res = await apiGet(`/api/student/game-rounds/${roundId}/state/`);
-    if (
-      res.data.ok &&
-      stateEpoch === gameStateEpoch &&
-      currentModuleType === "game" &&
-      currentGameRound?.id === roundId
-    ) renderStudentGameRound(res.data.round);
+    const res = await apiGet(`/api/student/game-rounds/${roundId}/state/`).catch(() => ({status: 0, data: {ok: false}}));
+    if (stateEpoch !== gameStateEpoch || currentModuleType !== "game" || currentGameRound?.id !== roundId) return;
+    if (res.data.ok) renderStudentGameRound(res.data.round);
+    else if (res.status === 0 || res.status === 429 || res.status >= 500) {
+      scheduleStudentGamePoll(roundId, 2000 + Math.random() * 1000);
+    }
   }
 
   function renderStudentGameRound(round){
@@ -1957,7 +1961,7 @@
     stage.classList.remove("correct", "wrong");
     void stage.offsetWidth;
     if (!res.data.ok){
-      qs("gameFeedback").textContent = res.data.error || UI.gameIncorrect;
+      qs("gameFeedback").textContent = res.data.error || "{{ T.answer_save_failed|escapejs }}";
     } else if (res.data.correct){
       stage.classList.add("correct");
       qs("gameFeedback").textContent = UI.gameCorrect;

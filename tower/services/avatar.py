@@ -1,6 +1,7 @@
 from django.db.models import Q
 
 from core.models import Student
+from tower.avatar_assets import compact_saved_accessories
 from tower.models import TowerPlayer
 from tower.permissions import eligible_student_classes, tower_is_enabled
 
@@ -28,4 +29,4 @@ def prepare_avatar_rows(participants):
                     class_memberships__class_group__owner__is_active=True, class_memberships__class_group__owner__can_manage_tower=True)
             ).values_list("pk", flat=True).distinct())
     for row in rows:
-        row._tower_accessories = row.avatar_accessories if row.student_id in allowed else {}
+        row._tower_accessories = compact_saved_accessories(row.avatar_accessories) if row.student_id in allowed else {}

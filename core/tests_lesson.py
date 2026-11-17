@@ -1,9 +1,11 @@
 import json
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from django.test import Client, TestCase
 from django.urls import reverse
 
+from .ai_assist import TheoryOpenAnswerEvaluation, TheoryOpenAnswerEvaluations
 from .models import (ClassGroup, LessonHighlight, Session, Student, StudentTheoryQuizAttempt,
                      Teacher, TheoryMaterialBlock, TheoryMaterialModule, TheoryQuizChoice,
                      TheoryQuizMatchPair, TheoryQuizModule, TheoryQuizQuestion)
@@ -133,6 +135,42 @@ class LessonTests(TestCase):
         self.assertEqual(result["attempt"]["score_percent"], 100)
         self.assertFalse(StudentTheoryQuizAttempt.objects.exists())
         self.assertEqual(Client().get(url).status_code, 401)
+
+    @patch("core.ai_assist._get_openai_client")
+    def test_open_quiz_batches_answers_and_preserves_attempt_on_provider_failure(self, openai):
+        quiz = TheoryQuizModule.objects.create(session=self.lesson, position=2, title="Open quiz")
+        first, second, exact = [
+            TheoryQuizQuestion.objects.create(
+                module=quiz, ordinal=index, question_type="open_answer",
+                prompt=f"Question {index}", model_answer=f"Answer {index}",
+            )
+            for index in (1, 2, 3)
+        ]
+        student = self.student_client(self.group)
+        url = f"/api/student/theory-quiz/{quiz.pk}/submit"
+        answers = {str(first.pk): "Paraphrase", str(second.pk): "Something else", str(exact.pk): "answer 3"}
+        session_client = openai.return_value.__enter__.return_value
+        parse = session_client.with_options.return_value.responses.parse
+        evaluations = TheoryOpenAnswerEvaluations(results=[
+            TheoryOpenAnswerEvaluation(question_id=second.pk, is_correct=False, feedback="Check the definition."),
+            TheoryOpenAnswerEvaluation(question_id=first.pk, is_correct=True, feedback="Correct paraphrase."),
+        ])
+        parse.return_value = SimpleNamespace(status="completed", output_parsed=evaluations)
+        response = student.post(url, {"answers": answers}, content_type="application/json")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["attempt"]["correct_answers"], 2)
+        parse.assert_called_once()
+        session_client.with_options.assert_called_once_with(timeout=12, max_retries=0)
+        pending = json.loads(parse.call_args.kwargs["input"])["questions"]
+        self.assertEqual([row["question_id"] for row in pending], [first.pk, second.pk])
+        self.assertEqual([row["feedback"] for row in response.json()["attempt"]["results"]],
+                         ["Correct paraphrase.", "Check the definition.", ""])
+
+        parse.return_value.output_parsed = TheoryOpenAnswerEvaluations(results=evaluations.results[:1])
+        self.assertEqual(student.post(url, {"answers": answers}, content_type="application/json").status_code, 503)
+        teacher_url = f"/api/teacher/theory-quizzes/{quiz.pk}/practice/"
+        self.assertEqual(self.client.post(teacher_url, {"answers": answers}, content_type="application/json").status_code, 503)
+        self.assertEqual(StudentTheoryQuizAttempt.objects.filter(module=quiz).count(), 1)
 
     def test_game_controls_only_on_lesson_page(self):
         lesson = self.client.get(f"/teacher/sessions/{self.lesson.id}/lesson/")

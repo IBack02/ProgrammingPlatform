@@ -1,3 +1,4 @@
+import logging
 import re
 import secrets
 import unicodedata
@@ -36,6 +37,9 @@ from .security import request_is_limited
 from tower.services.avatar import prepare_avatar_rows, saved_avatar
 
 
+logger = logging.getLogger(__name__)
+
+
 WONDER_FIELD_LATIN = "QWERTYUIOPASDFGHJKLZXCVBNM"
 WONDER_FIELD_CYRILLIC = "ЙЦУКЕНГШЩЗХЪФЫВАПРОЛДЖЭЯЧСМИТЬБЮЁӘҒҚҢӨҰҮҺІ"
 WONDER_FIELD_DIGITS = "1234567890"
@@ -66,6 +70,7 @@ def _json_errors(view_func):
         except ValueError as exc:
             return _api_error(str(exc), 400)
         except Exception:
+            logger.exception("Game endpoint failed: %s", view_func.__name__)
             return _api_error("internal server error", 500)
 
     return wrapped
@@ -450,9 +455,7 @@ def _wonder_event_row(event):
     }
 
 
-def _wonder_round_data(round_obj):
-    participants = list(round_obj.participants.select_related("student").all())
-    prepare_avatar_rows(participants)
+def _wonder_round_data(round_obj, participants):
     by_student_id = {row.student_id: row for row in participants}
     queue = [by_student_id[student_id] for student_id in round_obj.turn_order if student_id in by_student_id]
     current_participant = queue[round_obj.turn_index % len(queue)] if queue else None
@@ -520,8 +523,8 @@ def _wonder_round_data(round_obj):
     }
 
 
-def _round_row(round_obj, include_participants=True):
-    data = {
+def _round_summary(round_obj):
+    return {
         "id": round_obj.id,
         "rubric": round_obj.module.rubric,
         "run_number": round_obj.run_number,
@@ -532,28 +535,31 @@ def _round_row(round_obj, include_participants=True):
         "started_at": round_obj.started_at.isoformat() if round_obj.started_at else None,
         "finished_at": round_obj.finished_at.isoformat() if round_obj.finished_at else None,
     }
-    if include_participants:
-        participants = list(round_obj.participants.select_related("student").all())
-        prepare_avatar_rows(participants)
-        participants.sort(
-            key=lambda row: (
-                row.finish_place is None,
-                row.finish_place or 1_000_000,
-                -row.progress,
-                row.ready_at,
-                row.id,
-            )
+
+
+def _round_row(round_obj):
+    data = _round_summary(round_obj)
+    participants = list(round_obj.participants.select_related("student"))
+    prepare_avatar_rows(participants)
+    participants.sort(
+        key=lambda row: (
+            row.finish_place is None,
+            row.finish_place or 1_000_000,
+            -row.progress,
+            row.ready_at,
+            row.id,
         )
-        data["participants"] = [_participant_row(row) for row in participants]
+    )
+    data["participants"] = [_participant_row(row) for row in participants]
     if round_obj.module.rubric == GameModule.Rubric.WONDER_FIELD:
-        data.update(_wonder_round_data(round_obj))
+        data.update(_wonder_round_data(round_obj, participants))
     elif round_obj.module.rubric == GameModule.Rubric.TOURNAMENT:
         data.update(_tournament_round_data(round_obj))
     return data
 
 
-def _teacher_round_row(round_obj, include_participants=True):
-    data = _round_row(round_obj, include_participants=include_participants)
+def _teacher_round_row(round_obj):
+    data = _round_row(round_obj)
     if round_obj.module.rubric == GameModule.Rubric.TOURNAMENT:
         data["tournament_answer_attempts"] = _tournament_answer_attempt_rows(round_obj)
     return data
@@ -595,13 +601,14 @@ def _module_row(module, include_detail=False):
             ).distinct().order_by("name", "id")
         ]
         rounds = (
-            module.rounds.select_related("class_group")
+            module.rounds.select_related("class_group", "module")
+            .defer("prompt_snapshot")
             .annotate(participant_count=Count("participants"))
             .order_by("-opened_at", "-id")[:30]
         )
         data["rounds"] = [
             {
-                **_round_row(row, include_participants=False),
+                **_round_summary(row),
                 "participant_count": row.participant_count,
             }
             for row in rounds
@@ -612,7 +619,7 @@ def _module_row(module, include_detail=False):
 def _active_round_for_student(module, student):
     return (
         module.rounds.filter(class_group_id__in=_student_class_ids(student))
-        .select_related("class_group")
+        .select_related("module", "class_group")
         .order_by("-run_number", "-id")
         .first()
     )
@@ -743,16 +750,18 @@ def _advance_wonder_turn(round_obj, now=None):
     round_obj.turn_started_at = now or timezone.now()
 
 
+def _wonder_timeout_due(round_obj, now):
+    return (
+        round_obj.status == GameRound.Status.RUNNING
+        and round_obj.turn_started_at is not None
+        and bool(round_obj.turn_order)
+        and round_obj.turn_started_at + timedelta(seconds=WONDER_FIELD_TURN_SECONDS) <= now
+    )
+
+
 def _apply_wonder_timeout(round_obj):
-    if (
-        round_obj.module.rubric != GameModule.Rubric.WONDER_FIELD
-        or round_obj.status != GameRound.Status.RUNNING
-        or not round_obj.turn_started_at
-        or not round_obj.turn_order
-    ):
-        return False
     now = timezone.now()
-    if round_obj.turn_started_at + timedelta(seconds=WONDER_FIELD_TURN_SECONDS) > now:
+    if round_obj.module.rubric != GameModule.Rubric.WONDER_FIELD or not _wonder_timeout_due(round_obj, now):
         return False
     student_id = round_obj.turn_order[round_obj.turn_index % len(round_obj.turn_order)]
     participant = round_obj.participants.select_for_update().filter(student_id=student_id).first()
@@ -780,14 +789,16 @@ def _apply_wonder_timeout(round_obj):
     return True
 
 
-def _refresh_wonder_round(round_id):
+def _refresh_wonder_round(round_obj):
+    if not _wonder_timeout_due(round_obj, timezone.now()):
+        return round_obj
     with transaction.atomic():
-        round_obj = get_object_or_404(
-            GameRound.objects.select_for_update().select_related("module", "class_group"),
-            id=round_id,
+        locked_round = get_object_or_404(
+            GameRound.objects.select_for_update(of=("self",)).select_related("module", "class_group"),
+            id=round_obj.id,
         )
-        _apply_wonder_timeout(round_obj)
-    return GameRound.objects.select_related("module", "class_group").get(id=round_id)
+        _apply_wonder_timeout(locked_round)
+    return locked_round
 
 
 @_json_errors
@@ -1323,7 +1334,7 @@ def teacher_game_round_state_api(request: HttpRequest, round_id: int):
         return _api_error("not authenticated", 401)
     round_obj = _owned_round(teacher, round_id)
     if round_obj.module.rubric == GameModule.Rubric.WONDER_FIELD:
-        round_obj = _refresh_wonder_round(round_obj.id)
+        round_obj = _refresh_wonder_round(round_obj)
     return JsonResponse({"ok": True, "round": _teacher_round_row(round_obj)})
 
 
@@ -1394,7 +1405,7 @@ def student_game_module_api(request: HttpRequest, module_id: int):
     record_learning_visit(student_id=student.pk, module=module, module_type="game")
     round_obj = _active_round_for_student(module, student)
     if round_obj and module.rubric == GameModule.Rubric.WONDER_FIELD:
-        round_obj = _refresh_wonder_round(round_obj.id)
+        round_obj = _refresh_wonder_round(round_obj)
     return JsonResponse({
         "ok": True,
         "module": {
@@ -1426,6 +1437,15 @@ def student_game_ready_api(request: HttpRequest, module_id: int):
         return _api_error("the lesson session is not running", 409)
     if request_is_limited("game_ready", f"{student.id}:{module.id}", limit=20, window_seconds=3600):
         return _api_error("too many ready requests", 429)
+    avatar = saved_avatar(student)
+    if avatar is None:
+        shape = secrets.choice(GameParticipant.AvatarShape.values)
+        color = "#{:02x}{:02x}{:02x}".format(
+            55 + secrets.randbelow(166),
+            55 + secrets.randbelow(166),
+            55 + secrets.randbelow(166),
+        )
+        avatar = {"avatar_shape": shape, "avatar_color": color}
     with transaction.atomic():
         round_obj = (
             GameRound.objects.select_for_update()
@@ -1440,14 +1460,6 @@ def student_game_ready_api(request: HttpRequest, module_id: int):
         )
         if not round_obj:
             return _api_error("registration is not open", 409)
-        shapes = list(GameParticipant.AvatarShape.values)
-        shape = secrets.choice(shapes)
-        color = "#{:02x}{:02x}{:02x}".format(
-            55 + secrets.randbelow(166),
-            55 + secrets.randbelow(166),
-            55 + secrets.randbelow(166),
-        )
-        avatar = saved_avatar(student) or {"avatar_shape": shape, "avatar_color": color}
         participant, _ = GameParticipant.objects.get_or_create(
             round=round_obj,
             student=student,
@@ -1472,7 +1484,7 @@ def student_game_round_state_api(request: HttpRequest, round_id: int):
         class_group_id__in=_student_class_ids(student),
     )
     if round_obj.module.rubric == GameModule.Rubric.WONDER_FIELD:
-        round_obj = _refresh_wonder_round(round_obj.id)
+        round_obj = _refresh_wonder_round(round_obj)
     return JsonResponse({"ok": True, "round": _student_round_state(round_obj, student)})
 
 

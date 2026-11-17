@@ -9,6 +9,7 @@ from django.utils import timezone
 
 from core.game_views import _participant_row
 from core.models import GameModule, GameParticipant, GameRound, Session
+from tower.asset_delivery import asset_url
 from tower.models import PlayerHero, TowerPlayer, Wallet, WalletEntry
 from tower.services.appearance import SELECTION_SLOTS, appearance_context, save_appearance
 from tower.services.avatar import saved_avatar
@@ -130,9 +131,15 @@ class AppearanceTests(WalletFixtures, TestCase):
         saved = copy.deepcopy(participant.avatar_accessories)
         self.assertEqual(len(saved["_set_items"]), 2)
         self.assertEqual(set(saved["_set_items"][0]["matrices"]), {"square", "diamond", "triangle", "pentagon", "hexagon"})
+        self.assertEqual(saved["_set_items"][0]["url"], asset_url("sets/nis-coder/avatar/head.webp"))
+        legacy = copy.deepcopy(saved)
+        legacy["_set_items"][0]["url"] = "https://old.example.com/static/tower/sets/nis-coder/v1/head.0123456789ab.png"
+        legacy["_set_items"][1]["url"] = "https://old.example.com/tower/digest/sets/nis-artist/v2/prop.png"
+        GameParticipant.objects.filter(pk=participant.pk).update(avatar_accessories=legacy)
         save_appearance(student=self.student, shape="square", color="#3b82f6", theme="midnight", selections=dict.fromkeys(SELECTION_SLOTS, ""))
         participant.refresh_from_db()
         self.assertEqual(_participant_row(participant)["avatar_accessories"], saved)
+        self.assertEqual(participant.avatar_accessories, legacy)
         with override_settings(TOWER_ENABLED=False):
             participant.refresh_from_db()
             del participant._tower_accessories
@@ -204,7 +211,7 @@ class AppearanceTests(WalletFixtures, TestCase):
         self.assertEqual(item.appearance["asset"]["path"], original)
 
     def test_tournament_and_wonder_payloads_keep_participant_equipment(self):
-        from core.game_views import _tournament_round_data, _wonder_round_data
+        from core.game_views import _round_row
         from core.models import TournamentMatch
         save_appearance(student=self.student, **self.payload())
         avatar = saved_avatar(self.student)
@@ -216,8 +223,8 @@ class AppearanceTests(WalletFixtures, TestCase):
             participant = GameParticipant.objects.create(round=rnd, student=self.student, **avatar)
             if rubric == "tournament":
                 TournamentMatch.objects.create(round=rnd, stage_number=1, match_number=1, player_one=participant)
-                row = _tournament_round_data(rnd)["tournament_matches"][0]["player_one"]
+                row = _round_row(rnd)["tournament_matches"][0]["player_one"]
             else:
-                row = _wonder_round_data(rnd)["turn_order"][0]
+                row = _round_row(rnd)["turn_order"][0]
             self.assertEqual(row["avatar_shape"], avatar["avatar_shape"])
             self.assertEqual(row["avatar_accessories"], avatar["avatar_accessories"])

@@ -180,7 +180,10 @@ def teacher_practice_quiz(request, module_id):
     answers = views._json_body(request).get("answers", {})
     if not isinstance(answers, dict):
         return JsonResponse({"ok": False, "error": "answers must be an object"}, status=400)
-    results, correct, total, score = views._grade_theory_quiz(module, answers, participant)
+    try:
+        results, correct, total, score = views._grade_theory_quiz(module, answers, participant)
+    except views.TheoryQuizGradingUnavailable:
+        return views._theory_quiz_unavailable_response(request)
     return JsonResponse({"ok": True, "attempt": {
         "results": results, "correct_answers": correct, "total_questions": total, "score_percent": score,
     }})

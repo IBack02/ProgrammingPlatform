@@ -2,6 +2,7 @@
 from django.db import transaction
 
 from tower.avatar_geometry import place_attachment
+from tower.avatar_assets import compact_avatar_path
 from tower.character_contracts import SetComponent, load_avatar_geometry
 from tower.models import PlayerCosmetic
 from tower.asset_delivery import asset_url
@@ -49,9 +50,14 @@ def item_presentation(item, language="en"):
     if item.acquisition != "character_set":
         return result
     component = SetComponent.model_validate(item.appearance)
-    result.update(url=asset_url(presentation_asset_path(item.set_version.hero_id, item.slot, component.asset.path)), placeholder=component.placeholder,
-                  hero_id=item.set_version.hero_id, hero_name=item.set_version.hero.name,
-                  animation=loader_animation(item.set_version.hero_id, item.slot, component.animation))
+    path = presentation_asset_path(item.set_version.hero_id, item.slot, component.asset.path)
+    result.update(
+        url=asset_url(compact_avatar_path(path) or path),
+        placeholder=component.placeholder,
+        hero_id=item.set_version.hero_id,
+        hero_name=item.set_version.hero.name,
+        animation=loader_animation(item.set_version.hero_id, item.slot, component.animation),
+    )
     if component.attachment:
         geometry = load_avatar_geometry()
         result["attachment"] = {"url": result["url"], "width": component.asset.width,

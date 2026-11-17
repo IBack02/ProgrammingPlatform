@@ -271,6 +271,7 @@ UI_TRANSLATIONS = {
 "quiz_correct": "Верно",
 "quiz_incorrect": "Неверно",
 "quiz_submit_failed": "Не удалось отправить квиз",
+"quiz_grading_unavailable": "Проверка открытых ответов временно недоступна. Попробуйте отправить квиз ещё раз.",
 "session": "Сессия",
 "hints": "Подсказки",
 "hints_unlock_note": "Подсказки открываются после 2/3 неудачных попыток. Третий уровень вставляет полное решение в редактор.",
@@ -592,6 +593,7 @@ UI_TRANSLATIONS = {
 "quiz_correct": "Дұрыс",
 "quiz_incorrect": "Қате",
 "quiz_submit_failed": "Квизді жіберу мүмкін болмады",
+"quiz_grading_unavailable": "Ашық жауаптарды тексеру уақытша қолжетімсіз. Квизді қайта жіберіп көріңіз.",
 "session": "Сессия",
 "hints": "Көмектер",
 "hints_unlock_note": "Көмектер 2/3 сәтсіз әрекеттен кейін ашылады. Үшінші деңгей толық шешімді редакторға енгізеді.",
@@ -960,6 +962,7 @@ UI_TRANSLATIONS = {
 "quiz_correct": "Correct",
 "quiz_incorrect": "Incorrect",
 "quiz_submit_failed": "Failed to submit quiz",
+"quiz_grading_unavailable": "Open answers could not be graded right now. Please submit the quiz again.",
 
     },
 }

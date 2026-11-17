@@ -10,21 +10,23 @@ from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
 
 from tower.asset_delivery import asset_key, public_base_url, validated_asset_path
+from tower.avatar_assets import avatar_asset_paths
 from tower.character_assets import inspect_asset, inspect_set
 from tower.ui_corners import corner_assets
 from tower.character_contracts import load_character_sets
 
 
-def upload_inventory():
-    paths = set()
-    for entry in load_character_sets().published_sets():
-        inspect_set(entry)
-        paths.update(component.asset.path for component in entry.components.values())
-    cards = json.loads((Path(__file__).resolve().parents[2] / "content/cards.json").read_text(encoding="utf-8"))
-    paths.update(rarity["frame"].removeprefix("tower/") for rarity in cards["rarities"].values())
-    for asset in corner_assets().values():
-        inspect_asset(asset)
-        paths.add(asset.path)
+def upload_inventory(*, avatars_only=False):
+    paths = avatar_asset_paths()
+    if not avatars_only:
+        for entry in load_character_sets().published_sets():
+            inspect_set(entry)
+            paths.update(component.asset.path for component in entry.components.values())
+        cards = json.loads((Path(__file__).resolve().parents[2] / "content/cards.json").read_text(encoding="utf-8"))
+        paths.update(rarity["frame"].removeprefix("tower/") for rarity in cards["rarities"].values())
+        for asset in corner_assets().values():
+            inspect_asset(asset)
+            paths.add(asset.path)
     return [{"path": path, "local": validated_asset_path(path), "key": asset_key(path),
              "sha256": hashlib.sha256(validated_asset_path(path).read_bytes()).hexdigest(),
              "content_type": {".png": "image/png", ".webp": "image/webp", ".svg": "image/svg+xml"}[Path(path).suffix]} for path in sorted(paths)]
@@ -50,12 +52,13 @@ class Command(BaseCommand):
     def add_arguments(self, parser):
         parser.add_argument("--upload", action="store_true")
         parser.add_argument("--verify-only", action="store_true")
+        parser.add_argument("--avatars-only", action="store_true")
         parser.add_argument("--public-base", default=None)
 
     def handle(self, *args, **options):
         if options["upload"] and options["verify_only"]:
             raise CommandError("Choose --upload or --verify-only.")
-        rows = upload_inventory()
+        rows = upload_inventory(avatars_only=options["avatars_only"])
         base = options["public_base"] or settings.TOWER_SET_ASSET_BASE_URL or settings.TOWER_ASSET_BASE_URL
         try:
             base = public_base_url(base)

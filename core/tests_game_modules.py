@@ -342,7 +342,10 @@ class MindRaceGameTests(TestCase):
         self.assertEqual(next_state["used_letters"], [])
         self.assertEqual([row["student_id"] for row in next_state["turn_order"]], original_order)
 
-        student_state = clients[first_student_id].get(f"/api/student/game-rounds/{round_row['id']}/state/")
+        with patch("core.game_views._apply_wonder_timeout") as apply_timeout:
+            student_state = clients[first_student_id].get(f"/api/student/game-rounds/{round_row['id']}/state/")
+            self.assertEqual(student_state.status_code, 200)
+            apply_timeout.assert_not_called()
         self.assertNotIn('"answer"', student_state.content.decode("utf-8").casefold())
         self.assertNotIn("code", student_state.content.decode("utf-8").casefold())
 

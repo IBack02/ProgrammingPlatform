@@ -1,6 +1,7 @@
 import io
 from unittest.mock import MagicMock, patch
 
+from PIL import Image
 from django.core.exceptions import ImproperlyConfigured
 from django.core.management import call_command
 from django.core.management.base import CommandError
@@ -16,7 +17,7 @@ from tower.set_preview_views import preview_context
 class AssetDeliveryTests(SimpleTestCase):
     def test_all_published_assets_and_frames_get_content_addressed_https_urls(self):
         rows = upload_inventory()
-        self.assertEqual(len(rows), 88)
+        self.assertEqual(len(rows), 112)
         for row in rows:
             url = asset_url(row["path"])
             self.assertEqual(url, f'https://assets.example.com/tower/{row["sha256"]}/{row["path"]}')
@@ -39,12 +40,21 @@ class AssetDeliveryTests(SimpleTestCase):
     def test_unconfigured_cdn_keeps_local_files_working(self):
         self.assertEqual(asset_url("frames/common.webp"), "/static/tower/frames/common.webp")
 
+    def test_upload_inventory_includes_compact_transparent_avatar_images(self):
+        avatars = upload_inventory(avatars_only=True)
+        self.assertEqual(len(avatars), 24)
+        for row in avatars:
+            with self.subTest(path=row["path"]), Image.open(row["local"]) as image:
+                self.assertEqual(image.size, (192, 192))
+                self.assertEqual(image.mode, "RGBA")
+                self.assertEqual(image.getchannel("A").getextrema(), (0, 255))
+
     @patch("boto3.client")
     @patch("requests.Session")
     def test_dry_run_never_uploads_or_makes_network_requests(self, session, boto):
         output = io.StringIO()
         call_command("upload_tower_assets", stdout=output)
-        self.assertIn("88 files", output.getvalue())
+        self.assertIn("112 files", output.getvalue())
         boto.assert_not_called()
         session.assert_not_called()
 
