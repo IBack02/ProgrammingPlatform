@@ -32,7 +32,10 @@ def journal_context(request):
     catalog = presentation_catalog(language)
     definitions = {hero.pk: hero for hero in HeroDefinition.objects.filter(is_active=True)}
     progress = {row.hero_id: row for row in PlayerHero.objects.filter(player=player)}
-    entitlements = {row.hero_id: row for row in CharacterSetEntitlement.objects.filter(player=player).select_related("fulfilment__version")}
+    assembled_ids = [hero_id for hero_id, row in progress.items() if row.assembled_at]
+    entitlements = {row.hero_id: row for row in CharacterSetEntitlement.objects.filter(
+        player=player, hero_id__in=assembled_ids,
+    ).select_related("hero", "fulfilment__version")}
     publications = {row.hero_id: row.version for row in CharacterSetPublication.objects.filter(is_active=True).select_related("version")}
     cards = []
     for card in catalog["cards"]:
@@ -119,7 +122,7 @@ def journal_context(request):
         for slot in SELECTION_SLOTS]
     context["appearance_sets"] = [{"hero_id": row.hero_id, "name": row.hero.name,
         "items": {item["slot"]: item["id"] for item in wardrobe["items"] if item["hero_id"] == row.hero_id}}
-        for row in player.set_entitlements.select_related("hero", "fulfilment") if getattr(row, "fulfilment", None)]
+        for row in entitlements.values() if getattr(row, "fulfilment", None)]
     return_to = request.GET.get("section", "avatar")
     context["appearance_section"] = return_to if return_to in ("avatar", "background", "interface", "companion") else "avatar"
     context["try_set"] = request.GET.get("try_set", "")

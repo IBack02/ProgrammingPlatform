@@ -1,0 +1,85 @@
+{% extends "core/teacher/_base.html" %}
+{% load static %}
+{% block title %}{{ T.journal_inventory_title }} · {{ student.full_name }}{% endblock %}
+{% block subtitle %}{{ T.journal_inventory_title }}{% endblock %}
+{% block content %}
+<link rel="stylesheet" href="{% static 'tower/wallet.css' %}">
+<div class="reward-center inventory-panel">
+  <header class="card reward-hero wallet-heading">
+    <div><h1>{{ student.full_name }}</h1><p>{{ group.name }}</p></div>
+    <nav class="inventory-nav" aria-label="{{ T.journal_inventory_title }}">
+      <a class="btn" href="{% url 'tower:teacher' %}?class_id={{ group.pk }}#manual-rewards">{{ T.wallet_awards }}</a>
+      <a class="btn" href="{% url 'tower:teacher_wallets' %}?class_id={{ group.pk }}&amp;student_id={{ student.pk }}#wallet-history">{{ T.wallet_history }}</a>
+    </nav>
+  </header>
+  {% for message in messages %}
+    <p class="{% if 'error' in message.tags %}wallet-error{% else %}wallet-notice{% endif %}" role="status">{{ message }}</p>
+  {% endfor %}
+  {% if wallet_error %}<p class="wallet-error" role="alert">{{ wallet_error }}</p>{% endif %}
+  <div class="inventory-actions">
+    <section class="card">
+      <h2>{{ T.wallet_title }}</h2>
+      <dl class="inventory-balances">
+        <div><dt>{{ T.journal_inventory_niscoin }}</dt><dd>{{ coins }}</dd></div>
+        <div><dt>{{ T.journal_inventory_shards }}</dt><dd>{{ shards }}</dd></div>
+      </dl>
+      <form method="post" action="{{ inventory_url }}" class="inventory-form">
+        {% csrf_token %}<input type="hidden" name="action" value="set_balances">
+        {{ balance_form.request_id }}{{ balance_form.previous_niscoin }}{{ balance_form.previous_shards }}
+        <div class="inventory-form-grid">
+          <label>{{ T.journal_inventory_new_niscoin }}{{ balance_form.niscoin }}</label>
+          <label>{{ T.journal_inventory_new_shards }}{{ balance_form.universal_shards }}</label>
+        </div>
+        <label>{{ T.journal_inventory_reason }}{{ balance_form.reason }}</label>
+        <button class="btn" type="submit">{{ T.journal_inventory_save_balances }}</button>
+      </form>
+    </section>
+    {% if has_grant_choices %}
+    <section class="card">
+      <h2>{{ T.journal_inventory_grant }}</h2>
+      <form method="post" action="{{ inventory_url }}" class="inventory-form">
+        {% csrf_token %}<input type="hidden" name="action" value="grant_fragments">{{ grant_form.request_id }}
+        <label>{{ T.journal_inventory_hero }}{{ grant_form.hero_id }}</label>
+        <label>{{ T.journal_inventory_quantity }}{{ grant_form.quantity }}</label>
+        <label>{{ T.journal_inventory_reason }}{{ grant_form.reason }}</label>
+        <button class="btn" type="submit">{{ T.journal_inventory_grant }}</button>
+      </form>
+    </section>
+    {% endif %}
+  </div>
+  <section class="card inventory-collection">
+    <h2>{{ T.journal_collection }}</h2>
+    <ul class="inventory-cards">
+    {% for card in cards %}
+      <li class="inventory-card">
+        <div class="inventory-card-heading">
+          {% if card.art %}<img src="{{ card.art.portrait_url }}" alt="" width="48" height="72" loading="lazy">{% endif %}
+          <div>
+            <h3>{{ card.row.hero.name }}</h3>
+            <p>{% if card.row.assembled_at %}{{ T.journal_collected }}{% else %}{{ T.journal_collecting }}{% endif %} · {{ card.row.fragments }}/{{ card.row.hero.required_fragments }} {{ T.journal_fragment_unit }}</p>
+            {% if card.art %}<small class="muted">{{ card.art.rarity_label }} · {{ card.art.role }}</small>{% endif %}
+          </div>
+        </div>
+        <details{% if card.remove_open %} open{% endif %}>
+          <summary>{{ T.journal_inventory_remove }}</summary>
+          <p>{{ T.journal_inventory_remove_hint }}</p>
+          <form method="post" action="{{ inventory_url }}" class="inventory-form">
+            {% csrf_token %}<input type="hidden" name="action" value="remove_hero">
+            {{ card.remove.request_id }}{{ card.remove.card_id }}{{ card.remove.fragments }}
+            <label>{{ T.journal_inventory_reason }}{{ card.remove.reason }}</label>
+            <button class="btn inventory-remove" type="submit">{{ T.journal_inventory_remove }}</button>
+          </form>
+        </details>
+      </li>
+    {% empty %}<li class="muted">{{ T.journal_inventory_empty }}</li>{% endfor %}
+    </ul>
+  </section>
+  <details class="card inventory-collection">
+    <summary>{{ T.journal_inventory_cosmetics }} · {{ cosmetics|length }}</summary>
+    <ul class="inventory-cosmetics">
+    {% for item in cosmetics %}<li><strong>{{ item.name }}</strong><span class="muted">{{ item.slot }}</span></li>
+    {% empty %}<li class="muted">{{ T.journal_inventory_no_cosmetics }}</li>{% endfor %}
+    </ul>
+  </details>
+</div>
+{% endblock %}

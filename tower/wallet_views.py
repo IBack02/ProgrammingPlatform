@@ -6,7 +6,6 @@ from urllib.parse import urlencode
 from django.contrib import messages
 from django.core.exceptions import PermissionDenied
 from django.core.paginator import Paginator
-from django.db.models import Q
 from django.http import Http404, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -17,7 +16,7 @@ from core.models import Student
 from core.ui_translations import UI_TRANSLATIONS, get_ui_lang
 from .forms import AwardForm, BatchAwardForm, RewardPolicyForm
 from .models import RewardPolicy, WalletEntry
-from .permissions import is_tower_admin, managed_classes, tower_student_required, tower_teacher_required
+from .permissions import is_tower_admin, managed_classes, tower_student_required, tower_teacher_required, wallet_students
 from .collection_security import collection_unlocked_required
 from .services.wallet import WalletError, award_coins, student_wallet
 from .services.rewards import award_batch, save_policy
@@ -100,11 +99,7 @@ def _scope(request, class_id):
     if not (group.tower_enabled and not group.is_guest and group.owner
             and group.owner.is_active and group.owner.can_manage_tower):
         raise PermissionDenied
-    students = Student.objects.filter(
-        Q(class_group=group) | Q(class_memberships__class_group=group),
-        is_active=True, class_group__is_guest=False, guest_lease_token__isnull=True,
-    ).distinct()
-    return group, students
+    return group, wallet_students(group)
 
 
 def _teacher_history(request, group, student):

@@ -35,7 +35,8 @@
     <div class="reward-select-all"><label><input type="checkbox" id="reward-select-all"> {{ T.reward_select_visible }}</label><span>{{ student_page.paginator.count }} · {{ T.wallet_students }}</span></div>
     <div class="reward-roster">
     {% for row in wallet_rows %}<div class="reward-student-row">
-      <label><input type="checkbox" name="student_ids" value="{{ row.student.pk }}" {% if row.selected %}checked{% endif %}><span>{{ row.student.full_name }}</span></label>
+      <input type="checkbox" name="student_ids" value="{{ row.student.pk }}" aria-label="{{ row.student.full_name }}" {% if row.selected %}checked{% endif %}>
+      <a class="reward-student-name" href="{% url 'tower:teacher_inventory' row.student.pk %}?class_id={{ wallet_class.pk }}">{{ row.student.full_name }}</a>
       <span class="reward-balance">{{ row.balance }} <small>{{ T.wallet_niscoin }}</small></span>
       <a href="?class_id={{ wallet_class.pk }}&amp;student_id={{ row.student.pk }}#wallet-history" aria-label="{{ T.wallet_history }} · {{ row.student.full_name }}">{{ T.wallet_history }}</a>
     </div>{% empty %}<p>{{ T.wallet_no_students }}</p>{% endfor %}
@@ -66,7 +67,7 @@
 <section class="card reward-history" id="wallet-history"><div class="wallet-heading"><h2>{{ T.wallet_history }} · {% if history_student %}{{ history_student.full_name }}{% else %}{{ wallet_class.name }}{% endif %}</h2>{% if history_student %}<a href="?class_id={{ wallet_class.pk }}#wallet-history">{{ T.reward_class_history }}</a>{% endif %}</div>
 <p class="muted">{{ T.wallet_teacher_history_hint }}</p>
 {% if history_student %}<p><a class="btn" href="{% url 'tower:collection_password_reset' history_student.pk %}?class_id={{ wallet_class.pk }}">{{ T.journal_password_reset }}</a></p>{% endif %}
-{% for entry in wallet_entries %}<div class="wallet-entry"><div><strong>{{ entry.wallet.player.student.full_name }}</strong><div>{{ entry.reason }}</div><small>{{ entry.created_at|date:"d.m.Y H:i" }}</small></div><div class="wallet-entry-amount wallet-entry-amount--positive">{% if entry.delta > 0 %}+{% endif %}{{ entry.delta }} {{ T.wallet_niscoin }}</div></div>{% empty %}<p>{{ T.wallet_no_entries }}</p>{% endfor %}
+{% for entry in wallet_entries %}<div class="wallet-entry"><div><strong>{{ entry.wallet.player.student.full_name }}</strong><div>{{ entry.reason }}</div><small>{{ entry.created_at|date:"d.m.Y H:i" }}</small></div><div class="wallet-entry-amount{% if entry.delta > 0 %} wallet-entry-amount--positive{% endif %}">{% if entry.delta > 0 %}+{% endif %}{{ entry.delta }} {% if entry.currency == 'niscoin' %}{{ T.wallet_niscoin }}{% else %}{{ T.wallet_shards }}{% endif %}</div></div>{% empty %}<p>{{ T.wallet_no_entries }}</p>{% endfor %}
 {% if history_next_url %}<a href="{{ history_next_url }}">{{ T.wallet_older }}</a>{% endif %}
 </section>
 {% else %}<div class="card wallet-notice">{{ T.reward_enable_class }}</div>{% endif %}

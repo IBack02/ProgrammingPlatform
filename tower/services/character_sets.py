@@ -20,34 +20,44 @@ def grant_character_set(*, player, hero, operation=None):
         raise ValidationError("The originating operation belongs to another player.")
     entitlement, entitled_now = CharacterSetEntitlement.objects.get_or_create(player=player, hero=hero,
         defaults={"operation": operation, "earned_at": card.assembled_at})
-    existing = PlayerCharacterSet.objects.filter(entitlement=entitlement).first()
-    if existing:
-        return {"hero_id": hero.pk, "entitled": True, "granted": True, "newly_granted": False,
-                "version": existing.version.slug, "items": list(existing.items.order_by("cosmetic_id").values_list("cosmetic_id", flat=True))}
-    publication = CharacterSetPublication.objects.select_related("version").filter(hero=hero, is_active=True).first()
-    if publication is None:
-        if entitled_now:
-            TowerAuditEvent.objects.create(event_type="character_set_pending", student_id=player.student_id,
-                metadata={"hero": hero.pk, "entitlement": entitlement.pk})
-        return {"hero_id": hero.pk, "entitled": True, "granted": False, "newly_granted": False, "items": []}
-    version = publication.version
+    grant = PlayerCharacterSet.objects.select_related("version").filter(entitlement=entitlement).first()
+    if grant:
+        version = grant.version
+        owned = set(grant.items.values_list("cosmetic_id", flat=True))
+    else:
+        publication = CharacterSetPublication.objects.select_related("version").filter(hero=hero, is_active=True).first()
+        if publication is None:
+            if entitled_now:
+                TowerAuditEvent.objects.create(event_type="character_set_pending", student_id=player.student_id,
+                    metadata={"hero": hero.pk, "entitlement": entitlement.pk})
+            return {"hero_id": hero.pk, "entitled": True, "granted": False, "newly_granted": False, "items": []}
+        version = publication.version
+        owned = set()
     if version.hero_id != hero.pk:
         raise ValidationError("The published set belongs to another character.")
     components = version.config["components"]
+    missing = {slot: item["id"] for slot, item in components.items() if item["id"] not in owned}
+    result = {"hero_id": hero.pk, "entitled": True, "granted": True, "newly_granted": bool(missing),
+              "version": version.slug, "items": sorted(owned.union(missing.values()))}
+    if not missing:
+        return result
     definitions = {item.pk: item for item in CosmeticDefinition.objects.filter(
-        pk__in=[item["id"] for item in components.values()]).select_related("set_version")}
-    for slot, component in components.items():
-        definition = definitions.get(component["id"])
+        pk__in=missing.values()).select_related("set_version")}
+    for slot, cosmetic_id in missing.items():
+        definition = definitions.get(cosmetic_id)
         if (definition is None or definition.acquisition != "character_set" or definition.slot != slot
                 or definition.set_version.hero_id != hero.pk):
             raise ValidationError("Published set components are incomplete or inconsistent.")
-    grant = PlayerCharacterSet.objects.create(entitlement=entitlement, version=version)
-    for component in components.values():
-        PlayerCosmetic.objects.create(player=player, cosmetic_id=component["id"], source="character_set", character_set=grant)
-    ids = sorted(item["id"] for item in components.values())
-    TowerAuditEvent.objects.create(event_type="character_set_grant", student_id=player.student_id,
-        metadata={"hero": hero.pk, "version": version.slug, "entitlement": entitlement.pk, "items": ids})
-    return {"hero_id": hero.pk, "entitled": True, "granted": True, "newly_granted": True, "version": version.slug, "items": ids}
+    event_type = "character_set_restored" if grant else "character_set_grant"
+    if grant is None:
+        grant = PlayerCharacterSet.objects.create(entitlement=entitlement, version=version)
+    for cosmetic_id in missing.values():
+        PlayerCosmetic.objects.create(
+            player=player, cosmetic_id=cosmetic_id, source="character_set", character_set=grant,
+        )
+    TowerAuditEvent.objects.create(event_type=event_type, student_id=player.student_id,
+        metadata={"hero": hero.pk, "version": version.slug, "entitlement": entitlement.pk, "items": sorted(missing.values())})
+    return result
 
 
 def restore_character_sets(*, hero_ids=None):

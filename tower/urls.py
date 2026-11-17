@@ -1,6 +1,6 @@
 from django.urls import path
 
-from . import collection_auth_views, collection_views, companion_views, set_preview_views, views, wallet_views
+from . import collection_auth_views, collection_views, companion_views, inventory_views, set_preview_views, views, wallet_views
 
 
 app_name = "tower"
@@ -18,6 +18,7 @@ urlpatterns = [
     path("api/tower/companion/status/", companion_views.status, name="companion_status"),
     path("api/tower/companion/<str:action>/", companion_views.action, name="companion_action"),
     path("teacher/tower/wallets/", wallet_views.teacher_wallets, name="teacher_wallets"),
+    path("teacher/tower/students/<int:student_id>/inventory/", inventory_views.teacher_inventory, name="teacher_inventory"),
     path("api/teacher/tower/awards/", wallet_views.award_api, name="award"),
     path("api/teacher/tower/wallets/<int:student_id>/", wallet_views.teacher_history_api, name="teacher_history"),
     path("teacher/tower/", views.teacher_page, name="teacher"),

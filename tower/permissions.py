@@ -8,7 +8,7 @@ from django.http import JsonResponse
 from django.shortcuts import redirect, render
 from django.views.decorators.cache import never_cache
 
-from core.models import ClassGroup
+from core.models import ClassGroup, Student
 from core.ui_translations import UI_TRANSLATIONS, get_ui_lang
 from core.views import _get_logged_in_student, _get_logged_in_teacher
 
@@ -49,6 +49,13 @@ def managed_classes(request):
     if is_tower_admin(request):
         return groups
     return groups.filter(owner=request.tower_teacher)
+
+
+def wallet_students(group):
+    return Student.objects.filter(
+        Q(class_group=group) | Q(class_memberships__class_group=group),
+        is_active=True, class_group__is_guest=False, guest_lease_token__isnull=True,
+    ).distinct()
 
 
 def _denied(request, *, authenticated, login_url, role):

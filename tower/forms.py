@@ -2,7 +2,7 @@ from django import forms
 from django.conf import settings
 from django.core.validators import MaxValueValidator
 
-from .models import RewardPolicy, WalletEntry
+from .models import MAX_BALANCE, RewardPolicy, WalletEntry
 
 
 class AwardForm(forms.Form):
@@ -61,3 +61,43 @@ class BatchAwardForm(AwardForm):
         kwargs.setdefault("auto_id", "batch_%s")
         super().__init__(*args, **kwargs)
         self.fields["student_ids"].choices = [(student.pk, student.full_name) for student in students]
+
+
+class InventoryForm(forms.Form):
+    request_id = forms.UUIDField(widget=forms.HiddenInput)
+    reason = forms.CharField(max_length=240)
+
+    def __init__(self, *args, **kwargs):
+        kwargs.setdefault("auto_id", False)
+        super().__init__(*args, **kwargs)
+
+
+class InventoryBalanceForm(InventoryForm):
+    niscoin = forms.IntegerField(min_value=0, max_value=MAX_BALANCE)
+    universal_shards = forms.IntegerField(min_value=0, max_value=MAX_BALANCE)
+    previous_niscoin = forms.IntegerField(min_value=0, max_value=MAX_BALANCE, widget=forms.HiddenInput)
+    previous_shards = forms.IntegerField(min_value=0, max_value=MAX_BALANCE, widget=forms.HiddenInput)
+
+    def clean(self):
+        values = super().clean()
+        if self.errors:
+            return values
+        values["expected"] = {
+            "niscoin": values.pop("previous_niscoin"),
+            "universal_shards": values.pop("previous_shards"),
+        }
+        return values
+
+
+class InventoryGrantForm(InventoryForm):
+    hero_id = forms.ChoiceField()
+    quantity = forms.IntegerField(min_value=1, max_value=32767)
+
+    def __init__(self, *args, heroes, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["hero_id"].choices = heroes
+
+
+class InventoryRemovalForm(InventoryForm):
+    card_id = forms.IntegerField(min_value=1, max_value=9_223_372_036_854_775_807, widget=forms.HiddenInput)
+    fragments = forms.IntegerField(min_value=0, max_value=32767, widget=forms.HiddenInput)

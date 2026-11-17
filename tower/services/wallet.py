@@ -10,7 +10,6 @@ from django.core.exceptions import PermissionDenied
 from django.db import IntegrityError, transaction
 from django.db.models import Q
 from django.http import Http404
-from django.utils import timezone
 
 from core.models import ClassGroup, Student, Teacher
 from tower.models import MAX_BALANCE, GameOperation, TowerAuditEvent, TowerPlayer, Wallet, WalletEntry
@@ -81,6 +80,30 @@ def student_wallet(student):
     return _locked_wallet(student.pk)
 
 
+def _record_wallet_delta(*, wallet, operation, currency, delta, reason, source,
+                         student_id, group=None, reference=""):
+    before = getattr(wallet, currency)
+    after = before + delta
+    if after < 0:
+        raise WalletError("insufficient_funds", 409)
+    if after > MAX_BALANCE:
+        raise WalletError("balance_limit", 409)
+    setattr(wallet, currency, after)
+    wallet.save(update_fields=[currency, "updated_at"])
+    entry = WalletEntry.objects.create(
+        wallet=wallet, operation=operation, currency=currency, delta=delta,
+        balance_after=after, reason=reason, source=source,
+        class_group=group, reference=reference,
+    )
+    TowerAuditEvent.objects.create(
+        event_type=source, actor_teacher_id=operation.actor_teacher_id,
+        actor_admin_id=operation.actor_admin_id, student_id=student_id,
+        class_group=group, entry=entry,
+        metadata={"currency": currency, "before": before, "after": after, "delta": delta},
+    )
+    return entry
+
+
 def _perform(*, student_id, currency, delta, reason, request_id, action,
              actor_scope, source, teacher=None, admin=None, group=None, reference=""):
     if currency not in WalletEntry.Currency.values:
@@ -121,28 +144,13 @@ def _perform(*, student_id, currency, delta, reason, request_id, action,
         # scope, not only player: changing the target cannot reuse a request ID.
         return replay(GameOperation.objects.get(**identity))
 
-    before = getattr(wallet, currency)
-    after = before + delta
-    if after < 0:
-        raise WalletError("insufficient_funds", 409)
-    if after > MAX_BALANCE:
-        raise WalletError("balance_limit", 409)
-    setattr(wallet, currency, after)
-    wallet.updated_at = timezone.now()
-    wallet.save(update_fields=[currency, "updated_at"])
-    entry = WalletEntry.objects.create(
+    entry = _record_wallet_delta(
         wallet=wallet, operation=operation, currency=currency, delta=delta,
-        balance_after=after, reason=reason, source=source,
-        class_group=group, reference=reference,
-    )
-    TowerAuditEvent.objects.create(
-        event_type=source, actor_teacher=teacher, actor_admin=admin,
-        student_id=student_id, class_group=group, entry=entry,
-        metadata={"currency": currency, "before": before, "after": after, "delta": delta},
+        reason=reason, source=source, student_id=student_id, group=group, reference=reference,
     )
     operation.result = {
         "entry_id": entry.pk, "request_id": str(request_id),
-        "currency": currency, "delta": delta, "balance_after": after,
+        "currency": currency, "delta": delta, "balance_after": entry.balance_after,
     }
     operation.save(update_fields=["result"])
     return {**operation.result, "replayed": False}
