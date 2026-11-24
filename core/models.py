@@ -256,6 +256,7 @@ class TheoryMaterialBlock(models.Model):
     class HeadingLevel(models.TextChoices):
         H1 = "h1", "H1"
         H2 = "h2", "H2"
+        H3 = "h3", "H3"
 
     module = models.ForeignKey(
         TheoryMaterialModule,

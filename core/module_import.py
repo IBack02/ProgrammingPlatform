@@ -254,7 +254,7 @@ def _prepare_theory_blocks(value) -> list[dict]:
         heading_level = _text(row.get("heading_level"), f"blocks[{ordinal}].heading_level", maximum=8)
         if block_type == TheoryMaterialBlock.BlockType.HEADING:
             if heading_level not in TheoryMaterialBlock.HeadingLevel.values:
-                raise ValueError(f"blocks[{ordinal}].heading_level must be h1 or h2")
+                raise ValueError(f"blocks[{ordinal}].heading_level must be h1, h2, or h3")
         else:
             heading_level = ""
         if block_type == TheoryMaterialBlock.BlockType.IMAGE:

@@ -86,10 +86,12 @@
     delete box.dataset.markers;
 
     (blocks || []).forEach(block => {
-      const wrap = document.createElement("div");
+      const isH3 = block.block_type === "heading" && block.heading_level === "h3";
+      const wrap = document.createElement(isH3 ? "h3" : "div");
 
       if (block.block_type === "heading"){
-        wrap.className = `theoryBlock ${block.heading_level === "h1" ? "h1" : "h2"}`;
+        const level = isH3 ? "h3" : (block.heading_level === "h1" ? "h1" : "h2");
+        wrap.className = `theoryBlock ${level}`;
         wrap.textContent = block.content || "";
       } else if (block.block_type === "hidden_text"){
         wrap.className = "theoryBlock theory-spoiler";

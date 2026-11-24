@@ -3711,8 +3711,8 @@ def teacher_theory_blocks_api(request: HttpRequest, module_id: int):
             return JsonResponse({"ok": False, "error": media_error}, status=400)
 
         if block_type == TheoryMaterialBlock.BlockType.HEADING:
-            if heading_level not in {TheoryMaterialBlock.HeadingLevel.H1, TheoryMaterialBlock.HeadingLevel.H2}:
-                return JsonResponse({"ok": False, "error": "heading_level must be h1 or h2"}, status=400)
+            if heading_level not in TheoryMaterialBlock.HeadingLevel.values:
+                return JsonResponse({"ok": False, "error": "heading_level must be h1, h2, or h3"}, status=400)
         else:
             heading_level = ""
 
@@ -3780,8 +3780,8 @@ def teacher_theory_block_detail_api(request: HttpRequest, block_id: int):
         if "heading_level" in data:
             heading_level = (data.get("heading_level") or "").strip()
             if block.block_type == TheoryMaterialBlock.BlockType.HEADING:
-                if heading_level not in {TheoryMaterialBlock.HeadingLevel.H1, TheoryMaterialBlock.HeadingLevel.H2}:
-                    return JsonResponse({"ok": False, "error": "heading_level must be h1 or h2"}, status=400)
+                if heading_level not in TheoryMaterialBlock.HeadingLevel.values:
+                    return JsonResponse({"ok": False, "error": "heading_level must be h1, h2, or h3"}, status=400)
                 block.heading_level = heading_level
             else:
                 block.heading_level = ""
@@ -3858,7 +3858,7 @@ def teacher_generate_theory_module_api(request: HttpRequest, module_id: int):
                 continue
             if block_type not in TheoryMaterialBlock.BlockType.values or _theory_media_error(block_type, content):
                 continue
-            if block_type == "heading" and heading_level not in {"h1", "h2"}:
+            if block_type == "heading" and heading_level not in TheoryMaterialBlock.HeadingLevel.values:
                 heading_level = "h2"
             if block_type != "heading":
                 heading_level = ""

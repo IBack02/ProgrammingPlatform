@@ -187,7 +187,7 @@ class FullSolutionLevel3(BaseModel):
 class TheoryMaterialBlockSchema(BaseModel):
     ordinal: int
     block_type: Literal["heading", "text", "hidden_text", "code", "image", "video", "attachment"]
-    heading_level: Optional[Literal["h1", "h2"]] = None
+    heading_level: Optional[Literal["h1", "h2", "h3"]] = None
     content: str
 
 
@@ -366,7 +366,7 @@ def call_openai_theory_material(prompt_snapshot: str) -> dict:
         "You are a Python teacher creating a theory learning module for students.\n"
         "Return a structured lesson using blocks only.\n"
         "Allowed block types: heading, text, hidden_text, code, image, video, attachment.\n"
-        "For heading blocks, heading_level must be h1 or h2.\n"
+        "For heading blocks, heading_level must be h1, h2, or h3.\n"
         "For all other blocks, heading_level must be null or omitted.\n"
         "For a lecture question with a delayed reveal, put the question in a text block and its answer in a separate hidden_text block.\n"
         "For model answers, solutions, mark schemes or examiner guidance meant to be revealed, always set block_type to hidden_text. "

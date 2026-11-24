@@ -640,6 +640,26 @@ class ModuleJsonImportTests(TestCase):
         self.assertEqual(response.status_code, 400)
         self.assertFalse(TheoryMaterialModule.objects.filter(session=self.session).exists())
 
+    def test_imports_three_heading_levels_and_rejects_h4(self):
+        blocks = [
+            {"ordinal": ordinal, "block_type": "heading", "heading_level": level, "content": level}
+            for ordinal, level in enumerate(("h1", "h2", "h3"), start=1)
+        ]
+        payload = {
+            "action": "create_modules",
+            "modules": [{"module_type": "theory_material", "title": "Headings", "blocks": blocks}],
+        }
+
+        blocks[-1]["heading_level"] = "h4"
+        self.assertEqual(self._import(payload).status_code, 400)
+        self.assertFalse(TheoryMaterialModule.objects.filter(session=self.session).exists())
+
+        blocks[-1]["heading_level"] = "h3"
+        response = self._import(payload)
+        self.assertEqual(response.status_code, 200, response.content)
+        module = TheoryMaterialModule.objects.get(session=self.session)
+        self.assertEqual(list(module.blocks.values_list("heading_level", flat=True)), ["h1", "h2", "h3"])
+
     def test_imports_every_module_shape_with_nested_content(self):
         payload = {
             "action": "create_modules",

@@ -179,6 +179,7 @@
           <select id="headingLevel" class="select-ui">
             <option value="h1">h1</option>
             <option value="h2">h2</option>
+            <option value="h3">h3</option>
           </select>
           <input id="blockOrdinal" class="input-ui" type="number" value="1" style="width:90px;">
           <button id="addBlockBtn" class="btn" type="button">{{ T.add_block }}</button>
@@ -492,7 +493,7 @@ CODING_TASK RULES:
 
 THEORY_MATERIAL RULES:
 - block_type is "heading", "text", "hidden_text", "code", "image", "video", or "attachment".
-- heading requires heading_level "h1" or "h2"; omit heading_level for every other block.
+- heading requires heading_level "h1", "h2", or "h3"; omit heading_level for every other block.
 - For a question with a delayed reveal, put the question in a "text" block and the answer in a separate "hidden_text" block using the content field.
 - Model answers, solutions, mark schemes, and examiner guidance intended for a reveal must use "block_type": "hidden_text", with the answer itself as plain text. Never put <details>, <summary>, HTML, or Markdown spoilers in prose content. Put literal markup examples in a "code" block.
 - image content must be an HTTPS image URL. video content must be a YouTube HTTPS URL.

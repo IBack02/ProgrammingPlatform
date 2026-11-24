@@ -101,6 +101,23 @@ class ModuleEditorTests(TestCase):
         old_page = self.client.get(f"/teacher/tasks/?session_id={self.lesson.id}")
         self.assertRedirects(old_page,f"/teacher/modules/?session_id={self.lesson.id}",fetch_redirect_response=False)
 
+    def test_add_and_edit_h3_theory_block(self):
+        response = self.request_json("post", f"/api/teacher/theory-modules/{self.theory.id}/blocks/", {
+            "ordinal": 1, "block_type": "heading", "heading_level": "h3", "content": "Subsection",
+        })
+        self.assertEqual(response.status_code, 201, response.content)
+        created = response.json()["block"]
+        self.assertEqual(created["heading_level"], "h3")
+        url = f"/api/teacher/theory-blocks/{created['id']}/"
+
+        for level in ("h2", "h3"):
+            response = self.request_json("patch", url, {"heading_level": level})
+            self.assertEqual(response.status_code, 200, response.content)
+            self.assertEqual(response.json()["block"]["heading_level"], level)
+
+        self.assertEqual(self.request_json("patch", url, {"heading_level": "h4"}).status_code, 400)
+        self.assertEqual(TheoryMaterialBlock.objects.get(id=created["id"]).heading_level, "h3")
+
     def test_edit_theory_and_each_quiz_type_after_reorder(self):
         block = TheoryMaterialBlock.objects.create(module=self.theory,ordinal=1,block_type="text",content="Before")
         self.assertEqual(self.request_json("patch",f"/api/teacher/theory-blocks/{block.id}/",{"block_type":"heading","heading_level":"h2","content":"Edited"}).status_code,200)
