@@ -93,7 +93,14 @@ X_FRAME_OPTIONS = "DENY"
 SECURE_CROSS_ORIGIN_OPENER_POLICY = "same-origin"
 SIGNED_COOKIE_LEGACY_SALT_FALLBACK = False
 
-DATA_UPLOAD_MAX_MEMORY_SIZE = int(os.environ.get("DATA_UPLOAD_MAX_MEMORY_SIZE", "1572864"))
+# Requests slower than this are stored as "slow_request" reports: they are the
+# ones that turn into 502 when they cross the gunicorn worker timeout.
+ERROR_REPORT_SLOW_REQUEST_SECONDS = float(os.environ.get("ERROR_REPORT_SLOW_REQUEST_SECONDS", "20"))
+ERROR_REPORT_SPOOL_PATH = os.environ.get("ERROR_REPORT_SPOOL_PATH", "")
+# Overall time budget for one Judge0 check; keep it below the gunicorn timeout.
+JUDGE0_SUBMIT_BUDGET_SECONDS = float(os.environ.get("JUDGE0_SUBMIT_BUDGET_SECONDS", "20"))
+
+DATA_UPLOAD_MAX_MEMORY_SIZE =int(os.environ.get("DATA_UPLOAD_MAX_MEMORY_SIZE", "1572864"))
 FILE_UPLOAD_MAX_MEMORY_SIZE = int(os.environ.get("FILE_UPLOAD_MAX_MEMORY_SIZE", "2097152"))
 SESSION_COOKIE_AGE = int(os.environ.get("SESSION_COOKIE_AGE", "43200"))
 SESSION_EXPIRE_AT_BROWSER_CLOSE = True
@@ -128,6 +135,8 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
+    # Outermost: request id, timing and DB reports for 5xx / slow requests (502 diagnostics).
+    "core.error_reports.ErrorReportMiddleware",
     "django.middleware.security.SecurityMiddleware",
     "core.middleware.SecurityResponseMiddleware",
     "whitenoise.middleware.WhiteNoiseMiddleware",

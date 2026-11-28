@@ -1,4 +1,6 @@
+import logging
 import random
+import sys
 from collections import Counter
 from decimal import Decimal, InvalidOperation
 from functools import wraps
@@ -11,6 +13,7 @@ from django.shortcuts import get_object_or_404, render
 from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views.decorators.http import require_GET, require_http_methods, require_POST
 
+from .error_reports import remember_exception
 from .exam_views import (
     _api_error,
     _json_body,
@@ -33,6 +36,8 @@ from .models import (
 )
 
 
+logger = logging.getLogger(__name__)
+
 def _json_errors(view_func):
     @wraps(view_func)
     def wrapped(request, *args, **kwargs):
@@ -45,6 +50,8 @@ def _json_errors(view_func):
         except IntegrityError:
             return _api_error("database conflict", 409)
         except Exception:
+            remember_exception(request, sys.exc_info())
+            logger.exception("Peer assessment endpoint failed: %s", view_func.__name__)
             return _api_error("internal server error", 500)
 
     return wrapped

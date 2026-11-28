@@ -9,6 +9,12 @@
   .input-ui,.textarea-ui,.select-ui{padding:10px;border:1px solid #e5e7eb;border-radius:10px;box-sizing:border-box;background:#fff}
   .btn{cursor:pointer}
   #editor [hidden]{display:none!important}
+  .modules-toolbar{margin-bottom:12px}
+  .btn.primary{background:#0284c7;border-color:#0284c7;color:#fff}
+  .btn.danger{color:#b91c1c;border-color:#fecaca}
+  .btn:disabled{opacity:.5;cursor:not-allowed}
+  .editor-head{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px}
+  .editor-title{flex:1;min-width:220px;font-size:17px;font-weight:800}
   .modules-layout{display:grid;grid-template-columns:minmax(240px,.8fr) minmax(0,1.4fr);gap:12px;align-items:start}
   .modules-layout>.card{min-width:0}
   .editor-field{display:flex;flex-direction:column;gap:6px;margin:12px 0;font-size:13px}
@@ -64,226 +70,274 @@
   @media(max-width:700px){.tournament-bracket-grid{gap:52px;padding:14px 18px 22px}.tournament-stage{min-width:205px}.tournament-stage-title{font-size:15px}}
 </style>
 
-<div class="card" style="margin-bottom:12px;">
-  <div class="row">
-    <select id="sessionSelect" class="select-ui" style="min-width:240px;"></select>
-    <button id="loadBtn" class="btn" type="button">{{ T.load }}</button>
-    <div id="msg" class="muted"></div>
+<div class="card modules-toolbar">
+  <div class="ui-toolbar">
+    <label class="muted" for="sessionSelect">{{ T.session }}</label>
+    <select id="sessionSelect" class="select-ui ui-grow" style="max-width:420px;"></select>
+    <button id="openCreateBtn" class="btn primary" type="button" disabled>＋ {{ T.new_module }}</button>
+    <button id="openImportBtn" class="btn" type="button" disabled>{{ T.tab_import }}</button>
+    <span class="ui-spacer"></span>
+    <div id="msg" class="muted" role="status" aria-live="polite"></div>
   </div>
 </div>
 
-<details class="card" style="margin-bottom:12px;">
-  <summary style="cursor:pointer;font-weight:900;">{{ T.module_json_import }}</summary>
-  <div class="muted" style="margin-top:8px;">{{ T.module_json_help }}</div>
-  <div class="row" style="margin-top:12px;">
-    <label class="muted" for="modulePromptType">{{ T.module_json_prompt_type }}</label>
-    <select id="modulePromptType" class="select-ui" style="min-width:220px;">
-      <option value="all">{{ T.module_json_prompt_all }}</option>
-      <option value="coding_task">{{ T.module_json_prompt_coding }}</option>
-      <option value="theory_material">{{ T.module_json_prompt_theory }}</option>
-      <option value="theory_quiz">{{ T.module_json_prompt_quiz }}</option>
-      <option value="game">{{ T.module_json_prompt_game }}</option>
-    </select>
-    <button id="copyModulePromptBtn" class="btn" type="button">{{ T.copy_ai_prompt }}</button>
-  </div>
-  <div class="module-json-grid">
-    <label>
-      <span class="muted">{{ T.module_json_prompt_preview }}</span>
-      <textarea id="modulePromptPreview" class="textarea-ui module-json-area" readonly></textarea>
-    </label>
-    <label>
-      <span class="muted">{{ T.module_json_payload }}</span>
-      <textarea id="moduleJsonInput" class="textarea-ui module-json-area" spellcheck="false"></textarea>
-    </label>
-  </div>
-  <div class="row" style="margin-top:10px;">
-    <button id="applyModuleJsonBtn" class="btn" type="button">{{ T.apply_json }}</button>
-    <span id="moduleJsonStatus" class="muted"></span>
-  </div>
-</details>
-
-<div class="modules-layout">
-  <div class="card">
-    <div class="row" style="margin-bottom:10px;">
-      <select id="newModuleType" class="select-ui" style="min-width:180px;">
-        <option value="coding_task">{{ T.coding_module_badge }}</option>
-        <option value="theory_material">{{ T.theory_material_module }}</option>
-        <option value="theory_quiz">{{ T.theory_quiz_module }}</option>
-        <option value="game">{{ T.game_module }}</option>
+<dialog id="importDialog" class="ui-dialog wide" aria-labelledby="importDialogTitle">
+  <div class="ui-dialog-head"><h2 id="importDialogTitle">{{ T.module_json_import }}</h2><button class="ui-close" type="button" data-dialog-close aria-label="{{ T.close }}">×</button></div>
+  <div class="ui-dialog-body">
+    <div class="muted">{{ T.module_json_help }}</div>
+    <div class="row" style="margin-top:12px;">
+      <label class="muted" for="modulePromptType">{{ T.module_json_prompt_type }}</label>
+      <select id="modulePromptType" class="select-ui" style="min-width:220px;">
+        <option value="all">{{ T.module_json_prompt_all }}</option>
+        <option value="coding_task">{{ T.module_json_prompt_coding }}</option>
+        <option value="theory_material">{{ T.module_json_prompt_theory }}</option>
+        <option value="theory_quiz">{{ T.module_json_prompt_quiz }}</option>
+        <option value="game">{{ T.module_json_prompt_game }}</option>
       </select>
-      <select id="newCodingLanguage" class="select-ui" style="min-width:150px;">
+      <button id="copyModulePromptBtn" class="btn" type="button">{{ T.copy_ai_prompt }}</button>
+    </div>
+    <div class="module-json-grid">
+      <label>
+        <span class="muted">{{ T.module_json_prompt_preview }}</span>
+        <textarea id="modulePromptPreview" class="textarea-ui module-json-area" readonly></textarea>
+      </label>
+      <label>
+        <span class="muted">{{ T.module_json_payload }}</span>
+        <textarea id="moduleJsonInput" class="textarea-ui module-json-area" spellcheck="false"></textarea>
+      </label>
+    </div>
+  </div>
+  <div class="ui-dialog-foot">
+    <span id="moduleJsonStatus" class="muted" style="margin-right:auto;"></span>
+    <button class="btn" type="button" data-dialog-close>{{ T.cancel }}</button>
+    <button id="applyModuleJsonBtn" class="btn primary" type="button">{{ T.apply_json }}</button>
+  </div>
+</dialog>
+
+<dialog id="createDialog" class="ui-dialog" aria-labelledby="createDialogTitle">
+  <div class="ui-dialog-head"><h2 id="createDialogTitle">{{ T.new_module }}</h2><button class="ui-close" type="button" data-dialog-close aria-label="{{ T.close }}">×</button></div>
+  <div class="ui-dialog-body">
+    <div class="muted" style="margin-bottom:6px;">{{ T.module_type }}</div>
+    <input id="newModuleType" type="hidden" value="coding_task">
+    <div class="ui-choice-cards" role="radiogroup" aria-label="{{ T.module_type }}">
+      <label><input type="radio" name="newModuleTypeChoice" value="coding_task" checked><b>{{ T.coding_module_badge }}</b><span class="ui-hint">Python / C++</span></label>
+      <label><input type="radio" name="newModuleTypeChoice" value="theory_material"><b>{{ T.theory_material_module }}</b><span class="ui-hint">{{ T.theory_module_badge }}</span></label>
+      <label><input type="radio" name="newModuleTypeChoice" value="theory_quiz"><b>{{ T.theory_quiz_module }}</b><span class="ui-hint">{{ T.quiz_module_badge }}</span></label>
+      <label><input type="radio" name="newModuleTypeChoice" value="game"><b>{{ T.game_module }}</b><span class="ui-hint">{{ T.mind_race }} · {{ T.wonder_field }} · {{ T.tournament }}</span></label>
+    </div>
+    <label class="editor-field">{{ T.module_title }}<input id="newTitle" class="input-ui" autofocus required></label>
+    <label class="editor-field" id="newTopicField">{{ T.module_topic }}<input id="newTopic" class="input-ui"></label>
+    <label class="editor-field" id="newCodingLanguageField">{{ T.programming_language|default:"Python / C++" }}
+      <select id="newCodingLanguage" class="select-ui">
         <option value="python">{{ T.language_python|default:"Python" }}</option>
         <option value="cpp">{{ T.language_cpp|default:"C++" }}</option>
       </select>
-      <select id="newGameRubric" class="select-ui" style="min-width:170px;display:none;">
+    </label>
+    <label class="editor-field" id="newGameRubricField" hidden>{{ T.game_rubric }}
+      <select id="newGameRubric" class="select-ui">
         <option value="mind_race">{{ T.mind_race }}</option>
         <option value="wonder_field">{{ T.wonder_field }}</option>
         <option value="tournament">{{ T.tournament }}</option>
       </select>
-      <input id="newPosition" class="input-ui" type="number" value="1" style="width:90px;">
-      <input id="newTitle" class="input-ui" placeholder="{{ T.module_title }}" style="flex:1;">
-      <input id="newTopic" class="input-ui" placeholder="{{ T.module_topic }}" style="flex:1;">
-      <button id="createBtn" class="btn" type="button">{{ T.create }}</button>
-    </div>
-    <div id="modulesList"></div>
+    </label>
+    <details>
+      <summary class="muted" style="cursor:pointer;">{{ T.advanced_options }}</summary>
+      <label class="editor-field">{{ T.position }}<input id="newPosition" class="input-ui" type="number" min="1" value="1" style="max-width:120px;"></label>
+    </details>
+  </div>
+  <div class="ui-dialog-foot">
+    <button class="btn" type="button" data-dialog-close>{{ T.cancel }}</button>
+    <button id="createBtn" class="btn primary" type="button">{{ T.create }}</button>
+  </div>
+</dialog>
+
+<div class="modules-layout">
+  <div class="card">
+    <div id="modulesEmpty" class="ui-empty">{{ T.select_session }}</div>
+    <div id="modulesList" class="sortable-list"></div>
   </div>
 
   <div class="card">
+    <div id="editorEmpty" class="ui-empty">{{ T.select_module_left }}</div>
     <div id="editor" style="display:none;">
-      <div class="row">
-        <input id="title" class="input-ui" placeholder="{{ T.module_title }}" style="flex:1;">
-        <input id="position" class="input-ui" type="number" style="width:90px;">
-      </div>
-
-      <div id="topicField"><div class="muted" style="margin-top:10px;">{{ T.module_topic }}</div>
-      <input id="topic" class="input-ui" style="width:100%;"></div>
-
-      <div id="materialFields" style="display:none;">
-        <div class="muted" style="margin-top:10px;">{{ T.ai_prompt }}</div>
-        <textarea id="aiPrompt" class="textarea-ui" style="width:100%;height:90px;"></textarea>
-      </div>
-
-      <div id="quizFields" style="display:none;">
-        <div class="muted" style="margin-top:10px;">{{ T.instructions_label }}</div>
-        <textarea id="quizInstructions" class="textarea-ui" style="width:100%;height:90px;"></textarea>
-      </div>
-
-      <div id="gameFields" style="display:none;">
-        <div class="muted" style="margin-top:10px;">{{ T.game_rubric }}</div>
-        <select id="gameRubric" class="select-ui" style="width:100%;">
-          <option value="mind_race">{{ T.mind_race }}</option>
-          <option value="wonder_field">{{ T.wonder_field }}</option>
-          <option value="tournament">{{ T.tournament }}</option>
-        </select>
-        <div class="muted" style="margin-top:6px;">{{ T.game_rubric_change_hint }}</div>
-      </div>
-
-      <div class="row" style="margin-top:10px;">
-        <button id="saveModuleBtn" class="btn" type="button">{{ T.save }}</button>
-        <button id="deleteModuleBtn" class="btn" type="button">{{ T.delete }}</button>
+      <div class="editor-head">
+        <input id="title" class="input-ui editor-title" placeholder="{{ T.module_title }}" aria-label="{{ T.module_title }}">
+        <span id="moduleSaveState" class="save-pill" hidden></span>
         <button id="generateBtn" class="btn" type="button">{{ T.generate_module }}</button>
+        <button id="deleteModuleBtn" class="btn danger" type="button">{{ T.delete }}</button>
       </div>
 
-      <div id="materialEditor" class="panel" style="display:none;">
-        <div id="blockFormTitle" class="edit-form-title">{{ T.add_block }}</div>
-        <div class="row">
-          <select id="blockType" class="select-ui">
-            <option value="heading">heading</option>
-            <option value="text">text</option>
-            <option value="hidden_text">{{ T.hidden_theory_text }}</option>
-            <option value="code">code</option>
-            <option value="image">image</option>
-            <option value="video">video</option>
-            <option value="attachment">{{ T.attachment_block }}</option>
-          </select>
-          <select id="headingLevel" class="select-ui">
-            <option value="h1">h1</option>
-            <option value="h2">h2</option>
-          </select>
-          <input id="blockOrdinal" class="input-ui" type="number" value="1" style="width:90px;">
-          <button id="addBlockBtn" class="btn" type="button">{{ T.add_block }}</button>
-          <button id="cancelBlockEdit" class="btn" type="button" hidden>{{ T.cancel }}</button>
+      <div id="editorTabs">
+        <div class="ui-tabs">
+          <button data-tab="content">{{ T.tab_content }}</button>
+          <button data-tab="settings">{{ T.tab_settings }}</button>
         </div>
-        <textarea id="blockContent" class="textarea-ui code-like" style="width:100%;height:120px;margin-top:10px;"></textarea>
-        <div id="blocksList" style="margin-top:12px;"></div>
+
+        <section data-tab-panel="settings">
+          <label class="editor-field" style="max-width:160px;">{{ T.position }}<input id="position" class="input-ui" type="number" min="1"></label>
+
+          <div id="topicField"><label class="editor-field">{{ T.module_topic }}<input id="topic" class="input-ui"></label></div>
+
+          <div id="materialFields" style="display:none;">
+            <label class="editor-field">{{ T.ai_prompt }}<textarea id="aiPrompt" class="textarea-ui" style="height:90px;"></textarea></label>
+          </div>
+
+          <div id="quizFields" style="display:none;">
+            <label class="editor-field">{{ T.instructions_label }}<textarea id="quizInstructions" class="textarea-ui" style="height:90px;"></textarea></label>
+          </div>
+
+          <div id="gameFields" style="display:none;">
+            <label class="editor-field">{{ T.game_rubric }}
+              <select id="gameRubric" class="select-ui">
+                <option value="mind_race">{{ T.mind_race }}</option>
+                <option value="wonder_field">{{ T.wonder_field }}</option>
+                <option value="tournament">{{ T.tournament }}</option>
+              </select>
+            </label>
+            <div class="muted">{{ T.game_rubric_change_hint }}</div>
+            <label class="editor-field" id="tournamentCooldownField" style="max-width:260px;">{{ T.tournament_cooldown }}
+              <input id="tournamentCooldown" class="input-ui" type="number" min="0" max="60" step="0.01" value="1.5">
+            </label>
+          </div>
+
+          {% include "core/teacher/_coding_module_editor.html" %}
+        </section>
+
+        <section data-tab-panel="content">
+          <div id="materialEditor" style="display:none;">
+            <div class="ui-toolbar"><button id="newBlockBtn" class="btn primary" type="button">＋ {{ T.add_block }}</button></div>
+            <div id="blocksList" class="sortable-list" style="margin-top:12px;"></div>
+          </div>
+
+          <div id="quizEditor" style="display:none;">
+            <div class="ui-toolbar"><button id="newQuestionBtn" class="btn primary" type="button">＋ {{ T.add_question }}</button></div>
+            <div id="questionsList" class="sortable-list" style="margin-top:12px;"></div>
+          </div>
+
+          <div id="gameEditor" style="display:none;">
+            <div id="mindRaceEditor">
+              <div><b>{{ T.mind_race_sentences }}</b></div>
+              <div class="muted">{{ T.mind_race_sentence_help }}</div>
+              <div class="panel-card">
+                <div class="row">
+                  <input id="gamePromptOrdinal" class="input-ui" type="number" min="1" value="1" style="width:90px;" aria-label="{{ T.position }}">
+                  <input id="gameMissingText" class="input-ui" placeholder="{{ T.missing_text }}" style="min-width:180px;flex:1;">
+                  <button id="gameAddPromptBtn" class="btn primary" type="button">{{ T.add_sentence }}</button>
+                </div>
+                <textarea id="gameSentence" class="textarea-ui" placeholder="{{ T.full_sentence }}" style="width:100%;height:70px;margin-top:8px;"></textarea>
+              </div>
+              <div id="gamePromptsList"></div>
+            </div>
+
+            <div id="wonderFieldEditor" style="display:none;">
+              <div class="row" style="justify-content:space-between;">
+                <b>{{ T.wonder_questions }}</b>
+                <button id="shuffleWonderQuestionsBtn" class="btn" type="button" disabled>{{ T.wonder_shuffle_questions }}</button>
+              </div>
+              <div class="muted">{{ T.wonder_question_help }}</div>
+              <div class="panel-card">
+                <div class="row">
+                  <input id="wonderQuestionOrdinal" class="input-ui" type="number" min="1" value="1" style="width:90px;" aria-label="{{ T.position }}">
+                  <input id="wonderAnswer" class="input-ui" placeholder="{{ T.wonder_answer }}" maxlength="200" style="min-width:190px;flex:1;">
+                  <button id="wonderAddQuestionBtn" class="btn primary" type="button">{{ T.add_question }}</button>
+                </div>
+                <textarea id="wonderQuestionPrompt" class="textarea-ui" placeholder="{{ T.question_prompt }}" style="width:100%;height:70px;margin-top:8px;"></textarea>
+              </div>
+              <div id="wonderQuestionsList"></div>
+            </div>
+
+            <div id="tournamentEditor" style="display:none;">
+              <div><b>{{ T.tournament_rounds }}</b></div>
+              <div class="muted">{{ T.tournament_rounds_help }}</div>
+              <div class="panel-card">
+                <div class="row">
+                  <input id="tournamentStageOrdinal" class="input-ui" type="number" min="1" value="1" style="width:75px;" aria-label="{{ T.position }}">
+                  <input id="tournamentStageTitle" class="input-ui" placeholder="{{ T.tournament_round_title }}" style="flex:1;">
+                  <input id="tournamentQuestionCount" class="input-ui" type="number" min="1" max="19" step="2" value="3" style="width:90px;" aria-label="{{ T.questions }}">
+                  <button id="tournamentAddStageBtn" class="btn primary" type="button">{{ T.add_round }}</button>
+                </div>
+              </div>
+              <div id="tournamentStagesList"></div>
+              <div style="margin-top:18px;"><b>{{ T.tournament_questions }}</b></div>
+              <div class="panel-card">
+                <div class="row">
+                  <select id="tournamentQuestionStage" class="select-ui" style="min-width:160px;" aria-label="{{ T.tournament_round }}"></select>
+                  <input id="tournamentQuestionOrdinal" class="input-ui" type="number" min="1" value="1" style="width:75px;" aria-label="{{ T.position }}">
+                  <button id="tournamentAddQuestionBtn" class="btn primary" type="button">{{ T.add_question }}</button>
+                </div>
+                <textarea id="tournamentPrompt" class="textarea-ui" placeholder="{{ T.question_prompt }}" style="width:100%;height:70px;margin-top:8px;"></textarea>
+                <div id="tournamentNewAnswer" class="tournament-question-editor"></div>
+              </div>
+            </div>
+          </div>
+
+          <div id="codingContent" style="display:none;">
+            <details class="panel" open><summary>{{ T.testcases }}</summary><div id="codingTests"></div></details>
+            <details class="panel"><summary>{{ T.code_fragments }}</summary><div id="codingFragments"></div></details>
+          </div>
+        </section>
       </div>
-
-      <div id="quizEditor" class="panel" style="display:none;">
-        <div id="questionFormTitle" class="edit-form-title">{{ T.add_question }}</div>
-        <div class="row">
-          <select id="questionType" class="select-ui" style="min-width:180px;">
-            <option value="single_choice">{{ T.single_choice }}</option>
-            <option value="open_answer">{{ T.open_answer }}</option>
-            <option value="matching">{{ T.matching }}</option>
-          </select>
-          <input id="questionOrdinal" class="input-ui" type="number" value="1" style="width:90px;">
-          <button id="addQuestionBtn" class="btn" type="button">{{ T.add_question }}</button>
-          <button id="cancelQuestionEdit" class="btn" type="button" hidden>{{ T.cancel }}</button>
-        </div>
-
-        <div class="q-section">
-          <div class="muted">{{ T.question_prompt }}</div>
-          <textarea id="questionPrompt" class="textarea-ui" style="width:100%;height:90px;"></textarea>
-        </div>
-
-        <div id="singleChoiceFields" class="q-section" style="display:none;">
-          <div class="muted">{{ T.choices_input_help }}</div>
-          <textarea id="questionChoices" class="textarea-ui" style="width:100%;height:90px;"></textarea>
-        </div>
-
-        <div id="openAnswerFields" class="q-section" style="display:none;">
-          <div class="muted">{{ T.model_answer }}</div>
-          <textarea id="questionModelAnswer" class="textarea-ui" style="width:100%;height:80px;"></textarea>
-          <label class="row muted" style="margin-top:10px;">
-            <input id="acceptSuitableAnswer" type="checkbox">
-            <span>{{ T.accept_suitable_answer }}</span>
-          </label>
-        </div>
-
-        <div id="matchingFields" class="q-section" style="display:none;">
-          <div class="muted">{{ T.pairs_input_help }}</div>
-          <div id="matchingPairsBox"></div>
-          <button id="addPairBtn" class="btn" type="button" style="margin-top:10px;">{{ T.add_pair|default:"Add pair" }}</button>
-        </div>
-
-        <div id="questionsList" style="margin-top:12px;"></div>
-      </div>
-
-      <div id="gameEditor" class="panel" style="display:none;">
-        <div id="mindRaceEditor">
-          <div style="margin-top:16px;"><b>{{ T.mind_race_sentences }}</b></div>
-          <div class="muted">{{ T.mind_race_sentence_help }}</div>
-          <div class="row" style="margin-top:10px;">
-            <input id="gamePromptOrdinal" class="input-ui" type="number" min="1" value="1" style="width:90px;">
-            <input id="gameMissingText" class="input-ui" placeholder="{{ T.missing_text }}" style="min-width:180px;">
-            <button id="gameAddPromptBtn" class="btn" type="button">{{ T.add_sentence }}</button>
-          </div>
-          <textarea id="gameSentence" class="textarea-ui" placeholder="{{ T.full_sentence }}" style="width:100%;height:90px;margin-top:8px;"></textarea>
-          <div id="gamePromptsList"></div>
-        </div>
-
-        <div id="wonderFieldEditor" style="display:none;">
-          <div class="row" style="margin-top:16px;justify-content:space-between;">
-            <b>{{ T.wonder_questions }}</b>
-            <button id="shuffleWonderQuestionsBtn" class="btn" type="button" disabled>{{ T.wonder_shuffle_questions }}</button>
-          </div>
-          <div class="muted">{{ T.wonder_question_help }}</div>
-          <div class="row" style="margin-top:10px;">
-            <input id="wonderQuestionOrdinal" class="input-ui" type="number" min="1" value="1" style="width:90px;">
-            <input id="wonderAnswer" class="input-ui" placeholder="{{ T.wonder_answer }}" maxlength="200" style="min-width:190px;">
-            <button id="wonderAddQuestionBtn" class="btn" type="button">{{ T.add_question }}</button>
-          </div>
-          <textarea id="wonderQuestionPrompt" class="textarea-ui" placeholder="{{ T.question_prompt }}" style="width:100%;height:90px;margin-top:8px;"></textarea>
-          <div id="wonderQuestionsList"></div>
-        </div>
-        <div id="tournamentEditor" style="display:none;">
-          <label class="editor-field">{{ T.tournament_cooldown }}
-            <input id="tournamentCooldown" class="input-ui" type="number" min="0" max="60" step="0.01" value="1.5">
-          </label>
-          <div style="margin-top:16px;"><b>{{ T.tournament_rounds }}</b></div>
-          <div class="muted">{{ T.tournament_rounds_help }}</div>
-          <div class="row" style="margin-top:10px;">
-            <input id="tournamentStageOrdinal" class="input-ui" type="number" min="1" value="1" style="width:75px;">
-            <input id="tournamentStageTitle" class="input-ui" placeholder="{{ T.tournament_round_title }}" style="flex:1;">
-            <input id="tournamentQuestionCount" class="input-ui" type="number" min="1" max="19" step="2" value="3" style="width:90px;">
-            <button id="tournamentAddStageBtn" class="btn" type="button">{{ T.add_round }}</button>
-          </div>
-          <div id="tournamentStagesList"></div>
-          <div style="margin-top:18px;"><b>{{ T.tournament_questions }}</b></div>
-          <div class="row" style="margin-top:10px;">
-            <select id="tournamentQuestionStage" class="select-ui" style="min-width:160px;"></select>
-            <input id="tournamentQuestionOrdinal" class="input-ui" type="number" min="1" value="1" style="width:75px;">
-            <button id="tournamentAddQuestionBtn" class="btn" type="button">{{ T.add_question }}</button>
-          </div>
-          <textarea id="tournamentPrompt" class="textarea-ui" placeholder="{{ T.question_prompt }}" style="width:100%;height:80px;margin-top:8px;"></textarea>
-          <div id="tournamentNewAnswer" class="tournament-question-editor"></div>
-        </div>
-      </div>
-
-      {% include "core/teacher/_coding_module_editor.html" %}
     </div>
   </div>
 </div>
+
+<dialog id="blockDialog" class="ui-dialog" aria-labelledby="blockFormTitle">
+  <div class="ui-dialog-head"><h2 id="blockFormTitle">{{ T.add_block }}</h2><span id="blockSaveState" class="save-pill" hidden></span><button class="ui-close" type="button" data-dialog-close aria-label="{{ T.close }}">×</button></div>
+  <div class="ui-dialog-body" id="materialForm">
+    <div class="row">
+      <select id="blockType" class="select-ui" aria-label="{{ T.module_type }}">
+        <option value="heading">heading</option>
+        <option value="text">text</option>
+        <option value="hidden_text">{{ T.hidden_theory_text }}</option>
+        <option value="code">code</option>
+        <option value="image">image</option>
+        <option value="video">video</option>
+        <option value="attachment">{{ T.attachment_block }}</option>
+      </select>
+      <select id="headingLevel" class="select-ui" aria-label="H1/H2">
+        <option value="h1">h1</option>
+        <option value="h2">h2</option>
+      </select>
+      <input id="blockOrdinal" class="input-ui" type="number" min="1" value="1" style="width:90px;" aria-label="{{ T.position }}">
+    </div>
+    <textarea id="blockContent" class="textarea-ui code-like" style="width:100%;height:220px;margin-top:10px;"></textarea>
+  </div>
+  <div class="ui-dialog-foot">
+    <button id="cancelBlockEdit" class="btn" type="button">{{ T.cancel }}</button>
+    <button id="addBlockBtn" class="btn primary" type="button">{{ T.add_block }}</button>
+  </div>
+</dialog>
+
+<dialog id="questionDialog" class="ui-dialog" aria-labelledby="questionFormTitle">
+  <div class="ui-dialog-head"><h2 id="questionFormTitle">{{ T.add_question }}</h2><span id="questionSaveState" class="save-pill" hidden></span><button class="ui-close" type="button" data-dialog-close aria-label="{{ T.close }}">×</button></div>
+  <div class="ui-dialog-body" id="quizForm">
+    <div class="row">
+      <select id="questionType" class="select-ui" style="min-width:180px;" aria-label="{{ T.question_type }}">
+        <option value="single_choice">{{ T.single_choice }}</option>
+        <option value="open_answer">{{ T.open_answer }}</option>
+        <option value="matching">{{ T.matching }}</option>
+      </select>
+      <input id="questionOrdinal" class="input-ui" type="number" min="1" value="1" style="width:90px;" aria-label="{{ T.position }}">
+    </div>
+    <label class="editor-field">{{ T.question_prompt }}<textarea id="questionPrompt" class="textarea-ui" style="height:90px;"></textarea></label>
+    <div id="singleChoiceFields" class="q-section" style="display:none;">
+      <label class="editor-field">{{ T.choices_input_help }}<textarea id="questionChoices" class="textarea-ui" style="height:110px;"></textarea></label>
+    </div>
+    <div id="openAnswerFields" class="q-section" style="display:none;">
+      <label class="editor-field">{{ T.model_answer }}<textarea id="questionModelAnswer" class="textarea-ui" style="height:80px;"></textarea></label>
+      <label class="row muted"><input id="acceptSuitableAnswer" type="checkbox"><span>{{ T.accept_suitable_answer }}</span></label>
+    </div>
+    <div id="matchingFields" class="q-section" style="display:none;">
+      <div class="muted">{{ T.pairs_input_help }}</div>
+      <div id="matchingPairsBox"></div>
+      <button id="addPairBtn" class="btn" type="button" style="margin-top:10px;">{{ T.add_pair|default:"Add pair" }}</button>
+    </div>
+  </div>
+  <div class="ui-dialog-foot">
+    <button id="cancelQuestionEdit" class="btn" type="button">{{ T.cancel }}</button>
+    <button id="addQuestionBtn" class="btn primary" type="button">{{ T.add_question }}</button>
+  </div>
+</dialog>
 
 <script src="{% static 'core/module_sortable.js' %}"></script>
 <script>
@@ -553,8 +607,11 @@ Replace example content with the requested educational material while preserving
       if (!res.data.ok) return setModuleJsonStatus(res.data.error || UI.createFailed);
       selectedModuleId = null;
       selectedModuleType = null;
-      qs("editor").style.display = "none";
-      setModuleJsonStatus(`${UI.jsonApplied} ${UI.jsonCreated}: ${res.data.created_count}.`);
+      showEditor(false);
+      setModuleJsonStatus("");
+      qs("moduleJsonInput").value = "";
+      importDialog.close();
+      setMsg(`${UI.jsonApplied} ${UI.jsonCreated}: ${res.data.created_count}.`);
       await loadModules();
     }catch(error){
       setModuleJsonStatus(error?.message || UI.createFailed);
@@ -627,13 +684,37 @@ Replace example content with the requested educational material while preserving
     qs("gameEditor").style.display = mode === "game" ? "block" : "none";
     qs("generateBtn").style.display = mode === "theory_material" ? "inline-block" : "none";
     qs("codingEditor").style.display = mode === "coding_task" ? "block" : "none";
+    qs("codingContent").style.display = mode === "coding_task" ? "block" : "none";
     qs("topicField").style.display = mode === "coding_task" ? "none" : "block";
+  }
+
+  function showEditor(visible){
+    qs("editor").style.display = visible ? "block" : "none";
+    qs("editorEmpty").hidden = visible;
   }
 
   function syncCreateTypeFields(){
     const type = qs("newModuleType").value;
-    qs("newCodingLanguage").style.display = type === "coding_task" ? "inline-block" : "none";
-    qs("newGameRubric").style.display = type === "game" ? "inline-block" : "none";
+    qs("newCodingLanguageField").hidden = type !== "coding_task";
+    qs("newGameRubricField").hidden = type !== "game";
+    qs("newTopicField").hidden = type === "coding_task";
+  }
+
+  function syncGameEditors(rubric){
+    const isWonder = rubric === "wonder_field";
+    const isTournament = rubric === "tournament";
+    qs("mindRaceEditor").style.display = !isWonder && !isTournament ? "block" : "none";
+    qs("wonderFieldEditor").style.display = isWonder ? "block" : "none";
+    qs("tournamentEditor").style.display = isTournament ? "block" : "none";
+    qs("tournamentCooldownField").hidden = !isTournament;
+  }
+
+  // Wait for running saves instead of ignoring the click (autosave keeps
+  // requests in flight much more often than the old Save button did).
+  async function settleEditor(){
+    await UIKit.flushAll();
+    for (let i = 0; i < 100 && (editorWrites || codingEditor.busy); i++) await new Promise(resolve => setTimeout(resolve, 50));
+    return !(moduleSorter.busy || blockSorter.busy || questionSorter.busy);
   }
 
   function syncBlockTypeFields(){
@@ -753,7 +834,7 @@ Replace example content with the requested educational material while preserving
     const res = await api("/api/teacher/sessions/");
     if (!res.data.ok) return setMsg(res.data.error || UI.failedLoadSessions);
     const select = qs("sessionSelect");
-    select.innerHTML = '<option value="">Select session</option>';
+    select.innerHTML = `<option value="">${escapeHtml(UI.selectSessionFirst)}</option>`;
     (res.data.sessions || []).forEach(s => {
       const opt = document.createElement("option");
       opt.value = s.id;
@@ -762,13 +843,40 @@ Replace example content with the requested educational material while preserving
     });
     refreshModulePrompt();
     const params = new URLSearchParams(location.search);
-    const sessionId = params.get("session_id");
-    if(sessionId && Array.from(select.options).some(option => option.value === sessionId)){
-      select.value = sessionId;selectedSessionId = sessionId;
-      await loadModules();
-      const item = modulesCache.find(row => row.module_type === "coding_task" && (!params.get("task_id") || Number(params.get("task_id")) === row.id));
-      if(item) await openModule(item);
+    const options = Array.from(select.options).map(option => option.value).filter(Boolean);
+    let remembered = "";
+    try{ remembered = localStorage.getItem("teacher:modules:session") || ""; }catch(error){}
+    const sessionId = [params.get("session_id"), remembered, options.length === 1 ? options[0] : ""]
+      .find(value => value && options.includes(value));
+    if(sessionId){
+      select.value = sessionId;
+      await selectSession(sessionId);
+      if(params.get("session_id") === sessionId){
+        const item = modulesCache.find(row => row.module_type === "coding_task" && (!params.get("task_id") || Number(params.get("task_id")) === row.id));
+        if(item) await openModule(item);
+      }
     }
+  }
+
+  async function selectSession(sessionId){
+    if(!(await settleEditor())) return;
+    ++editorLoadToken;
+    resetBlockForm();resetQuestionForm();
+    selectedSessionId = sessionId || null;
+    selectedModuleId = null;
+    selectedModuleType = null;
+    showEditor(false);
+    qs("openCreateBtn").disabled = !selectedSessionId;
+    qs("openImportBtn").disabled = !selectedSessionId;
+    refreshModulePrompt();
+    try{ if(selectedSessionId) localStorage.setItem("teacher:modules:session", selectedSessionId); }catch(error){}
+    const url = new URL(location.href);
+    if(selectedSessionId) url.searchParams.set("session_id", selectedSessionId); else url.searchParams.delete("session_id");
+    url.searchParams.delete("task_id");
+    history.replaceState(null, "", url);
+    modulesCache = [];
+    renderModules();
+    await loadModules();
   }
 
   async function loadModules(){
@@ -804,9 +912,16 @@ Replace example content with the requested educational material while preserving
     renderModules();
   }
 
+  function updateModulesEmptyState(){
+    const empty = qs("modulesEmpty");
+    empty.hidden = Boolean(selectedSessionId && modulesCache.length);
+    empty.textContent = selectedSessionId ? "{{ T.no_modules_yet|escapejs }}" : UI.selectSessionFirst;
+  }
+
   function renderModules(){
     const box = qs("modulesList");
     box.innerHTML = "";
+    updateModulesEmptyState();
     modulesCache.forEach(item => {
       const div = document.createElement("div");
       const isActive = item.id === selectedModuleId && item.module_type === selectedModuleType;
@@ -869,15 +984,16 @@ Replace example content with the requested educational material while preserving
     (prompts || []).forEach(prompt => {
       const row = document.createElement("div");
       row.className = "game-prompt-row";
+      row.dataset.autosave = `prompt:${prompt.id}`;
       row.innerHTML = `
         <div class="row">
-          <input id="game_prompt_ord_${prompt.id}" class="input-ui" type="number" min="1" value="${prompt.ordinal}" style="width:80px;">
-          <input id="game_prompt_missing_${prompt.id}" class="input-ui" value="${escapeHtml(prompt.missing_text)}" style="min-width:180px;flex:1;">
-          <button type="button" class="btn" onclick="saveGamePrompt(${prompt.id})">{{ T.save }}</button>
-          <button type="button" class="btn" onclick="deleteGamePrompt(${prompt.id})">{{ T.delete }}</button>
+          <input id="game_prompt_ord_${prompt.id}" class="input-ui" type="number" min="1" value="${prompt.ordinal}" style="width:80px;" aria-label="{{ T.position|escapejs }}">
+          <input id="game_prompt_missing_${prompt.id}" class="input-ui" value="${escapeHtml(prompt.missing_text)}" style="min-width:180px;flex:1;" aria-label="{{ T.missing_text|escapejs }}">
+          <span class="save-pill" data-row-status hidden></span>
+          <button type="button" class="btn danger" onclick="deleteGamePrompt(${prompt.id})">{{ T.delete }}</button>
         </div>
-        <textarea id="game_prompt_sentence_${prompt.id}" class="textarea-ui" style="width:100%;margin-top:8px;">${escapeHtml(prompt.sentence)}</textarea>
-        <div class="game-preview">${escapeHtml(prompt.preview)}</div>
+        <textarea id="game_prompt_sentence_${prompt.id}" class="textarea-ui" style="width:100%;margin-top:8px;" aria-label="{{ T.full_sentence|escapejs }}">${escapeHtml(prompt.sentence)}</textarea>
+        <div class="game-preview" id="game_prompt_preview_${prompt.id}">${escapeHtml(prompt.preview)}</div>
       `;
       list.appendChild(row);
     });
@@ -893,12 +1009,13 @@ Replace example content with the requested educational material while preserving
     (questions || []).forEach(question => {
       const row = document.createElement("div");
       row.className = "game-prompt-row";
+      row.dataset.autosave = `wonder:${question.id}`;
       row.innerHTML = `
         <div class="row">
-          <input id="wonder_ord_${question.id}" class="input-ui" type="number" min="1" value="${question.ordinal}" style="width:80px;">
-          <input id="wonder_answer_${question.id}" class="input-ui" value="${escapeHtml(question.answer)}" maxlength="200" style="min-width:190px;flex:1;">
-          <button type="button" class="btn" onclick="saveWonderQuestion(${question.id})">{{ T.save }}</button>
-          <button type="button" class="btn" onclick="deleteWonderQuestion(${question.id})">{{ T.delete }}</button>
+          <input id="wonder_ord_${question.id}" class="input-ui" type="number" min="1" value="${question.ordinal}" style="width:80px;" aria-label="{{ T.position|escapejs }}">
+          <input id="wonder_answer_${question.id}" class="input-ui" value="${escapeHtml(question.answer)}" maxlength="200" style="min-width:190px;flex:1;" aria-label="{{ T.wonder_answer|escapejs }}">
+          <span class="save-pill" data-row-status hidden></span>
+          <button type="button" class="btn danger" onclick="deleteWonderQuestion(${question.id})">{{ T.delete }}</button>
         </div>
         <textarea id="wonder_prompt_${question.id}" class="textarea-ui" style="width:100%;margin-top:8px;">${escapeHtml(question.prompt)}</textarea>
       `;
@@ -919,20 +1036,21 @@ Replace example content with the requested educational material while preserving
     if(rows.some(stage=>stage.id===previousStage))qs("tournamentQuestionStage").value=String(previousStage);
     qs("tournamentStagesList").innerHTML = rows.map(stage => `
       <div class="game-prompt-row">
-        <div class="row">
-          <input id="tour_stage_ord_${stage.id}" class="input-ui" type="number" min="1" value="${stage.ordinal}" style="width:70px">
-          <input id="tour_stage_title_${stage.id}" class="input-ui" value="${escapeHtml(stage.title)}" style="flex:1">
-          <input id="tour_stage_count_${stage.id}" class="input-ui" type="number" min="1" max="19" step="2" value="${stage.question_count}" style="width:80px">
-          <button type="button" class="btn" onclick="saveTournamentStage(${stage.id})">{{ T.save }}</button>
-          <button type="button" class="btn" onclick="deleteTournamentStage(${stage.id})">{{ T.delete }}</button>
+        <div class="row" data-autosave="stage:${stage.id}">
+          <input id="tour_stage_ord_${stage.id}" class="input-ui" type="number" min="1" value="${stage.ordinal}" style="width:70px" aria-label="{{ T.position|escapejs }}">
+          <input id="tour_stage_title_${stage.id}" class="input-ui" value="${escapeHtml(stage.title)}" style="flex:1" aria-label="{{ T.tournament_round_title|escapejs }}">
+          <input id="tour_stage_count_${stage.id}" class="input-ui" type="number" min="1" max="19" step="2" value="${stage.question_count}" style="width:80px" aria-label="{{ T.questions|escapejs }}">
+          <span class="save-pill" data-row-status hidden></span>
+          <button type="button" class="btn danger" onclick="deleteTournamentStage(${stage.id})">{{ T.delete }}</button>
         </div>
         <div class="muted" style="margin-top:7px">{{ T.questions }}: ${(stage.questions || []).length}/${stage.question_count}</div>
         ${(stage.questions || []).map(q => `
-          <div style="border-top:1px solid var(--border,#e5e7eb);margin-top:8px;padding-top:8px">
+          <div style="border-top:1px solid var(--border,#e5e7eb);margin-top:8px;padding-top:8px" data-autosave="tq:${q.id}">
             <div class="row">
-              <input id="tour_q_ord_${q.id}" class="input-ui" type="number" min="1" value="${q.ordinal}" style="width:70px">
-              <button type="button" class="btn" onclick="saveTournamentQuestion(${q.id})">{{ T.save }}</button>
-              <button type="button" class="btn" onclick="deleteTournamentQuestion(${q.id})">{{ T.delete }}</button>
+              <input id="tour_q_ord_${q.id}" class="input-ui" type="number" min="1" value="${q.ordinal}" style="width:70px" aria-label="{{ T.position|escapejs }}">
+              <span class="save-pill" data-row-status hidden></span>
+              <span class="ui-spacer"></span>
+              <button type="button" class="btn danger" onclick="deleteTournamentQuestion(${q.id})">{{ T.delete }}</button>
             </div>
             <textarea id="tour_q_prompt_${q.id}" class="textarea-ui" style="width:100%;margin-top:6px">${escapeHtml(q.prompt)}</textarea>
             <div id="tour_q_fields_${q.id}" class="tournament-question-editor"></div>
@@ -1005,7 +1123,7 @@ Replace example content with the requested educational material while preserving
   }
 
   async function addTournamentStage(){const res=await api(`/api/teacher/game-modules/${selectedModuleId}/tournament-stages/`,"POST",{ordinal:qs("tournamentStageOrdinal").value,title:qs("tournamentStageTitle").value,question_count:qs("tournamentQuestionCount").value});if(!res.data.ok)return setMsg(res.data.error);qs("tournamentStageTitle").value="";await openModule(currentSelectedItem())}
-  async function saveTournamentStage(id){const res=await api(`/api/teacher/tournament-stages/${id}/`,"PATCH",{ordinal:qs(`tour_stage_ord_${id}`).value,title:qs(`tour_stage_title_${id}`).value,question_count:qs(`tour_stage_count_${id}`).value});if(!res.data.ok)return setMsg(res.data.error);await openModule(currentSelectedItem())}
+  async function saveTournamentStage(id){const res=await api(`/api/teacher/tournament-stages/${id}/`,"PATCH",{ordinal:qs(`tour_stage_ord_${id}`).value,title:qs(`tour_stage_title_${id}`).value,question_count:qs(`tour_stage_count_${id}`).value});if(!res.data.ok)throw UIKit.httpError(res.data.error||UI.saveFailed,res.status);return res.data}
   async function deleteTournamentStage(id){const res=await api(`/api/teacher/tournament-stages/${id}/`,"DELETE");if(!res.data.ok)return setMsg(res.data.error);await openModule(currentSelectedItem())}
   async function addTournamentQuestion(){
     const stageId = Number(qs("tournamentQuestionStage").value || 0);
@@ -1023,23 +1141,19 @@ Replace example content with the requested educational material while preserving
   }
   async function saveTournamentQuestion(id){
     const answer = tournamentQuestionAnswer(qs(`tour_q_fields_${id}`));
-    if (!answer) return;
+    if (!answer) throw UIKit.httpError("{{ T.tournament_choose_correct|escapejs }}", 400);
     const res = await api(`/api/teacher/tournament-questions/${id}/`, "PATCH", {
       ordinal:qs(`tour_q_ord_${id}`).value, prompt:qs(`tour_q_prompt_${id}`).value, ...answer
     });
-    if (!res.data.ok) return setMsg(res.data.error);
-    await openModule(currentSelectedItem());
+    if (!res.data.ok) throw UIKit.httpError(res.data.error || UI.saveFailed, res.status);
+    return res.data;
   }
   async function deleteTournamentQuestion(id){const res=await api(`/api/teacher/tournament-questions/${id}/`,"DELETE");if(!res.data.ok)return setMsg(res.data.error);await openModule(currentSelectedItem())}
 
   function renderGameModule(module){
     currentGameModule = module;
     qs("tournamentCooldown").value = module.tournament_cooldown_seconds ?? 1.5;
-    const isWonder = module.rubric === "wonder_field";
-    const isTournament = module.rubric === "tournament";
-    qs("mindRaceEditor").style.display = !isWonder && !isTournament ? "block" : "none";
-    qs("wonderFieldEditor").style.display = isWonder ? "block" : "none";
-    qs("tournamentEditor").style.display = isTournament ? "block" : "none";
+    syncGameEditors(module.rubric);
     qs("gameRubric").disabled = false;
     renderGamePrompts(module.prompts || []);
     renderWonderQuestions(module.wonder_questions || []);
@@ -1067,9 +1181,10 @@ Replace example content with the requested educational material while preserving
       sentence: qs(`game_prompt_sentence_${promptId}`).value,
       missing_text: qs(`game_prompt_missing_${promptId}`).value
     });
-    if (!res.data.ok) return setMsg(res.data.error || UI.saveFailed);
-    setMsg("{{ T.sentence_saved|escapejs }}");
-    await openModule(currentSelectedItem());
+    if (!res.data.ok) throw UIKit.httpError(res.data.error || UI.saveFailed, res.status);
+    const preview = qs(`game_prompt_preview_${promptId}`);
+    if (preview && res.data.prompt) preview.textContent = res.data.prompt.preview || "";
+    return res.data;
   }
 
   async function deleteGamePrompt(promptId){
@@ -1098,9 +1213,8 @@ Replace example content with the requested educational material while preserving
       prompt: qs(`wonder_prompt_${questionId}`).value,
       answer: qs(`wonder_answer_${questionId}`).value
     });
-    if (!res.data.ok) return setMsg(res.data.error || UI.saveFailed);
-    setMsg("{{ T.question_saved|default:'Saved'|escapejs }}");
-    await openModule(currentSelectedItem());
+    if (!res.data.ok) throw UIKit.httpError(res.data.error || UI.saveFailed, res.status);
+    return res.data;
   }
 
   async function deleteWonderQuestion(questionId){
@@ -1173,12 +1287,12 @@ Replace example content with the requested educational material while preserving
   }
 
   async function openModule(item){
-    if(editorWrites || codingEditor.busy || moduleSorter.busy || blockSorter.busy || questionSorter.busy) return;
+    if(!(await settleEditor())) return;
     const token = ++editorLoadToken;
     resetBlockForm(); resetQuestionForm();
     selectedModuleId = item.id;
     selectedModuleType = item.module_type;
-    qs("editor").style.display = "block";
+    showEditor(true);
     setEditorMode(item.module_type);
 
 
@@ -1243,6 +1357,7 @@ Replace example content with the requested educational material while preserving
   async function createModule(){
     if(editorBusy()) return;
     if (!selectedSessionId) return setMsg(UI.selectSessionFirst);
+    if (!qs("newTitle").value.trim()){ qs("newTitle").focus(); return; }
     const type = qs("newModuleType").value;
     const body = {
       title: qs("newTitle").value,
@@ -1264,11 +1379,14 @@ Replace example content with the requested educational material while preserving
       body.programming_language = qs("newCodingLanguage").value || "python";
     }
 
+    qs("createBtn").disabled = true;
     const res = await api(url, "POST", body);
+    qs("createBtn").disabled = false;
     if (!res.data.ok) return setMsg(res.data.error || UI.createFailed);
-    setMsg("Created");
+    setMsg("{{ T.created|escapejs }}");
     qs("newTitle").value = "";
     qs("newTopic").value = "";
+    createDialog.close();
     await loadModules();
 
     const entity = type === "coding_task" ? res.data.task : res.data.module;
@@ -1281,7 +1399,6 @@ Replace example content with the requested educational material while preserving
   }
 
   async function saveModule(){
-    if(editorBusy()) return;
     const item = currentSelectedItem();
     if (!item) return;
     let url = "";
@@ -1306,17 +1423,31 @@ Replace example content with the requested educational material while preserving
       Object.assign(body, codingEditor.payload());
     } else {return;}
 
+    const previousRubric = currentGameModule?.rubric;
     const res = await api(url, "PATCH", body);
-    if (!res.data.ok) return setMsg(res.data.error || UI.saveFailed);
-    setMsg("{{ T.saved|default:'Saved'|escapejs }}");
-    await loadModules();
-    if(item.module_type === "game") await openModule(item);
+    if (!res.data.ok) throw UIKit.httpError(res.data.error || UI.saveFailed, res.status);
+    // Refresh the list row in place instead of reloading every module.
+    const row = modulesCache.find(entry => entry.id === item.id && entry.module_type === item.module_type);
+    if (row){
+      row.title = body.title;
+      row.position = Number(body.position) || row.position;
+      modulesCache.sort((a, b) => a.position - b.position || a.module_type.localeCompare(b.module_type) || a.id - b.id);
+      renderModules();
+      updateSuggestedPosition();
+    }
+    if (item.module_type === "game" && body.rubric !== previousRubric && item.id === selectedModuleId){
+      const detail = await api(`/api/teacher/game-modules/${item.id}/`);
+      if (detail.data.ok && item.id === selectedModuleId) renderGameModule(detail.data.module);
+    }
+    return res.data;
   }
+  const moduleSaver = UIKit.autosave({status: qs("moduleSaveState"), save: saveModule, delay: 800});
 
   async function deleteModule(){
     const item = currentSelectedItem();
     if (!item || editorBusy()) return;
-    if(item.module_type === "coding_task" && !confirm("{{ T.delete_task_confirm|escapejs }}")) return;
+    if(!confirm(item.module_type === "coding_task" ? "{{ T.delete_task_confirm|escapejs }}" : "{{ T.delete|escapejs }}: " + (qs("title").value || "") + "?")) return;
+    moduleSaver.cancel();
 
     const url = item.module_type === "coding_task" ? `/api/teacher/tasks/${item.id}/` : item.module_type === "theory_quiz"
       ? `/api/teacher/theory-quizzes/${item.id}/`
@@ -1326,14 +1457,15 @@ Replace example content with the requested educational material while preserving
 
     const res = await api(url, "DELETE");
     if (!res.data.ok) return setMsg(res.data.error || UI.deleteFailed);
-    setMsg("Deleted");
+    setMsg("{{ T.deleted|default:'Deleted'|escapejs }}");
     selectedModuleId = null;
     selectedModuleType = null;
-    qs("editor").style.display = "none";
+    showEditor(false);
     await loadModules();
   }
 
   async function addBlock(){
+    if (editingBlockId){ await blockSaver.flush(); if(!blockSaver.pending()) blockDialog.close(); return; }
     if(editorBusy()) return;
     if (selectedModuleType !== "theory_material" || !selectedModuleId) return;
     const blockType = qs("blockType").value;
@@ -1348,7 +1480,7 @@ Replace example content with the requested educational material while preserving
     if (!res.data.ok) return setMsg(res.data.error || "Add block failed");
     setMsg("{{ T.saved|default:'Saved'|escapejs }}");
     qs("blockContent").value = "";
-    resetBlockForm();
+    blockDialog.close();
     await refreshModuleContent();
   }
 
@@ -1373,6 +1505,7 @@ Replace example content with the requested educational material while preserving
   }
 
   async function addQuestion(){
+    if (editingQuestionId){ await questionSaver.flush(); if(!questionSaver.pending()) questionDialog.close(); return; }
     if(editorBusy()) return;
     if (selectedModuleType !== "theory_quiz" || !selectedModuleId) return;
     if(editorWrites) return;
@@ -1388,7 +1521,7 @@ Replace example content with the requested educational material while preserving
     });
     if (!res.data.ok) return setMsg(res.data.error || UI.createFailed);
     setMsg("{{ T.saved|default:'Saved'|escapejs }}");
-    resetQuestionForm();
+    questionDialog.close();
     await refreshModuleContent();
   }
 
@@ -1401,35 +1534,52 @@ Replace example content with the requested educational material while preserving
     await refreshModuleContent();
   }
 
-  qs("loadBtn").addEventListener("click", async () => {
-    if(editorWrites || codingEditor.busy || moduleSorter.busy || blockSorter.busy || questionSorter.busy) return;
-    ++editorLoadToken;
-    resetBlockForm();resetQuestionForm();
-    selectedSessionId = qs("sessionSelect").value;
-    selectedModuleId = null;
-    selectedModuleType = null;
-    qs("editor").style.display = "none";
-    refreshModulePrompt();
-    await loadModules();
-  });
-  qs("sessionSelect").addEventListener("change", refreshModulePrompt);
+  const createDialog = UIKit.dialog(qs("createDialog"), {onOpen: () => { updateSuggestedPosition(); syncCreateTypeFields(); }});
+  const importDialog = UIKit.dialog(qs("importDialog"), {onOpen: refreshModulePrompt});
+  const editorTabs = UIKit.tabs(qs("editorTabs"), {storageKey: "teacher:modules:editor-tab"});
+  qs("sessionSelect").addEventListener("change", event => selectSession(event.target.value));
+  qs("openCreateBtn").addEventListener("click", () => createDialog.open());
+  qs("openImportBtn").addEventListener("click", () => importDialog.open());
+  qs("newTitle").addEventListener("keydown", event => { if(event.key === "Enter") createModule(); });
+  document.querySelectorAll('input[name="newModuleTypeChoice"]').forEach(radio => radio.addEventListener("change", () => {
+    qs("newModuleType").value = radio.value;
+    syncCreateTypeFields();
+  }));
+  // Module settings: every field saves itself (no Save button).
+  ["title","position","topic","aiPrompt","quizInstructions","tournamentCooldown"].forEach(id => qs(id).addEventListener("input", () => {
+    if(currentSelectedItem()) moduleSaver.schedule({});
+  }));
+  ["input","change"].forEach(type => qs("codingEditor").addEventListener(type, event => {
+    if(currentSelectedItem() && event.target.matches("input,select,textarea")) moduleSaver.schedule({}, type === "change" && event.target.tagName !== "TEXTAREA" ? 0 : undefined);
+  }));
+  // Game rows (sentences, questions, rounds) save themselves too.
+  const gameRowSavers = new Map();
+  function gameRowSaver(key){
+    if(!gameRowSavers.has(key)){
+      const [kind, id] = key.split(":");
+      const save = {prompt: saveGamePrompt, wonder: saveWonderQuestion, stage: saveTournamentStage, tq: saveTournamentQuestion}[kind];
+      gameRowSavers.set(key, UIKit.autosave({delay: 800, status: document.querySelector(`[data-autosave="${key}"] [data-row-status]`), save: () => save(Number(id))}));
+    }
+    return gameRowSavers.get(key);
+  }
+  ["input","change"].forEach(type => qs("gameEditor").addEventListener(type, event => {
+    const row = event.target.closest("[data-autosave]");
+    if(!row || !event.target.matches("input,select,textarea")) return;
+    const saver = gameRowSaver(row.dataset.autosave);
+    saver.status.element = row.querySelector("[data-row-status]");
+    saver.schedule({}, type === "change" && event.target.tagName !== "TEXTAREA" ? 0 : undefined);
+  }));
   qs("modulePromptType").addEventListener("change", refreshModulePrompt);
   qs("copyModulePromptBtn").addEventListener("click", copyModulePrompt);
   qs("applyModuleJsonBtn").addEventListener("click", applyModuleJson);
   qs("questionType").addEventListener("change", syncQuestionTypeFields);
-  qs("newModuleType").addEventListener("change", syncCreateTypeFields);
   qs("gameRubric").addEventListener("change", () => {
-    const isWonder = qs("gameRubric").value === "wonder_field";
-    const isTournament = qs("gameRubric").value === "tournament";
-    qs("mindRaceEditor").style.display = !isWonder && !isTournament ? "block" : "none";
-    qs("wonderFieldEditor").style.display = isWonder ? "block" : "none";
-    qs("tournamentEditor").style.display = isTournament ? "block" : "none";
-    setMsg("{{ T.game_rubric_save_hint|escapejs }}");
+    syncGameEditors(qs("gameRubric").value);
+    moduleSaver.schedule({}, 0);
   });
   qs("blockType").addEventListener("change", syncBlockTypeFields);
   qs("addPairBtn").addEventListener("click", () => addMatchingPairRow("", ""));
   qs("createBtn").addEventListener("click", createModule);
-  qs("saveModuleBtn").addEventListener("click", saveModule);
   qs("deleteModuleBtn").addEventListener("click", deleteModule);
   qs("addBlockBtn").addEventListener("click", addBlock);
   qs("generateBtn").addEventListener("click", generateModule);

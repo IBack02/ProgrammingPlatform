@@ -1,4 +1,4 @@
-<div id="codingEditor" class="panel" style="display:none;">
+<div id="codingEditor" style="display:none;">
   <label class="editor-field">{{ T.programming_language|default:"Python / C++" }}
     <select id="codingLanguage" class="select-ui"><option value="python">Python</option><option value="cpp">C++</option></select>
   </label>
@@ -10,6 +10,4 @@
     <div class="row"><label><input id="codingHint2" type="checkbox">{{ T.hint_2 }}</label><label>{{ T.unlock_after_attempts }} <input id="codingHintAttempts2" class="input-ui" type="number" min="1" value="3" style="width:80px"></label></div>
     <div class="row"><label><input id="codingHint3" type="checkbox">{{ T.hint_3 }}</label><label>{{ T.unlock_after_attempts }} <input id="codingHintAttempts3" class="input-ui" type="number" min="1" value="3" style="width:80px"></label></div>
   </div>
-  <details class="panel" open><summary>{{ T.testcases }}</summary><div id="codingTests"></div></details>
-  <details class="panel"><summary>{{ T.code_fragments }}</summary><div id="codingFragments"></div></details>
 </div>

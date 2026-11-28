@@ -50,8 +50,10 @@
     .lang-label{font-size:12px;color:#6b7280}
   </style>
   {% include "core/_theme_support.html" %}
+  <link rel="stylesheet" href="{% static 'core/ui_kit.css' %}">
+  <script src="{% static 'core/ui_kit.js' %}"></script>
 </head>
-<body class="lang-{{ ui_lang }}">
+<body class="lang-{{ ui_lang }}" {% include "core/_autosave_texts.html" %}>
   <div class="wrap">
     <div class="topbar">
       <div>

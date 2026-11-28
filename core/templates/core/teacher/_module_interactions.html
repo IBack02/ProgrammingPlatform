@@ -3,47 +3,100 @@
   }
   function editorBusy(){return editorWrites || codingEditor.busy || moduleSorter.busy || blockSorter.busy || questionSorter.busy;}
   function canSort(){return !editorWrites && !codingEditor.busy;}
+  const blockDialog = UIKit.dialog(qs("blockDialog"), {onClose: () => { blockSaver.flush(); resetBlockForm(); }});
+  const questionDialog = UIKit.dialog(qs("questionDialog"), {onClose: () => { questionSaver.flush(); resetQuestionForm(); }});
+  // Editing an existing block/question saves on every change; the dialog
+  // button only adds new items or closes the dialog.
+  const blockSaver = UIKit.autosave({
+    status: qs("blockSaveState"), delay: 800,
+    save: async () => {
+      const id = editingBlockId;
+      if (!id) return;
+      const res = await api(`/api/teacher/theory-blocks/${id}/`, "PATCH", blockPayload());
+      if (!res.data.ok) throw UIKit.httpError(res.data.error || UI.saveFailed, res.status);
+      await refreshModuleContent();
+      return res.data;
+    }
+  });
+  const questionSaver = UIKit.autosave({
+    status: qs("questionSaveState"), delay: 900,
+    save: async () => {
+      const id = editingQuestionId;
+      if (!id) return;
+      const res = await api(`/api/teacher/theory-quiz-questions/${id}/`, "PATCH", questionPayload());
+      if (!res.data.ok) throw UIKit.httpError(res.data.error || UI.saveFailed, res.status);
+      await refreshModuleContent();
+      return res.data;
+    }
+  });
+  function blockPayload(){
+    const blockType = qs("blockType").value;
+    return {ordinal: qs("blockOrdinal").value, block_type: blockType,
+      heading_level: blockType === "heading" ? qs("headingLevel").value : "", content: qs("blockContent").value};
+  }
+  function questionPayload(){
+    return {ordinal: qs("questionOrdinal").value, question_type: qs("questionType").value, prompt: qs("questionPrompt").value,
+      model_answer: qs("questionModelAnswer").value, accept_suitable_answer: qs("acceptSuitableAnswer").checked,
+      choices: parseChoicesInput(), pairs: parsePairsInput()};
+  }
+  ["input","change"].forEach(type => {
+    qs("materialForm").addEventListener(type, () => { if(editingBlockId) blockSaver.schedule({}); });
+    qs("quizForm").addEventListener(type, () => { if(editingQuestionId) questionSaver.schedule({}); });
+  });
   function resetBlockForm(){
     editingBlockId = null;
     qs("blockFormTitle").textContent = "{{ T.add_block|escapejs }}";
     qs("addBlockBtn").textContent = "{{ T.add_block|escapejs }}";
-    qs("cancelBlockEdit").hidden = true;
+    qs("cancelBlockEdit").hidden = false;
     qs("blockContent").value = "";
-    qs("materialEditor").classList.remove("editing-content");
+    qs("blockSaveState").hidden = true;
     suggestNextBlockOrdinal(contentBlocks);
+  }
+  function openNewBlock(){
+    if(selectedModuleType !== "theory_material") return;
+    resetBlockForm();
+    syncBlockTypeFields();
+    blockDialog.open();
   }
   function editBlock(id){
     if(editorWrites || blockSorter.busy) return;
     const block = contentBlocks.find(row => row.id === id);
     if(!block) return;
+    resetBlockForm();
     editingBlockId = id;
     qs("blockType").value = block.block_type;
     qs("headingLevel").value = block.heading_level || "h1";
     qs("blockOrdinal").value = block.ordinal;
     qs("blockContent").value = block.content;
     qs("blockFormTitle").textContent = "{{ T.edit|escapejs }} · #" + block.ordinal;
-    qs("addBlockBtn").textContent = "{{ T.save|escapejs }}";
-    qs("cancelBlockEdit").hidden = false;
-    qs("materialEditor").classList.add("editing-content");
+    qs("addBlockBtn").textContent = "{{ T.done|escapejs }}";
+    qs("cancelBlockEdit").hidden = true;
     syncBlockTypeFields();
-    qs("blockFormTitle").scrollIntoView({block:"center",behavior:matchMedia('(prefers-reduced-motion: reduce)').matches ? "instant" : "smooth"});
+    blockDialog.open();
     qs("blockContent").focus({preventScroll:true});
   }
   function resetQuestionForm(){
     editingQuestionId = null;
     qs("questionFormTitle").textContent = "{{ T.add_question|escapejs }}";
     qs("addQuestionBtn").textContent = "{{ T.add_question|escapejs }}";
-    qs("cancelQuestionEdit").hidden = true;
+    qs("cancelQuestionEdit").hidden = false;
     for(const id of ["questionPrompt","questionModelAnswer","questionChoices"]) qs(id).value = "";
     qs("acceptSuitableAnswer").checked = false;
-    qs("quizEditor").classList.remove("editing-content");
+    qs("questionSaveState").hidden = true;
     resetMatchingPairs();
     suggestNextQuestionOrdinal(quizQuestions);
+  }
+  function openNewQuestion(){
+    if(selectedModuleType !== "theory_quiz") return;
+    resetQuestionForm();
+    syncQuestionTypeFields();
+    questionDialog.open();
   }
   function editQuestion(id){
     if(editorWrites || questionSorter.busy) return;
     const question = quizQuestions.find(row => row.id === id);
     if(!question) return;
+    resetQuestionForm();
     editingQuestionId = id;
     qs("questionType").value = question.question_type;
     qs("questionOrdinal").value = question.ordinal;
@@ -55,11 +108,10 @@
     if(question.pairs?.length) question.pairs.forEach(row => addMatchingPairRow(row.left_text,row.right_text));
     else resetMatchingPairs();
     qs("questionFormTitle").textContent = "{{ T.edit|escapejs }} · #" + question.ordinal;
-    qs("addQuestionBtn").textContent = "{{ T.save|escapejs }}";
-    qs("cancelQuestionEdit").hidden = false;
-    qs("quizEditor").classList.add("editing-content");
+    qs("addQuestionBtn").textContent = "{{ T.done|escapejs }}";
+    qs("cancelQuestionEdit").hidden = true;
     syncQuestionTypeFields();
-    qs("questionFormTitle").scrollIntoView({block:"center",behavior:matchMedia('(prefers-reduced-motion: reduce)').matches ? "instant" : "smooth"});
+    questionDialog.open();
     qs("questionPrompt").focus({preventScroll:true});
   }
   async function refreshModuleContent(){
@@ -124,5 +176,7 @@
   }
   const blockSorter = ModuleSortable.attach(qs("blocksList"), keys => saveContentOrder("blocks",keys), canSort);
   const questionSorter = ModuleSortable.attach(qs("questionsList"), keys => saveContentOrder("questions",keys), canSort);
-  qs("cancelBlockEdit").addEventListener("click", resetBlockForm);
-  qs("cancelQuestionEdit").addEventListener("click", resetQuestionForm);
+  qs("cancelBlockEdit").addEventListener("click", () => blockDialog.close());
+  qs("cancelQuestionEdit").addEventListener("click", () => questionDialog.close());
+  qs("newBlockBtn").addEventListener("click", openNewBlock);
+  qs("newQuestionBtn").addEventListener("click", openNewQuestion);
