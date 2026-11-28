@@ -194,3 +194,132 @@ class TeacherAdmin(admin.ModelAdmin):
 admin.site.register([Exam, ExamClass, ExamQuestion, ExamMatchPair, ExamAttempt, ExamAnswer])
 admin.site.register([PeerAssessmentSession, PeerAssessmentAssignment, PeerAssessmentReview])
 admin.site.register([GameModule, MindRacePrompt, GameRound, GameParticipant])
+
+
+# ---------------------------------------------------------------------------
+# 502 / 5xx diagnostics
+# ---------------------------------------------------------------------------
+import json as _json
+from datetime import timedelta as _timedelta
+
+from django.utils import timezone as _tz
+from django.utils.html import format_html as _format_html, format_html_join as _format_html_join
+
+from .models import ServerErrorReport
+
+_PRE = '<pre style="white-space:pre-wrap;max-height:520px;overflow:auto;margin:0">{}</pre>'
+
+
+def _pretty_json(value):
+    return _format_html(_PRE, _json.dumps(value or {}, ensure_ascii=False, indent=2, default=str))
+
+
+@admin.register(ServerErrorReport)
+class ServerErrorReportAdmin(admin.ModelAdmin):
+    list_display = (
+        "last_seen_at", "status_badge", "source", "method", "short_path",
+        "occurrences", "duration_ms", "user_label", "exception_type", "is_resolved",
+    )
+    list_display_links = ("last_seen_at", "short_path")
+    list_filter = ("is_resolved", "source", "status_code", "user_role", "last_seen_at")
+    search_fields = ("path", "route", "request_id", "edge_ray_id", "exception_type", "exception_message", "user_label")
+    date_hierarchy = "last_seen_at"
+    actions = ("mark_resolved", "mark_unresolved")
+    list_per_page = 50
+    readonly_fields = (
+        "source", "status_code", "method", "path", "route", "request_id", "edge_ray_id",
+        "user_role", "user_id", "user_label", "user_agent", "duration_ms", "occurrences",
+        "first_seen_at", "last_seen_at", "exception_type", "exception_message",
+        "traceback_display", "where_it_hung", "server_context_display", "client_context_display",
+        "related_reports", "resolved_at", "fingerprint",
+    )
+    fieldsets = (
+        ("Что случилось", {"fields": (
+            ("source", "status_code", "occurrences"), ("method", "path"), "route",
+            ("first_seen_at", "last_seen_at", "duration_ms"),
+        )}),
+        ("Кто и где", {"fields": (("user_role", "user_id", "user_label"), ("request_id", "edge_ray_id"), "user_agent")}),
+        ("Ошибка", {"fields": ("exception_type", "exception_message", "traceback_display", "where_it_hung")}),
+        ("Собранные логи", {"fields": ("server_context_display", "client_context_display", "related_reports")}),
+        ("Разбор", {"fields": ("is_resolved", "resolved_at", "admin_note", "fingerprint")}),
+    )
+
+    def has_add_permission(self, request):
+        return False
+
+    @admin.display(description="Код", ordering="status_code")
+    def status_badge(self, obj):
+        color = "#b91c1c" if obj.status_code in (502, 503, 504) else "#b45309" if obj.status_code >= 500 else "#475569"
+        return _format_html('<b style="color:{}">{}</b>', color, obj.status_code)
+
+    @admin.display(description="Путь", ordering="path")
+    def short_path(self, obj):
+        return obj.path if len(obj.path) <= 70 else obj.path[:69] + "…"
+
+    @admin.display(description="Traceback")
+    def traceback_display(self, obj):
+        return _format_html(_PRE, obj.traceback) if obj.traceback else "—"
+
+    @admin.display(description="Где завис воркер (стек потока запроса)")
+    def where_it_hung(self, obj):
+        threads = (obj.server_context or {}).get("threads") or []
+        if not threads:
+            return "—"
+        # The request thread is the one whose stack goes through Django's handler.
+        busy = [row for row in threads if "django/core/handlers" in row.get("stack", "").replace("\\", "/")]
+        text = "\n\n".join(
+            f"# {row.get('name')} ({row.get('thread_id')})\n{row.get('stack', '')}" for row in (busy or threads)
+        )
+        return _format_html(_PRE, text)
+
+    @admin.display(description="Контекст сервера")
+    def server_context_display(self, obj):
+        context = dict(obj.server_context or {})
+        context.pop("threads", None)
+        return _pretty_json(context)
+
+    @admin.display(description="Контекст браузера")
+    def client_context_display(self, obj):
+        return _pretty_json(obj.client_context)
+
+    @admin.display(description="Связанные отчёты")
+    def related_reports(self, obj):
+        rows = list((obj.server_context or {}).get("related_reports") or [])
+        if obj.request_id:
+            rows += [
+                {"id": row.id, "source": row.source, "status": row.status_code}
+                for row in ServerErrorReport.objects.filter(request_id=obj.request_id).exclude(pk=obj.pk)[:10]
+            ]
+        unique = list({row["id"]: row for row in rows if row.get("id") != obj.pk}.values())
+        if not unique:
+            return "—"
+        return _format_html_join(
+            _format_html("<br>"), '<a href="../../{}/change/">#{} · {} · {}</a>',
+            ((row["id"], row["id"], row.get("status"), row.get("source")) for row in unique),
+        )
+
+    def save_model(self, request, obj, form, change):
+        if "is_resolved" in form.changed_data:
+            obj.resolved_at = _tz.now() if obj.is_resolved else None
+        super().save_model(request, obj, form, change)
+
+    @admin.action(description="Отметить как исправленные")
+    def mark_resolved(self, request, queryset):
+        queryset.update(is_resolved=True, resolved_at=_tz.now())
+
+    @admin.action(description="Вернуть в работу")
+    def mark_unresolved(self, request, queryset):
+        queryset.update(is_resolved=False, resolved_at=None)
+
+    def changelist_view(self, request, extra_context=None):
+        since = _tz.now() - _timedelta(hours=24)
+        open_reports = ServerErrorReport.objects.filter(is_resolved=False)
+        recent = open_reports.filter(last_seen_at__gte=since)
+        extra_context = {
+            **(extra_context or {}),
+            "subtitle": (
+                f"Открыто: {open_reports.count()} · за 24 ч: {recent.count()}"
+                f" · из них 502/503/504: {recent.filter(status_code__in=[502, 503, 504]).count()}"
+            ),
+        }
+        return super().changelist_view(request, extra_context=extra_context)

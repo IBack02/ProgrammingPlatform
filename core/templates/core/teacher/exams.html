@@ -4,147 +4,172 @@
 
 {% block content %}
 <style>
-  [hidden]{display:none!important}
   .exam-shell{display:grid;grid-template-columns:290px minmax(0,1fr);gap:14px;align-items:start}
   .stack{display:flex;flex-direction:column;gap:10px}.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
   .field{display:flex;flex-direction:column;gap:5px;flex:1;min-width:180px}.field>span{font-size:12px;color:#64748b;font-weight:700}
   .input,.select,.area{width:100%;box-sizing:border-box;border:1px solid #dbe2ea;border-radius:10px;padding:10px 11px;background:#fff;font:inherit}
   .area{min-height:92px;resize:vertical}.input:focus,.select:focus,.area:focus{outline:0;border-color:#0ea5e9;box-shadow:0 0 0 3px rgba(14,165,233,.12)}
-  .exam-list{display:flex;flex-direction:column;gap:7px;max-height:70vh;overflow:auto}
-  .exam-item{width:100%;text-align:left;border:1px solid #e2e8f0;border-radius:12px;background:#fff;padding:11px;cursor:pointer}
+  .exam-list{display:flex;flex-direction:column;gap:7px;max-height:62vh;overflow:auto}
+  .exam-item{width:100%;text-align:left;border:1px solid #e2e8f0;border-radius:12px;background:#fff;padding:11px;cursor:pointer;font:inherit}
   .exam-item.active{border-color:#0ea5e9;background:#f0f9ff}.exam-item strong{display:block}.meta{font-size:12px;color:#64748b;margin-top:4px}
   .pill{display:inline-flex;padding:3px 8px;border-radius:999px;font-size:11px;font-weight:800;background:#e2e8f0}
   .pill.running{background:#dcfce7;color:#166534}.pill.stopped{background:#fee2e2;color:#991b1b}
-  .section{border-top:1px solid #e2e8f0;margin-top:16px;padding-top:16px}.section-title{font-size:17px;font-weight:900;margin-bottom:10px}
-  .classes{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:7px}.check{display:flex;gap:8px;align-items:center;border:1px solid #e2e8f0;border-radius:10px;padding:9px}
+  .section-title{font-size:15px;font-weight:900;margin:14px 0 8px}
+  .classes{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:7px}.check{display:flex;gap:8px;align-items:center;border:1px solid #e2e8f0;border-radius:10px;padding:9px;cursor:pointer}
   .question-card{border:1px solid #e2e8f0;border-radius:13px;padding:12px;background:#fbfdff}.question-card+.question-card{margin-top:9px}
-  .question-head{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}.question-text{white-space:pre-wrap;margin-top:8px}
+  .question-head{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}.question-text{white-space:pre-wrap;margin-top:8px;max-height:7.5em;overflow:hidden}
   .pair-row{display:grid;grid-template-columns:1fr 34px 1fr 38px;gap:7px;align-items:center;margin-top:7px}
   .notice{min-height:20px;border-radius:9px;padding:6px 9px;font-size:13px}.notice.ok{background:#ecfdf5;color:#065f46}.notice.err{background:#fef2f2;color:#991b1b}
-  .btn.primary{background:#0284c7;color:#fff;border-color:#0284c7}.btn.danger{color:#b91c1c;border-color:#fecaca}.btn.success{background:#16a34a;color:#fff;border-color:#16a34a}
-  .json-area{min-height:220px;font-family:Consolas,"Courier New",monospace;font-size:12px}
-  .attempt{border:1px solid #e2e8f0;border-radius:10px;padding:9px;cursor:pointer;background:#fff}.attempt:hover{border-color:#7dd3fc}
+  .btn{cursor:pointer;font:inherit}.btn.primary{background:#0284c7;color:#fff;border-color:#0284c7}.btn.danger{color:#b91c1c;border-color:#fecaca}.btn.success{background:#16a34a;color:#fff;border-color:#16a34a}
+  .btn:disabled{opacity:.5;cursor:not-allowed}
+  .json-area{min-height:260px;font-family:Consolas,"Courier New",monospace;font-size:12px}
+  .attempt{border:1px solid #e2e8f0;border-radius:10px;padding:9px;cursor:pointer;background:#fff;text-align:left;font:inherit;width:100%}.attempt:hover{border-color:#7dd3fc}
+  .attempt-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:8px}
   .shared-exam{border:1px solid #dbe2ea;border-radius:12px;background:#f8fafc;padding:10px}.shared-exam+.shared-exam{margin-top:7px}
-  .answer-review{border:1px solid #e2e8f0;border-radius:12px;padding:11px;margin-top:9px}.answer-body{white-space:pre-wrap;background:#f8fafc;border-radius:8px;padding:9px;margin:8px 0}
-  .table-builder-wrap,.review-table-wrap{overflow:auto;border:1px solid #e2e8f0;border-radius:12px;margin-top:9px}.table-builder,.review-table{border-collapse:collapse;width:100%;min-width:560px}.table-builder th,.table-builder td,.review-table th,.review-table td{border:1px solid #dbe2ea;padding:7px;vertical-align:top}.table-builder th{background:#f1f5f9}.table-cell{display:grid;gap:5px;min-width:145px}.table-cell .select,.table-cell .input{padding:7px}.table-tools{display:flex;gap:7px;flex-wrap:wrap;margin:8px 0}.review-table .given{background:#f1f5f9}.review-table .correct{background:#dcfce7}.review-table .incorrect{background:#fee2e2}.integrity-badge{display:inline-flex;background:#fee2e2;color:#991b1b;border-radius:999px;padding:2px 7px;font-size:11px;font-weight:900}.integrity-panel{border:1px solid #fecaca;background:#fff7f7;border-radius:12px;padding:11px;margin-top:12px}.integrity-event{display:flex;justify-content:space-between;gap:10px;border-top:1px solid #fecaca;padding:7px 0;font-size:12px}.integrity-event:first-child{border-top:0}.integrity-empty{color:#64748b;font-size:12px}
+  .table-builder-wrap{overflow:auto;border:1px solid #e2e8f0;border-radius:12px;margin-top:9px}.table-builder{border-collapse:collapse;width:100%;min-width:560px}.table-builder th,.table-builder td{border:1px solid #dbe2ea;padding:7px;vertical-align:top}.table-builder th{background:#f1f5f9}.table-cell{display:grid;gap:5px;min-width:145px}.table-cell .select,.table-cell .input{padding:7px}.table-tools{display:flex;gap:7px;flex-wrap:wrap;margin:8px 0}
+  .integrity-badge{display:inline-flex;background:#fee2e2;color:#991b1b;border-radius:999px;padding:2px 7px;font-size:11px;font-weight:900}
+  .exam-head{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:6px}
+  .exam-head .exam-title{flex:1;min-width:220px;font-size:18px;font-weight:800}
+  .shared-details summary{cursor:pointer;font-weight:900;margin:14px 0 8px}
   @media(max-width:850px){.exam-shell{grid-template-columns:1fr}.exam-list{max-height:280px}.pair-row{grid-template-columns:1fr 24px 1fr 36px}}
 </style>
 
 <div class="exam-shell">
-  <aside class="stack">
-    <div class="card">
-      <div style="font-weight:900;margin-bottom:8px">{{ T.create_exam }}</div>
-      <input id="newExamTitle" class="input" placeholder="{{ T.exam_title }}">
-      <button id="createExamBtn" class="btn primary" type="button" style="margin-top:8px;width:100%">{{ T.create }}</button>
-    </div>
-    <div class="card">
-      <div style="font-weight:900;margin-bottom:8px">{{ T.exams_list }}</div>
-      <input id="examSearch" class="input" type="search" placeholder="{{ T.search_exams }}" style="margin-bottom:8px">
-      <div id="examList" class="exam-list"></div>
-      <div style="font-weight:900;margin:14px 0 8px">{{ T.shared_exams_list }}</div>
+  <aside class="card stack">
+    <button id="openCreateExamBtn" class="btn primary" type="button">＋ {{ T.create_exam }}</button>
+    <input id="examSearch" class="input" type="search" placeholder="{{ T.search_exams }}" aria-label="{{ T.search_exams }}">
+    <div style="font-weight:900">{{ T.exams_list }}</div>
+    <div id="examList" class="exam-list"></div>
+    <details class="shared-details">
+      <summary>{{ T.shared_exams_list }} <span id="sharedCount" class="pill"></span></summary>
       <div id="publicExamList"></div>
-    </div>
+    </details>
   </aside>
 
   <main class="card">
-    <div id="emptyState" class="muted">{{ T.select_exam_left }}</div>
+    <div id="emptyState" class="ui-empty">{{ T.select_exam_left }}</div>
     <div id="editor" hidden>
-      <div class="row">
-        <label class="field"><span>{{ T.exam_title }}</span><input id="examTitle" class="input"></label>
-        <label class="field"><span>{{ T.exam_topic }}</span><input id="examTopic" class="input"></label>
-        <label class="field" style="max-width:180px"><span>{{ T.duration_minutes }}</span><input id="examDuration" class="input" type="number" min="1" max="1440"></label>
-      </div>
-      <label class="field" style="margin-top:10px"><span>{{ T.instructions_label }}</span><textarea id="examInstructions" class="area"></textarea></label>
-      <label class="check" style="margin-top:10px">
-        <input id="examShared" type="checkbox">
-        <span>{{ T.shared_exam_template }}</span>
-      </label>
-      <label class="check" style="margin-top:10px"><input id="examAutoGrade" type="checkbox"><span>{{ T.exam_auto_grade }}</span></label>
-      <div class="muted" style="margin-top:6px">{{ T.exam_auto_grade_help }}</div>
-      <div class="section-title" style="font-size:14px;margin:12px 0 7px">{{ T.allowed_classes }}</div>
-      <div id="classChecks" class="classes"></div>
-      <div class="row" style="margin-top:12px">
-        <button id="saveExamBtn" class="btn primary" type="button">{{ T.save }}</button>
-        <button id="startExamBtn" class="btn success" type="button">{{ T.start_exam }}</button>
-        <button id="stopExamBtn" class="btn" type="button">{{ T.stop_exam }}</button>
-        <button id="deleteExamBtn" class="btn danger" type="button">{{ T.delete }}</button>
+      <div class="exam-head">
+        <input id="examTitle" class="input exam-title" aria-label="{{ T.exam_title }}">
         <span id="examStatus" class="pill"></span>
+        <span id="examSaveState" class="save-pill" hidden></span>
       </div>
+      <div class="row" style="margin-bottom:6px">
+        <button id="toggleExamBtn" class="btn success" type="button">{{ T.start_exam }}</button>
+        <a id="analyticsLink" class="btn" href="#">{{ T.analytics }}</a>
+        <span class="ui-spacer"></span>
+        <button id="deleteExamBtn" class="btn danger" type="button">{{ T.delete }}</button>
+      </div>
+      <div id="lockedBanner" class="ui-banner" hidden>{{ T.exam_locked_banner }}</div>
+      <div id="msg" class="notice" role="status" aria-live="polite"></div>
 
-      <section class="section">
-        <div class="section-title">{{ T.exam_report_title }}</div>
-        <p class="muted">{{ T.exam_report_hint }}</p>
-        <div class="row" style="align-items:end">
-          <label class="field" style="max-width:280px"><span>{{ T.class_filter }}</span><select id="reportClass" class="select"></select></label>
-          <button id="downloadExamReportBtn" class="btn primary" type="button" data-exam-report="">{{ T.download_exam_report }}</button>
+      <div id="examTabs">
+        <div class="ui-tabs">
+          <button data-tab="questions">{{ T.exam_questions }} <span class="tab-count" id="questionCount">0</span></button>
+          <button data-tab="settings">{{ T.tab_settings }}</button>
+          <button data-tab="attempts">{{ T.exam_attempts }} <span class="tab-count" id="attemptCount">0</span></button>
         </div>
-        {% include "core/teacher/_exam_report_download.html" %}
-      </section>
 
-      <section class="section">
-        <div class="section-title">{{ T.exam_questions }}</div>
-        <div class="row">
-          <label class="field" style="max-width:140px"><span>{{ T.position }}</span><input id="qPosition" class="input" type="number" min="1"></label>
-          <label class="field"><span>{{ T.question_type }}</span>
-            <select id="qType" class="select">
-              <option value="open_text">{{ T.open_text_question }}</option>
-              <option value="single_choice">{{ T.exam_test_question }}</option>
-              <option value="matching">{{ T.matching }}</option>
-              <option value="diagram">{{ T.diagram_question }}</option>
-              <option value="table">{{ T.table_question }}</option>
-            </select>
-          </label>
-          <label class="field" style="max-width:150px"><span>{{ T.max_score }}</span><input id="qScore" class="input" type="number" min="0.01" step="0.01" value="1"></label>
-        </div>
-        <label class="field" style="margin-top:9px"><span>{{ T.question_prompt }}</span><textarea id="qPrompt" class="area"></textarea></label>
-        <div class="row" style="margin-top:9px">
-          <label class="field"><span>{{ T.question_image_url }}</span><input id="qImage" class="input" type="url" placeholder="https://..."></label>
-          <label id="modelAnswerField" class="field"><span>{{ T.model_answer }}</span><textarea id="qModelAnswer" class="area"></textarea></label>
-        </div>
-        <div id="choicesEditor" style="margin-top:12px" hidden>
-          <strong>{{ T.exam_test_options }}</strong><p class="muted">{{ T.exam_test_help }}</p>
-          <div id="choicesBox"></div><button id="addChoiceBtn" class="btn" type="button">{{ T.exam_add_option }}</button>
-        </div>
-        <div id="pairsEditor" style="margin-top:10px" hidden>
-          <div style="font-weight:800">{{ T.correct_pairs }}</div>
-          <div id="pairsBox"></div>
-          <button id="addPairBtn" class="btn" type="button" style="margin-top:8px">{{ T.add_pair }}</button>
-        </div>        <div id="tableEditor" style="margin-top:10px" hidden>
-          <div style="font-weight:800">{{ T.table_constructor }}</div>
-          <div class="muted">{{ T.table_constructor_help }}</div>
-          <div class="table-tools">
-            <button id="addTableColumnBtn" class="btn" type="button">{{ T.add_column }}</button>
-            <button id="addTableRowBtn" class="btn" type="button">{{ T.add_row }}</button>
+        <section data-tab-panel="questions">
+          <div class="ui-toolbar">
+            <button id="newQuestionBtn" class="btn primary" type="button">＋ {{ T.add_question }}</button>
+            <button id="openJsonBtn" class="btn" type="button">{{ T.json_exam_commands }}</button>
           </div>
-          <div class="table-builder-wrap"><table id="tableBuilder" class="table-builder"></table></div>
-        </div>
-        <div class="row" style="margin-top:11px">
-          <button id="saveQuestionBtn" class="btn primary" type="button">{{ T.add_question }}</button>
-          <button id="cancelQuestionBtn" class="btn" type="button" hidden>{{ T.cancel }}</button>
-        </div>
-        <div id="questionList" style="margin-top:12px"></div>
-      </section>
+          <div id="questionList" style="margin-top:12px"></div>
+        </section>
 
-      <section class="section">
-        <div class="section-title">{{ T.json_exam_commands }}</div>
-        <div class="muted" style="margin-bottom:8px">{{ T.json_exam_help }}</div>
-        <textarea id="jsonCommands" class="area json-area" spellcheck="false"></textarea>
-        <div class="row" style="margin-top:9px">
-          <button id="copyPromptBtn" class="btn" type="button">{{ T.copy_ai_prompt }}</button>
-          <button id="applyJsonBtn" class="btn primary" type="button">{{ T.apply_json }}</button>
-        </div>
-      </section>
+        <section data-tab-panel="settings">
+          <div class="row">
+            <label class="field"><span>{{ T.exam_topic }}</span><input id="examTopic" class="input"></label>
+            <label class="field" style="max-width:180px"><span>{{ T.duration_minutes }}</span><input id="examDuration" class="input" type="number" min="1" max="1440"></label>
+          </div>
+          <label class="field" style="margin-top:10px"><span>{{ T.instructions_label }}</span><textarea id="examInstructions" class="area"></textarea></label>
+          <label class="check" style="margin-top:10px"><input id="examShared" type="checkbox"><span>{{ T.shared_exam_template }}</span></label>
+          <label class="check" style="margin-top:8px"><input id="examAutoGrade" type="checkbox"><span>{{ T.exam_auto_grade }}</span></label>
+          <div class="muted" style="margin-top:6px">{{ T.exam_auto_grade_help }}</div>
+          <div class="section-title">{{ T.allowed_classes }}</div>
+          <div id="classChecks" class="classes"></div>
+        </section>
 
-      <section class="section">
-        <div class="section-title">{{ T.exam_attempts }}</div>
-        <button id="refreshAttemptsBtn" class="btn" type="button">{{ T.refresh }}</button>
-        <div id="attemptList" class="stack" style="margin-top:9px"></div>
-        <div id="attemptReview"></div>
-      </section>
+        <section data-tab-panel="attempts">
+          <div class="row" style="align-items:end">
+            <label class="field" style="max-width:280px"><span>{{ T.class_filter }}</span><select id="reportClass" class="select"></select></label>
+            <button id="downloadExamReportBtn" class="btn primary" type="button" data-exam-report="">{{ T.download_exam_report }}</button>
+          </div>
+          <p class="muted">{{ T.exam_report_hint }}</p>
+          {% include "core/teacher/_exam_report_download.html" %}
+          <div id="attemptList" class="attempt-grid" style="margin-top:9px"></div>
+        </section>
+      </div>
     </div>
-    <div id="msg" class="notice"></div>
   </main>
 </div>
+
+<dialog id="createExamDialog" class="ui-dialog" aria-labelledby="createExamTitle">
+  <div class="ui-dialog-head"><h2 id="createExamTitle">{{ T.create_exam }}</h2><button class="ui-close" type="button" data-dialog-close aria-label="{{ T.close }}">×</button></div>
+  <div class="ui-dialog-body"><label class="field"><span>{{ T.exam_title }}</span><input id="newExamTitle" class="input" autofocus></label></div>
+  <div class="ui-dialog-foot"><button class="btn" type="button" data-dialog-close>{{ T.cancel }}</button><button id="createExamBtn" class="btn primary" type="button">{{ T.create }}</button></div>
+</dialog>
+
+<dialog id="questionDialog" class="ui-dialog wide" aria-labelledby="questionDialogTitle">
+  <div class="ui-dialog-head"><h2 id="questionDialogTitle">{{ T.add_question }}</h2><span id="questionSaveState" class="save-pill" hidden></span><button class="ui-close" type="button" data-dialog-close aria-label="{{ T.close }}">×</button></div>
+  <div class="ui-dialog-body" id="questionForm">
+    <div class="row">
+      <label class="field" style="max-width:140px"><span>{{ T.position }}</span><input id="qPosition" class="input" type="number" min="1"></label>
+      <label class="field"><span>{{ T.question_type }}</span>
+        <select id="qType" class="select">
+          <option value="open_text">{{ T.open_text_question }}</option>
+          <option value="single_choice">{{ T.exam_test_question }}</option>
+          <option value="matching">{{ T.matching }}</option>
+          <option value="diagram">{{ T.diagram_question }}</option>
+          <option value="table">{{ T.table_question }}</option>
+        </select>
+      </label>
+      <label class="field" style="max-width:150px"><span>{{ T.max_score }}</span><input id="qScore" class="input" type="number" min="0.01" step="0.01" value="1"></label>
+    </div>
+    <label class="field" style="margin-top:9px"><span>{{ T.question_prompt }}</span><textarea id="qPrompt" class="area"></textarea></label>
+    <div class="row" style="margin-top:9px">
+      <label class="field"><span>{{ T.question_image_url }}</span><input id="qImage" class="input" type="url" placeholder="https://..."></label>
+      <label id="modelAnswerField" class="field"><span>{{ T.model_answer }}</span><textarea id="qModelAnswer" class="area"></textarea></label>
+    </div>
+    <div id="choicesEditor" style="margin-top:12px" hidden>
+      <strong>{{ T.exam_test_options }}</strong><p class="muted">{{ T.exam_test_help }}</p>
+      <div id="choicesBox"></div><button id="addChoiceBtn" class="btn" type="button">{{ T.exam_add_option }}</button>
+    </div>
+    <div id="pairsEditor" style="margin-top:10px" hidden>
+      <div style="font-weight:800">{{ T.correct_pairs }}</div>
+      <div id="pairsBox"></div>
+      <button id="addPairBtn" class="btn" type="button" style="margin-top:8px">{{ T.add_pair }}</button>
+    </div>
+    <div id="tableEditor" style="margin-top:10px" hidden>
+      <div style="font-weight:800">{{ T.table_constructor }}</div>
+      <div class="muted">{{ T.table_constructor_help }}</div>
+      <div class="table-tools">
+        <button id="addTableColumnBtn" class="btn" type="button">{{ T.add_column }}</button>
+        <button id="addTableRowBtn" class="btn" type="button">{{ T.add_row }}</button>
+      </div>
+      <div class="table-builder-wrap"><table id="tableBuilder" class="table-builder"></table></div>
+    </div>
+  </div>
+  <div class="ui-dialog-foot">
+    <span id="questionDialogMsg" class="muted" style="margin-right:auto"></span>
+    <button id="cancelQuestionBtn" class="btn" type="button" data-dialog-close>{{ T.cancel }}</button>
+    <button id="saveQuestionBtn" class="btn primary" type="button">{{ T.add_question }}</button>
+  </div>
+</dialog>
+
+<dialog id="jsonDialog" class="ui-dialog wide" aria-labelledby="jsonDialogTitle">
+  <div class="ui-dialog-head"><h2 id="jsonDialogTitle">{{ T.json_exam_commands }}</h2><button class="ui-close" type="button" data-dialog-close aria-label="{{ T.close }}">×</button></div>
+  <div class="ui-dialog-body">
+    <div class="muted" style="margin-bottom:8px">{{ T.json_exam_help }}</div>
+    <textarea id="jsonCommands" class="area json-area" spellcheck="false"></textarea>
+  </div>
+  <div class="ui-dialog-foot">
+    <span id="jsonMsg" class="muted" style="margin-right:auto"></span>
+    <button id="copyPromptBtn" class="btn" type="button">{{ T.copy_ai_prompt }}</button>
+    <button id="applyJsonBtn" class="btn primary" type="button">{{ T.apply_json }}</button>
+  </div>
+</dialog>
 
 <script>
 {% include "core/teacher/_grade_options.html" %}
@@ -163,6 +188,8 @@ const UI = {
   edit: "{{ T.edit|escapejs }}",
   deleteText: "{{ T.delete|escapejs }}",
   save: "{{ T.save|escapejs }}",
+  done: "{{ T.done|escapejs }}",
+  addQuestion: "{{ T.add_question|escapejs }}",
   openText: "{{ T.open_text_question|escapejs }}",
   matching: "{{ T.matching|escapejs }}",
   diagram: "{{ T.diagram_question|escapejs }}",
@@ -172,49 +199,75 @@ const UI = {
   cellValue: "{{ T.table_cell_value|escapejs }}",
   expectedAnswer: "{{ T.expected_answer|escapejs }}",
   columnName: "{{ T.column_name|escapejs }}",
-  violations: "{{ T.exam_violations|escapejs }}",
-  noViolations: "{{ T.no_exam_violations|escapejs }}",
-  eventTypes: {tab_hidden:"{{ T.event_tab_hidden|escapejs }}",window_blur:"{{ T.event_window_blur|escapejs }}",clipboard:"{{ T.event_clipboard|escapejs }}",shortcut:"{{ T.event_shortcut|escapejs }}",context_menu:"{{ T.event_context_menu|escapejs }}",fullscreen_exit:"{{ T.event_fullscreen_exit|escapejs }}"},
   points: "{{ T.points|escapejs }}",
-  grading: "{{ T.grading|escapejs }}",
-  answer: "{{ T.student_answer|escapejs }}",
-  feedback: "{{ T.teacher_feedback|escapejs }}",
   promptCopied: "{{ T.prompt_copied|escapejs }}",
   jsonApplied: "{{ T.json_applied|escapejs }}",
   copyExam: "{{ T.copy_exam|escapejs }}",
   copyCreated: "{{ T.exam_copy_created|escapejs }}",
   copyFailed: "{{ T.exam_copy_failed|escapejs }}",
+  startExam: "{{ T.start_exam|escapejs }}",
+  stopExam: "{{ T.stop_exam|escapejs }}",
 };
-let exams = [], publicExams = [], classes = [], current = null, editingQuestionId = null, selectedAttemptId = null;
+let exams = [], publicExams = [], classes = [], current = null, editingQuestionId = null;
 let tableDraft = {columns:[{label:""},{label:""},{label:""}],rows:[]};
+const $ = id => document.getElementById(id);
 
-function cookie(name){ return document.cookie.split(";").map(v=>v.trim()).find(v=>v.startsWith(name+"="))?.slice(name.length+1) || ""; }
 function esc(value){ return String(value ?? "").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;"); }
 async function api(url, method="GET", body=null){
-  const opts={method,credentials:"include",headers:{"Accept":"application/json"}};
-  if(method!=="GET"){opts.headers["Content-Type"]="application/json";opts.headers["X-CSRFToken"]=decodeURIComponent(cookie("csrftoken"));opts.body=JSON.stringify(body||{});}
-  const response=await fetch(url,opts); const ct=response.headers.get("content-type")||"";
-  if(!ct.includes("application/json")) return {ok:false,error:`HTTP ${response.status}`};
-  return await response.json();
+  try{ return await UIKit.requestJson(url, {method, body: method === "GET" ? undefined : (body || {})}); }
+  catch(error){ return {ok:false, error:error.message, status:error.status, data:error.data}; }
 }
-function message(text, ok=false){const box=document.getElementById("msg");box.textContent=text||"";box.className="notice "+(text?(ok?"ok":"err"):"");}
+function message(text, ok=false){const box=$("msg");box.textContent=text||"";box.className="notice "+(text?(ok?"ok":"err"):"");}
 function typeLabel(type){return type==="single_choice"?"{{ T.exam_test_question|escapejs }}":type==="matching"?UI.matching:type==="diagram"?UI.diagram:type==="table"?UI.table:UI.openText;}
+
+const examTabs = UIKit.tabs($("examTabs"), {storageKey:"teacher:exams:tab", onChange: name => { if(name==="attempts") loadAttempts(); }});
+const createDialog = UIKit.dialog($("createExamDialog"));
+const jsonDialog = UIKit.dialog($("jsonDialog"));
+const questionDialog = UIKit.dialog($("questionDialog"), {onClose: () => { questionSaver.flush(); resetQuestionForm(); }});
+
+// ----- exam settings: each field saves itself -------------------------------
+const examSaver = UIKit.autosave({
+  status: $("examSaveState"), delay: 700,
+  save: async patch => {
+    const {__id, ...fields} = patch;
+    const data = await api(`/api/teacher/exams/${__id}/`, "PATCH", fields);
+    if(!data.ok) throw UIKit.httpError(data.error || UI.loadFailed, data.status);
+    const row = exams.find(exam => exam.id === __id);
+    if(row) Object.assign(row, {title:data.exam.title, status:data.exam.status, question_count:data.exam.question_count, duration_minutes:data.exam.duration_minutes});
+    if(current && current.id === __id){
+      Object.assign(current, {class_ids:data.exam.class_ids, auto_grade:data.exam.auto_grade, is_shared_template:data.exam.is_shared_template});
+    }
+    renderExamLists();
+    return data;
+  }
+});
+function queueExam(fields, delay){ if(current) examSaver.schedule({...fields, __id: current.id}, delay); }
+$("examTitle").addEventListener("input", e => queueExam({title:e.target.value}));
+$("examTopic").addEventListener("input", e => queueExam({topic:e.target.value}));
+$("examInstructions").addEventListener("input", e => queueExam({instructions:e.target.value}));
+$("examDuration").addEventListener("input", e => { if(Number(e.target.value) > 0) queueExam({duration_minutes:Number(e.target.value)}); });
+$("examShared").addEventListener("change", e => queueExam({is_shared_template:e.target.checked}, 0));
+$("examAutoGrade").addEventListener("change", e => queueExam({auto_grade:e.target.checked}, 0));
+$("classChecks").addEventListener("change", () => queueExam({class_ids:selectedClasses()}, 0));
 
 async function loadAll(){
   const [examData,classData]=await Promise.all([api("/api/teacher/exams/"),api("/api/teacher/classes/")]);
   if(!examData.ok||!classData.ok){message(examData.error||classData.error||UI.loadFailed);return;}
   exams=examData.exams||[];publicExams=examData.public_exams||[];classes=classData.classes||[];renderExamLists();
-  if(current){const still=exams.find(e=>e.id===current.id);if(still)await selectExam(still.id);}
+  const wanted = Number(new URLSearchParams(location.search).get("exam_id")) || current?.id;
+  if(wanted && exams.some(e=>e.id===wanted)) await selectExam(wanted);
 }
 function normalizedSearch(value){return String(value||"").trim().toLocaleLowerCase();}
 function examMatches(exam,query){return !query||normalizedSearch(`${exam.title||""} ${exam.topic||""} ${exam.owner_name||""}`).includes(query);}
 function renderExamLists(){
-  const query=normalizedSearch(document.getElementById("examSearch").value);
+  const query=normalizedSearch($("examSearch").value);
   renderExamList(exams.filter(exam=>examMatches(exam,query)));
-  renderPublicExamList(publicExams.filter(exam=>examMatches(exam,query)));
+  const shared = publicExams.filter(exam=>examMatches(exam,query));
+  $("sharedCount").textContent = shared.length;
+  renderPublicExamList(shared);
 }
 function renderExamList(items){
-  const box=document.getElementById("examList");box.innerHTML="";
+  const box=$("examList");box.innerHTML="";
   if(!items.length){box.innerHTML=`<div class="muted">${esc(UI.noExams)}</div>`;return;}
   items.forEach(exam=>{
     const button=document.createElement("button");button.type="button";button.className="exam-item"+(current?.id===exam.id?" active":"");
@@ -223,7 +276,7 @@ function renderExamList(items){
   });
 }
 function renderPublicExamList(items){
-  const box=document.getElementById("publicExamList");box.innerHTML="";
+  const box=$("publicExamList");box.innerHTML="";
   if(!items.length){box.innerHTML='<div class="muted">—</div>';return;}
   items.forEach(exam=>{
     const row=document.createElement("div");row.className="shared-exam";
@@ -238,31 +291,51 @@ function renderPublicExamList(items){
     message(UI.copyCreated,true);await loadAll();await selectExam(data.exam.id);
   });
 }
+function renderStatus(){
+  const status=$("examStatus");status.textContent=current.status;status.className="pill "+current.status;
+  const running = current.status === "running";
+  const toggle=$("toggleExamBtn");toggle.textContent=running?UI.stopExam:UI.startExam;toggle.className="btn "+(running?"danger":"success");
+}
 async function selectExam(id){
+  await UIKit.flushAll();
   const data=await api(`/api/teacher/exams/${id}/`);if(!data.ok){message(data.error);return;}
-  current=data.exam;editingQuestionId=null;document.getElementById("emptyState").hidden=true;document.getElementById("editor").hidden=false;
-  document.getElementById("examTitle").value=current.title;document.getElementById("examTopic").value=current.topic;
-  document.getElementById("examAutoGrade").checked=!!current.auto_grade;document.getElementById("examAutoGrade").disabled=current.attempt_count>0;document.getElementById("examDuration").value=current.duration_minutes;document.getElementById("examInstructions").value=current.instructions;
-  document.getElementById("examShared").checked=!!current.is_shared_template;
-  const status=document.getElementById("examStatus");status.textContent=current.status;status.className="pill "+current.status;
-  const reportClass=document.getElementById("reportClass"), selectedClass=reportClass.value;
+  current=data.exam;editingQuestionId=null;$("emptyState").hidden=true;$("editor").hidden=false;message("");
+  const url=new URL(location.href);url.searchParams.set("exam_id",id);history.replaceState(null,"",url);
+  $("examTitle").value=current.title;$("examTopic").value=current.topic;
+  $("examAutoGrade").checked=!!current.auto_grade;$("examAutoGrade").disabled=current.attempt_count>0;$("examDuration").value=current.duration_minutes;$("examInstructions").value=current.instructions;
+  $("examShared").checked=!!current.is_shared_template;
+  $("analyticsLink").href=`/teacher/exams/${current.id}/analytics/`;
+  renderStatus();
+  const reportClass=$("reportClass"), selectedClass=reportClass.value;
   reportClass.innerHTML=`<option value="">{{ T.all_classes|escapejs }}</option>`+classes.map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join("");
   if(classes.some(c=>String(c.id)===selectedClass))reportClass.value=selectedClass;
-  const reportButton=document.getElementById("downloadExamReportBtn");reportButton.dataset.examReport=current.id;reportButton.dataset.reportClass=reportClass.value;
-  if(!reportButton.disabled)document.getElementById("reportDownloadStatus").textContent="";
-  renderClasses();renderQuestions();resetQuestionForm();renderExamLists();await loadAttempts();
+  const reportButton=$("downloadExamReportBtn");reportButton.dataset.examReport=current.id;reportButton.dataset.reportClass=reportClass.value;
+  if(!reportButton.disabled)$("reportDownloadStatus").textContent="";
+  $("attemptCount").textContent=current.attempt_count;
+  renderClasses();renderQuestions();resetQuestionForm();renderExamLists();applyLock();
+  if(examTabs.current==="attempts") await loadAttempts();
+}
+// Once a student has started, the server rejects content edits: show that up
+// front instead of letting the teacher type into fields that cannot be saved.
+function examLocked(){return Boolean(current&&current.attempt_count>0);}
+function applyLock(){
+  const locked=examLocked();
+  $("lockedBanner").hidden=!locked;
+  ["examTitle","examTopic","examDuration","examInstructions","examAutoGrade","newQuestionBtn","openJsonBtn","deleteExamBtn"].forEach(id=>$(id).disabled=locked);
+  document.querySelectorAll("#classChecks input").forEach(input=>input.disabled=locked);
 }
 function renderClasses(){
-  const box=document.getElementById("classChecks");box.innerHTML="";
+  const box=$("classChecks");box.innerHTML="";
   classes.forEach(c=>{const label=document.createElement("label");label.className="check";label.innerHTML=`<input type="checkbox" value="${c.id}" ${current.class_ids.includes(c.id)?"checked":""}><span>${esc(c.name)}</span>`;box.appendChild(label);});
 }
 function selectedClasses(){return [...document.querySelectorAll("#classChecks input:checked")].map(i=>Number(i.value));}
 
+// ----- question editor (dialog) ---------------------------------------------
 function addPair(left="",right=""){
   const row=document.createElement("div");row.className="pair-row";
   row.innerHTML=`<input class="input pair-left" value="${esc(left)}"><span>-></span><input class="input pair-right" value="${esc(right)}"><button class="btn danger pair-remove" type="button">x</button>`;
-  row.querySelector(".pair-remove").onclick=()=>{if(document.querySelectorAll(".pair-row").length>2)row.remove();};
-  document.getElementById("pairsBox").appendChild(row);
+  row.querySelector(".pair-remove").onclick=()=>{if(document.querySelectorAll(".pair-row").length>2){row.remove();scheduleQuestionSave();}};
+  $("pairsBox").appendChild(row);
 }
 function freshTableCell(columnIndex){return columnIndex===0?{mode:"given",value:""}:{mode:"input",answer:""};}
 function resetTableDraft(){
@@ -275,99 +348,114 @@ function loadTableDraft(schema){
   tableDraft={columns:(schema?.columns||[]).map(c=>({label:c.label||""})),rows:(schema?.rows||[]).map(r=>({cells:(r.cells||[]).map(c=>c.mode==="input"?{mode:"input",answer:c.answer||""}:{mode:"given",value:c.value||""})}))};
   if(tableDraft.columns.length<2)resetTableDraft();else renderTableBuilder();
 }
-function addTableColumn(){if(tableDraft.columns.length>=8)return;tableDraft.columns.push({label:""});tableDraft.rows.forEach(r=>r.cells.push({mode:"input",answer:""}));renderTableBuilder();}
-function removeTableColumn(index){if(tableDraft.columns.length<=2)return;tableDraft.columns.splice(index,1);tableDraft.rows.forEach(r=>r.cells.splice(index,1));renderTableBuilder();}
-function addTableRow(){if(tableDraft.rows.length>=30)return;tableDraft.rows.push({cells:tableDraft.columns.map((_,i)=>freshTableCell(i))});renderTableBuilder();}
+function addTableColumn(){if(tableDraft.columns.length>=8)return;tableDraft.columns.push({label:""});tableDraft.rows.forEach(r=>r.cells.push({mode:"input",answer:""}));renderTableBuilder();scheduleQuestionSave();}
+function removeTableColumn(index){if(tableDraft.columns.length<=2)return;tableDraft.columns.splice(index,1);tableDraft.rows.forEach(r=>r.cells.splice(index,1));renderTableBuilder();scheduleQuestionSave();}
+function addTableRow(){if(tableDraft.rows.length>=30)return;tableDraft.rows.push({cells:tableDraft.columns.map((_,i)=>freshTableCell(i))});renderTableBuilder();scheduleQuestionSave();}
 function renderTableBuilder(){
-  const table=document.getElementById("tableBuilder");if(!table)return;const head=document.createElement("thead"),headRow=document.createElement("tr");
+  const table=$("tableBuilder");if(!table)return;const head=document.createElement("thead"),headRow=document.createElement("tr");
   tableDraft.columns.forEach((column,columnIndex)=>{const th=document.createElement("th");th.innerHTML=`<div class="table-cell"><input class="input table-column-label" value="${esc(column.label)}" placeholder="${esc(UI.columnName)}"><button class="btn danger remove-column" type="button" ${tableDraft.columns.length<=2?"disabled":""}>x</button></div>`;th.querySelector(".table-column-label").oninput=e=>column.label=e.target.value;th.querySelector(".remove-column").onclick=()=>removeTableColumn(columnIndex);headRow.appendChild(th);});
   headRow.insertAdjacentHTML("beforeend","<th></th>");head.appendChild(headRow);const body=document.createElement("tbody");
-  tableDraft.rows.forEach((row,rowIndex)=>{const tr=document.createElement("tr");row.cells.forEach((cell,columnIndex)=>{const td=document.createElement("td"),value=cell.mode==="input"?(cell.answer||""):(cell.value||"");td.innerHTML=`<div class="table-cell"><select class="select table-cell-mode"><option value="given" ${cell.mode==="given"?"selected":""}>${esc(UI.shownCell)}</option><option value="input" ${cell.mode==="input"?"selected":""}>${esc(UI.inputCell)}</option></select><input class="input table-cell-value" value="${esc(value)}" placeholder="${esc(cell.mode==="input"?UI.expectedAnswer:UI.cellValue)}"></div>`;const mode=td.querySelector(".table-cell-mode"),input=td.querySelector(".table-cell-value");mode.onchange=()=>{const previous=input.value;row.cells[columnIndex]=mode.value==="input"?{mode:"input",answer:previous}:{mode:"given",value:previous};renderTableBuilder();};input.oninput=()=>{if(cell.mode==="input")cell.answer=input.value;else cell.value=input.value;};tr.appendChild(td);});const action=document.createElement("td");action.innerHTML=`<button class="btn danger" type="button" ${tableDraft.rows.length<=1?"disabled":""}>x</button>`;action.querySelector("button").onclick=()=>{if(tableDraft.rows.length>1){tableDraft.rows.splice(rowIndex,1);renderTableBuilder();}};tr.appendChild(action);body.appendChild(tr);});table.replaceChildren(head,body);
+  tableDraft.rows.forEach((row,rowIndex)=>{const tr=document.createElement("tr");row.cells.forEach((cell,columnIndex)=>{const td=document.createElement("td"),value=cell.mode==="input"?(cell.answer||""):(cell.value||"");td.innerHTML=`<div class="table-cell"><select class="select table-cell-mode"><option value="given" ${cell.mode==="given"?"selected":""}>${esc(UI.shownCell)}</option><option value="input" ${cell.mode==="input"?"selected":""}>${esc(UI.inputCell)}</option></select><input class="input table-cell-value" value="${esc(value)}" placeholder="${esc(cell.mode==="input"?UI.expectedAnswer:UI.cellValue)}"></div>`;const mode=td.querySelector(".table-cell-mode"),input=td.querySelector(".table-cell-value");mode.onchange=()=>{const previous=input.value;row.cells[columnIndex]=mode.value==="input"?{mode:"input",answer:previous}:{mode:"given",value:previous};renderTableBuilder();};input.oninput=()=>{if(cell.mode==="input")cell.answer=input.value;else cell.value=input.value;};tr.appendChild(td);});const action=document.createElement("td");action.innerHTML=`<button class="btn danger" type="button" ${tableDraft.rows.length<=1?"disabled":""}>x</button>`;action.querySelector("button").onclick=()=>{if(tableDraft.rows.length>1){tableDraft.rows.splice(rowIndex,1);renderTableBuilder();scheduleQuestionSave();}};tr.appendChild(action);body.appendChild(tr);});table.replaceChildren(head,body);
 }
 function addChoice(choice={}){
-  const box=document.getElementById("choicesBox");if(box.children.length>=12)return;
+  const box=$("choicesBox");if(box.children.length>=12)return;
   const row=document.createElement("div");row.className="choice-editor-row";
   row.style.cssText="display:flex;gap:10px;align-items:center;margin:8px 0";
   row.innerHTML=`<input type="radio" name="correctChoice" aria-label="{{ T.exam_correct_option|escapejs }}" ${choice.is_correct?'checked':''}>
     <textarea class="input choice-text" rows="2" maxlength="4000" aria-label="{{ T.exam_option_text|escapejs }}" style="flex:1;min-width:0">${esc(choice.text||'')}</textarea>
     <button class="btn danger" type="button" aria-label="{{ T.delete|escapejs }}">×</button>`;
-  row.querySelector("button").onclick=()=>{if(box.children.length>2)row.remove();};box.appendChild(row);
+  row.querySelector("button").onclick=()=>{if(box.children.length>2){row.remove();scheduleQuestionSave();}};box.appendChild(row);
 }
-document.getElementById("addChoiceBtn").onclick=()=>addChoice();
 function resetQuestionForm(){
-  document.getElementById("choicesBox").replaceChildren();addChoice({is_correct:true});addChoice();
-  editingQuestionId=null;document.getElementById("qPosition").value=current?.next_question_position||1;
-  document.getElementById("qType").value="open_text";document.getElementById("qPrompt").value="";document.getElementById("qImage").value="";
-  document.getElementById("qModelAnswer").value="";document.getElementById("qScore").value="1";
-  document.getElementById("pairsBox").innerHTML="";addPair();addPair();resetTableDraft();toggleQuestionFields();
-  document.getElementById("saveQuestionBtn").textContent="{{ T.add_question|escapejs }}";document.getElementById("cancelQuestionBtn").hidden=true;
+  $("choicesBox").replaceChildren();addChoice({is_correct:true});addChoice();
+  editingQuestionId=null;$("qPosition").value=current?.next_question_position||1;
+  $("qType").value="open_text";$("qPrompt").value="";$("qImage").value="";
+  $("qModelAnswer").value="";$("qScore").value="1";
+  $("pairsBox").innerHTML="";addPair();addPair();resetTableDraft();toggleQuestionFields();
+  $("questionDialogTitle").textContent=UI.addQuestion;
+  $("saveQuestionBtn").textContent=UI.addQuestion;$("cancelQuestionBtn").hidden=false;
+  $("questionDialogMsg").textContent="";$("questionSaveState").hidden=true;
 }
-function toggleQuestionFields(){const type=document.getElementById("qType").value;document.getElementById("pairsEditor").hidden=type!=="matching";document.getElementById("tableEditor").hidden=type!=="table";document.getElementById("choicesEditor").hidden=type!=="single_choice";document.getElementById("modelAnswerField").hidden=["table","single_choice"].includes(type);if(type==="table")document.getElementById("qModelAnswer").value="";}
+function toggleQuestionFields(){const type=$("qType").value;$("pairsEditor").hidden=type!=="matching";$("tableEditor").hidden=type!=="table";$("choicesEditor").hidden=type!=="single_choice";$("modelAnswerField").hidden=["table","single_choice"].includes(type);if(type==="table")$("qModelAnswer").value="";}
 function collectQuestion(){
-  const type=document.getElementById("qType").value;
-  const payload={position:Number(document.getElementById("qPosition").value),question_type:type,prompt:document.getElementById("qPrompt").value,image_url:document.getElementById("qImage").value,max_score:document.getElementById("qScore").value};
+  const type=$("qType").value;
+  const payload={position:Number($("qPosition").value),question_type:type,prompt:$("qPrompt").value,image_url:$("qImage").value,max_score:$("qScore").value};
   if(type==="single_choice")payload.choices=[...document.querySelectorAll(".choice-editor-row")].map(row=>({text:row.querySelector("textarea").value,is_correct:row.querySelector("input").checked}));
-  if(!["table","single_choice"].includes(type))payload.model_answer=document.getElementById("qModelAnswer").value;
+  if(!["table","single_choice"].includes(type))payload.model_answer=$("qModelAnswer").value;
   if(type==="matching")payload.pairs=[...document.querySelectorAll(".pair-row")].map((row,i)=>({position:i+1,left_text:row.querySelector(".pair-left").value,right_text:row.querySelector(".pair-right").value}));
   if(type==="table")payload.table_schema={columns:tableDraft.columns.map(c=>({label:c.label})),rows:tableDraft.rows.map(r=>({cells:r.cells.map(cell=>({...cell}))}))};
   return payload;
 }
 function renderQuestions(){
-  const box=document.getElementById("questionList");box.innerHTML="";
-  if(!current.questions.length){box.innerHTML=`<div class="muted">${esc(UI.noQuestions)}</div>`;return;}
+  const box=$("questionList");box.innerHTML="";
+  $("questionCount").textContent=current.questions.length;
+  if(!current.questions.length){box.innerHTML=`<div class="ui-empty">${esc(UI.noQuestions)}</div>`;return;}
   current.questions.forEach(q=>{
     const card=document.createElement("div");card.className="question-card";
-    card.innerHTML=`<div class="question-head"><div><b>${q.position}. ${esc(typeLabel(q.question_type))}</b> <span class="pill">${q.max_score} ${esc(UI.points)}</span></div><div class="row"><button class="btn q-edit" type="button">${esc(UI.edit)}</button><button class="btn danger q-delete" type="button">${esc(UI.deleteText)}</button></div></div><div class="question-text">${esc(q.prompt)}</div>${q.image_url?`<div class="meta">${esc(q.image_url)}</div>`:""}`;
-    card.querySelector(".q-edit").onclick=()=>editQuestion(q);card.querySelector(".q-delete").onclick=()=>deleteQuestion(q.id);box.appendChild(card);
+    const actions=examLocked()?"":`<div class="row"><button class="btn q-edit" type="button">${esc(UI.edit)}</button><button class="btn danger q-delete" type="button">${esc(UI.deleteText)}</button></div>`;
+    card.innerHTML=`<div class="question-head"><div><b>${q.position}. ${esc(typeLabel(q.question_type))}</b> <span class="pill">${q.max_score} ${esc(UI.points)}</span></div>${actions}</div><div class="question-text">${esc(q.prompt)}</div>${q.image_url?`<div class="meta">${esc(q.image_url)}</div>`:""}`;
+    if(!examLocked()){card.querySelector(".q-edit").onclick=()=>editQuestion(q);card.querySelector(".q-delete").onclick=()=>deleteQuestion(q.id);}
+    box.appendChild(card);
   });
 }
 function editQuestion(q){
-  document.getElementById("choicesBox").replaceChildren();(q.choices?.length?q.choices:[{is_correct:true},{}]).forEach(addChoice);
-  editingQuestionId=q.id;document.getElementById("qPosition").value=q.position;document.getElementById("qType").value=q.question_type;
-  document.getElementById("qPrompt").value=q.prompt;document.getElementById("qImage").value=q.image_url;document.getElementById("qModelAnswer").value=q.model_answer;document.getElementById("qScore").value=q.max_score;
-  document.getElementById("pairsBox").innerHTML="";(q.pairs||[]).forEach(p=>addPair(p.left_text,p.right_text));if((q.pairs||[]).length<2){addPair();addPair();}
+  resetQuestionForm();
+  $("choicesBox").replaceChildren();(q.choices?.length?q.choices:[{is_correct:true},{}]).forEach(addChoice);
+  editingQuestionId=q.id;$("qPosition").value=q.position;$("qType").value=q.question_type;
+  $("qPrompt").value=q.prompt;$("qImage").value=q.image_url;$("qModelAnswer").value=q.model_answer;$("qScore").value=q.max_score;
+  $("pairsBox").innerHTML="";(q.pairs||[]).forEach(p=>addPair(p.left_text,p.right_text));if((q.pairs||[]).length<2){addPair();addPair();}
   if(q.question_type==="table")loadTableDraft(q.table_schema);else resetTableDraft();
-  toggleQuestionFields();document.getElementById("saveQuestionBtn").textContent=UI.save;document.getElementById("cancelQuestionBtn").hidden=false;document.getElementById("qPrompt").scrollIntoView({behavior:"smooth",block:"center"});
+  toggleQuestionFields();
+  $("questionDialogTitle").textContent=`${UI.edit} · #${q.position}`;
+  $("saveQuestionBtn").textContent=UI.done;$("cancelQuestionBtn").hidden=true;
+  questionDialog.open();
 }
-async function reloadCurrent(){const data=await api(`/api/teacher/exams/${current.id}/`);if(data.ok){current=data.exam;renderQuestions();renderExamLists();resetQuestionForm();}}
+// Editing an existing question saves on change; validation errors stay visible
+// in the dialog until the teacher fixes them.
+const questionSaver = UIKit.autosave({
+  status: $("questionSaveState"), delay: 900,
+  save: async () => {
+    if(!editingQuestionId) return;
+    const data = await api(`/api/teacher/exam-questions/${editingQuestionId}/`, "PATCH", collectQuestion());
+    if(!data.ok) throw UIKit.httpError(data.error, data.status);
+    await reloadQuestions();
+    return data;
+  }
+});
+function scheduleQuestionSave(){ if(editingQuestionId) questionSaver.schedule({}); }
+["input","change"].forEach(type => $("questionForm").addEventListener(type, scheduleQuestionSave));
+async function reloadQuestions(){const data=await api(`/api/teacher/exams/${current.id}/`);if(data.ok){current.questions=data.exam.questions;current.next_question_position=data.exam.next_question_position;renderQuestions();const row=exams.find(e=>e.id===current.id);if(row){row.question_count=current.questions.length;renderExamLists();}}}
+$("saveQuestionBtn").onclick=async()=>{
+  if(editingQuestionId){await questionSaver.flush();if(!questionSaver.pending())questionDialog.close();return;}
+  const button=$("saveQuestionBtn");button.disabled=true;
+  const data=await api(`/api/teacher/exams/${current.id}/questions/`,"POST",collectQuestion());
+  button.disabled=false;
+  if(!data.ok){$("questionDialogMsg").textContent=data.error;return;}
+  message(UI.questionSaved,true);questionDialog.close();await reloadQuestions();
+};
+async function deleteQuestion(id){if(!confirm(UI.confirmSubmitDelete))return;const data=await api(`/api/teacher/exam-questions/${id}/`,"DELETE");if(!data.ok){message(data.error);return;}message(UI.questionDeleted,true);await reloadQuestions();}
+$("newQuestionBtn").onclick=()=>{resetQuestionForm();questionDialog.open();};
+$("qType").onchange=toggleQuestionFields;$("addChoiceBtn").onclick=()=>{addChoice();scheduleQuestionSave();};$("addPairBtn").onclick=()=>{addPair();scheduleQuestionSave();};$("addTableColumnBtn").onclick=addTableColumn;$("addTableRowBtn").onclick=addTableRow;
 
-function normalizedCell(value){return String(value??"").trim().toLocaleLowerCase();}
-function renderTableReview(question,answer){
-  const schema=question.table_schema||{},values=answer.table_answer||{};let html='<div class="review-table-wrap"><table class="review-table"><thead><tr>';
-  (schema.columns||[]).forEach(column=>html+=`<th>${esc(column.label)}</th>`);html+='</tr></thead><tbody>';
-  (schema.rows||[]).forEach(row=>{html+='<tr>';(row.cells||[]).forEach(cell=>{if(cell.mode==="given")html+=`<td class="given">${esc(cell.value||"")}</td>`;else{const actual=values[cell.key]||"",hasExpected=normalizedCell(cell.answer)!=="",correct=hasExpected&&normalizedCell(actual)===normalizedCell(cell.answer);html+=`<td class="${hasExpected?(correct?"correct":"incorrect"):""}"><b>${esc(actual||"-")}</b>${hasExpected?`<div class="meta">${esc(UI.expectedAnswer)}: ${esc(cell.answer)}</div>`:""}</td>`;}});html+='</tr>';});
-  return html+'</tbody></table></div>';
-}
-function renderIntegrity(data){
-  const box=document.getElementById("integrityPanel");if(!box)return;const events=data.integrity_events||[];
-  box.innerHTML=`<b>${esc(UI.violations)}: ${data.attempt.integrity_event_count||0}</b><div class="integrity-events"></div>`;const list=box.querySelector(".integrity-events");
-  if(!events.length){list.innerHTML=`<div class="integrity-empty">${esc(UI.noViolations)}</div>`;return;}
-  events.forEach(event=>{const row=document.createElement("div");row.className="integrity-event";const label=UI.eventTypes[event.event_type]||event.event_type;row.innerHTML=`<span><b>${esc(label)}</b>${event.detail?` | ${esc(event.detail)}`:""}</span><time>${esc(new Date(event.created_at).toLocaleTimeString())}</time>`;list.appendChild(row);});
-}
+// ----- attempts: polled only while the tab is open and the page visible -----
 async function loadAttempts(){
-  if(!current)return;const data=await api(`/api/teacher/exams/${current.id}/attempts/`);const box=document.getElementById("attemptList");box.innerHTML="";
-  if(!data.ok){box.innerHTML=`<div class="muted">${esc(data.error)}</div>`;return;}if(!data.attempts.length){box.innerHTML=`<div class="muted">${esc(UI.noAttempts)}</div>`;return;}
-  data.attempts.forEach(a=>{const div=document.createElement("button");div.type="button";div.className="attempt";const badge=a.integrity_event_count?` <span class="integrity-badge">! ${a.integrity_event_count}</span>`:"";div.innerHTML=`<b>${esc(a.student_name)}${badge}</b><div class="meta">${esc(a.class_name)} | ${esc(a.status)} | ${a.total_score}</div>`;div.onclick=()=>window.location.assign(`/teacher/exams/attempts/${a.id}/grade/`);box.appendChild(div);});
+  if(!current)return;const data=await api(`/api/teacher/exams/${current.id}/attempts/`);const box=$("attemptList");
+  if(!data.ok){box.innerHTML=`<div class="muted">${esc(data.error)}</div>`;return;}
+  $("attemptCount").textContent=data.attempts.length;
+  if(!data.attempts.length){box.innerHTML=`<div class="ui-empty">${esc(UI.noAttempts)}</div>`;return;}
+  box.innerHTML="";
+  data.attempts.forEach(a=>{const div=document.createElement("a");div.className="attempt";div.href=`/teacher/exams/attempts/${a.id}/grade/`;div.style.textDecoration="none";div.style.color="inherit";const badge=a.integrity_event_count?` <span class="integrity-badge">! ${a.integrity_event_count}</span>`:"";div.innerHTML=`<b>${esc(a.student_name)}${badge}</b><div class="meta">${esc(a.class_name)} | ${esc(a.status)} | ${a.total_score}</div>`;box.appendChild(div);});
 }
-async function reviewAttempt(id){
-  const data=await api(`/api/teacher/exam-attempts/${id}/`);if(!data.ok){message(data.error);return;}selectedAttemptId=id;const box=document.getElementById("attemptReview");box.innerHTML=`<div class="section-title" style="margin-top:14px">${esc(data.attempt.student_name)}</div><div id="integrityPanel" class="integrity-panel"></div>`;renderIntegrity(data);
-  data.answers.forEach(row=>{const q=row.question,a=row.answer;const div=document.createElement("div");div.className="answer-review";let body;
-    if(["open_text","single_choice"].includes(q.question_type))body=esc(a.text_answer);else if(q.question_type==="diagram")body=a.diagram_file_url?`<a href="${esc(a.diagram_file_url)}" target="_blank" rel="noopener">Google Drive</a>`:"Diagram XML saved";else if(q.question_type==="table")body=renderTableReview(q,a);else body=(row.matching_rows||[]).map(x=>`${esc(x.left_text)} -> ${esc(x.selected_right_text||"-")}`).join("<br>");
-    div.innerHTML=`<b>${q.position}. ${esc(q.prompt)}</b><div class="meta">${q.max_score} ${esc(UI.points)}</div><div class="answer-body">${body||"-"}</div><div class="row"><label class="field" style="max-width:150px"><span>${esc(UI.grading)}</span><select class="input grade">${gradeOptions(q.max_score,row.awarded_score)}</select></label><label class="field"><span>${esc(UI.feedback)}</span><input class="input feedback" value="${esc(row.teacher_feedback||"")}"></label><button class="btn primary save-grade" type="button" ${row.answer_id?"":"disabled"}>${esc(UI.save)}</button></div>`;
-    div.querySelector(".save-grade").onclick=async()=>{const result=await api(`/api/teacher/exam-answers/${row.answer_id}/grade/`,"PATCH",{awarded_score:div.querySelector(".grade").value,teacher_feedback:div.querySelector(".feedback").value});message(result.ok?UI.saved:result.error,result.ok);if(result.ok)loadAttempts();};box.appendChild(div);
-  });
-}
-async function refreshIntegrity(){if(!selectedAttemptId)return;const data=await api(`/api/teacher/exam-attempts/${selectedAttemptId}/`);if(data.ok)renderIntegrity(data);}
-document.getElementById("createExamBtn").onclick=async()=>{const title=document.getElementById("newExamTitle").value.trim();const data=await api("/api/teacher/exams/","POST",{title});if(!data.ok){message(data.error);return;}message(UI.created,true);document.getElementById("newExamTitle").value="";await loadAll();await selectExam(data.exam.id);};
-document.getElementById("saveExamBtn").onclick=async()=>{const data=await api(`/api/teacher/exams/${current.id}/`,"PATCH",{title:document.getElementById("examTitle").value,topic:document.getElementById("examTopic").value,instructions:document.getElementById("examInstructions").value,duration_minutes:Number(document.getElementById("examDuration").value),class_ids:selectedClasses(),auto_grade:document.getElementById("examAutoGrade").checked,is_shared_template:document.getElementById("examShared").checked});if(!data.ok){message(data.error);return;}current=data.exam;message(UI.saved,true);await loadAll();};
-document.getElementById("startExamBtn").onclick=async()=>{const data=await api(`/api/teacher/exams/${current.id}/`,"PATCH",{status:"running"});message(data.ok?UI.saved:data.error,data.ok);if(data.ok){current=data.exam;await loadAll();}};
-document.getElementById("stopExamBtn").onclick=async()=>{const data=await api(`/api/teacher/exams/${current.id}/`,"PATCH",{status:"stopped"});message(data.ok?UI.saved:data.error,data.ok);if(data.ok){current=data.exam;await loadAll();}};
-document.getElementById("deleteExamBtn").onclick=async()=>{if(!confirm(UI.confirmDelete))return;const data=await api(`/api/teacher/exams/${current.id}/`,"DELETE");if(!data.ok){message(data.error);return;}current=null;document.getElementById("editor").hidden=true;document.getElementById("emptyState").hidden=false;message(UI.deleted,true);await loadAll();};
-document.getElementById("qType").onchange=toggleQuestionFields;document.getElementById("addPairBtn").onclick=()=>addPair();document.getElementById("addTableColumnBtn").onclick=addTableColumn;document.getElementById("addTableRowBtn").onclick=addTableRow;document.getElementById("cancelQuestionBtn").onclick=resetQuestionForm;
-document.getElementById("saveQuestionBtn").onclick=async()=>{const url=editingQuestionId?`/api/teacher/exam-questions/${editingQuestionId}/`:`/api/teacher/exams/${current.id}/questions/`;const data=await api(url,editingQuestionId?"PATCH":"POST",collectQuestion());if(!data.ok){message(data.error);return;}message(UI.questionSaved,true);await reloadCurrent();};
-async function deleteQuestion(id){if(!confirm(UI.confirmSubmitDelete))return;const data=await api(`/api/teacher/exam-questions/${id}/`,"DELETE");if(!data.ok){message(data.error);return;}message(UI.questionDeleted,true);await reloadCurrent();}
-document.getElementById("refreshAttemptsBtn").onclick=loadAttempts;
-document.getElementById("reportClass").onchange=event=>document.getElementById("downloadExamReportBtn").dataset.reportClass=event.target.value;
+setInterval(()=>{if(current&&examTabs.current==="attempts"&&document.visibilityState==="visible")loadAttempts();},10000);
+
+// ----- exam actions ---------------------------------------------------------
+$("openCreateExamBtn").onclick=()=>createDialog.open();
+$("newExamTitle").addEventListener("keydown",e=>{if(e.key==="Enter")$("createExamBtn").click();});
+$("createExamBtn").onclick=async()=>{const title=$("newExamTitle").value.trim();if(!title){$("newExamTitle").focus();return;}const data=await api("/api/teacher/exams/","POST",{title});if(!data.ok){message(data.error);return;}createDialog.close();message(UI.created,true);$("newExamTitle").value="";await loadAll();await selectExam(data.exam.id);examTabs.show("questions");};
+$("toggleExamBtn").onclick=async()=>{await examSaver.flush();const status=current.status==="running"?"stopped":"running";const data=await api(`/api/teacher/exams/${current.id}/`,"PATCH",{status});message(data.ok?UI.saved:data.error,data.ok);if(data.ok){current.status=data.exam.status;renderStatus();const row=exams.find(e=>e.id===current.id);if(row)row.status=data.exam.status;renderExamLists();}};
+$("deleteExamBtn").onclick=async()=>{if(!confirm(UI.confirmDelete))return;examSaver.cancel();const data=await api(`/api/teacher/exams/${current.id}/`,"DELETE");if(!data.ok){message(data.error);return;}current=null;$("editor").hidden=true;$("emptyState").hidden=false;const url=new URL(location.href);url.searchParams.delete("exam_id");history.replaceState(null,"",url);await loadAll();};
+$("reportClass").onchange=event=>$("downloadExamReportBtn").dataset.reportClass=event.target.value;
+$("examSearch").addEventListener("input",renderExamLists);
 
 function buildAgentPrompt(){
   const snapshot=current?{
@@ -429,9 +517,9 @@ To change only a table question prompt, score, image, or position, omit table_sc
 
 Do not expose expected table answers in prompt text fields. Do not add unknown fields. Validate that positions remain unique.`;
 }
-document.getElementById("copyPromptBtn").onclick=async()=>{await navigator.clipboard.writeText(buildAgentPrompt());message(UI.promptCopied,true);};document.getElementById("applyJsonBtn").onclick=async()=>{let payload;try{payload=JSON.parse(document.getElementById("jsonCommands").value);}catch(e){message("Invalid JSON: "+e.message);return;}const data=await api("/api/teacher/exams/import-json/","POST",payload);if(!data.ok){message(data.error);return;}message(UI.jsonApplied,true);await loadAll();await selectExam(data.exam.id);};
-document.getElementById("examSearch").addEventListener("input",renderExamLists);
+$("openJsonBtn").onclick=()=>{$("jsonMsg").textContent="";jsonDialog.open();};
+$("copyPromptBtn").onclick=async()=>{await navigator.clipboard.writeText(buildAgentPrompt());$("jsonMsg").textContent=UI.promptCopied;};
+$("applyJsonBtn").onclick=async()=>{let payload;try{payload=JSON.parse($("jsonCommands").value);}catch(e){$("jsonMsg").textContent="Invalid JSON: "+e.message;return;}const data=await api("/api/teacher/exams/import-json/","POST",payload);if(!data.ok){$("jsonMsg").textContent=data.error;return;}jsonDialog.close();$("jsonCommands").value="";message(UI.jsonApplied,true);await loadAll();await selectExam(data.exam.id);};
 loadAll();
-setInterval(()=>{if(current){loadAttempts();refreshIntegrity();}},5000);
 </script>
 {% endblock %}

@@ -30,8 +30,22 @@
     @media(max-width:420px){.topbar .actions{width:100%;justify-content:space-between}.shell{padding:8px;gap:8px}.workspace{padding:10px}.brand{font-size:18px}.question{padding:10px}.exam-head{padding-bottom:12px}.question-prompt{line-height:1.5}.account-line{max-width:100%}}
     @media(max-width:880px){.submit-row{margin-left:48px}}
     @media(max-width:420px){.integrity-badge{order:4;flex-basis:100%;text-align:center;padding:4px}}
+    .shell.focus{grid-template-columns:minmax(0,1fr);max-width:1100px}
+    .shell.focus .sidebar{position:static}
+    .exam-nav{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between;margin:0 0 12px}
+    .nav-chips{display:flex;flex-wrap:wrap;gap:6px}
+    .nav-chip{min-width:38px;height:38px;border-radius:10px;border:1px solid var(--line);background:#fff;font:800 14px "Segoe UI",sans-serif;cursor:pointer;color:var(--ink)}
+    .nav-chip.answered{background:#dcfce7;border-color:#86efac;color:#166534}
+    .nav-chip.dirty{border-style:dashed;border-color:#0284c7}
+    .nav-chip.current{outline:3px solid #38bdf8;outline-offset:1px}
+    .nav-meta{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+    .other-tab{position:fixed;inset:0;z-index:150;display:flex;align-items:center;justify-content:center;padding:20px;background:rgba(2,6,23,.82)}
+    .other-tab-card{max-width:460px;background:#fff;border-radius:16px;padding:22px;text-align:center;box-shadow:0 30px 80px rgba(0,0,0,.4)}
+    html[data-theme="dark"] .nav-chip,html[data-theme="dark"] .other-tab-card{background:rgba(18,23,29,.96);color:var(--theme-text);border-color:var(--theme-surface-soft)}
+    html[data-theme="dark"] .nav-chip.answered{background:rgba(22,101,52,.35);color:#bbf7d0}
   </style>
   {% include "core/_theme_support.html" %}
+  <link rel="stylesheet" href="{% static 'core/ui_kit.css' %}">
 </head>
 <body class="student-exams">
 <header class="topbar">
@@ -44,7 +58,7 @@
   </div>
 </header>
 
-<div class="shell">
+<div class="shell" id="shell">
   <details class="panel sidebar" id="examPicker" open>
     <summary class="title">{{ T.available_exams }}</summary>
     <div class="muted">{{ T.exam_start_note }}</div>
@@ -58,10 +72,17 @@
         <div id="examTopic" class="muted"></div>
         <div id="examInstructions" class="instructions"></div>
       </div>
+      <div id="concurrentBanner" class="ui-banner danger" role="alert" hidden></div>
+      <div class="exam-nav">
+        <div class="nav-chips" id="questionNav" aria-label="{{ T.questions }}"></div>
+        <div class="nav-meta"><span id="answeredInfo" class="muted"></span><button id="viewModeBtn" class="btn" type="button"></button></div>
+      </div>
       <div id="closedState" class="closed" hidden></div>
       <div id="questions"></div>
       <div id="submitRow" class="submit-row">
-        <span id="globalSave" class="muted"></span>
+        <button id="prevQuestionBtn" class="btn" type="button">{{ T.exam_prev }}</button>
+        <button id="nextQuestionBtn" class="btn primary" type="button">{{ T.exam_next }}</button>
+        <span id="globalSave" class="muted" style="margin-left:auto"></span>
         <button id="submitBtn" class="btn danger" type="button">{{ T.submit_exam }}</button>
       </div>
     </div>
@@ -75,7 +96,14 @@
   </div>
   <iframe id="diagramFrame" class="diagram-frame" title="draw.io"></iframe>
 </div>
-<div id="notice" class="notice"></div>
+<div id="notice" class="notice" role="status" aria-live="polite"></div>
+<div id="otherTabOverlay" class="other-tab" hidden>
+  <div class="other-tab-card" role="alertdialog" aria-labelledby="otherTabTitle">
+    <h2 id="otherTabTitle">{{ T.exam_other_tab_title }}</h2>
+    <p class="muted">{{ T.exam_other_tab_text }}</p>
+    <button id="continueHereBtn" class="btn primary" type="button">{{ T.exam_continue_here }}</button>
+  </div>
+</div>
 
 <script>
 const UI={
@@ -84,78 +112,192 @@ const UI={
   confirmSubmit:"{{ T.confirm_submit_exam|escapejs }}",saved:"{{ T.answer_saved|escapejs }}",saving:"{{ T.saving|escapejs }}",
   saveFailed:"{{ T.answer_save_failed|escapejs }}",selectMatch:"{{ T.select_match|escapejs }}",openDiagram:"{{ T.open_diagram|escapejs }}",
   diagramSaved:"{{ T.diagram_saved|escapejs }}",points:"{{ T.points|escapejs }}",loadFailed:"{{ T.failed_load_exams|escapejs }}",
-  integrityWarning:"{{ T.integrity_warning|escapejs }}",integrityCount:"{{ T.integrity_count|escapejs }}"
+  integrityWarning:"{{ T.integrity_warning|escapejs }}",integrityCount:"{{ T.integrity_count|escapejs }}",
+  retrying:"{{ T.autosave_retrying|escapejs }}",conflict:"{{ T.exam_conflict_notice|escapejs }}",concurrent:"{{ T.exam_concurrent_warning|escapejs }}",
+  answered:"{{ T.exam_answered|escapejs }}",viewAll:"{{ T.exam_view_all|escapejs }}",viewOne:"{{ T.exam_view_one|escapejs }}",
+  unansweredConfirm:"{{ T.exam_unanswered_confirm|escapejs }}",pendingSaves:"{{ T.exam_pending_saves|escapejs }}",
+  leave:"{{ T.unsaved_changes_leave|escapejs }}",question:"{{ T.question|escapejs }}"
 };
 let exams=[],activeExam=null,activeAttempt=null,questions=[],timerHandle=null,saveTimers=new Map(),diagramQuestion=null;
 let integrityQueue=[],integrityFlushTimer=null,integrityCount=0,lastIntegritySignature="",lastIntegrityAt=0,fullscreenWasActive=false;
+let viewMode=localStorage.getItem("exam:view-mode")==="all"?"all":"one",currentIndex=0,clientId="",tabChannel=null,blockedByOtherTab=false;
+const $=id=>document.getElementById(id);
 function cookie(name){return document.cookie.split(";").map(v=>v.trim()).find(v=>v.startsWith(name+"="))?.slice(name.length+1)||"";}
 function esc(v){return String(v??"").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;");}
-async function api(url,method="GET",body=null){const opts={method,credentials:"include",headers:{"Accept":"application/json"}};if(method!=="GET"){opts.headers["Content-Type"]="application/json";opts.headers["X-CSRFToken"]=decodeURIComponent(cookie("csrftoken"));opts.body=JSON.stringify(body||{});}const r=await fetch(url,opts),ct=r.headers.get("content-type")||"";if(!ct.includes("application/json"))return{ok:false,error:`HTTP ${r.status}`};return r.json();}
-function notify(text){const box=document.getElementById("notice");box.textContent=text;box.classList.add("show");setTimeout(()=>box.classList.remove("show"),2800);}
+async function api(url,method="GET",body=null){const opts={method,credentials:"include",headers:{"Accept":"application/json"}};if(method!=="GET"){opts.headers["Content-Type"]="application/json";opts.headers["X-CSRFToken"]=decodeURIComponent(cookie("csrftoken"));opts.body=JSON.stringify(body||{});}const r=await fetch(url,opts),ct=r.headers.get("content-type")||"";if(!ct.includes("application/json"))return{ok:false,error:`HTTP ${r.status}`,_status:r.status};const data=await r.json();data._status=r.status;return data;}
+function notify(text){const box=$("notice");box.textContent=text;box.classList.add("show");clearTimeout(notify.timer);notify.timer=setTimeout(()=>box.classList.remove("show"),3500);}
 function attemptStatus(exam){return exam.attempt?.status||"not_started";}
-async function loadExams(){const data=await api("/api/student/exams/");if(!data.ok){notify(data.error||UI.loadFailed);return;}exams=data.exams||[];renderExamList();const requested=new URLSearchParams(location.search).get("exam_id");if(/^\d+$/.test(requested||"")){const target=document.getElementById(`exam-${requested}`);if(target){target.style.outline="3px solid var(--primary, #0ea5e9)";target.focus({preventScroll:true});target.scrollIntoView({block:"nearest"});}}}
-function renderExamList(){const box=document.getElementById("examList");box.innerHTML="";if(!exams.length){box.innerHTML=`<div class="muted">${esc(UI.noExams)}</div>`;return;}exams.forEach(exam=>{const status=attemptStatus(exam);const button=document.createElement("button");button.type="button";button.className="exam-card";button.id=`exam-${exam.id}`;button.innerHTML=`<strong>${esc(exam.title)}</strong><div class="meta">${exam.question_count} | ${exam.total_points} ${esc(UI.points)} | ${exam.duration_minutes} min</div><div class="meta"><span class="pill ${esc(status)}">${esc(status)}</span></div>`;button.onclick=()=>chooseExam(exam);box.appendChild(button);});}
-async function chooseExam(exam){if(!exam.attempt){if(!confirm(UI.confirmStart))return;if(document.documentElement.requestFullscreen&&!document.fullscreenElement){try{await document.documentElement.requestFullscreen();fullscreenWasActive=true;}catch{}}const started=await api(`/api/student/exams/${exam.id}/start/`,"POST",{});if(!started.ok){notify(started.error);return;}}await openExam(exam.id);await loadExams();}
-async function openExam(id){const data=await api(`/api/student/exams/${id}/`);if(!data.ok){notify(data.error);return;}activeExam=data.exam;activeAttempt=data.attempt;questions=data.questions||[];questions.forEach(q=>q.examId=id);if(matchMedia("(max-width:880px)").matches)document.getElementById("examPicker").open=false;integrityCount=activeAttempt.integrity_event_count||0;updateIntegrityBadge();document.getElementById("empty").hidden=true;document.getElementById("examView").hidden=false;document.getElementById("examTitle").textContent=activeExam.title;document.getElementById("examTopic").textContent=activeExam.topic;document.getElementById("examInstructions").textContent=activeExam.instructions;renderQuestions();startTimer();}
+function newClientId(){return globalThis.crypto?.randomUUID?crypto.randomUUID().replaceAll("-",""):`c${Date.now().toString(36)}${Math.random().toString(36).slice(2,12)}`;}
+async function loadExams(){const data=await api("/api/student/exams/");if(!data.ok){notify(data.error||UI.loadFailed);return;}exams=data.exams||[];renderExamList();const requested=new URLSearchParams(location.search).get("exam_id");if(/^\d+$/.test(requested||"")){const target=$(`exam-${requested}`);if(target){target.style.outline="3px solid var(--primary, #0ea5e9)";target.focus({preventScroll:true});target.scrollIntoView({block:"nearest"});}}}
+function renderExamList(){const box=$("examList");box.innerHTML="";if(!exams.length){box.innerHTML=`<div class="muted">${esc(UI.noExams)}</div>`;return;}exams.forEach(exam=>{const status=attemptStatus(exam);const button=document.createElement("button");button.type="button";button.className="exam-card";button.id=`exam-${exam.id}`;button.innerHTML=`<strong>${esc(exam.title)}</strong><div class="meta">${exam.question_count} | ${exam.total_points} ${esc(UI.points)} | ${exam.duration_minutes} min</div><div class="meta"><span class="pill ${esc(status)}">${esc(status)}</span></div>`;button.onclick=()=>chooseExam(exam);box.appendChild(button);});}
+async function chooseExam(exam){if(!exam.attempt){if(!confirm(UI.confirmStart))return;if(document.documentElement.requestFullscreen&&!document.fullscreenElement){try{await Promise.race([document.documentElement.requestFullscreen().then(()=>{fullscreenWasActive=true;}),new Promise(resolve=>setTimeout(resolve,1500))]);}catch{}}const started=await api(`/api/student/exams/${exam.id}/start/`,"POST",{});if(!started.ok){notify(started.error);return;}}await openExam(exam.id);await loadExams();}
+async function openExam(id){
+  if(activeExam&&activeExam.id!==id)await flushAllSaves();
+  const data=await api(`/api/student/exams/${id}/`);if(!data.ok){notify(data.error);return;}
+  activeExam=data.exam;activeAttempt=data.attempt;questions=data.questions||[];
+  questions.forEach(q=>{q.examId=id;q.revision=q.answer.revision||0;q.dirty=false;});
+  // One id per browser tab (kept across reloads) so the server can tell tabs/devices apart.
+  const key=`exam-client:${id}`;clientId=sessionStorage.getItem(key)||newClientId();sessionStorage.setItem(key,clientId);
+  currentIndex=Math.min(currentIndex,Math.max(0,questions.length-1));
+  $("examPicker").open=isClosed();$("shell").classList.toggle("focus",!isClosed());
+  integrityCount=activeAttempt.integrity_event_count||0;updateIntegrityBadge();$("empty").hidden=true;$("examView").hidden=false;$("examTitle").textContent=activeExam.title;$("examTopic").textContent=activeExam.topic;$("examInstructions").textContent=activeExam.instructions;
+  renderQuestions();startTimer();announceTab();
+}
 function isClosed(){return !activeAttempt||activeAttempt.status!=="in_progress";}
+function isAnswered(q){const a=q.answer||{};if(q.question_type==="open_text")return Boolean(String(a.text_answer||"").trim());if(q.question_type==="single_choice")return Boolean(a.choice_answer);if(q.question_type==="matching")return Object.keys(a.matching_answer||{}).length>0;if(q.question_type==="table")return Object.values(a.table_answer||{}).some(v=>String(v||"").trim());return Boolean(a.diagram_xml||a.diagram_file_url);}
 function renderStudentTable(q,closed){
   const wrap=document.createElement("div");wrap.className="exam-table-wrap";const table=document.createElement("table");table.className="exam-table";const head=document.createElement("thead"),headRow=document.createElement("tr");
   (q.table_schema?.columns||[]).forEach(column=>{const th=document.createElement("th");th.textContent=column.label;headRow.appendChild(th);});head.appendChild(headRow);const body=document.createElement("tbody");
   (q.table_schema?.rows||[]).forEach(row=>{const tr=document.createElement("tr");(row.cells||[]).forEach(cell=>{const td=document.createElement("td");if(cell.mode==="given"){td.className="given";td.textContent=cell.value||"";}else{const input=document.createElement("input");input.className="table-input";input.disabled=closed;input.value=(q.answer.table_answer||{})[cell.key]||"";input.addEventListener("input",()=>{const answer={...(q.answer.table_answer||{}),[cell.key]:input.value};q.answer.table_answer=answer;scheduleSave(q,{table_answer:answer});});td.appendChild(input);}tr.appendChild(td);});body.appendChild(tr);});
   table.append(head,body);wrap.appendChild(table);return wrap;
-}function renderQuestions(){const box=document.getElementById("questions");box.innerHTML="";const closed=isClosed();document.getElementById("submitRow").hidden=closed;const closedBox=document.getElementById("closedState");closedBox.hidden=!closed;closedBox.textContent=activeAttempt.status==="expired"?UI.expired:UI.submitted;
-  questions.forEach(q=>{const section=document.createElement("section");section.className="question";section.innerHTML=`<div class="question-head"><b>${q.position}.</b><span class="pill">${q.max_score} ${esc(UI.points)}</span></div><div class="question-prompt">${esc(q.prompt)}</div>${q.image_url?`<img class="question-image" src="${esc(q.image_url)}" alt="" loading="lazy">`:""}<div class="answer-slot"></div><div class="save-state" id="save-${q.id}"></div>`;const slot=section.querySelector(".answer-slot");
-    if(q.question_type==="open_text"){const area=document.createElement("textarea");area.className="answer";area.value=q.answer.text_answer||"";area.disabled=closed;area.addEventListener("input",()=>scheduleSave(q,{text_answer:area.value}));slot.appendChild(area);}
-    else if(q.question_type==="single_choice"){
-      (q.choices||[]).forEach(choice=>{const label=document.createElement("label");label.className="choice-option";
-        const radio=document.createElement("input");radio.type="radio";radio.name=`choice-${q.id}`;radio.value=choice.key;radio.disabled=closed;radio.checked=q.answer.choice_answer===choice.key;
-        const text=document.createElement("span");text.textContent=choice.text;
-        radio.onchange=()=>scheduleSave(q,{choice_answer:choice.key},0);label.append(radio,text);slot.appendChild(label);
-      });
-    }
-    else if(q.question_type==="matching"){const grid=document.createElement("div");grid.className="match-grid";(q.left_items||[]).forEach(left=>{const label=document.createElement("div");label.className="match-left";label.textContent=left.text;const select=document.createElement("select");select.className="match-select";select.disabled=closed;select.innerHTML=`<option value="">${esc(UI.selectMatch)}</option>`+(q.right_items||[]).map(right=>`<option value="${esc(right.key)}">${esc(right.text)}</option>`).join("");select.value=(q.answer.matching_answer||{})[left.key]||"";select.onchange=()=>{const answer={...(q.answer.matching_answer||{})};if(select.value)answer[left.key]=select.value;else delete answer[left.key];q.answer.matching_answer=answer;scheduleSave(q,{matching_answer:answer},0);};grid.append(label,select);});slot.appendChild(grid);}
-    else if(q.question_type==="table"){slot.appendChild(renderStudentTable(q,closed));}
-    else{const preview=document.createElement("div");preview.className="diagram-preview";preview.innerHTML=`<div>${q.answer.diagram_file_url?"Saved: "+esc(UI.diagramSaved):esc(UI.openDiagram)}</div>`;const button=document.createElement("button");button.className="btn primary";button.type="button";button.textContent=UI.openDiagram;button.disabled=closed;button.onclick=()=>openDiagram(q);preview.appendChild(button);slot.appendChild(preview);}
-    box.appendChild(section);
-  });
 }
-const saveChains=new Map();
-function scheduleSave(q,payload,delay=700){q.answer={...q.answer,...payload};document.getElementById(`save-${q.id}`).textContent=UI.saving;clearTimeout(saveTimers.get(q.id));saveTimers.set(q.id,setTimeout(()=>saveAnswer(q,payload),delay));}
-function saveAnswer(q,payload){
+function renderAnswerSlot(q,slot,closed){
+  slot.replaceChildren();
+  if(q.question_type==="open_text"){const area=document.createElement("textarea");area.className="answer";area.value=q.answer.text_answer||"";area.disabled=closed;area.addEventListener("input",()=>scheduleSave(q,{text_answer:area.value},1200));slot.appendChild(area);}
+  else if(q.question_type==="single_choice"){
+    (q.choices||[]).forEach(choice=>{const label=document.createElement("label");label.className="choice-option";
+      const radio=document.createElement("input");radio.type="radio";radio.name=`choice-${q.id}`;radio.value=choice.key;radio.disabled=closed;radio.checked=q.answer.choice_answer===choice.key;
+      const text=document.createElement("span");text.textContent=choice.text;
+      radio.onchange=()=>scheduleSave(q,{choice_answer:choice.key},0);label.append(radio,text);slot.appendChild(label);
+    });
+  }
+  else if(q.question_type==="matching"){const grid=document.createElement("div");grid.className="match-grid";(q.left_items||[]).forEach(left=>{const label=document.createElement("div");label.className="match-left";label.textContent=left.text;const select=document.createElement("select");select.className="match-select";select.disabled=closed;select.innerHTML=`<option value="">${esc(UI.selectMatch)}</option>`+(q.right_items||[]).map(right=>`<option value="${esc(right.key)}">${esc(right.text)}</option>`).join("");select.value=(q.answer.matching_answer||{})[left.key]||"";select.onchange=()=>{const answer={...(q.answer.matching_answer||{})};if(select.value)answer[left.key]=select.value;else delete answer[left.key];q.answer.matching_answer=answer;scheduleSave(q,{matching_answer:answer},0);};grid.append(label,select);});slot.appendChild(grid);}
+  else if(q.question_type==="table"){slot.appendChild(renderStudentTable(q,closed));}
+  else{const preview=document.createElement("div");preview.className="diagram-preview";preview.innerHTML=`<div>${q.answer.diagram_file_url||q.answer.diagram_xml?esc(UI.diagramSaved):esc(UI.openDiagram)}</div>`;const button=document.createElement("button");button.className="btn primary";button.type="button";button.textContent=UI.openDiagram;button.disabled=closed;button.onclick=()=>openDiagram(q);preview.appendChild(button);slot.appendChild(preview);}
+}
+function renderQuestions(){const box=$("questions");box.innerHTML="";const closed=isClosed();$("submitRow").hidden=closed;const closedBox=$("closedState");closedBox.hidden=!closed;closedBox.textContent=activeAttempt.status==="expired"?UI.expired:UI.submitted;
+  questions.forEach((q,index)=>{const section=document.createElement("section");section.className="question";section.id=`question-${q.id}`;section.dataset.index=index;section.innerHTML=`<div class="question-head"><b>${q.position}.</b><span class="pill">${q.max_score} ${esc(UI.points)}</span></div><div class="question-prompt">${esc(q.prompt)}</div>${q.image_url?`<img class="question-image" src="${esc(q.image_url)}" alt="" loading="lazy">`:""}<div class="answer-slot"></div><div class="save-state" id="save-${q.id}" role="status" aria-live="polite"></div>`;
+    renderAnswerSlot(q,section.querySelector(".answer-slot"),closed);box.appendChild(section);});
+  applyViewMode();
+}
+// One question at a time keeps the screen calm; the navigator shows progress.
+function applyViewMode(){
+  const one=viewMode==="one"&&questions.length>1;
+  document.querySelectorAll("#questions .question").forEach(section=>section.hidden=one&&Number(section.dataset.index)!==currentIndex);
+  $("prevQuestionBtn").hidden=!one;$("nextQuestionBtn").hidden=!one;
+  $("prevQuestionBtn").disabled=currentIndex<=0;$("nextQuestionBtn").disabled=currentIndex>=questions.length-1;
+  $("viewModeBtn").textContent=viewMode==="one"?UI.viewAll:UI.viewOne;
+  renderNavigator();
+}
+function renderNavigator(){
+  const nav=$("questionNav");const done=questions.filter(isAnswered).length;
+  $("answeredInfo").textContent=`${UI.answered}: ${done} / ${questions.length}`;
+  nav.innerHTML=questions.map((q,index)=>`<button type="button" class="nav-chip ${isAnswered(q)?"answered":""} ${viewMode==="one"&&index===currentIndex?"current":""} ${q.dirty?"dirty":""}" data-index="${index}" aria-label="${esc(UI.question)} ${q.position}">${q.position}</button>`).join("");
+  nav.querySelectorAll("[data-index]").forEach(button=>button.onclick=()=>goTo(Number(button.dataset.index)));
+}
+function goTo(index){
+  currentIndex=Math.max(0,Math.min(questions.length-1,index));
+  if(viewMode==="one")applyViewMode();else renderNavigator();
+  const target=$(`question-${questions[currentIndex].id}`);if(target)target.scrollIntoView({block:"start",behavior:matchMedia("(prefers-reduced-motion: reduce)").matches?"auto":"smooth"});
+}
+$("prevQuestionBtn").onclick=()=>goTo(currentIndex-1);
+$("nextQuestionBtn").onclick=()=>goTo(currentIndex+1);
+$("viewModeBtn").onclick=()=>{viewMode=viewMode==="one"?"all":"one";localStorage.setItem("exam:view-mode",viewMode);applyViewMode();};
+document.addEventListener("keydown",event=>{if(viewMode!=="one"||!activeExam||event.target.closest("input,textarea,select,[contenteditable]"))return;if(event.key==="ArrowRight")goTo(currentIndex+1);if(event.key==="ArrowLeft")goTo(currentIndex-1);});
+
+// ----- saving ---------------------------------------------------------------
+const saveChains=new Map(),retryCounts=new Map();
+function setSaveState(q,text){const state=$(`save-${q.id}`);if(state)state.textContent=text;}
+function scheduleSave(q,payload,delay=700){if(blockedByOtherTab)return;q.answer={...q.answer,...payload};q.pending={...(q.pending||{}),...payload};q.dirty=true;setSaveState(q,UI.saving);renderNavigator();clearTimeout(saveTimers.get(q.id));saveTimers.set(q.id,setTimeout(()=>saveAnswer(q),delay));}
+function saveAnswer(q,extra={}){
+  clearTimeout(saveTimers.get(q.id));saveTimers.delete(q.id);
   const key=`${q.examId}:${q.id}`;
   const job=(saveChains.get(key)||Promise.resolve()).catch(()=>{}).then(async()=>{
-    try{const data=await api(`/api/student/exams/${q.examId}/questions/${q.id}/answer/`,"POST",payload);const state=document.getElementById(`save-${q.id}`);
-      if(state)state.textContent=data.ok?UI.saved:(data.error||UI.saveFailed);
-      if(data.ok&&data.answer.diagram_file_url)q.answer.diagram_file_url=data.answer.diagram_file_url;
+    if(!q.pending&&!Object.keys(extra).length)return;
+    const payload={...(q.pending||{}),...extra,client_id:clientId,base_revision:q.revision};q.pending=null;
+    let data;
+    try{data=await api(`/api/student/exams/${q.examId}/questions/${q.id}/answer/`,"POST",payload);}
+    catch{data={ok:false,_status:0};}
+    if(data.concurrent)showConcurrentBanner();
+    if(data.ok){
+      q.revision=data.answer.revision;retryCounts.delete(q.id);
+      if(data.answer.diagram_file_url)q.answer.diagram_file_url=data.answer.diagram_file_url;
+      if(!q.pending&&!saveTimers.has(q.id)){q.dirty=false;setSaveState(q,UI.saved);}
       if(data.warning)notify(data.warning);
-    }catch{const state=document.getElementById(`save-${q.id}`);if(state)state.textContent=UI.saveFailed;}
+    }else if(data.conflict){
+      // Another tab/device saved a newer answer: show it instead of overwriting.
+      q.answer=data.answer;q.revision=data.answer.revision;q.pending=null;q.dirty=false;
+      const slot=document.querySelector(`#question-${q.id} .answer-slot`);if(slot)renderAnswerSlot(q,slot,isClosed());
+      setSaveState(q,UI.conflict);notify(UI.conflict);
+    }else if(data._status===409){
+      q.pending=null;q.dirty=false;await openExam(activeExam.id);await loadExams();
+    }else if(!data._status||data._status>=500||data._status===429){
+      // Network trouble or a 502 from the proxy: keep the answer and retry.
+      q.pending={...payload,...(q.pending||{})};delete q.pending.client_id;delete q.pending.base_revision;
+      const attempt=(retryCounts.get(q.id)||0)+1;retryCounts.set(q.id,attempt);
+      setSaveState(q,UI.retrying);
+      saveTimers.set(q.id,setTimeout(()=>saveAnswer(q),[2000,5000,12000,30000][Math.min(attempt-1,3)]));
+    }else{
+      q.dirty=false;setSaveState(q,data.error||UI.saveFailed);
+    }
+    renderNavigator();
   });saveChains.set(key,job);return job;
 }
-function startTimer(){clearInterval(timerHandle);const timer=document.getElementById("timer");if(isClosed()){timer.hidden=true;return;}timer.hidden=false;const tick=()=>{const ms=new Date(activeAttempt.expires_at).getTime()-Date.now();if(ms<=0){timer.textContent="00:00:00";clearInterval(timerHandle);activeAttempt.status="expired";renderQuestions();notify(UI.expired);loadExams();return;}const total=Math.floor(ms/1000),h=Math.floor(total/3600),m=Math.floor(total%3600/60),s=total%60;timer.textContent=[h,m,s].map(v=>String(v).padStart(2,"0")).join(":");timer.classList.toggle("urgent",total<300);};tick();timerHandle=setInterval(tick,1000);}
-document.getElementById("submitBtn").onclick=async()=>{if(!confirm(UI.confirmSubmit))return;saveTimers.forEach(id=>clearTimeout(id));saveTimers.clear();const answers=questions.map(q=>({question_id:q.id,choice_answer:q.answer.choice_answer||"",text_answer:q.answer.text_answer||"",matching_answer:q.answer.matching_answer||{},table_answer:q.answer.table_answer||{},diagram_xml:q.answer.diagram_xml||"",upload_to_drive:false}));const button=document.getElementById("submitBtn");button.disabled=true;await Promise.all(saveChains.values());let data;try{data=await api(`/api/student/exams/${activeExam.id}/submit/`,"POST",{answers});}catch{notify(UI.saveFailed);return;}finally{button.disabled=false;}if(!data.ok){notify(data.error);return;}activeAttempt=data.attempt;renderQuestions();startTimer();notify(UI.submitted);await loadExams();};
+async function flushAllSaves(){questions.filter(q=>saveTimers.has(q.id)).forEach(q=>saveAnswer(q));await Promise.all(saveChains.values());}
+function hasUnsaved(){return questions.some(q=>q.dirty);}
+window.addEventListener("beforeunload",event=>{if(!hasUnsaved())return;flushAllSaves();event.preventDefault();event.returnValue=UI.leave;return UI.leave;});
+window.addEventListener("online",()=>flushAllSaves());
+function showConcurrentBanner(){$("concurrentBanner").hidden=false;$("concurrentBanner").textContent=UI.concurrent;}
+function startTimer(){clearInterval(timerHandle);const timer=$("timer");if(isClosed()){timer.hidden=true;return;}timer.hidden=false;const tick=()=>{const ms=new Date(activeAttempt.expires_at).getTime()-Date.now();if(ms<=0){timer.textContent="00:00:00";clearInterval(timerHandle);activeAttempt.status="expired";renderQuestions();notify(UI.expired);loadExams();return;}const total=Math.floor(ms/1000),h=Math.floor(total/3600),m=Math.floor(total%3600/60),s=total%60;timer.textContent=[h,m,s].map(v=>String(v).padStart(2,"0")).join(":");timer.classList.toggle("urgent",total<300);};tick();timerHandle=setInterval(tick,1000);}
+$("submitBtn").onclick=async()=>{
+  const unanswered=questions.filter(q=>!isAnswered(q)).length;
+  if(!confirm(unanswered?UI.unansweredConfirm.replace("{count}",unanswered):UI.confirmSubmit))return;
+  const button=$("submitBtn");button.disabled=true;$("globalSave").textContent=UI.pendingSaves;
+  try{
+    await flushAllSaves();
+    const answers=questions.map(q=>({question_id:q.id,base_revision:q.revision,choice_answer:q.answer.choice_answer||"",text_answer:q.answer.text_answer||"",matching_answer:q.answer.matching_answer||{},table_answer:q.answer.table_answer||{},diagram_xml:q.answer.diagram_xml||"",upload_to_drive:false}));
+    let data;
+    try{data=await api(`/api/student/exams/${activeExam.id}/submit/`,"POST",{answers,client_id:clientId});}catch{notify(UI.saveFailed);return;}
+    if(!data.ok){notify(data.error||UI.saveFailed);return;}
+    if(data.skipped_stale)notify(UI.conflict);
+    activeAttempt=data.attempt;questions.forEach(q=>q.dirty=false);$("shell").classList.remove("focus");renderQuestions();startTimer();notify(UI.submitted);await loadExams();
+  }finally{button.disabled=false;$("globalSave").textContent="";}
+};
 
-function monitoringActive(){return Boolean(activeExam&&activeAttempt&&activeAttempt.status==="in_progress");}
-function updateIntegrityBadge(){const badge=document.getElementById("integrityBadge");badge.hidden=!integrityCount;badge.textContent=`${UI.integrityCount}: ${integrityCount}`;}
+// ----- one tab per exam (same browser) --------------------------------------
+function announceTab(){
+  if(!("BroadcastChannel" in window)||!activeExam)return;
+  if(tabChannel)tabChannel.close();
+  tabChannel=new BroadcastChannel(`exam-tab-${activeExam.id}`);
+  tabChannel.onmessage=event=>{
+    const message=event.data||{};if(message.from===tabInstance||isClosed())return;
+    if(message.type==="hello"&&!blockedByOtherTab)tabChannel.postMessage({type:"active",from:tabInstance});
+    if(message.type==="active"||message.type==="takeover")blockThisTab();
+  };
+  if(!isClosed())tabChannel.postMessage({type:"hello",from:tabInstance});
+}
+const tabInstance=newClientId();
+function blockThisTab(){blockedByOtherTab=true;flushAllSaves();$("otherTabOverlay").hidden=false;}
+$("continueHereBtn").onclick=async()=>{blockedByOtherTab=false;$("otherTabOverlay").hidden=true;tabChannel?.postMessage({type:"takeover",from:tabInstance});await openExam(activeExam.id);};
+
+// ----- integrity monitoring ---------------------------------------------------
+function monitoringActive(){return Boolean(activeExam&&activeAttempt&&activeAttempt.status==="in_progress"&&!blockedByOtherTab);}
+function updateIntegrityBadge(){const badge=$("integrityBadge");badge.hidden=!integrityCount;badge.textContent=`${UI.integrityCount}: ${integrityCount}`;}
 function clientEventId(){return globalThis.crypto?.randomUUID?crypto.randomUUID().replaceAll("-",""):`evt${Date.now()}${Math.random().toString(36).slice(2)}`;}
 function recordIntegrity(eventType,detail=""){
   if(!monitoringActive())return;const now=Date.now(),signature=`${eventType}:${detail}`;if(signature===lastIntegritySignature&&now-lastIntegrityAt<1500)return;lastIntegritySignature=signature;lastIntegrityAt=now;integrityCount+=1;updateIntegrityBadge();notify(UI.integrityWarning);integrityQueue.push({event_type:eventType,detail,client_event_id:clientEventId(),client_at:new Date().toISOString()});clearTimeout(integrityFlushTimer);integrityFlushTimer=setTimeout(flushIntegrity,250);
 }
 async function flushIntegrity(keepalive=false){
   if(!integrityQueue.length||!activeExam)return;const events=integrityQueue.splice(0,20);try{const response=await fetch(`/api/student/exams/${activeExam.id}/integrity/`,{method:"POST",credentials:"include",keepalive,headers:{"Accept":"application/json","Content-Type":"application/json","X-CSRFToken":decodeURIComponent(cookie("csrftoken"))},body:JSON.stringify({events})});if(!response.ok&&!keepalive)integrityQueue.unshift(...events);}catch{if(!keepalive)integrityQueue.unshift(...events);}if(integrityQueue.length&&!keepalive)integrityFlushTimer=setTimeout(flushIntegrity,600);}
-document.addEventListener("visibilitychange",()=>{if(document.hidden)recordIntegrity("tab_hidden");});
+document.addEventListener("visibilitychange",()=>{if(document.hidden){recordIntegrity("tab_hidden");flushAllSaves();}});
 window.addEventListener("blur",()=>recordIntegrity("window_blur"));
 ["copy","cut","paste"].forEach(type=>document.addEventListener(type,()=>recordIntegrity("clipboard",type)));
 document.addEventListener("contextmenu",()=>recordIntegrity("context_menu"));
 document.addEventListener("keydown",event=>{const key=String(event.key||"").toLowerCase(),modifier=event.ctrlKey||event.metaKey;let detail="";if(key==="f12"||key==="printscreen")detail=key;else if(event.altKey&&key==="tab")detail="alt+tab";else if(modifier&&event.shiftKey&&["i","j","c"].includes(key))detail=`ctrl+shift+${key}`;else if(modifier&&["u","s","p"].includes(key))detail=`ctrl+${key}`;if(detail)recordIntegrity("shortcut",detail);});
 document.addEventListener("fullscreenchange",()=>{if(fullscreenWasActive&&!document.fullscreenElement){recordIntegrity("fullscreen_exit");fullscreenWasActive=false;}else if(document.fullscreenElement)fullscreenWasActive=true;});
 window.addEventListener("pagehide",()=>flushIntegrity(true));
-const overlay=document.getElementById("diagramOverlay"),frame=document.getElementById("diagramFrame"),drawOrigin="https://embed.diagrams.net";
+
+// ----- diagrams (draw.io) -------------------------------------------------------
+const overlay=$("diagramOverlay"),frame=$("diagramFrame"),drawOrigin="https://embed.diagrams.net";
 function openDiagram(q){diagramQuestion=q;overlay.hidden=false;document.body.style.overflow="hidden";frame.src=drawOrigin+"/?embed=1&proto=json&spin=1&ui=min&libraries=1&saveAndExit=0&noExitBtn=1";}
-function closeDiagram(){overlay.hidden=true;document.body.style.overflow="";frame.src="about:blank";diagramQuestion=null;}
+function closeDiagram(){overlay.hidden=true;document.body.style.overflow="";frame.src="about:blank";const q=diagramQuestion;diagramQuestion=null;if(q){const slot=document.querySelector(`#question-${q.id} .answer-slot`);if(slot)renderAnswerSlot(q,slot,isClosed());renderNavigator();}}
 function postDraw(message){frame.contentWindow?.postMessage(JSON.stringify(message),drawOrigin);}
-window.addEventListener("message",event=>{if(event.origin!==drawOrigin||!diagramQuestion)return;let data;try{data=typeof event.data==="string"?JSON.parse(event.data):event.data;}catch{return;}if(data.event==="init")postDraw({action:"load",xml:diagramQuestion.answer.diagram_xml||"",autosave:1});if(data.event==="autosave"||data.event==="save"){diagramQuestion.answer.diagram_xml=data.xml||"";saveAnswer(diagramQuestion,{diagram_xml:diagramQuestion.answer.diagram_xml,upload_to_drive:data.event==="save"});if(data.event==="save"){notify(UI.diagramSaved);closeDiagram();}}});
-document.getElementById("saveDiagramBtn").onclick=()=>postDraw({action:"save"});
-document.getElementById("closeDiagramBtn").onclick=closeDiagram;
+window.addEventListener("message",event=>{if(event.origin!==drawOrigin||!diagramQuestion)return;let data;try{data=typeof event.data==="string"?JSON.parse(event.data):event.data;}catch{return;}if(data.event==="init")postDraw({action:"load",xml:diagramQuestion.answer.diagram_xml||"",autosave:1});
+  // draw.io autosaves on every change: debounce so a long drawing does not hit the save limit.
+  if(data.event==="autosave"){diagramQuestion.answer.diagram_xml=data.xml||"";scheduleSave(diagramQuestion,{diagram_xml:diagramQuestion.answer.diagram_xml,upload_to_drive:false},2500);}
+  if(data.event==="save"){const q=diagramQuestion;q.answer.diagram_xml=data.xml||"";q.pending={...(q.pending||{}),diagram_xml:q.answer.diagram_xml};q.dirty=true;saveAnswer(q,{upload_to_drive:true});notify(UI.diagramSaved);closeDiagram();}});
+$("saveDiagramBtn").onclick=()=>postDraw({action:"save"});
+$("closeDiagramBtn").onclick=()=>{if(diagramQuestion&&saveTimers.has(diagramQuestion.id))saveAnswer(diagramQuestion);closeDiagram();};
 loadExams();
 </script>
 {% include 'tower/_platform_appearance.html' %}

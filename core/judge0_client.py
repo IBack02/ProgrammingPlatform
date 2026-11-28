@@ -60,6 +60,7 @@ def create_batch_submissions(
     code: str,
     testcases: List[Dict[str, str]],
     programming_language: str = "python",
+    timeout: float = 25,
 ) -> List[str]:
     """
     testcases: [{"stdin": "...", "expected_stdout": "..."}, ...]
@@ -81,7 +82,7 @@ def create_batch_submissions(
 
     payload = {"submissions": submissions}
 
-    r = requests.post(url, json=payload, headers=_headers(), timeout=25)
+    r = requests.post(url, json=payload, headers=_headers(), timeout=max(1.0, timeout))
     r.raise_for_status()
     data = r.json()
 
@@ -92,7 +93,7 @@ def create_batch_submissions(
     return tokens
 
 
-def get_batch_results(tokens: List[str]) -> List[Judge0Item]:
+def get_batch_results(tokens: List[str], timeout: float = 25) -> List[Judge0Item]:
     """
     GET /submissions/batch?tokens=... :contentReference[oaicite:1]{index=1}
     Judge0 возвращает объект: {"submissions":[...]}
@@ -103,7 +104,7 @@ def get_batch_results(tokens: List[str]) -> List[Judge0Item]:
     fields = "token,stdout,stderr,compile_output,message,status_id"
     url = f"{_base_url()}/submissions/batch?base64_encoded=true&tokens={tok}&fields={fields}"
 
-    r = requests.get(url, headers=_headers(), timeout=25)
+    r = requests.get(url, headers=_headers(), timeout=max(1.0, timeout))
     r.raise_for_status()
     data = r.json()
 
@@ -143,17 +144,27 @@ def get_batch_results(tokens: List[str]) -> List[Judge0Item]:
 
 
 
-def wait_batch(tokens: List[str], timeout_sec: int = 25, poll_interval: float = 0.8) -> List[Judge0Item]:
+def wait_batch(
+    tokens: List[str],
+    timeout_sec: float = 25,
+    poll_interval: float = 0.8,
+    deadline: Optional[float] = None,
+) -> List[Judge0Item]:
     """
     Пуллим до тех пор, пока все не выйдут из In Queue/Processing.
-    Статусы: IN_QUEUE=1, PROCESSING=2, ACCEPTED=3, WRONG_ANSWER=4, TLE=5, CE=6, RUNTIME_ERROR=7+ :contentReference[oaicite:5]{index=5}
+    Статусы: IN_QUEUE=1, PROCESSING=2, ACCEPTED=3, WRONG_ANSWER=4, TLE=5, CE=6, RUNTIME_ERROR=7+
+
+    ``deadline`` (time.monotonic()) bounds the whole wait including HTTP calls,
+    so one slow Judge0 response cannot keep the gunicorn worker past its
+    timeout (the proxy would answer 502 to the student).
     """
-    start = time.time()
+    deadline = deadline if deadline is not None else time.monotonic() + timeout_sec
     while True:
-        items = get_batch_results(tokens)
+        remaining = deadline - time.monotonic()
+        items = get_batch_results(tokens, timeout=min(10.0, max(1.0, remaining)))
         pending = [it for it in items if it.status_id in (1, 2)]
         if not pending:
             return items
-        if time.time() - start > timeout_sec:
+        if time.monotonic() + poll_interval >= deadline:
             return items
         time.sleep(poll_interval)

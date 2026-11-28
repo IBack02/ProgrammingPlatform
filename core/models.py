@@ -1164,6 +1164,10 @@ class ExamAttempt(models.Model):
     submitted_at = models.DateTimeField(null=True, blank=True)
     presentation_json = models.JSONField(default=dict, blank=True)
     total_score = models.DecimalField(max_digits=9, decimal_places=2, default=0)
+    # Browser tab that most recently wrote to this attempt. A different tab or
+    # device writing within the overlap window is recorded as an integrity event.
+    active_client_id = models.CharField(max_length=64, blank=True, default="")
+    active_client_seen_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -1190,6 +1194,9 @@ class ExamAnswer(models.Model):
     table_answer = models.JSONField(default=dict, blank=True)
     awarded_score = models.DecimalField(max_digits=7, decimal_places=2, null=True, blank=True)
     teacher_feedback = models.TextField(blank=True, default="")
+    # Incremented on every student write; clients send the revision they edited
+    # so a stale tab cannot silently overwrite a newer answer.
+    revision = models.PositiveIntegerField(default=0)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
@@ -1208,6 +1215,7 @@ class ExamIntegrityEvent(models.Model):
         SHORTCUT = "shortcut", "Suspicious shortcut"
         CONTEXT_MENU = "context_menu", "Context menu"
         FULLSCREEN_EXIT = "fullscreen_exit", "Fullscreen exit"
+        CONCURRENT_SESSION = "concurrent_session", "Opened in another tab or device"
 
     attempt = models.ForeignKey(
         ExamAttempt,
@@ -1354,3 +1362,55 @@ class PeerAssessmentReview(models.Model):
 
     def __str__(self):
         return f"Assignment {self.assignment_id}, question {self.question_id}: {self.score}"
+
+
+class ServerErrorReport(models.Model):
+    """One grouped server failure (502/503/504/5xx, worker timeout or slow request).
+
+    Reports are grouped by ``fingerprint`` while unresolved: a repeated failure
+    increments ``occurrences`` instead of flooding the table during an outage.
+    """
+
+    class Source(models.TextChoices):
+        SERVER_EXCEPTION = "server_exception", "Исключение на сервере"
+        SERVER_RESPONSE = "server_response", "Ответ 5xx от приложения"
+        WORKER_TIMEOUT = "worker_timeout", "Таймаут воркера gunicorn (502)"
+        SLOW_REQUEST = "slow_request", "Медленный запрос (риск 502)"
+        CLIENT_GATEWAY = "client_gateway", "Браузер получил 502/503/504"
+
+    fingerprint = models.CharField(max_length=64, db_index=True)
+    source = models.CharField(max_length=24, choices=Source.choices, db_index=True)
+    status_code = models.PositiveSmallIntegerField(default=502, db_index=True)
+    method = models.CharField(max_length=10, blank=True, default="")
+    path = models.CharField(max_length=500, blank=True, default="")
+    route = models.CharField(max_length=200, blank=True, default="", help_text="URL pattern, e.g. api/student/task/<int:task_id>/submit")
+    request_id = models.CharField(max_length=64, blank=True, default="", db_index=True)
+    edge_ray_id = models.CharField(max_length=64, blank=True, default="", help_text="CF-Ray or Render request id")
+    user_role = models.CharField(max_length=16, blank=True, default="")
+    user_id = models.PositiveIntegerField(null=True, blank=True)
+    user_label = models.CharField(max_length=160, blank=True, default="")
+    user_agent = models.CharField(max_length=300, blank=True, default="")
+    duration_ms = models.PositiveIntegerField(null=True, blank=True)
+    exception_type = models.CharField(max_length=200, blank=True, default="")
+    exception_message = models.TextField(blank=True, default="")
+    traceback = models.TextField(blank=True, default="")
+    server_context = models.JSONField(default=dict, blank=True)
+    client_context = models.JSONField(default=dict, blank=True)
+    occurrences = models.PositiveIntegerField(default=1)
+    first_seen_at = models.DateTimeField(default=timezone.now, db_index=True)
+    last_seen_at = models.DateTimeField(default=timezone.now, db_index=True)
+    is_resolved = models.BooleanField(default=False, db_index=True)
+    resolved_at = models.DateTimeField(null=True, blank=True)
+    admin_note = models.TextField(blank=True, default="")
+
+    class Meta:
+        verbose_name = "Отчёт об ошибке сервера (502)"
+        verbose_name_plural = "Отчёты об ошибках сервера (502)"
+        ordering = ["-last_seen_at", "-id"]
+        indexes = [
+            models.Index(fields=["fingerprint", "is_resolved"], name="error_report_group_idx"),
+            models.Index(fields=["source", "last_seen_at"], name="error_report_source_idx"),
+        ]
+
+    def __str__(self):
+        return f"[{self.status_code}] {self.method} {self.path} ×{self.occurrences}"

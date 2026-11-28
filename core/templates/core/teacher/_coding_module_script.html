@@ -1,6 +1,7 @@
   const codingEditor = (() => {
     let taskId = null;
     let busy = false;
+    const rowSavers = new Map();
     function childHtml(kind, row = {}, ordinal = 1){
       const id = row.id || "";
       const fields = kind === "tests" ? `
@@ -12,7 +13,35 @@
         <label><input name="is_active" type="checkbox" ${row.is_active !== false ? "checked" : ""}> {{ T.active|escapejs }}</label></div>
         <label class="editor-field">{{ T.fragment_title_optional|escapejs }}<input name="title" class="input-ui" value="${escapeHtml(row.title || "")}"></label>
         <label class="editor-field">{{ T.fragment_code|escapejs }}<textarea name="code" class="textarea-ui code-like" rows="5">${escapeHtml(row.code || "")}</textarea></label>`;
-      return `<div class="panel-card" data-coding-kind="${kind}" data-record-id="${id}">${fields}<div class="row"><button class="btn" type="button" data-coding-action="save">${id ? "{{ T.save|escapejs }}" : kind === "tests" ? "{{ T.add_test|escapejs }}" : "{{ T.add_fragment|escapejs }}"}</button>${id ? `<button class="btn" type="button" data-coding-action="delete">{{ T.delete|escapejs }}</button>` : ""}</div></div>`;
+      // Existing rows save themselves on change; only a new row needs a button.
+      const actions = id
+        ? `<span class="save-pill" data-row-status hidden></span><span class="ui-spacer"></span><button class="btn danger" type="button" data-coding-action="delete">{{ T.delete|escapejs }}</button>`
+        : `<button class="btn primary" type="button" data-coding-action="save">${kind === "tests" ? "{{ T.add_test|escapejs }}" : "{{ T.add_fragment|escapejs }}"}</button>`;
+      return `<div class="panel-card" data-coding-kind="${kind}" data-record-id="${id}">${fields}<div class="row">${actions}</div></div>`;
+    }
+    function rowBody(box){
+      const body = {};
+      box.querySelectorAll("[name]").forEach(input => body[input.name] = input.type === "checkbox" ? input.checked : input.type === "number" ? Number(input.value) : input.value);
+      return body;
+    }
+    function rowSaver(box){
+      const key = `${box.dataset.codingKind}:${box.dataset.recordId}`;
+      if (!rowSavers.has(key)){
+        const kind = box.dataset.codingKind, id = box.dataset.recordId;
+        rowSavers.set(key, UIKit.autosave({
+          status: box.querySelector("[data-row-status]"),
+          save: async () => {
+            const current = document.querySelector(`[data-coding-kind="${kind}"][data-record-id="${id}"]`);
+            if (!current) return;
+            const body = rowBody(current);
+            if (kind === "fragments" && !String(body.code || "").trim()) throw UIKit.httpError("{{ T.fragment_code_required|escapejs }}", 400);
+            const res = await api(`/api/teacher/${kind}/${id}/`, "PATCH", body);
+            if (!res.data.ok) throw UIKit.httpError(res.data.error || UI.saveFailed, res.status);
+            return res.data;
+          }
+        }));
+      }
+      return rowSavers.get(key);
     }
     async function loadChildren(kind){
       const requestedId = taskId;
@@ -25,6 +54,7 @@
     }
     async function open(task){
       taskId = task.id;
+      rowSavers.clear();
       qs("codingLanguage").value = task.programming_language || "python";
       qs("codingStatement").value = task.statement || "";
       qs("codingConstraints").value = task.constraints || "";
@@ -46,28 +76,32 @@
       return result;
     }
     qs("codingHints").addEventListener("change", () => qs("codingHintsConfig").hidden = !qs("codingHints").checked);
-    qs("codingEditor").addEventListener("click", async event => {
+    function onRowEdit(event){
+      const box = event.target.closest("[data-coding-kind]");
+      if (!box || !box.dataset.recordId || !event.target.name || selectedModuleType !== "coding_task") return;
+      rowSaver(box).schedule({}, event.type === "change" && event.target.tagName !== "TEXTAREA" ? 0 : 800);
+    }
+    qs("codingContent").addEventListener("input", onRowEdit);
+    qs("codingContent").addEventListener("change", onRowEdit);
+    qs("codingContent").addEventListener("click", async event => {
       const button = event.target.closest("[data-coding-action]");
       if (!button || busy || editorBusy() || selectedModuleType !== "coding_task") return;
       const box = button.closest("[data-coding-kind]"), kind = box.dataset.codingKind, id = box.dataset.recordId;
       const deleting = button.dataset.codingAction === "delete";
       if (deleting && !confirm(kind === "tests" ? "{{ T.delete_test_confirm|escapejs }}" : "{{ T.delete_fragment_confirm|escapejs }}")) return;
-      const body = {};
-      box.querySelectorAll("[name]").forEach(input => body[input.name] = input.type === "checkbox" ? input.checked : input.type === "number" ? Number(input.value) : input.value);
+      const body = rowBody(box);
       if (!deleting && kind === "fragments" && !body.code.trim()) return setMsg("{{ T.fragment_code_required|escapejs }}");
       const url = id ? `/api/teacher/${kind}/${id}/` : `/api/teacher/tasks/${taskId}/${kind}/`;
       busy = true;button.disabled = true;
       try{
+        if (deleting) rowSavers.get(`${kind}:${id}`)?.cancel();
         const res = await api(url, deleting ? "DELETE" : id ? "PATCH" : "POST", deleting ? null : body);
         if (!res.data.ok) return setMsg(res.data.error || UI.saveFailed);
         if (deleting) box.remove();
         else {
           const row = res.data[kind === "tests" ? "test" : "fragment"];
-          if (id) box.outerHTML = childHtml(kind, row);
-          else {
-            box.insertAdjacentHTML("beforebegin", childHtml(kind, row));
-            box.outerHTML = childHtml(kind, {}, kind === "tests" ? row.ordinal + 1 : 1);
-          }
+          box.insertAdjacentHTML("beforebegin", childHtml(kind, row));
+          box.outerHTML = childHtml(kind, {}, kind === "tests" ? row.ordinal + 1 : 1);
         }
         setMsg("{{ T.saved|default:'Saved'|escapejs }}");
       }finally{busy = false;button.disabled = false;}

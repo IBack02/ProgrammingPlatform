@@ -4,6 +4,7 @@ import json
 import logging
 import random
 import re
+import time
 import uuid
 from functools import wraps
 from datetime import timedelta
@@ -342,15 +343,29 @@ def _student_can_access_session(session: Session, *, class_id: int, student_id: 
 
 
 def _student_accessible_sessions(*, class_id: int, student_id: int):
-    class_ids = _student_class_ids(student_id, primary_class_id=class_id)
-    sessions = (
+    """Sessions the student may open, in two queries instead of three per session.
+
+    Same rules as ``_student_can_access_session``: a non-draft session of one
+    of the student's classes that is running now or was already started.
+    """
+    class_ids = _student_class_ids(student_id)
+    sessions = list(
         Session.objects
         .filter(allowed_classes__id__in=class_ids)
         .exclude(status=SESSION_STATUS_DRAFT)
         .distinct()
-        .order_by("-starts_at", "-created_at")
+        # NULLS LAST keeps SQLite (dev) and Postgres (prod) in the same order.
+        .order_by(F("starts_at").desc(nulls_last=True), "-created_at")
     )
-    return [s for s in sessions if _student_can_access_session(s, class_id=class_id, student_id=student_id)]
+    if not sessions:
+        return []
+    started = set(
+        StudentSession.objects.filter(
+            student_id=student_id,
+            session_id__in=[session.id for session in sessions],
+        ).values_list("session_id", flat=True)
+    )
+    return [session for session in sessions if session.is_active_now() or session.id in started]
 
 
 def _resolve_student_portal_session(
@@ -372,7 +387,8 @@ def _resolve_student_portal_session(
         except (TypeError, ValueError):
             selected = None
 
-    session = selected or sessions[0]
+    # Default to the lesson that is running now, not merely the newest one.
+    session = selected or next((s for s in sessions if s.is_active_now()), sessions[0])
     request.session["student_selected_session_id"] = session.id
     request.session["student_selected_class_id"] = _student_session_class_id(
         session,
@@ -1598,6 +1614,10 @@ def student_submit(request: HttpRequest, task_id: int):
     top_frag, bottom_frag = _get_task_fragments(task)
     final_code = _join_code(top_frag, user_code, bottom_frag)
 
+    # One deadline for the whole Judge0 round trip. Without it a slow checker
+    # (25 s POST + 30 s polling + 25 s GET) outlived the gunicorn worker
+    # timeout and the student got a 502 with the attempt already counted.
+    deadline = time.monotonic() + float(getattr(settings, "JUDGE0_SUBMIT_BUDGET_SECONDS", 20))
     judge_failed = False
     tokens = []
     try:
@@ -1605,14 +1625,37 @@ def student_submit(request: HttpRequest, task_id: int):
             final_code,
             testcases,
             programming_language=task.programming_language,
+            timeout=min(10.0, deadline - time.monotonic()),
         )
-        results = wait_batch(tokens, timeout_sec=30, poll_interval=0.9)
+        results = wait_batch(tokens, poll_interval=0.9, deadline=deadline)
     except Exception:
+        logger.warning("Judge0 check failed for task %s", task.id, exc_info=True)
         judge_failed = True
         results = []
 
     from .submission_results import summarize_results
     test_results, passed, verdict, stdout_last, stderr_last = summarize_results(testcases, results, tokens, judge_failed)
+
+    if judge_failed or any(row["verdict"] == "unavailable" for row in test_results):
+        # The checker, not the student, failed: give the attempt back so the
+        # same code can be resubmitted and hints/attempt counters stay honest.
+        with transaction.atomic():
+            progress = StudentTaskProgress.objects.select_for_update().get(id=progress.id)
+            if progress.attempts_total == attempt_no:
+                progress.attempts_total = max(0, attempt_no - 1)
+                progress.last_code_hash = ""
+                progress.last_submit_at = None
+                progress.save(update_fields=["attempts_total", "last_code_hash", "last_submit_at"])
+        response = JsonResponse(
+            {
+                "ok": False,
+                "retryable": True,
+                "error": UI_TRANSLATIONS[get_ui_lang(request)]["judge_unavailable_retry"],
+            },
+            status=503,
+        )
+        response["Retry-After"] = "30"
+        return response
 
     with transaction.atomic():
         progress = StudentTaskProgress.objects.select_for_update().get(id=progress.id)

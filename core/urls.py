@@ -1,6 +1,6 @@
 from django.urls import path
 from django.views.generic import RedirectView
-from . import exam_reports, exam_views, exam_work_export, game_views, guest_views, lesson_plan, lesson_views, module_import, module_order, peer_views, views
+from . import error_reports, exam_reports, exam_views, exam_work_export, game_views, guest_views, lesson_plan, lesson_views, module_import, module_order, peer_views, views
 
 urlpatterns = [
     path("guest/<uuid:token>/", guest_views.guest_entry, name="guest_entry"),
@@ -240,6 +240,9 @@ path(
     path("api/student/peer-sessions/", peer_views.student_peer_sessions_api, name="student_peer_sessions_api"),
     path("api/student/peer-assignments/<int:assignment_id>/", peer_views.student_peer_assignment_detail_api, name="student_peer_assignment_detail_api"),
     path("api/student/peer-assignments/<int:assignment_id>/questions/<int:question_id>/review/", peer_views.student_peer_review_api, name="student_peer_review_api"),
+
+    # Diagnostics: browser-side 502/503/504 reports (stored in ServerErrorReport)
+    path("api/client-error-report/", error_reports.client_error_report, name="client_error_report"),
 
     # Health
     path("healthz/", views.healthz, name="healthz"),

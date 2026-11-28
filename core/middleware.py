@@ -5,6 +5,7 @@ from django.http import Http404, JsonResponse
 from django.conf import settings
 from django.utils.deprecation import MiddlewareMixin
 
+from .error_reports import remember_exception
 from .security import client_ip, request_is_limited
 
 
@@ -66,6 +67,9 @@ class SecurityResponseMiddleware(MiddlewareMixin):
         return response
 
     def process_exception(self, request, exception):
+        # Keep the traceback for ErrorReportMiddleware even when this hook turns
+        # the exception into a JSON response below.
+        remember_exception(request, (type(exception), exception, exception.__traceback__))
         if not request.path.startswith("/api/"):
             return None
         if isinstance(exception, Http404):

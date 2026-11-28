@@ -1,0 +1,65 @@
+/* Shared tabs, dialogs, toolbars and autosave status (see ui_kit.js). */
+/* Page styles such as .btn{display:inline-block} must not un-hide [hidden]. */
+[hidden]{display:none!important}
+.ui-toolbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.ui-toolbar .ui-grow{flex:1;min-width:180px}
+.ui-spacer{flex:1}
+
+.save-pill{display:inline-flex;align-items:center;gap:6px;min-height:28px;padding:4px 10px;border-radius:999px;
+  font-size:12px;font-weight:700;color:#475569;background:#f1f5f9;border:1px solid #e2e8f0;white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis}
+.save-pill::before{content:"";width:8px;height:8px;border-radius:50%;background:#94a3b8;flex:none}
+.save-pill[data-state="saving"]{color:#075985;background:#e0f2fe;border-color:#bae6fd}
+.save-pill[data-state="saving"]::before{background:#0284c7;animation:ui-pulse 1s ease-in-out infinite}
+.save-pill[data-state="saved"]{color:#166534;background:#dcfce7;border-color:#bbf7d0}
+.save-pill[data-state="saved"]::before{background:#16a34a}
+.save-pill[data-state="failed"]{color:#991b1b;background:#fee2e2;border-color:#fecaca;white-space:normal}
+.save-pill[data-state="failed"]::before{background:#dc2626}
+@keyframes ui-pulse{50%{opacity:.25}}
+@media (prefers-reduced-motion: reduce){.save-pill[data-state="saving"]::before{animation:none}}
+
+.ui-tabs{display:flex;gap:4px;flex-wrap:wrap;border-bottom:1px solid #e2e8f0;margin:0 0 14px}
+.ui-tabs [data-tab]{appearance:none;border:0;background:none;padding:10px 14px;margin-bottom:-1px;font:inherit;font-weight:800;
+  color:#64748b;border-bottom:3px solid transparent;cursor:pointer;border-radius:8px 8px 0 0}
+.ui-tabs [data-tab]:hover{color:#0f172a;background:#f8fafc}
+.ui-tabs [data-tab].active{color:#075985;border-bottom-color:#0284c7}
+.ui-tabs [data-tab]:focus-visible{outline:2px solid #38bdf8;outline-offset:2px}
+.ui-tabs .tab-count{display:inline-block;min-width:18px;margin-left:6px;padding:1px 6px;border-radius:999px;background:#e2e8f0;color:#334155;font-size:11px}
+
+dialog.ui-dialog{width:min(760px,calc(100vw - 24px));max-height:calc(100vh - 40px);padding:0;border:1px solid #dbe2ea;border-radius:16px;
+  background:#fff;color:inherit;box-shadow:0 30px 80px rgba(15,23,42,.35)}
+dialog.ui-dialog.wide{width:min(1040px,calc(100vw - 24px))}
+dialog.ui-dialog::backdrop{background:rgba(7,18,35,.6)}
+.ui-dialog-head{position:sticky;top:0;z-index:2;display:flex;justify-content:space-between;align-items:center;gap:10px;padding:14px 18px;
+  background:inherit;border-bottom:1px solid #e2e8f0}
+.ui-dialog-head h2{margin:0;font-size:18px}
+.ui-dialog-body{padding:16px 18px}
+.ui-dialog-foot{position:sticky;bottom:0;display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap;padding:12px 18px;border-top:1px solid #e2e8f0;background:inherit}
+.ui-close{appearance:none;border:1px solid #e2e8f0;background:#fff;border-radius:10px;width:36px;height:36px;font-size:20px;line-height:1;cursor:pointer;color:#334155}
+.ui-close:hover{border-color:#0ea5e9}
+
+.ui-empty{padding:28px 18px;text-align:center;color:#64748b;border:1px dashed #cbd5e1;border-radius:12px}
+.ui-hint{font-size:12px;color:#64748b}
+.ui-choice-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px}
+.ui-choice-cards label{display:flex;flex-direction:column;gap:4px;padding:12px;border:1px solid #dbe2ea;border-radius:12px;cursor:pointer;background:#fff}
+.ui-choice-cards label:has(input:checked){border-color:#0284c7;background:#f0f9ff;box-shadow:0 0 0 2px rgba(2,132,199,.15)}
+.ui-choice-cards input{position:absolute;opacity:0;pointer-events:none}
+.ui-choice-cards b{font-size:14px}
+.ui-check-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:6px;max-height:260px;overflow:auto;padding:2px}
+.ui-check-list label{display:flex;gap:8px;align-items:flex-start;padding:8px 10px;border:1px solid #e2e8f0;border-radius:10px;cursor:pointer;background:#fff}
+.ui-check-list label:has(input:checked){border-color:#0284c7;background:#f0f9ff}
+.ui-check-list input{width:auto;margin-top:2px}
+.ui-banner{display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap;padding:10px 14px;border-radius:12px;
+  border:1px solid #fde68a;background:#fffbeb;color:#92400e;font-weight:700}
+.ui-banner.danger{border-color:#fecaca;background:#fef2f2;color:#991b1b}
+
+html[data-theme="dark"] dialog.ui-dialog,
+html[data-theme="dark"] .ui-close,
+html[data-theme="dark"] .ui-choice-cards label,
+html[data-theme="dark"] .ui-check-list label{background:rgba(18,23,29,.98);color:var(--theme-text);border-color:var(--theme-surface-soft)}
+html[data-theme="dark"] .ui-dialog-head,html[data-theme="dark"] .ui-dialog-foot,html[data-theme="dark"] .ui-tabs{border-color:var(--theme-surface-soft)}
+html[data-theme="dark"] .ui-tabs [data-tab]{color:var(--theme-muted)}
+html[data-theme="dark"] .ui-tabs [data-tab]:hover{background:var(--theme-deep-soft);color:var(--theme-text)}
+html[data-theme="dark"] .ui-tabs [data-tab].active{color:var(--theme-accent);border-bottom-color:var(--theme-accent)}
+html[data-theme="dark"] .save-pill{background:var(--theme-deep-soft);border-color:var(--theme-surface-soft);color:var(--theme-text)}
+html[data-theme="dark"] .ui-choice-cards label:has(input:checked),
+html[data-theme="dark"] .ui-check-list label:has(input:checked){background:var(--theme-deep-soft);border-color:var(--theme-accent)}

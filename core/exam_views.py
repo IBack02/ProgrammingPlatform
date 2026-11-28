@@ -1,8 +1,11 @@
+import hashlib
 import hmac
 import json
+import logging
 import random
 import re
 import secrets
+import sys
 from copy import deepcopy
 from datetime import timedelta
 from decimal import Decimal, InvalidOperation
@@ -19,6 +22,7 @@ from django.utils.dateparse import parse_datetime
 from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views.decorators.http import require_GET, require_http_methods, require_POST
 
+from .error_reports import remember_exception
 from .google_drive import upload_exam_diagram
 from .security import auth_version, request_is_limited
 from .models import (
@@ -39,6 +43,8 @@ MAX_JSON_BODY_BYTES = 1_500_000
 MAX_DIAGRAM_XML_BYTES = 2_000_000
 DRIVE_FILE_RE = re.compile(r"/file/d/([A-Za-z0-9_-]+)")
 
+
+logger = logging.getLogger(__name__)
 
 def _json_body(request: HttpRequest) -> dict:
     if len(request.body) > MAX_JSON_BODY_BYTES:
@@ -130,6 +136,8 @@ def _json_errors(view_func):
         except IntegrityError:
             return _api_error("database conflict", 409)
         except Exception as exc:
+            remember_exception(request, sys.exc_info())
+            logger.exception("Exam endpoint failed: %s", view_func.__name__)
             message = str(exc) if settings.DEBUG else "internal server error"
             return _api_error(message, 500)
     return wrapped
@@ -636,6 +644,7 @@ def _answer_student(answer: ExamAnswer | None) -> dict:
             "diagram_xml": "",
             "diagram_file_url": "",
             "table_answer": {},
+            "revision": 0,
         }
     return {
         "text_answer": answer.text_answer,
@@ -645,6 +654,7 @@ def _answer_student(answer: ExamAnswer | None) -> dict:
         "diagram_file_url": answer.diagram_file_url,
         "table_answer": answer.table_answer,
         "updated_at": answer.updated_at.isoformat(),
+        "revision": answer.revision,
     }
 
 
@@ -868,9 +878,64 @@ def _validate_matching_answer(attempt: ExamAttempt, question: ExamQuestion, valu
     return clean
 
 
-def _save_answer(attempt: ExamAttempt, question: ExamQuestion, data: dict) -> tuple[ExamAnswer, str]:
+EXAM_CLIENT_ID_RE = re.compile(r"^[A-Za-z0-9_-]{8,64}$")
+CONCURRENT_CLIENT_WINDOW = timedelta(seconds=120)
+
+
+def _exam_client_id(data: dict) -> str:
+    value = str(data.get("client_id") or "")
+    return value if EXAM_CLIENT_ID_RE.match(value) else ""
+
+
+def _base_revision(data: dict):
+    value = data.get("base_revision")
+    if value is None or value == "":
+        return None
+    try:
+        return max(0, int(value))
+    except (TypeError, ValueError):
+        raise ValueError("base_revision must be an integer")
+
+
+def _track_exam_client(attempt: ExamAttempt, client_id: str) -> bool:
+    """Remember which browser tab writes the attempt; flag a second tab/device.
+
+    Must run while ``attempt`` is locked with select_for_update.
+    """
+
+    if not client_id:
+        return False
+    now = timezone.now()
+    previous = attempt.active_client_id
+    concurrent = bool(
+        previous
+        and previous != client_id
+        and attempt.active_client_seen_at
+        and now - attempt.active_client_seen_at < CONCURRENT_CLIENT_WINDOW
+    )
+    if concurrent:
+        pair = "|".join(sorted([previous, client_id]))
+        ExamIntegrityEvent.objects.get_or_create(
+            attempt=attempt,
+            client_event_id="cs-" + hashlib.sha1(pair.encode("ascii")).hexdigest()[:40],
+            defaults={
+                "event_type": ExamIntegrityEvent.EventType.CONCURRENT_SESSION,
+                "detail": "exam opened in another tab or device",
+                "client_at": now,
+            },
+        )
+    stale = not attempt.active_client_seen_at or now - attempt.active_client_seen_at > timedelta(seconds=30)
+    if previous != client_id or stale:
+        attempt.active_client_id = client_id
+        attempt.active_client_seen_at = now
+        attempt.save(update_fields=["active_client_id", "active_client_seen_at", "updated_at"])
+    return concurrent
+
+
+def _save_answer(attempt: ExamAttempt, question: ExamQuestion, data: dict) -> ExamAnswer:
+    """Validate and store a student answer. Never calls external services."""
+
     answer, _ = ExamAnswer.objects.get_or_create(attempt=attempt, question=question)
-    warning = ""
     if question.question_type == ExamQuestion.QuestionType.OPEN_TEXT:
         answer.text_answer = str(data.get("text_answer") or "")[:50000]
     elif question.question_type == ExamQuestion.QuestionType.SINGLE_CHOICE:
@@ -893,19 +958,39 @@ def _save_answer(attempt: ExamAttempt, question: ExamQuestion, data: dict) -> tu
         if len(xml.encode("utf-8")) > MAX_DIAGRAM_XML_BYTES:
             raise ValueError("diagram is too large")
         answer.diagram_xml = xml
-        if xml and data.get("upload_to_drive", True):
-            safe_student = re.sub(r"[^A-Za-z0-9_-]+", "_", attempt.student.full_name)[:50]
-            filename = f"exam-{attempt.exam_id}-student-{safe_student}-question-{question.position}.drawio"
-            try:
-                drive_url = upload_exam_diagram(xml, filename, answer.diagram_file_url)
-                if drive_url:
-                    answer.diagram_file_url = drive_url
-                else:
-                    warning = "Google Drive is not configured; diagram XML was saved in the database"
-            except Exception:
-                warning = "Google Drive upload failed; diagram XML was saved in the database"
+    answer.revision = (answer.revision or 0) + 1
     answer.save()
-    return answer, warning
+    return answer
+
+
+def _diagram_upload_requested(question: ExamQuestion, data: dict) -> bool:
+    return (
+        question.question_type == ExamQuestion.QuestionType.DIAGRAM
+        and bool(str(data.get("diagram_xml") or ""))
+        and bool(data.get("upload_to_drive", True))
+    )
+
+
+def _upload_diagram_answer(attempt: ExamAttempt, question: ExamQuestion, answer: ExamAnswer) -> str:
+    """Copy a saved diagram to Google Drive.
+
+    Runs after the attempt row lock is released: the Drive call can take many
+    seconds, and holding the lock made every autosave of the student wait
+    behind it (and the worker run into the gunicorn timeout -> 502).
+    """
+
+    safe_student = re.sub(r"[^A-Za-z0-9_-]+", "_", attempt.student.full_name)[:50]
+    filename = f"exam-{attempt.exam_id}-student-{safe_student}-question-{question.position}.drawio"
+    try:
+        drive_url = upload_exam_diagram(answer.diagram_xml, filename, answer.diagram_file_url)
+    except Exception:
+        logger.warning("Google Drive upload failed for exam answer %s", answer.pk, exc_info=True)
+        return "Google Drive upload failed; diagram XML was saved in the database"
+    if not drive_url:
+        return "Google Drive is not configured; diagram XML was saved in the database"
+    ExamAnswer.objects.filter(pk=answer.pk).update(diagram_file_url=drive_url)
+    answer.diagram_file_url = drive_url
+    return ""
 
 
 @_teacher_required
@@ -1661,7 +1746,9 @@ def student_exam_answer_api(request: HttpRequest, exam_id: int, question_id: int
 
     data = _json_body(request)
     rate_scope = "exam_diagram_upload" if data.get("upload_to_drive") else "exam_answer_save"
-    rate_limit = 30 if data.get("upload_to_drive") else 600
+    # Autosave fires on typing pauses for every question; 600/hour could block
+    # a student for the rest of a long exam. The client debounces saves.
+    rate_limit = 30 if data.get("upload_to_drive") else 2400
     if request_is_limited(
         rate_scope,
         str(student.id),
@@ -1673,6 +1760,8 @@ def student_exam_answer_api(request: HttpRequest, exam_id: int, question_id: int
         return response
 
     try:
+        client_id = _exam_client_id(data)
+        base_revision = _base_revision(data)
         with transaction.atomic():
             attempt = get_object_or_404(
                 ExamAttempt.objects.select_for_update().select_related("exam", "student"),
@@ -1690,9 +1779,24 @@ def student_exam_answer_api(request: HttpRequest, exam_id: int, question_id: int
                 id=question_id,
                 exam_id=exam_id,
             )
-            answer, warning = _save_answer(attempt, question, data)
+            concurrent = _track_exam_client(attempt, client_id)
+            if base_revision is not None:
+                current = ExamAnswer.objects.filter(attempt=attempt, question=question).first()
+                if (current.revision if current else 0) != base_revision:
+                    # Another tab/device saved a newer answer: do not overwrite it.
+                    return JsonResponse({
+                        "ok": False,
+                        "conflict": True,
+                        "concurrent": concurrent,
+                        "error": "answer was changed in another tab or device",
+                        "answer": _answer_student(current),
+                    }, status=409)
+            answer = _save_answer(attempt, question, data)
+        warning = ""
+        if _diagram_upload_requested(question, data):
+            warning = _upload_diagram_answer(attempt, question, answer)
         return JsonResponse(
-            {"ok": True, "answer": _answer_student(answer), "warning": warning}
+            {"ok": True, "answer": _answer_student(answer), "warning": warning, "concurrent": concurrent}
         )
     except ValueError as exc:
         return _api_error(str(exc))
@@ -1795,6 +1899,9 @@ def student_exam_submit_api(request: HttpRequest, exam_id: int):
             if not isinstance(raw_answers, list):
                 raise ValueError("answers must be an array")
             questions = {question.id: question for question in attempt.exam.questions.all()}
+            concurrent = _track_exam_client(attempt, _exam_client_id(data))
+            current_revisions = dict(attempt.answers.values_list("question_id", "revision"))
+            skipped_stale = 0
             for row in raw_answers:
                 if not isinstance(row, dict):
                     raise ValueError("each answer must be an object")
@@ -1802,11 +1909,21 @@ def student_exam_submit_api(request: HttpRequest, exam_id: int):
                 question = questions.get(question_id)
                 if not question:
                     raise ValueError("answer contains an unknown question")
+                base_revision = _base_revision(row)
+                if base_revision is not None and current_revisions.get(question_id, 0) != base_revision:
+                    # A newer answer from another tab is already stored: keep it.
+                    skipped_stale += 1
+                    continue
                 final_row = dict(row)
                 final_row["upload_to_drive"] = False
                 _save_answer(attempt, question, final_row)
             _finish_attempt(attempt, ExamAttempt.Status.SUBMITTED)
-        return JsonResponse({"ok": True, "attempt": _attempt_summary(attempt)})
+        return JsonResponse({
+            "ok": True,
+            "attempt": _attempt_summary(attempt),
+            "skipped_stale": skipped_stale,
+            "concurrent": concurrent,
+        })
     except ValueError as exc:
         return _api_error(str(exc))
     except Exception as exc:

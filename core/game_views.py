@@ -1,6 +1,7 @@
 import logging
 import re
 import secrets
+import sys
 import unicodedata
 from math import ceil, log2
 from datetime import timedelta
@@ -14,6 +15,7 @@ from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django.views.decorators.http import require_GET, require_http_methods, require_POST
 
+from .error_reports import remember_exception
 from .exam_views import _api_error, _json_body, _student, _teacher
 from .models import (
     ClassGroup,
@@ -70,6 +72,7 @@ def _json_errors(view_func):
         except ValueError as exc:
             return _api_error(str(exc), 400)
         except Exception:
+            remember_exception(request, sys.exc_info())
             logger.exception("Game endpoint failed: %s", view_func.__name__)
             return _api_error("internal server error", 500)
 
